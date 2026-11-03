@@ -5,7 +5,8 @@ export default example({
   title: 'Штамп движка: connect() замечает, что схему не обновили',
   summary:
     'up() пишет в комментарий схемы ревизию, версию пакета и хэш его SQL-файлов. Если после обновления пакета ' +
-    'забыть вызвать up(), функции в базе останутся старыми — connect() это заметит и предупредит.',
+    'забыть вызвать up(), функции в базе останутся старыми — connect() это заметит и предупредит. Схему letopis 1.x ' +
+    '2.0 не обновляет: она ставится только заново.',
   tables: [],
   covers: ['nuance.engine-stamp'],
   steps: [
@@ -20,9 +21,9 @@ export default example({
       },
     },
     {
-      title: 'Схему «поставила старая версия»',
+      title: 'Схему поставила неизвестная версия',
       text:
-        'Изображаем схему версии до 1.4: в комментарии только ревизия, штампа нет. Ревизия та же, поэтому ' +
+        'Изображаем схему без штампа движка: в комментарии только ревизия. Ревизия та же, поэтому ' +
         '`connect()` подключается, но предупреждает и называет команду, которая всё исправит.',
       run: async ({ admin, connect, warnings, dsn, schema, up }) => {
         await admin.unsafe(`comment on schema "${schema}" is 'letopis ddl_revision=${DDL_REVISION}'`);
@@ -53,6 +54,23 @@ export default example({
         const again = await up({ dsn: dsn.admin, schema, quiet: true }).then(() => 'поставлено', (e: Error) => e.message);
         await admin.unsafe(`comment on schema "${schema}" is '${comment}'`); // скрыть
         return { 'connect() предупредил': printed, 'up() отказал': again };
+      },
+    },
+    {
+      title: 'Схема letopis 1.x — только заново',
+      text:
+        'Изображаем схему letopis 1.x: ревизия 7. Совместимости с 1.x у 2.0 нет: `connect()` и `up()` отказывают с ' +
+        '`invalid_data` ещё до любых изменений и подсказывают `up({ schema, fresh: true })` — схема пересоздаётся, ' +
+        'данные 1.x не переносятся.',
+      run: async ({ admin, connect, dsn, schema, up: installed }) => {
+        const [row] = await admin`select obj_description(oid, 'pg_namespace') as comment from pg_namespace where nspname = ${schema}`;
+        const comment = String(row.comment);
+        await admin.unsafe(`comment on schema "${schema}" is 'letopis ddl_revision=7'`);
+        const why = (e: Error) => e.message;
+        const conn = await connect({ dsn: dsn.app, schema, token: installed.tenant!.token! }).then(() => 'подключено', why);
+        const again = await up({ dsn: dsn.admin, schema, quiet: true }).then(() => 'поставлено', why);
+        await admin.unsafe(`comment on schema "${schema}" is '${comment}'`); // скрыть
+        return { 'connect()': conn, 'up()': again };
       },
     },
   ],

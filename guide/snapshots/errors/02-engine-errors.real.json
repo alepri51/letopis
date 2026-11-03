@@ -11,11 +11,11 @@
       "password": "Ромашка-2026!"
     },
     "up": {
-      "serviceKey": "lts_9ca18800e00d36c4b7a8ade64efa0b376ae80068fe2f7cab83cd0c57d09620eb",
+      "serviceKey": "lts_0b7bfb883ac26f8926ad5df7bf28dc3db39d00b378c135f45e6503b32cbc00f7",
       "tenant": {
         "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
         "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "e430d450c5deed4cad58fb1ada3d8ca34461e65bfd5799773351ef1fcea20e90",
+        "token": "5cf2868b1c1fa7066ac15b078f80b354a56501deaf21d2bf5afc52ebde505a31",
         "created": true
       }
     }
@@ -64,8 +64,8 @@
     {
       "result": null,
       "error": {
-        "code": "use_reclass",
-        "message": "letopis: use_reclass: у класса Shop или Category есть ключ: id меняется, используйте reclass()",
+        "code": "immutable_key",
+        "message": "letopis: immutable_key: класс строки Shop неизменен: объект другого класса — новый объект",
         "detail": {}
       },
       "entity": [],

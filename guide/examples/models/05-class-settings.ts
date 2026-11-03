@@ -1,4 +1,4 @@
-import { syncModels, describeText } from 'letopis';
+import { syncModels } from 'letopis';
 import { hub } from 'letopis/model';
 import { z } from 'zod';
 import { example } from '../../kit/example.ts';
@@ -9,11 +9,11 @@ const Product = hub('Product', { fields: { title: z.string() }, meta: { title: '
 let ping: { id: string };
 
 export default example({
-  title: 'Настройки класса: без истории, владелец-автор, метаданные, описание модели',
+  title: 'Настройки класса: без истории, владелец-автор, метаданные',
   summary:
     'history: false выключает журнал класса. ownerDefault: \'actor\' делает владельцем новой строки самого ' +
-    'пользователя. meta — свободные метаданные для интерфейса. db.describe() отдаёт описание всей модели.',
-  covers: ['class.history', 'class.ownerDefault', 'db.describe', 'export.describeText', 'nuance.history-false'],
+    'пользователя. meta — свободные метаданные для интерфейса: их, как и всё описание класса, отдаёт реестр подключения.',
+  covers: ['class.history', 'class.ownerDefault', 'class.meta', 'db.registry', 'nuance.history-false'],
   steps: [
     {
       title: 'Три класса с настройками',
@@ -44,12 +44,17 @@ export default example({
       },
     },
     {
-      title: 'Описание модели для интерфейса',
-      text: '`db.describe()` отдаёт классы с полями и метаданными; `describeText` — то же коротким текстом (удобно вставить в запрос к ИИ).',
+      title: 'Настройки класса — в реестре подключения',
+      text:
+        '`db.registry` — описания классов, которые подключение прочло из базы: `find(имя)` отдаёт поля (`schema`), ключ, ' +
+        'концы, `history`, `ownerDefault` и `meta`. Так интерфейс строит меню по `meta.title` и `meta.order`. ИИ-агенту ' +
+        'модель отдаёт инструмент MCP `letopis_model` (глава «ИИ-агенты: MCP»).',
       run: async ({ db }) => {
-        const d = await db.describe();
-        const product = d.classes.find((c) => c.name === 'Product');
-        return { productMeta: product?.meta, text: describeText(d).split('\n').filter((l) => /Product|Ping|Draft/.test(l)) };
+        const pick = (name: string) => {
+          const c = db.registry.find(name)!;
+          return { history: c.history, ownerDefault: c.ownerDefault, meta: c.meta };
+        };
+        return { Ping: pick('Ping'), Draft: pick('Draft'), Product: pick('Product') };
       },
     },
   ],

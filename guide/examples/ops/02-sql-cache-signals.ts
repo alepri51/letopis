@@ -1,12 +1,12 @@
-import { describeText, Registry } from 'letopis';
+import { Registry } from 'letopis';
 import { example } from '../../kit/example.ts';
 import { seedShop } from '../../kit/shop.ts';
 
 export default example({
-  title: 'Описание модели, свой SQL с правами сессии, кэш по сроку, сигналы',
+  title: 'Реестр классов, свой SQL с правами сессии, кэш по сроку, сигналы',
   summary:
-    'describe() — описание модели в виде данных (для агентов и генераторов кода), describeText — то же текстом. ' +
-    'db.sql и db.transaction — свои SQL-запросы в той же сессии и под RLS. Кэш может работать и без сигналов — по сроку.',
+    'db.registry — описания классов, которые подключение держит в памяти. db.sql и db.transaction — свои SQL-запросы ' +
+    'в той же сессии и под RLS. Кэш может работать и без сигналов — по сроку.',
   tables: [],
   covers: ['db.registry', 'db.sql', 'db.transaction', 'db.flushSignals', 'cache.ttlOnly', 'cache.max', 'watch.batch', 'watch.pollMs', 'signals.class', 'connect.sql'],
   steps: [
@@ -30,13 +30,6 @@ export default example({
           'leafType Product.price / title': [db.registry.leafType('Product', ['price']), db.registry.leafType('Product', ['title'])],
           'свой реестр после load: столько же классов': own.all().length === db.registry.all().length,
         };
-      },
-    },
-    {
-      title: 'describe и describeText',
-      run: async ({ db }) => {
-        const d = db.describe();
-        return { 'классов (не системных)': d.classes.filter((c) => !c.system).length, 'текст, начало': describeText(d).split('\n').slice(0, 3) };
       },
     },
     {

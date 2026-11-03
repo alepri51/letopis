@@ -13,8 +13,8 @@ export default example({
     'ключ { $key } или внешний идентификатор { $ext }. Загружать может только администраторское подключение.',
   tables: ['counts'],
   covers: [
-    'db.load', 'load.duplicates', 'load.existing', 'load.batch', 'load.commitEvery', 'load.verify', 'load.class', 'load.tenant',
-    'load.agent', 'load.as', 'error.duplicate', 'error.class_not_loadable', 'error.admin_required', 'nuance.load-admin-only',
+    'db.load', 'load.duplicates', 'load.existing', 'load.batch', 'load.commitEvery', 'load.class', 'load.tenant',
+    'load.agent', 'load.as', 'error.duplicate', 'error.deleted', 'error.class_not_loadable', 'error.admin_required', 'nuance.load-admin-only',
   ],
   steps: [
     {
@@ -28,11 +28,11 @@ export default example({
     },
     {
       title: 'Магазин и два товара одним вызовом',
-      text: 'Товар ссылается на магазин его ключом: `{ $key: [\'Ромашка\'] }`. `verify: true` — в конце база ещё раз проверяет загруженные строки.',
+      text: 'Товар ссылается на магазин его ключом: `{ $key: [\'Ромашка\'] }`. `agent` — кто загружал: имя попадает в журнал рядом с автором.',
       run: async () => adm.load({
         Shop: [{ name: 'Ромашка' }],
         Product: [{ sku: 'K-1', title: 'Чайник', price: 2500, Shop: shop }, { sku: 'M-1', title: 'Кружка', price: 400, Shop: shop }],
-      }, { verify: true, agent: 'загрузка прайса' }),
+      }, { agent: 'загрузка прайса' }),
     },
     {
       title: 'Один товар дважды во входе',
@@ -78,6 +78,24 @@ export default example({
       title: 'Обычное подключение загружать не может',
       run: async ({ db }) => db.load({ Product: [{ sku: 'X-1', title: 'Ложка', price: 100, Shop: shop }] }),
       expect: { error: 'admin_required' },
+    },
+    {
+      title: 'Объект жил раньше и удалён — deleted',
+      text: 'Кружку удалили. Её id занят историей: загрузка объекта с тем же ключом по умолчанию — ошибка `deleted`, и ничего не записано.',
+      run: async () => {
+        await adm.Product({ sku: 'M-1' }).delete({ confirm: true }).rows();
+        return adm.load({ Product: [{ sku: 'M-1', title: 'Кружка', price: 450, Shop: shop }] });
+      },
+      expect: { error: 'deleted' },
+    },
+    {
+      title: 'existing: update возвращает удалённый объект',
+      text: 'С `existing: \'update\'` удалённый объект оживает новой версией `create` — с тем же id, прежние версии остаются в журнале.',
+      run: async () => {
+        const report = await adm.load({ Product: [{ sku: 'M-1', title: 'Кружка', price: 450, Shop: shop }] }, { existing: 'update' });
+        const versions = await adm.Product({ sku: 'M-1' }).versions();
+        return { 'загружено': report.loaded, 'версии': versions.map((v) => `v${v.rev} ${v.op} ${v.data.price}`) };
+      },
     },
   ],
 });

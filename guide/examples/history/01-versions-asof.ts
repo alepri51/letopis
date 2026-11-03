@@ -4,13 +4,12 @@ import { syncShop } from '../../kit/shop.ts';
 let kettle: { id: string }, t1: string;
 
 export default example({
-  title: 'Версии, срез на момент, сравнение и «кто менял»',
+  title: 'Версии и срез на момент',
   summary:
     'Каждая правка — новая версия в журнале: что стало, кто, когда и почему. versions() отдаёт их по порядку, ' +
-    'asOf(момент) — состояние на любой момент, diff — что изменилось между версиями, blame — кто последним менял ' +
-    'каждое поле.',
+    'asOf(момент) — состояние на любой момент. Журнал хранит каждую версию: прореживания и обрезки истории нет.',
   tables: ['log'],
-  covers: ['chain.versions', 'chain.asOf', 'chain.diff', 'chain.blame', 'nuance.reason-in-log', 'nuance.asof-reverse-once'],
+  covers: ['chain.versions', 'chain.asOf', 'nuance.reason-in-log', 'nuance.asof-reverse-once'],
   steps: [
     {
       title: 'Товар и три правки — с причинами',
@@ -38,14 +37,11 @@ export default example({
       },
     },
     {
-      title: 'Что изменилось между первой и последней версией',
-      text: '`diff({ from, to })` сравнивает две версии по полям: путь, было, стало.',
-      run: async ({ db }) => db.Product(kettle).diff({ from: 1, to: 4 }),
-    },
-    {
-      title: 'Кто последним менял каждое поле',
-      text: '`blame()` — для каждого поля версия, которая его последней изменила: номер, автор, время, вид операции.',
-      run: async ({ db }) => db.Product(kettle).blame(),
+      title: 'Последние версии — новые первыми',
+      text:
+        '`sort()` и `limit()` работают и для версий: `sort("at", "desc").limit(2)` — две последние правки, ' +
+        'ограничение — в самом запросе. Что изменила версия, видно, если сравнить её с предыдущей.',
+      run: async ({ db }) => (await db.Product(kettle).sort('at', 'desc').limit(2).versions()).map((v) => ({ rev: v.rev, price: v.data.price, reason: v.reason })),
     },
     {
       title: 'Срез по обратному переходу: товар в двух категориях — один раз',

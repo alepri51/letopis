@@ -42,7 +42,7 @@
         },
         "external": 0,
         "portions": 1,
-        "ms": 289.8238999999958
+        "ms": 325.8180999999968
       },
       "error": null,
       "entity": [],
@@ -58,7 +58,7 @@
       "result": null,
       "error": {
         "code": "not_empty",
-        "message": "letopis: not_empty: первая заливка — только в пустую схему: в entity и log, кроме строк системных классов (Class, Account, member, Resource, rule) и записей reset, ничего быть не должно",
+        "message": "letopis: not_empty: первая заливка — только в пустую схему: в entity и log, кроме строк системных классов (Class, Account, member, Resource, rule), ничего быть не должно",
         "detail": null
       },
       "entity": [],

@@ -11,11 +11,11 @@
       "password": "Ромашка-2026!"
     },
     "up": {
-      "serviceKey": "lts_4690ddb8f22461721e4fef7f7fc8d5b8ea027911da52abd043b5f27e31abd70c",
+      "serviceKey": "lts_a987158fad9edfa3ab0f5c240a30b94bab366a954c5c57daf4f27d18d3bc0de9",
       "tenant": {
         "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
         "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "9a7a4f2cf0544f919483e7a2e493cabcf782cfd1bb56faf66327b702ca3b79c8",
+        "token": "e3c5d78057c9dc2b821af0edc3c0edddcd526a1f5375c692a87f1bb7b65f8cf5",
         "created": true
       }
     }
@@ -113,13 +113,39 @@
     },
     {
       "result": {
-        "методов цепочки": 44,
-        "методов db": 35,
-        "зарезервировано имён": 80,
-        "среди них where?": false,
-        "ревизия движка": 7
+        "typed.Shop(…).count()": 1,
+        "loose(typed) — тот же объект": true,
+        "loose(typed)[name]().count()": 1
       },
       "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "методов цепочки": 35,
+        "методов db": 22,
+        "зарезервировано имён": 59,
+        "среди них where?": false,
+        "ревизия движка": 8
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": null,
+      "error": {
+        "code": "invalid_class",
+        "message": "letopis: invalid_class: hub(): имя count занято методом цепочки или корня db — шаг с таким именем до класса не дойдёт",
+        "detail": null
+      },
       "entity": [],
       "removed": [],
       "log": [],

@@ -67,8 +67,8 @@ export default example({
     {
       title: 'Аккаунт System удалить нельзя',
       text:
-        'Аккаунту System принадлежат служебные строки установки в `secret` — ключ прав и сигналов, строки-замки, ' +
-        'чекпоинты проекторов. Удалить её не может никто: `acl_denied`.',
+        'Аккаунту System принадлежат служебные строки установки в `secret` — ключ прав и сигналов, строки-замки. ' +
+        'Удалить её не может никто: `acl_denied`.',
       run: async () => root.Account(system).delete({ confirm: true }).rows(),
       expect: { error: 'acl_denied' },
     },

@@ -27,9 +27,9 @@ const SYSTEM = '2eba6d0a-1edd-4bb6-a85a-a703dab49035';
 const USER = { name: 'Анна', login: 'anna@romashka.ru', password: 'Ромашка-2026!' };
 const TENANT = 'Ромашка';
 // Версия пакета и хэш его SQL-файлов меняются от выпуска к выпуску — в снимке они метки, иначе снимки менялись бы
-// при каждом поднятии версии. «до 1.4.0» в тексте предупреждения — не текущая версия, его не трогаем.
+// при каждом поднятии версии.
 const PKG_VERSION = JSON.parse(readFileSync(join(ROOT, '..', 'lib', 'package.json'), 'utf8')).version as string;
-const VERSION_RX = new RegExp(`(?<!до )${PKG_VERSION.replace(/[.]/g, '\\.')}(?![0-9])`, 'g');
+const VERSION_RX = new RegExp(`${PKG_VERSION.replace(/[.]/g, '\\.')}(?![0-9])`, 'g');
 
 
 // ---------- поиск примеров и кода шагов ----------
@@ -238,7 +238,7 @@ class Labels {
     if (Array.isArray(v)) return v.map((x) => this.value(x));
     if (v && typeof v === 'object') {
       const out: Rec = {};
-      // длительность (ms в отчётах load, import, maintain) от прогона к прогону разная — метка
+      // длительность (ms в отчёте load) от прогона к прогону разная — метка
       for (const [k, x] of Object.entries(v)) out[k] = k === 'ms' && typeof x === 'number' ? '‹мс›' : this.value(x);
       return out;
     }

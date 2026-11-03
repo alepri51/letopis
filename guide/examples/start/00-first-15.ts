@@ -43,7 +43,7 @@ export default example({
         'Приложение подключается ролью из шага 1 — строка `r.login.dsn` — и работает от имени Анны: `token` — её ' +
         'сессия в арендаторе «Ромашка». Цепочки идут ролью приложения, права проверяет база. `admin` — строка ' +
         'администратора: по ней при первой надобности откроется второй пул — только для администраторских вызовов: ' +
-        '`syncModels`, `load`, `verify`, `maintain`, проекторов.',
+        '`syncModels`, `load` и `maintain`.',
       run: async ({ connect, dsn, schema }) => {
         db = await connect({ dsn: r.login!.dsn!, admin: dsn.admin, schema, token: r.tenant!.token! });
         return { арендатор: db.tenant };

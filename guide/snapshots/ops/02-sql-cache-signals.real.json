@@ -1,7 +1,7 @@
 {
-  "id": "ops/03-describe-sql-cache",
+  "id": "ops/02-sql-cache-signals",
   "context": {
-    "schema": "v2.g_ops_03_describe_sql_cache",
+    "schema": "v2.g_ops_02_sql_cache_signals",
     "dsn": {
       "admin": "postgres://postgres:test@localhost:15433/letopis",
       "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
@@ -11,11 +11,11 @@
       "password": "Ромашка-2026!"
     },
     "up": {
-      "serviceKey": "lts_2e5a3bb00e0a2bb03f9adf7767a63d93af945de9008b1e7106b23fd178b657d9",
+      "serviceKey": "lts_05a4c55c0827813dab93fd32722b2189d7a704e3cce6d54f4c73151c87bac3af",
       "tenant": {
         "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
         "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "b2e688063fab453729340172a6de48cfc6fd25a4904c5b6e2f6d7e0d32f567e4",
+        "token": "469aba94a77c20531ed61f22b521bc5086d00b65ae6670921323c49e2cd0abb0",
         "created": true
       }
     }
@@ -63,22 +63,6 @@
         "Vip",
         "line"
       ]
-    },
-    {
-      "result": {
-        "классов (не системных)": 7,
-        "текст, начало": [
-          "# letopis: модель схемы v2.g_ops_03_describe_sql_cache",
-          "",
-          "Цепочка: db.Класс(фильтр).Связь().Класс().rows(); запись — create, update, upsert, delete; история — versions(), asOf(), withDeleted()."
-        ]
-      },
-      "error": null,
-      "entity": [],
-      "removed": [],
-      "log": [],
-      "secret": [],
-      "signals": []
     },
     {
       "result": {

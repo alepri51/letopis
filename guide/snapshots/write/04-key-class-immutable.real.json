@@ -1,7 +1,7 @@
 {
-  "id": "write/04-rekey-reclass-anonymize",
+  "id": "write/04-key-class-immutable",
   "context": {
-    "schema": "v2.g_write_04_rekey_reclass_anonymize",
+    "schema": "v2.g_write_04_key_class_immutable",
     "dsn": {
       "admin": "postgres://postgres:test@localhost:15433/letopis",
       "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
@@ -11,11 +11,11 @@
       "password": "Ромашка-2026!"
     },
     "up": {
-      "serviceKey": "lts_0d5ebdd2cfa66219fdff8fde2ab210d78183bfb46b5f316e826cb986d5c353c9",
+      "serviceKey": "lts_a37ac68e30fd5ecd4f48da571c558c932db8b3f400da172437f357af6aa2b35d",
       "tenant": {
         "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
         "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "a2119815b91a1770efef5ecc6ae70f32ac7877e431ccfa3bb3a1f8ba416eda37",
+        "token": "47cd5665cf7dc85815e46c67c675a1c2634b11c0f3317cecda23e6573c3f5758",
         "created": true
       }
     }
@@ -29,7 +29,7 @@
     {
       "result": [
         {
-          "at": "2026-11-01T11:59:37.179926+00:00",
+          "at": "2026-11-03T03:55:02.612417+00:00",
           "id": "7086931d-8668-5648-9098-3adb44b163fc",
           "op": "create",
           "rev": 1,
@@ -46,7 +46,7 @@
           "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef"
+          "agent": "3356851c-7770-5039-ae13-90b95906c99e"
         }
       ],
       "error": null,
@@ -64,9 +64,9 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
+          "agent": "3356851c-7770-5039-ae13-90b95906c99e",
           "reason": null,
-          "at": "2026-11-01 11:59:37.117841+00"
+          "at": "2026-11-03 03:55:02.573124+00"
         },
         {
           "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
@@ -85,12 +85,12 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
+          "agent": "3356851c-7770-5039-ae13-90b95906c99e",
           "reason": null,
-          "at": "2026-11-01 11:59:37.130681+00"
+          "at": "2026-11-03 03:55:02.582522+00"
         },
         {
-          "id": "4f98d376-9765-526d-b096-254278ce04e7",
+          "id": "cc60b7df-fa10-53dd-83f2-da76584cdac8",
           "class": "Customer",
           "rev": 1,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -103,9 +103,9 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
+          "agent": "3356851c-7770-5039-ae13-90b95906c99e",
           "reason": null,
-          "at": "2026-11-01 11:59:37.146106+00"
+          "at": "2026-11-03 03:55:02.597395+00"
         },
         {
           "id": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
@@ -115,7 +115,7 @@
           "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
           "links": {
             "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
-            "Customer": "4f98d376-9765-526d-b096-254278ce04e7"
+            "Customer": "cc60b7df-fa10-53dd-83f2-da76584cdac8"
           },
           "data": {
             "number": "A-1",
@@ -124,9 +124,9 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
+          "agent": "3356851c-7770-5039-ae13-90b95906c99e",
           "reason": null,
-          "at": "2026-11-01 11:59:37.160904+00"
+          "at": "2026-11-03 03:55:02.604156+00"
         },
         {
           "id": "7086931d-8668-5648-9098-3adb44b163fc",
@@ -145,9 +145,9 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
+          "agent": "3356851c-7770-5039-ae13-90b95906c99e",
           "reason": null,
-          "at": "2026-11-01 11:59:37.179926+00"
+          "at": "2026-11-03 03:55:02.612417+00"
         }
       ],
       "removed": [],
@@ -165,10 +165,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
+          "agent": "3356851c-7770-5039-ae13-90b95906c99e",
           "reason": null,
-          "at": "2026-11-01 11:59:37.117841+00",
-          "tx": "2723010"
+          "at": "2026-11-03 03:55:02.573124+00",
+          "tx": "3755904"
         },
         {
           "seq": "42",
@@ -187,14 +187,14 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
+          "agent": "3356851c-7770-5039-ae13-90b95906c99e",
           "reason": null,
-          "at": "2026-11-01 11:59:37.130681+00",
-          "tx": "2723012"
+          "at": "2026-11-03 03:55:02.582522+00",
+          "tx": "3755906"
         },
         {
           "seq": "43",
-          "id": "4f98d376-9765-526d-b096-254278ce04e7",
+          "id": "cc60b7df-fa10-53dd-83f2-da76584cdac8",
           "rev": 1,
           "class": "Customer",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -206,10 +206,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
+          "agent": "3356851c-7770-5039-ae13-90b95906c99e",
           "reason": null,
-          "at": "2026-11-01 11:59:37.146106+00",
-          "tx": "2723014"
+          "at": "2026-11-03 03:55:02.597395+00",
+          "tx": "3755908"
         },
         {
           "seq": "44",
@@ -219,7 +219,7 @@
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
           "links": {
             "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
-            "Customer": "4f98d376-9765-526d-b096-254278ce04e7"
+            "Customer": "cc60b7df-fa10-53dd-83f2-da76584cdac8"
           },
           "data": {
             "number": "A-1",
@@ -228,10 +228,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
+          "agent": "3356851c-7770-5039-ae13-90b95906c99e",
           "reason": null,
-          "at": "2026-11-01 11:59:37.160904+00",
-          "tx": "2723016"
+          "at": "2026-11-03 03:55:02.604156+00",
+          "tx": "3755910"
         },
         {
           "seq": "45",
@@ -250,10 +250,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
+          "agent": "3356851c-7770-5039-ae13-90b95906c99e",
           "reason": null,
-          "at": "2026-11-01 11:59:37.179926+00",
-          "tx": "2723016"
+          "at": "2026-11-03 03:55:02.612417+00",
+          "tx": "3755910"
         }
       ],
       "secret": [],
@@ -267,30 +267,12 @@
       ]
     },
     {
-      "result": [
-        {
-          "at": "2026-11-01T11:59:37.231561+00:00",
-          "id": "bda0f1fb-5e5f-5fbd-8259-95ba4183977f",
-          "op": "rekey",
-          "rev": 1,
-          "data": {
-            "sku": "M-100",
-            "price": 400,
-            "title": "Кружка"
-          },
-          "tags": [],
-          "class": "Product",
-          "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
-          },
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
-          "moved": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74"
-        }
-      ],
-      "error": null,
+      "result": null,
+      "error": {
+        "code": "immutable_key",
+        "message": "letopis: immutable_key: ключевое поле класса Product менять нельзя: id изменился бы",
+        "detail": {}
+      },
       "entity": [
         {
           "id": "820d0964-969f-5ad6-bc38-f38710912f70",
@@ -305,12 +287,33 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
+          "agent": "3356851c-7770-5039-ae13-90b95906c99e",
           "reason": null,
-          "at": "2026-11-01 11:59:37.117841+00"
+          "at": "2026-11-03 03:55:02.573124+00"
         },
         {
-          "id": "4f98d376-9765-526d-b096-254278ce04e7",
+          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3356851c-7770-5039-ae13-90b95906c99e",
+          "reason": null,
+          "at": "2026-11-03 03:55:02.582522+00"
+        },
+        {
+          "id": "cc60b7df-fa10-53dd-83f2-da76584cdac8",
           "class": "Customer",
           "rev": 1,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -323,9 +326,9 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
+          "agent": "3356851c-7770-5039-ae13-90b95906c99e",
           "reason": null,
-          "at": "2026-11-01 11:59:37.146106+00"
+          "at": "2026-11-03 03:55:02.597395+00"
         },
         {
           "id": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
@@ -335,7 +338,7 @@
           "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
           "links": {
             "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
-            "Customer": "4f98d376-9765-526d-b096-254278ce04e7"
+            "Customer": "cc60b7df-fa10-53dd-83f2-da76584cdac8"
           },
           "data": {
             "number": "A-1",
@@ -344,74 +347,9 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
+          "agent": "3356851c-7770-5039-ae13-90b95906c99e",
           "reason": null,
-          "at": "2026-11-01 11:59:37.160904+00"
-        },
-        {
-          "id": "bda0f1fb-5e5f-5fbd-8259-95ba4183977f",
-          "class": "Product",
-          "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
-          },
-          "data": {
-            "sku": "M-100",
-            "price": 400,
-            "title": "Кружка"
-          },
-          "tags": [],
-          "op": "rekey",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
-          "reason": null,
-          "at": "2026-11-01 11:59:37.231561+00"
-        },
-        {
-          "id": "d0ae7e8a-3cfb-5619-940b-d086230c6ae6",
-          "class": "line",
-          "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {
-            "Order": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
-            "Product": "bda0f1fb-5e5f-5fbd-8259-95ba4183977f"
-          },
-          "data": {
-            "qty": 1,
-            "price": 400
-          },
-          "tags": [],
-          "op": "rekey",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
-          "reason": null,
-          "at": "2026-11-01 11:59:37.236566+00"
-        }
-      ],
-      "removed": [
-        {
-          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
-          "class": "Product",
-          "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
-          },
-          "data": {
-            "sku": "M-1",
-            "price": 400,
-            "title": "Кружка"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
-          "reason": null,
-          "at": "2026-11-01 11:59:37.130681+00"
+          "at": "2026-11-03 03:55:02.604156+00"
         },
         {
           "id": "7086931d-8668-5648-9098-3adb44b163fc",
@@ -430,331 +368,9 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
+          "agent": "3356851c-7770-5039-ae13-90b95906c99e",
           "reason": null,
-          "at": "2026-11-01 11:59:37.179926+00"
-        }
-      ],
-      "log": [
-        {
-          "seq": "41",
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
-          "rev": 1,
-          "class": "Shop",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {},
-          "data": {
-            "name": "Ромашка"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
-          "reason": null,
-          "at": "2026-11-01 11:59:37.117841+00",
-          "tx": "2723010"
-        },
-        {
-          "seq": "42",
-          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
-          "rev": 1,
-          "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
-          },
-          "data": {
-            "sku": "M-1",
-            "price": 400,
-            "title": "Кружка"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
-          "reason": null,
-          "at": "2026-11-01 11:59:37.130681+00",
-          "tx": "2723012"
-        },
-        {
-          "seq": "43",
-          "id": "4f98d376-9765-526d-b096-254278ce04e7",
-          "rev": 1,
-          "class": "Customer",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {},
-          "data": {
-            "name": "Ольга",
-            "email": "olga@mail.ru"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
-          "reason": null,
-          "at": "2026-11-01 11:59:37.146106+00",
-          "tx": "2723014"
-        },
-        {
-          "seq": "44",
-          "id": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
-          "rev": 1,
-          "class": "Order",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
-            "Customer": "4f98d376-9765-526d-b096-254278ce04e7"
-          },
-          "data": {
-            "number": "A-1",
-            "status": "new"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
-          "reason": null,
-          "at": "2026-11-01 11:59:37.160904+00",
-          "tx": "2723016"
-        },
-        {
-          "seq": "45",
-          "id": "7086931d-8668-5648-9098-3adb44b163fc",
-          "rev": 1,
-          "class": "line",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {
-            "Order": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
-            "Product": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74"
-          },
-          "data": {
-            "qty": 1,
-            "price": 400
-          },
-          "tags": [],
-          "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
-          "reason": null,
-          "at": "2026-11-01 11:59:37.179926+00",
-          "tx": "2723016"
-        },
-        {
-          "seq": "46",
-          "id": "bda0f1fb-5e5f-5fbd-8259-95ba4183977f",
-          "rev": 1,
-          "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
-          },
-          "data": {
-            "sku": "M-100",
-            "price": 400,
-            "title": "Кружка"
-          },
-          "tags": [],
-          "op": "rekey",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
-          "reason": null,
-          "at": "2026-11-01 11:59:37.231561+00",
-          "tx": "2723021"
-        },
-        {
-          "seq": "47",
-          "id": "d0ae7e8a-3cfb-5619-940b-d086230c6ae6",
-          "rev": 1,
-          "class": "line",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {
-            "Order": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
-            "Product": "bda0f1fb-5e5f-5fbd-8259-95ba4183977f"
-          },
-          "data": {
-            "qty": 1,
-            "price": 400
-          },
-          "tags": [],
-          "op": "rekey",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
-          "reason": null,
-          "at": "2026-11-01 11:59:37.236566+00",
-          "tx": "2723021"
-        },
-        {
-          "seq": "48",
-          "id": "7086931d-8668-5648-9098-3adb44b163fc",
-          "rev": 2,
-          "class": "line",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {
-            "Order": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
-            "Product": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74"
-          },
-          "data": {
-            "qty": 1,
-            "price": 400
-          },
-          "tags": [],
-          "op": "delete",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
-          "reason": null,
-          "at": "2026-11-01 11:59:37.239334+00",
-          "tx": "2723021"
-        },
-        {
-          "seq": "49",
-          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
-          "rev": 2,
-          "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
-          },
-          "data": {
-            "sku": "M-1",
-            "price": 400,
-            "title": "Кружка"
-          },
-          "tags": [],
-          "op": "delete",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
-          "reason": null,
-          "at": "2026-11-01 11:59:37.241224+00",
-          "tx": "2723021"
-        }
-      ],
-      "secret": [],
-      "signals": [
-        "Product",
-        "line"
-      ]
-    },
-    {
-      "result": [
-        {
-          "at": "2026-11-01T11:59:37.269362+00:00",
-          "id": "4f98d376-9765-526d-b096-254278ce04e7",
-          "op": "reclass",
-          "rev": 2,
-          "data": {
-            "name": "Ольга",
-            "email": "olga@mail.ru",
-            "discount": 10
-          },
-          "tags": [],
-          "class": "Vip",
-          "links": {},
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef"
-        }
-      ],
-      "error": null,
-      "entity": [
-        {
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
-          "class": "Shop",
-          "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {},
-          "data": {
-            "name": "Ромашка"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
-          "reason": null,
-          "at": "2026-11-01 11:59:37.117841+00"
-        },
-        {
-          "id": "4f98d376-9765-526d-b096-254278ce04e7",
-          "class": "Vip",
-          "rev": 2,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {},
-          "data": {
-            "name": "Ольга",
-            "email": "olga@mail.ru",
-            "discount": 10
-          },
-          "tags": [],
-          "op": "reclass",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
-          "reason": null,
-          "at": "2026-11-01 11:59:37.269362+00"
-        },
-        {
-          "id": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
-          "class": "Order",
-          "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
-            "Customer": "4f98d376-9765-526d-b096-254278ce04e7"
-          },
-          "data": {
-            "number": "A-1",
-            "status": "new"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
-          "reason": null,
-          "at": "2026-11-01 11:59:37.160904+00"
-        },
-        {
-          "id": "bda0f1fb-5e5f-5fbd-8259-95ba4183977f",
-          "class": "Product",
-          "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
-          },
-          "data": {
-            "sku": "M-100",
-            "price": 400,
-            "title": "Кружка"
-          },
-          "tags": [],
-          "op": "rekey",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
-          "reason": null,
-          "at": "2026-11-01 11:59:37.231561+00"
-        },
-        {
-          "id": "d0ae7e8a-3cfb-5619-940b-d086230c6ae6",
-          "class": "line",
-          "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {
-            "Order": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
-            "Product": "bda0f1fb-5e5f-5fbd-8259-95ba4183977f"
-          },
-          "data": {
-            "qty": 1,
-            "price": 400
-          },
-          "tags": [],
-          "op": "rekey",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
-          "reason": null,
-          "at": "2026-11-01 11:59:37.236566+00"
+          "at": "2026-11-03 03:55:02.612417+00"
         }
       ],
       "removed": [],
@@ -772,10 +388,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
+          "agent": "3356851c-7770-5039-ae13-90b95906c99e",
           "reason": null,
-          "at": "2026-11-01 11:59:37.117841+00",
-          "tx": "2723010"
+          "at": "2026-11-03 03:55:02.573124+00",
+          "tx": "3755904"
         },
         {
           "seq": "42",
@@ -794,14 +410,14 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
+          "agent": "3356851c-7770-5039-ae13-90b95906c99e",
           "reason": null,
-          "at": "2026-11-01 11:59:37.130681+00",
-          "tx": "2723012"
+          "at": "2026-11-03 03:55:02.582522+00",
+          "tx": "3755906"
         },
         {
           "seq": "43",
-          "id": "4f98d376-9765-526d-b096-254278ce04e7",
+          "id": "cc60b7df-fa10-53dd-83f2-da76584cdac8",
           "rev": 1,
           "class": "Customer",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -813,10 +429,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
+          "agent": "3356851c-7770-5039-ae13-90b95906c99e",
           "reason": null,
-          "at": "2026-11-01 11:59:37.146106+00",
-          "tx": "2723014"
+          "at": "2026-11-03 03:55:02.597395+00",
+          "tx": "3755908"
         },
         {
           "seq": "44",
@@ -826,7 +442,7 @@
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
           "links": {
             "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
-            "Customer": "4f98d376-9765-526d-b096-254278ce04e7"
+            "Customer": "cc60b7df-fa10-53dd-83f2-da76584cdac8"
           },
           "data": {
             "number": "A-1",
@@ -835,10 +451,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
+          "agent": "3356851c-7770-5039-ae13-90b95906c99e",
           "reason": null,
-          "at": "2026-11-01 11:59:37.160904+00",
-          "tx": "2723016"
+          "at": "2026-11-03 03:55:02.604156+00",
+          "tx": "3755910"
         },
         {
           "seq": "45",
@@ -857,61 +473,89 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
+          "agent": "3356851c-7770-5039-ae13-90b95906c99e",
           "reason": null,
-          "at": "2026-11-01 11:59:37.179926+00",
-          "tx": "2723016"
+          "at": "2026-11-03 03:55:02.612417+00",
+          "tx": "3755910"
+        }
+      ],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "заказы VIP": [
+          "A-1"
+        ],
+        "прежний Customer": 0
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3356851c-7770-5039-ae13-90b95906c99e",
+          "reason": null,
+          "at": "2026-11-03 03:55:02.573124+00"
         },
         {
-          "seq": "46",
-          "id": "bda0f1fb-5e5f-5fbd-8259-95ba4183977f",
-          "rev": 1,
+          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
           "class": "Product",
+          "rev": 1,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
           "links": {
             "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
           },
           "data": {
-            "sku": "M-100",
+            "sku": "M-1",
             "price": 400,
             "title": "Кружка"
           },
           "tags": [],
-          "op": "rekey",
+          "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
+          "agent": "3356851c-7770-5039-ae13-90b95906c99e",
           "reason": null,
-          "at": "2026-11-01 11:59:37.231561+00",
-          "tx": "2723021"
+          "at": "2026-11-03 03:55:02.582522+00"
         },
         {
-          "seq": "47",
-          "id": "d0ae7e8a-3cfb-5619-940b-d086230c6ae6",
-          "rev": 1,
-          "class": "line",
+          "id": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
+          "class": "Order",
+          "rev": 2,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
           "links": {
-            "Order": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
-            "Product": "bda0f1fb-5e5f-5fbd-8259-95ba4183977f"
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Customer": "710aa288-261c-507a-9cd0-7461b61f10c4"
           },
           "data": {
-            "qty": 1,
-            "price": 400
+            "number": "A-1",
+            "status": "new"
           },
           "tags": [],
-          "op": "rekey",
+          "op": "update",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
-          "reason": null,
-          "at": "2026-11-01 11:59:37.236566+00",
-          "tx": "2723021"
+          "agent": "3356851c-7770-5039-ae13-90b95906c99e",
+          "reason": "Ольга стала VIP",
+          "at": "2026-11-03 03:55:02.683987+00"
         },
         {
-          "seq": "48",
           "id": "7086931d-8668-5648-9098-3adb44b163fc",
-          "rev": 2,
           "class": "line",
+          "rev": 1,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
           "links": {
             "Order": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
             "Product": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74"
@@ -921,17 +565,75 @@
             "price": 400
           },
           "tags": [],
-          "op": "delete",
+          "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
+          "agent": "3356851c-7770-5039-ae13-90b95906c99e",
           "reason": null,
-          "at": "2026-11-01 11:59:37.239334+00",
-          "tx": "2723021"
+          "at": "2026-11-03 03:55:02.612417+00"
         },
         {
-          "seq": "49",
+          "id": "710aa288-261c-507a-9cd0-7461b61f10c4",
+          "class": "Vip",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ольга",
+            "email": "olga@mail.ru",
+            "discount": 10
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3356851c-7770-5039-ae13-90b95906c99e",
+          "reason": "Ольга стала VIP",
+          "at": "2026-11-03 03:55:02.660429+00"
+        }
+      ],
+      "removed": [
+        {
+          "id": "cc60b7df-fa10-53dd-83f2-da76584cdac8",
+          "class": "Customer",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ольга",
+            "email": "olga@mail.ru"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3356851c-7770-5039-ae13-90b95906c99e",
+          "reason": null,
+          "at": "2026-11-03 03:55:02.597395+00"
+        }
+      ],
+      "log": [
+        {
+          "seq": "41",
+          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3356851c-7770-5039-ae13-90b95906c99e",
+          "reason": null,
+          "at": "2026-11-03 03:55:02.573124+00",
+          "tx": "3755904"
+        },
+        {
+          "seq": "42",
           "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
-          "rev": 2,
+          "rev": 1,
           "class": "Product",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
           "links": {
@@ -943,17 +645,80 @@
             "title": "Кружка"
           },
           "tags": [],
-          "op": "delete",
+          "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
+          "agent": "3356851c-7770-5039-ae13-90b95906c99e",
           "reason": null,
-          "at": "2026-11-01 11:59:37.241224+00",
-          "tx": "2723021"
+          "at": "2026-11-03 03:55:02.582522+00",
+          "tx": "3755906"
         },
         {
-          "seq": "50",
-          "id": "4f98d376-9765-526d-b096-254278ce04e7",
-          "rev": 2,
+          "seq": "43",
+          "id": "cc60b7df-fa10-53dd-83f2-da76584cdac8",
+          "rev": 1,
+          "class": "Customer",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ольга",
+            "email": "olga@mail.ru"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3356851c-7770-5039-ae13-90b95906c99e",
+          "reason": null,
+          "at": "2026-11-03 03:55:02.597395+00",
+          "tx": "3755908"
+        },
+        {
+          "seq": "44",
+          "id": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
+          "rev": 1,
+          "class": "Order",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Customer": "cc60b7df-fa10-53dd-83f2-da76584cdac8"
+          },
+          "data": {
+            "number": "A-1",
+            "status": "new"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3356851c-7770-5039-ae13-90b95906c99e",
+          "reason": null,
+          "at": "2026-11-03 03:55:02.604156+00",
+          "tx": "3755910"
+        },
+        {
+          "seq": "45",
+          "id": "7086931d-8668-5648-9098-3adb44b163fc",
+          "rev": 1,
+          "class": "line",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Order": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
+            "Product": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74"
+          },
+          "data": {
+            "qty": 1,
+            "price": 400
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3356851c-7770-5039-ae13-90b95906c99e",
+          "reason": null,
+          "at": "2026-11-03 03:55:02.612417+00",
+          "tx": "3755910"
+        },
+        {
+          "seq": "46",
+          "id": "710aa288-261c-507a-9cd0-7461b61f10c4",
+          "rev": 1,
           "class": "Vip",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
           "links": {},
@@ -963,43 +728,72 @@
             "discount": 10
           },
           "tags": [],
-          "op": "reclass",
+          "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
-          "reason": null,
-          "at": "2026-11-01 11:59:37.269362+00",
-          "tx": "2723025"
+          "agent": "3356851c-7770-5039-ae13-90b95906c99e",
+          "reason": "Ольга стала VIP",
+          "at": "2026-11-03 03:55:02.660429+00",
+          "tx": "3755918"
+        },
+        {
+          "seq": "47",
+          "id": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
+          "rev": 2,
+          "class": "Order",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Customer": "710aa288-261c-507a-9cd0-7461b61f10c4"
+          },
+          "data": {
+            "number": "A-1",
+            "status": "new"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3356851c-7770-5039-ae13-90b95906c99e",
+          "reason": "Ольга стала VIP",
+          "at": "2026-11-03 03:55:02.683987+00",
+          "tx": "3755918"
+        },
+        {
+          "seq": "48",
+          "id": "cc60b7df-fa10-53dd-83f2-da76584cdac8",
+          "rev": 2,
+          "class": "Customer",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ольга",
+            "email": "olga@mail.ru"
+          },
+          "tags": [],
+          "op": "delete",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3356851c-7770-5039-ae13-90b95906c99e",
+          "reason": "Ольга стала VIP",
+          "at": "2026-11-03 03:55:02.705906+00",
+          "tx": "3755918"
         }
       ],
       "secret": [],
       "signals": [
         "Customer",
+        "Order",
         "Vip"
       ]
     },
     {
-      "result": [
-        {
-          "at": "2026-11-01T11:59:37.296693+00:00",
-          "id": "4f98d376-9765-526d-b096-254278ce04e7",
-          "op": "update",
-          "rev": 3,
-          "data": {
-            "name": "Ольга",
-            "email": "[erased]",
-            "discount": 10
-          },
-          "tags": [
-            "anonymized"
-          ],
-          "class": "Vip",
-          "links": {},
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef"
-        }
-      ],
+      "result": {
+        "Customer Ольга": [
+          "v1 create — без причины",
+          "v2 delete — Ольга стала VIP"
+        ],
+        "Vip Ольга": [
+          "v1 create — Ольга стала VIP"
+        ]
+      },
       "error": null,
       "entity": [
         {
@@ -1015,54 +809,12 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
+          "agent": "3356851c-7770-5039-ae13-90b95906c99e",
           "reason": null,
-          "at": "2026-11-01 11:59:37.117841+00"
+          "at": "2026-11-03 03:55:02.573124+00"
         },
         {
-          "id": "4f98d376-9765-526d-b096-254278ce04e7",
-          "class": "Vip",
-          "rev": 3,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {},
-          "data": {
-            "name": "Ольга",
-            "email": "[erased]",
-            "discount": 10
-          },
-          "tags": [
-            "anonymized"
-          ],
-          "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
-          "reason": null,
-          "at": "2026-11-01 11:59:37.296693+00"
-        },
-        {
-          "id": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
-          "class": "Order",
-          "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
-            "Customer": "4f98d376-9765-526d-b096-254278ce04e7"
-          },
-          "data": {
-            "number": "A-1",
-            "status": "new"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
-          "reason": null,
-          "at": "2026-11-01 11:59:37.160904+00"
-        },
-        {
-          "id": "bda0f1fb-5e5f-5fbd-8259-95ba4183977f",
+          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
           "class": "Product",
           "rev": 1,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -1071,37 +823,77 @@
             "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
           },
           "data": {
-            "sku": "M-100",
+            "sku": "M-1",
             "price": 400,
             "title": "Кружка"
           },
           "tags": [],
-          "op": "rekey",
+          "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
+          "agent": "3356851c-7770-5039-ae13-90b95906c99e",
           "reason": null,
-          "at": "2026-11-01 11:59:37.231561+00"
+          "at": "2026-11-03 03:55:02.582522+00"
         },
         {
-          "id": "d0ae7e8a-3cfb-5619-940b-d086230c6ae6",
+          "id": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
+          "class": "Order",
+          "rev": 2,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Customer": "710aa288-261c-507a-9cd0-7461b61f10c4"
+          },
+          "data": {
+            "number": "A-1",
+            "status": "new"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3356851c-7770-5039-ae13-90b95906c99e",
+          "reason": "Ольга стала VIP",
+          "at": "2026-11-03 03:55:02.683987+00"
+        },
+        {
+          "id": "7086931d-8668-5648-9098-3adb44b163fc",
           "class": "line",
           "rev": 1,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
           "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
           "links": {
             "Order": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
-            "Product": "bda0f1fb-5e5f-5fbd-8259-95ba4183977f"
+            "Product": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74"
           },
           "data": {
             "qty": 1,
             "price": 400
           },
           "tags": [],
-          "op": "rekey",
+          "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
+          "agent": "3356851c-7770-5039-ae13-90b95906c99e",
           "reason": null,
-          "at": "2026-11-01 11:59:37.236566+00"
+          "at": "2026-11-03 03:55:02.612417+00"
+        },
+        {
+          "id": "710aa288-261c-507a-9cd0-7461b61f10c4",
+          "class": "Vip",
+          "rev": 1,
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {},
+          "data": {
+            "name": "Ольга",
+            "email": "olga@mail.ru",
+            "discount": 10
+          },
+          "tags": [],
+          "op": "create",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3356851c-7770-5039-ae13-90b95906c99e",
+          "reason": "Ольга стала VIP",
+          "at": "2026-11-03 03:55:02.660429+00"
         }
       ],
       "removed": [],
@@ -1119,10 +911,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
+          "agent": "3356851c-7770-5039-ae13-90b95906c99e",
           "reason": null,
-          "at": "2026-11-01 11:59:37.117841+00",
-          "tx": "2723010"
+          "at": "2026-11-03 03:55:02.573124+00",
+          "tx": "3755904"
         },
         {
           "seq": "42",
@@ -1141,14 +933,14 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
+          "agent": "3356851c-7770-5039-ae13-90b95906c99e",
           "reason": null,
-          "at": "2026-11-01 11:59:37.130681+00",
-          "tx": "2723012"
+          "at": "2026-11-03 03:55:02.582522+00",
+          "tx": "3755906"
         },
         {
           "seq": "43",
-          "id": "4f98d376-9765-526d-b096-254278ce04e7",
+          "id": "cc60b7df-fa10-53dd-83f2-da76584cdac8",
           "rev": 1,
           "class": "Customer",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -1160,10 +952,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
+          "agent": "3356851c-7770-5039-ae13-90b95906c99e",
           "reason": null,
-          "at": "2026-11-01 11:59:37.146106+00",
-          "tx": "2723014"
+          "at": "2026-11-03 03:55:02.597395+00",
+          "tx": "3755908"
         },
         {
           "seq": "44",
@@ -1173,7 +965,7 @@
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
           "links": {
             "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
-            "Customer": "4f98d376-9765-526d-b096-254278ce04e7"
+            "Customer": "cc60b7df-fa10-53dd-83f2-da76584cdac8"
           },
           "data": {
             "number": "A-1",
@@ -1182,10 +974,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
+          "agent": "3356851c-7770-5039-ae13-90b95906c99e",
           "reason": null,
-          "at": "2026-11-01 11:59:37.160904+00",
-          "tx": "2723016"
+          "at": "2026-11-03 03:55:02.604156+00",
+          "tx": "3755910"
         },
         {
           "seq": "45",
@@ -1204,103 +996,15 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
+          "agent": "3356851c-7770-5039-ae13-90b95906c99e",
           "reason": null,
-          "at": "2026-11-01 11:59:37.179926+00",
-          "tx": "2723016"
+          "at": "2026-11-03 03:55:02.612417+00",
+          "tx": "3755910"
         },
         {
           "seq": "46",
-          "id": "bda0f1fb-5e5f-5fbd-8259-95ba4183977f",
+          "id": "710aa288-261c-507a-9cd0-7461b61f10c4",
           "rev": 1,
-          "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
-          },
-          "data": {
-            "sku": "M-100",
-            "price": 400,
-            "title": "Кружка"
-          },
-          "tags": [],
-          "op": "rekey",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
-          "reason": null,
-          "at": "2026-11-01 11:59:37.231561+00",
-          "tx": "2723021"
-        },
-        {
-          "seq": "47",
-          "id": "d0ae7e8a-3cfb-5619-940b-d086230c6ae6",
-          "rev": 1,
-          "class": "line",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {
-            "Order": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
-            "Product": "bda0f1fb-5e5f-5fbd-8259-95ba4183977f"
-          },
-          "data": {
-            "qty": 1,
-            "price": 400
-          },
-          "tags": [],
-          "op": "rekey",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
-          "reason": null,
-          "at": "2026-11-01 11:59:37.236566+00",
-          "tx": "2723021"
-        },
-        {
-          "seq": "48",
-          "id": "7086931d-8668-5648-9098-3adb44b163fc",
-          "rev": 2,
-          "class": "line",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {
-            "Order": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
-            "Product": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74"
-          },
-          "data": {
-            "qty": 1,
-            "price": 400
-          },
-          "tags": [],
-          "op": "delete",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
-          "reason": null,
-          "at": "2026-11-01 11:59:37.239334+00",
-          "tx": "2723021"
-        },
-        {
-          "seq": "49",
-          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
-          "rev": 2,
-          "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
-          },
-          "data": {
-            "sku": "M-1",
-            "price": 400,
-            "title": "Кружка"
-          },
-          "tags": [],
-          "op": "delete",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
-          "reason": null,
-          "at": "2026-11-01 11:59:37.241224+00",
-          "tx": "2723021"
-        },
-        {
-          "seq": "50",
-          "id": "4f98d376-9765-526d-b096-254278ce04e7",
-          "rev": 2,
           "class": "Vip",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
           "links": {},
@@ -1310,40 +1014,57 @@
             "discount": 10
           },
           "tags": [],
-          "op": "reclass",
+          "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
-          "reason": null,
-          "at": "2026-11-01 11:59:37.269362+00",
-          "tx": "2723025"
+          "agent": "3356851c-7770-5039-ae13-90b95906c99e",
+          "reason": "Ольга стала VIP",
+          "at": "2026-11-03 03:55:02.660429+00",
+          "tx": "3755918"
         },
         {
-          "seq": "51",
-          "id": "4f98d376-9765-526d-b096-254278ce04e7",
-          "rev": 3,
-          "class": "Vip",
+          "seq": "47",
+          "id": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
+          "rev": 2,
+          "class": "Order",
+          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "links": {
+            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Customer": "710aa288-261c-507a-9cd0-7461b61f10c4"
+          },
+          "data": {
+            "number": "A-1",
+            "status": "new"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "agent": "3356851c-7770-5039-ae13-90b95906c99e",
+          "reason": "Ольга стала VIP",
+          "at": "2026-11-03 03:55:02.683987+00",
+          "tx": "3755918"
+        },
+        {
+          "seq": "48",
+          "id": "cc60b7df-fa10-53dd-83f2-da76584cdac8",
+          "rev": 2,
+          "class": "Customer",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
           "links": {},
           "data": {
             "name": "Ольга",
-            "email": "[erased]",
-            "discount": 10
+            "email": "olga@mail.ru"
           },
-          "tags": [
-            "anonymized"
-          ],
-          "op": "update",
+          "tags": [],
+          "op": "delete",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "d8d0e516-9c29-5de2-b3ba-c8392500cbef",
-          "reason": null,
-          "at": "2026-11-01 11:59:37.296693+00",
-          "tx": "2723029"
+          "agent": "3356851c-7770-5039-ae13-90b95906c99e",
+          "reason": "Ольга стала VIP",
+          "at": "2026-11-03 03:55:02.705906+00",
+          "tx": "3755918"
         }
       ],
       "secret": [],
-      "signals": [
-        "Vip"
-      ]
+      "signals": []
     }
   ]
 }

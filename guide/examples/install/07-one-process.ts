@@ -30,14 +30,14 @@ export default example({
     {
       title: 'Одно подключение — два пула',
       text:
-        '`connect({ dsn, admin, token })`: цепочки и `db.sql` идут под ролью приложения и правами базы, а `verify()` — ' +
+        '`connect({ dsn, admin, token })`: цепочки и `db.sql` идут под ролью приложения и правами базы, а `maintain()` — ' +
         'администраторский вызов — открывает второй пул строкой администратора, с той же сессией Анны. Так же идут ' +
-        '`load`, `projector`, `rebuildAggregates`, `maintain` и `syncModels`.',
+        '`load` и `syncModels`.',
       run: async ({ dsn, schema }) => {
         db = await connect({ dsn: r.login!.dsn!, admin: dsn.admin, schema, token: r.tenant!.token!, max: 2 });
         const [who] = await db.sql`select current_user as role`;
-        const check = await db.verify();
-        return { 'цепочки и db.sql — роль': who.role, 'verify вторым пулом': check.ok };
+        const report = await db.maintain();
+        return { 'цепочки и db.sql — роль': who.role, 'maintain вторым пулом': report.skipped ? 'пропущен' : 'выполнен' };
       },
     },
     {

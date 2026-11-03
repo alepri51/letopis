@@ -1,7 +1,7 @@
 {
-  "id": "ops/04-cli",
+  "id": "ops/03-cli",
   "context": {
-    "schema": "v2.g_ops_04_cli",
+    "schema": "v2.g_ops_03_cli",
     "dsn": {
       "admin": "postgres://postgres:test@localhost:15433/letopis",
       "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
@@ -11,11 +11,11 @@
       "password": "Ромашка-2026!"
     },
     "up": {
-      "serviceKey": "lts_06fa89cdfb1d5701437f2186da7ded2eabbffb041e48bf7c1e0f1248ecb81d88",
+      "serviceKey": "lts_49863f952c7a6041b00609ec9dc9e2db0d0634a8b7349a6418a7441afbdb4048",
       "tenant": {
         "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
         "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "a80a8e29469807b2b71e5b29899e45aca018b0fd2eb43d8072c4648b22c09759",
+        "token": "9edd7a5ef652dfda44247bd4a708ae1641cfba611127960899b5d299acc0d980",
         "created": true
       }
     }
@@ -43,12 +43,28 @@
       ]
     },
     {
-      "result": [
-        "export interface CategoryData {",
-        "export interface CategoryLinks {",
-        "export interface CustomerData {",
-        "export interface CustomerLinks {}"
-      ],
+      "result": {
+        "код выхода": 0,
+        "начало файла": [
+          "export interface CategoryData {",
+          "export interface CategoryLinks {",
+          "export interface CategoryModel {",
+          "export interface CustomerData {"
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "код выхода": 1,
+        "ошибка": "letopis: no_session: нет действующей сессии",
+        "файл прежний": true
+      },
       "error": null,
       "entity": [],
       "removed": [],
@@ -70,7 +86,7 @@
           },
           "external": 0,
           "portions": 1,
-          "ms": 215.5358000000001
+          "ms": 221.25969999999506
         }
       },
       "error": null,
@@ -83,41 +99,12 @@
       ]
     },
     {
-      "result": [
-        "# letopis: модель схемы v2.g_ops_04_cli",
-        ""
-      ],
-      "error": null,
-      "entity": [],
-      "removed": [],
-      "log": [],
-      "secret": [],
-      "signals": []
-    },
-    {
       "result": {
-        "код выхода": 1,
-        "ошибка": "letopis: no_session: нет действующей сессии",
-        "model.txt начинается с": "# letopis: модель схемы v2.g_ops_04_cli"
-      },
-      "error": null,
-      "entity": [],
-      "removed": [],
-      "log": [],
-      "secret": [],
-      "signals": []
-    },
-    {
-      "result": {
-        "verify, код": 0,
-        "verify.ok": true,
-        "maintain": {
+        "код выхода": 0,
+        "отчёт": {
           "skipped": false,
           "sessions": 0,
           "codes": 0,
-          "thinned": 0,
-          "batches": 1,
-          "more": false,
           "queue": 0
         }
       },
@@ -134,21 +121,6 @@
         "letopis_query",
         "letopis_history"
       ],
-      "error": null,
-      "entity": [],
-      "removed": [],
-      "log": [],
-      "secret": [],
-      "signals": []
-    },
-    {
-      "result": {
-        "код выхода": 1,
-        "ошибки": [
-          "3:36 delete-preview: delete() без { confirm: true } — только предпросмотр: ничего не удаляется, а его результат не используется",
-          "4:24 unknown-name: класс или роль Prodct не найдены в моделях — похожие: Product"
-        ]
-      },
       "error": null,
       "entity": [],
       "removed": [],
