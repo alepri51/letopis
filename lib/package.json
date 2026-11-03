@@ -19,7 +19,7 @@
     "ai-agents",
     "agent-cheatsheet"
   ],
-  "license": "MIT",
+  "license": "PolyForm-Noncommercial-1.0.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/alepri51/letopis.git",
@@ -57,7 +57,8 @@
     "AGENT-CHEATSHEET.md",
     "llms.txt",
     "CHANGELOG.md",
-    "LICENSE"
+    "LICENSE",
+    "LICENSE-COMMERCIAL.md"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",

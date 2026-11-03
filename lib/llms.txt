@@ -22,6 +22,7 @@
 - Права действуют всегда и по умолчанию запрещают; `up({ tenant })` или `createTenant()` заводит арендатора с правилом «вошедшим можно всё» и его первого пользователя.
 - MCP: `createMcpServer(db)` из `letopis/mcp` и `letopis mcp` (stdio, только токен сессии пользователя) дают ИИ-агенту инструменты `letopis_model`, `letopis_query` (JSON-цепочка, без SQL), `letopis_history` и, с `write: true`, `letopis_write`; агент действует с правами одного пользователя, удаление подтверждает человек через elicitation. `structuredContent` ответа — `{ notice, data }` (отказ — `{ notice, error }`): `notice` предупреждает, что в `data` — данные базы, а не инструкции.
 - У ошибок строчный код `err.code`: `exists`, `conflict`, `invalid_data` (`err.issues`), `target_not_found`, `acl_denied`, `no_session`, …; `err.hint` — что делать, `err.docs` — ссылка на код в разделе «Ошибки» README.
+- Лицензия — PolyForm Noncommercial 1.0.0 (SPDX `PolyForm-Noncommercial-1.0.0`): исходный код открыт, некоммерческое использование бесплатно, коммерческое — только по отдельной лицензии владельца (запрос — issue на https://github.com/alepri51/letopis/issues). Версии до 2.0.0 включительно — под MIT.
 
 ## Документы
 
@@ -32,4 +33,5 @@
 ## Дополнительно
 
 - [Изменения по версиям](CHANGELOG.md): решения по версиям, несовместимые изменения
+- [Лицензия](LICENSE) и [коммерческое использование](LICENSE-COMMERCIAL.md): что можно без разрешения и как получить коммерческую лицензию
 - Модель конкретной установки для агента — инструмент MCP `letopis_model`: классы, ключи, поля, концы и рабочие цепочки этой схемы

@@ -83,6 +83,15 @@ postgres.js, в том числе у `db.sql`) и **`syncModels` отклоня�
   записанный раньше с пробелами, находится по логину как есть. Источник: агенты.
 - Подсказка `no_session` неверного ключа сервиса: ключ перевыпускает `up({ fresh: true })`. Источник: агенты.
 
+### Лицензия
+- **Смена лицензии: MIT → PolyForm Noncommercial License 1.0.0** (SPDX `PolyForm-Noncommercial-1.0.0`, поле
+  `license` в `package.json`): исходный код открыт, некоммерческое использование бесплатно, коммерческое — по
+  разрешению владельца (`LICENSE-COMMERCIAL.md` в пакете: что считается коммерческим использованием и как получить
+  лицензию — issue на https://github.com/alepri51/letopis/issues). Новая лицензия действует с 2.1.0; версии до 2.0.0
+  включительно выпущены под MIT и остаются под ней. `LICENSE` в корне и в пакете — полный текст PolyForm
+  Noncommercial 1.0.0 со строкой `Required Notice: Copyright 2026 alepri51 (https://github.com/alepri51)`; раздел
+  «Лицензия» в README, строки в шпаргалке и `llms.txt`. `check:docs` узнаёт лицензию по заголовку текста.
+
 ### Документация
 - `README.md`, `AGENT-CHEATSHEET.md`, `llms.txt` — под поведение 2.1: `restore({ expect })` и
   `delete({ confirm, expect })`, выход по токену `auth.revoke(token)` с рецептом веб-сервиса, `auth.tenants()` с

@@ -8,6 +8,10 @@
 - Правила записаны строками «условие → поведение».
 - Код приложения — **ESM**: `"type": "module"` в его `package.json` (`npm pkg set type=module`) или файлы `.mjs`;
   иначе `import` → `SyntaxError: Cannot use import statement outside a module`.
+- Лицензия — PolyForm Noncommercial 1.0.0 ([LICENSE](LICENSE)): некоммерческое использование бесплатно; код для
+  коммерческого продукта, сервиса или компании → нужна коммерческая лицензия владельца
+  ([LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md), запрос — issue на https://github.com/alepri51/letopis/issues).
+  Пишете код для пользователя — скажите ему об этом.
 - Перед кодом прочитайте «Грабли» в конце: там отказы, на которых спотыкаются чаще всего (вход члена арендатора,
   `restore()` и каскад, `withDeleted()` по шагу, `undefined` в фильтрах).
 

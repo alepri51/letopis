@@ -31,7 +31,11 @@ await svc.close()
 ```
 
 ESM, Node 22 и новее. Рантайм-зависимость одна — `postgres`; Zod 4 — необязательная peer-зависимость для
-описания моделей (`letopis/model`). Лицензия MIT.
+описания моделей (`letopis/model`).
+
+Лицензия — [PolyForm Noncommercial 1.0.0](LICENSE): исходный код открыт, некоммерческое использование бесплатно,
+коммерческое — по разрешению владельца ([`lib/LICENSE-COMMERCIAL.md`](lib/LICENSE-COMMERCIAL.md); запрос — issue на
+[GitHub](https://github.com/alepri51/letopis/issues)). Версии до 2.0.0 включительно — под MIT.
 
 ## Куда идти дальше
 
