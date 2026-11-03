@@ -47,4 +47,4 @@ cd lib && npm run prerelease
 ## Сообщить об ошибке или о внедрении
 
 - Ошибка — issue по шаблону: версии letopis, PostgreSQL и Node, минимальная цепочка, `err.code` и текст ошибки.
-- Внедрение — отчёт по форме [docs/adoption/TEMPLATE.md](docs/adoption/TEMPLATE.md).
+- Внедрение — issue с описанием задачи, версий и того, что мешало.
