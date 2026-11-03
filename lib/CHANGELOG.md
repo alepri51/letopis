@@ -144,6 +144,22 @@ postgres.js, в том числе у `db.sql`) и **`syncModels` отклоня�
   каждого удаления; таблица штатных ответов `restore()` (`not_deleted`, `restore_stale`, `target_not_found`, пустой)
   с сообщением пользователю «вещь уже у другого».
 - Рецепты: `syncModels` в нескольких арендаторах, текст для пользователя из `err.issues`.
+- Шпаргалка (`AGENT-CHEATSHEET.md`), раздел 6 — готовый рецепт «одна открытая выдача на вещь (ключ связи по вещи),
+  удаление участника по превью `delete({ confirm, expect })`, возврат `restore({ expect, partial: true })` с показом
+  пропусков `$why`» и вариант без `partial` с разбором `err.detail.stale`; форма превью и `err.detail.preview`, форма
+  `expect`; новый раздел «Веб-сервис безопасно»: арендатор только из серверной сессии, одно подключение сервиса и
+  `svc.as(account, { tenant })` на запрос вместо `connect({ token })` на каждый вход, экранирование `& < > " '` без
+  обработчиков из данных, ключ сервиса — файл с правами владельца вне репозитория (то же — README, раздел 10, и
+  `llms.txt`).
+- `versions()` по пути — только живые объекты (шпаргалка, раздел 10), история вещи, пока участник удалён, и что видно
+  через `withDeleted()`, когда id надгробия занят новой записью; `createTenant` — аргументы и ответ; `db.idOf` по концу
+  связи; `syncModels` через `svc.as()` без администраторского подключения; «Грабли» — `.nullable()`: `null`, а не
+  `undefined`.
+- Отказы второго раунда описаны в README («Восстановить: `restore`», «Строгий режим», «Ошибки»), шпаргалке и
+  `llms.txt`: `write.restore_already`, `write.restore_id_taken` и `write.restore_stale` по смыслу с `err.detail.stale`
+  (`after`, `live`, `why`), `write.partial_without_expect`, `api.begin_arg`, `api.token_not_active` у `connect({ token })`,
+  граница длины строки в тексте нарушения, `api.for_update_unsupported` с помехой; атомарность
+  `delete({ confirm, expect })` под гонкой.
 
 ### Ревизия движка 9
 - `restore(uuid, int default null)` вместо `restore(uuid)`; `auth_tenants()` — ещё `name`, `personal`; новые
