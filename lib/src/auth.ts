@@ -20,7 +20,7 @@ const scryptAsync = promisify(scrypt) as (password: string, salt: Buffer, keylen
 const SCRYPT = { N: 32768, r: 8, p: 1, maxmem: 64 * 1024 * 1024 };
 const KEYLEN = 32;
 
-/** Хэш пароля scrypt: `scrypt$N$r$p$соль$хэш` (формат 0.21). */
+/** Хэш пароля scrypt: `scrypt$N$r$p$соль$хэш`. */
 export async function hashPassword(password: string): Promise<string> {
   const salt = randomBytes(16);
   const hash = await scryptAsync(password, salt, KEYLEN, SCRYPT);
@@ -211,7 +211,7 @@ export interface AuthApi {
   /** Арендаторы, доступные аккаунту сессии: собственный (`owner`) и по членству. */
   tenants(): Promise<{ tenant: string; roles: string[] }[]>;
   /**
-   * Удалить аккаунт (этап 6; accounts.purge 0.21): системный администратор или владелец его
+   * Удалить аккаунт: системный администратор или владелец его
    * арендатора; себя и последнего владельца арендатора — нельзя. Данные арендатора стираются,
    * владение строками в чужих арендаторах переходит им, сессии гаснут, креды удаляются. Владелец стирает
    * и арендатора, в котором работает: его сессия возвращается в личный арендатор.

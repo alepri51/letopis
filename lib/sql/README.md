@@ -1,7 +1,7 @@
 # SQL ядра letopis 2.0
 
 Файлы накатываются установщиком (`lib/src/up.ts`, функция `install`) по возрастанию номера; каждый можно применить повторно.
-Спецификация — `reports/PLAN-LETOPIS-1.0.md` (§2 и этап 1); что снято и изменено в 2.0 — `reports/PLAN-LETOPIS-2.0.md`.
+Спецификация — `reports/PLAN-LETOPIS-1.0.md` (§2 и этап 1) и `reports/PLAN-LETOPIS-2.0.md`.
 
 ## Подстановки при накате
 
@@ -13,10 +13,10 @@
 | `@OWNER_NAME@` | имя роли-владельца строковым литералом без кавычек идентификатора, например `letopis_owner` (условия триггеров, `pg_has_role`) |
 | `@APP@` | роль приложения, по умолчанию `letopis_app` |
 | `@PGCRYPTO@` | схема, где установлен pgcrypto (`pg_extension.extnamespace`) |
-| `@SYSTEM@` | id системного арендатора System: `2eba6d0a-1edd-4bb6-a85a-a703dab49035` (как в 0.21) |
+| `@SYSTEM@` | id системного арендатора System: `2eba6d0a-1edd-4bb6-a85a-a703dab49035` |
 | `@RESERVED_NAMES@` | методы цепочки, корня `db` и батча — `RESERVED_CLASS_NAMES` из `lib/src/types.ts`, литералами через запятую |
 | `@MESSAGES@` | каталог сообщений базы — разделы `sql-*` каталога `lib/src/messages` (план 2.0, этап 3, п. 3): литерал JSON «ключ → `{ name, ru }`» для `message_catalog()` в `15-errors.sql` |
-| `@SIGNALS@` | режим сигналов `class`, `tenant`, `opaque` или `none` (план 1.1, §2.2): опция `up({ signals })`, иначе сохранённый в `meta.signals` строки ключа `secret`, иначе `class` — константа установки |
+| `@SIGNALS@` | режим сигналов `class`, `tenant`, `opaque` или `none`: опция `up({ signals })`, иначе сохранённый в `meta.signals` строки ключа `secret`, иначе `class` — константа установки |
 | `@ENGINE_VERSION@` | версия пакета (`lib/package.json`) — штамп движка в комментарии схемы (`99-revision.sql`) |
 | `@ENGINE_SQL@` | 16 знаков sha256 исходного текста файлов `NN-*.sql` до подстановок (переводы строк — LF) и разделов `sql-*` каталога сообщений: `connect()` сверяет его с файлами своего пакета |
 
@@ -24,8 +24,7 @@
 
 Одинаковы в `entity` и `log` (§2.2): `id`, `rev`, `class`, `cv`, `tenant`, `owner`, `links`, `data`, `tags`, `at` (время
 версии), `author`, `agent`, `op`, `reason`. У `entity` ещё `ends` (генерируемая: все цели концов),
-`created_at` и `validator` (у строк `Class`), у `log` — `seq` и `tx` (курсор подписки). Хэшей версий и служебных колонок
-истории (пути изменения, связь прежнего и нового id) нет с 2.0.0: класс, ключ и id строки неизменны.
+`created_at` и `validator` (у строк `Class`), у `log` — `seq` и `tx` (курсор подписки).
 
 ## Коды ошибок
 
@@ -35,13 +34,12 @@
 Тексты — по ключам каталога сообщений (план 2.0, этап 3, п. 3): `lt_fail(ключ, параметры jsonb, detail jsonb)` берёт имя
 ошибки и русский шаблон из `message_catalog()` (`{имя}` — параметр, подставляет `lt_text()`), а в `DETAIL` кладёт поля
 `detail` и ещё `key`, `params` — библиотека переносит их в `err.key` и `err.params`; текст тот же, что видит сырой SQL.
-`LetopisError.detail` — прежний: без `detail` — `{}` (так всегда делала `lt_raise`); `p_detail => 'null'` — у места
-`DETAIL` не было и до каталога (`raise` без `detail`): в `DETAIL` признак `nodetail`, у ошибки `detail` нет.
+`LetopisError.detail`: без `detail` — `{}`; с `p_detail => 'null'` в `DETAIL` — признак `nodetail`, и у ошибки `detail` нет.
 Свой SQLSTATE — `lt_raise(код, ключ, параметры, detail)`. Функции, которые исполняет приложение (`inc`, `links_patch`),
 бросают `raise` сами: текст — `lt_text(ключ, параметры)`, она и `message_catalog()` выданы приложению; `DETAIL` без своих
-полей — с `'nodetail', true`. Все места переведены на ключи: у прежней перегрузки `lt_fail(имя, текст, detail)` других
-вызовов, кроме перегрузки по ключу, нет, а `lt_raise(код, имя, текст, detail)` — механизм новых перегрузок (единственный `raise`). Внутренняя ошибка —
-`lt_raise('XX000', ключ, …)` с кодом `internal`; строки отказа ужесточения и нарушения данных несут `key` и `params`, а
+полей — с `'nodetail', true`. Все места бросают ошибки по ключам: перегрузки `lt_fail(имя, текст, detail)` и
+`lt_raise(код, имя, текст, detail)` — сам механизм, вне `15-errors.sql` их не зовут (`lt_raise` с текстом — единственный
+`raise`). Внутренняя ошибка — `lt_raise('XX000', ключ, …)` с кодом `internal`; строки отказа ужесточения и нарушения данных несут `key` и `params`, а
 текст `problem` и `message` собирает `lt_text`. Литеральный текст в `raise` и в `problem` ловит `check:docs`
 (`literals`).
 
@@ -61,11 +59,11 @@
 | LT014 | `isolation_level` | удаление — только в `read committed` |
 | LT015 | `recreated_in_statement` | id удалён и создан заново одним оператором |
 | LT017 | `delete_restricted` | удалению мешают ссылающиеся строки (`onDelete: restrict`); в деталях `rows`, `others` |
-| LT018 | `not_deleted` | `restore` — только для удалённых объектов (этап 6) |
+| LT018 | `not_deleted` | `restore` — только для удалённых объектов |
 
 ## Порядок файлов
 
-`10-core` → `15-errors` → `20-context` → `30-validate` → `40-class` → `50-acl` → `60-write` → `70-read` → `80-auth` → `90-time` → `95-seed.system` → `99-revision`. Миграции между ревизиями 2.x — `migrate/NNNN-*.sql` (номер — ревизия, к которой ведёт; правило — `migrate/README.md`), их применяет `up({ upgrade: true })` до повторного наката. У 2.0 (ревизия 8) миграций нет: схему letopis 1.x 2.0 не обновляет, а ставит заново (`up({ fresh: true })`).
+`10-core` → `15-errors` → `20-context` → `30-validate` → `40-class` → `50-acl` → `60-write` → `70-read` → `80-auth` → `90-time` → `95-seed.system` → `99-revision`. Миграции между ревизиями — `migrate/NNNN-*.sql` (номер — ревизия, к которой ведёт; правило — `migrate/README.md`), их применяет `up({ upgrade: true })` до повторного наката. У 2.0 (ревизия 8) миграций нет.
 
 Файлы описывают только нынешнюю ревизию: `drop … if exists` в них — лишь там, где без него не пройдёт повторный накат
 той же ревизии (политики RLS в `50-acl.sql`: у `create policy` нет `or replace`). Смена сигнатуры функции в пределах

@@ -17,7 +17,7 @@ export interface EndInfo {
   meta?: Record<string, unknown>;
 }
 
-/** Тип листа данных для фильтров, сортировки и агрегатов (замена fieldTypeOf 0.21). */
+/** Тип листа данных для фильтров, сортировки и агрегатов. */
 export type LeafType = 'text' | 'numeric' | 'boolean' | 'timestamptz' | 'date' | 'uuid' | 'jsonb';
 
 export interface ClassInfo {

@@ -5,8 +5,7 @@
 /**
  * Ревизия схемы, которую знает эта версия пакета, — номер версии SQL-части letopis (таблиц и функций в схеме установки).
  * После `up()` у схемы та же ревизия (`r.revision`); схему отставшей ревизии 2.x `up()` обновляет только с
- * `upgrade: true`, а `connect()` о ней предупреждает. Ревизия 8 — первая у 2.0: схему letopis 1.x (ревизия 7 и ниже)
- * `up()` не обновляет и `connect()` к ней не подключается — 2.0 ставится только заново (`up({ fresh: true })`).
+ * `upgrade: true`, а `connect()` о ней предупреждает.
  */
 export const DDL_REVISION = 8;
 
@@ -55,7 +54,7 @@ export const RESERVED_CLASS_NAMES: readonly string[] = [...new Set<string>([...C
 export interface Row<D = Record<string, unknown>, L = Record<string, string | string[]>> {
   id: string;
   class: string;
-  /** Номер версии — для update(patch, { rev }) (этап 4). */
+  /** Номер версии — для update(patch, { rev }). */
   rev: number;
   tenant: string;
   owner: string;
@@ -73,7 +72,7 @@ export interface Row<D = Record<string, unknown>, L = Record<string, string | st
   $deleted?: true;
   /** Глубина узла при deep() (1 — прямой потомок); в превью удаления — уровень каскада (0 — цель). */
   $depth?: number;
-  /** Что сделал upsert (этап 4). */
+  /** Что сделал upsert. */
   $upsert?: 'created' | 'updated' | 'unchanged';
   /** Превью удаления (delete() без confirm): удалится, снимется конец или помешает (restrict). */
   $action?: 'delete' | 'unset' | 'restrict';

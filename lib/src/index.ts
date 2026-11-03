@@ -90,7 +90,7 @@ export interface ConnectOptions {
   admin?: string | postgres.Sql;
   /** Имя роли-владельца (по умолчанию `letopis_owner`). */
   owner?: string;
-  /** Интервал отправки отложенного сигнала, мс (по умолчанию 100; решение 9 точки А). */
+  /** Интервал отправки отложенного сигнала, мс (по умолчанию 100). */
   notifyIntervalMs?: number;
   /** Размер пула, если подключение создаёт сам `connect()`. */
   max?: number;
@@ -171,7 +171,7 @@ export interface DbCore {
    * `auth.impersonate`.
    */
   as(account: string | { id: string } | null, opts?: { owner?: string; tenant?: string }): Promise<Db>;
-  /** Явная транзакция `read committed`: те же цепочки, `commit()`, `rollback()`, `lock()`, `forUpdate()`; `reason` — причина изменения для всех операций блока (план 1.1). */
+  /** Явная транзакция `read committed`: те же цепочки, `commit()`, `rollback()`, `lock()`, `forUpdate()`; `reason` — причина изменения для всех операций блока. */
   begin(opts?: { reason?: string }): Promise<DbTx>;
   /**
    * Массовая загрузка строк любых классов одной транзакцией (или порциями `commitEvery`) — быстрее записи цепочками.
