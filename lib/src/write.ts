@@ -551,7 +551,8 @@ async function slotIds(w: WriteCtx, v: SlotValue): Promise<string[]> {
       // отдаёт строки чтения (план 2.0, 7.2 №3: раньше — TypeError)
       precheckPlan(w.reg, v.plan);
       const r = await execPlan(w, v.plan, v.mods, 'rows');
-      rows = r.kind === 'rows' ? r.rows : (r.res as Row[]);
+      // чтение хвоста отдаёт строки в обёртке { row } (readIn, режим 'rows') — как в батче, распаковать
+      rows = r.kind === 'rows' ? r.rows : (r.res as { row: Record<string, unknown> }[]).map((x) => toRow(x.row));
     } else {
       rows = await readRows(w, v.plan, v.mods);
     }

@@ -209,11 +209,7 @@ function isZod(v: unknown): v is z.ZodType {
 function collectLost(schema: z.ZodType, path: string, out: LostRule[]): void {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const def = (schema as any)._zod.def;
-  for (const c of def.checks ?? []) {
-    const check = c?._zod?.def?.check;
-    if (check === 'custom') out.push({ path, kind: 'refine' });
-    else if (check === 'overwrite') out.push({ path, kind: 'overwrite' });
-  }
+  collectChecks(schema, path, out);
   if (def.type === 'transform') out.push({ path, kind: 'transform' });
   if (def.type === 'object') for (const [k, v] of Object.entries(def.shape as Record<string, z.ZodType>)) collectLost(v, `${path}.${k}`, out);
   else if (def.type === 'array') collectLost(def.element, `${path}[]`, out);
@@ -221,6 +217,16 @@ function collectLost(schema: z.ZodType, path: string, out: LostRule[]): void {
   else if (def.type === 'union') (def.options as z.ZodType[]).forEach((o, i) => collectLost(o, `${path}|${i}`, out));
   else if (def.type === 'pipe') out.push({ path, kind: 'transform' });
   if (def.innerType) collectLost(def.innerType, path, out);
+}
+
+/** Проверки самой схемы (без вложенных): refine/superRefine/check — `refine`, `overwrite` — преобразование. */
+function collectChecks(schema: z.ZodType, path: string, out: LostRule[]): void {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const c of (schema as any)._zod.def.checks ?? []) {
+    const check = c?._zod?.def?.check;
+    if (check === 'custom') out.push({ path, kind: 'refine' });
+    else if (check === 'overwrite') out.push({ path, kind: 'overwrite' });
+  }
 }
 
 function makeModel<N extends string>(kind: 'hub' | 'link', name: N, defArg: unknown, optsArg?: unknown): AnyModel {
@@ -330,6 +336,9 @@ function makeModel<N extends string>(kind: 'hub' | 'link', name: N, defArg: unkn
     },
     lostRules(): LostRule[] {
       const out: LostRule[] = [];
+      // проверки z.object(…).refine/superRefine/check — на уровне объекта (между полями): в описание класса идёт
+      // только shape, поэтому они тоже потеряны — путь — имя класса
+      if (fields instanceof z.ZodObject) collectChecks(fields, name, out);
       for (const [k, v] of Object.entries(ownShape)) collectLost(v as z.ZodType, `${name}.${k}`, out);
       return out;
     },

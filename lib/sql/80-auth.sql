@@ -52,7 +52,8 @@ begin
     if login_at > clock_timestamp() - @SCHEMA@.auth_recent()
        and exists (select 1 from jsonb_array_elements_text(methods) m where m not in ('APIKEY', 'KEYSECRET', 'SERVICE'))
        and (methods ? 'TOTP' or not exists (select 1 from @SCHEMA@.secret t where t.account = p_account and t.kind = 'TOTP'
-                                            and t.deleted_at is null and coalesce((t.meta->>'confirmed')::boolean, false))) then
+                                            and t.deleted_at is null and coalesce((t.meta->>'confirmed')::boolean, false)
+                                            and coalesce((t.meta->>'enabled')::boolean, true))) then
       return;
     end if;
   end if;
@@ -326,7 +327,9 @@ begin
     and s.material = sha256(convert_to(coalesce(p_key, ''), 'UTF8'))
     and (s.expires_at is null or s.expires_at > clock_timestamp())
     and coalesce((s.meta->>'enabled')::boolean, true)
-    and @SCHEMA@.auth_enabled(s.account);
+    and @SCHEMA@.auth_enabled(s.account)
+  -- строка ключа — под блокировкой до фиксации входа: отзыв ждёт её и гасит открытую здесь сессию
+  for share of s;
   if k.account is null then
     return null;
   end if;
@@ -370,7 +373,9 @@ begin
     and casefold(s.ident) collate pg_unicode_fast = casefold(p_key) collate pg_unicode_fast
     and s.material = sha256(convert_to(coalesce(p_secret, ''), 'UTF8'))
     and coalesce((s.meta->>'enabled')::boolean, true)
-    and @SCHEMA@.auth_enabled(s.account);
+    and @SCHEMA@.auth_enabled(s.account)
+  -- строка ключа — под блокировкой до фиксации входа: отзыв ждёт её и гасит открытую здесь сессию
+  for share of s;
   if k.account is null then
     return null;
   end if;
@@ -428,6 +433,7 @@ begin
   from @SCHEMA@.secret x
   where x.kind = p_kind and x.kind ~ '^OTP' and x.deleted_at is null
     and casefold(x.ident) collate pg_unicode_fast = casefold(p_ident) collate pg_unicode_fast
+    and coalesce((x.meta->>'enabled')::boolean, true) -- отключённый код (setFlags) не принимается
   for update;
   if s.id is null then
     return null;
@@ -507,6 +513,7 @@ begin
          coalesce((x.meta->>'fails')::int, 0) as fails, (x.meta->>'locked_until')::timestamptz as locked_until into s
   from @SCHEMA@.secret x
   where x.account = p_account and x.kind = 'TOTP' and x.deleted_at is null
+    and coalesce((x.meta->>'enabled')::boolean, true) -- отключённый фактор (setFlags) не принимается
   for update;
   if s.id is null or s.locked_until > clock_timestamp() then
     return false;
@@ -547,7 +554,7 @@ begin
     perform @SCHEMA@.auth_guard(p_account);
   end if;
   return exists (select 1 from @SCHEMA@.secret s where s.account = p_account and s.kind = 'TOTP' and s.deleted_at is null
-                 and coalesce((s.meta->>'confirmed')::boolean, false));
+                 and coalesce((s.meta->>'confirmed')::boolean, false) and coalesce((s.meta->>'enabled')::boolean, true));
 end $$;
 
 -- Внешняя identity (TELEGRAM, GOOGLE, SSO-провайдер): токен проверяет сервис, здесь — связка.
@@ -639,7 +646,10 @@ begin
   perform @SCHEMA@.auth_session_required(c.account);
   select s.account, s.kind,
          (s.expires_at is null or s.expires_at > clock_timestamp()) and coalesce((s.meta->>'enabled')::boolean, true) as live
-  into cr from @SCHEMA@.secret s where s.id = p_id and s.kind not in ('SESSION', 'KEY', 'LOCK') and s.deleted_at is null;
+  into cr from @SCHEMA@.secret s where s.id = p_id and s.kind not in ('SESSION', 'KEY', 'LOCK') and s.deleted_at is null
+  -- строка креда — под блокировкой: вход по этому ключу, начатый раньше, отзыв дожидается (его сессию гасит
+  -- auth_kill_cred ниже), начатый позже — ждёт отзыва и ключа уже не находит (login_apikey, login_keysecret)
+  for update;
   if cr.account is null then
     return false;
   end if;

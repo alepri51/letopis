@@ -7,7 +7,7 @@
  * После `up()` у схемы та же ревизия (`r.revision`); схему отставшей ревизии 2.x `up()` обновляет только с
  * `upgrade: true`, а `connect()` о ней предупреждает.
  */
-export const DDL_REVISION = 10;
+export const DDL_REVISION = 11;
 
 /**
  * Префикс версии в имени схемы `v<N>.<имя>`: `up({ schema: 'salon' })` и `connect({ schema: 'salon' })` дописывают его к

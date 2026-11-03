@@ -34,6 +34,14 @@ const UUID = UUID_RE;
 
 type Sql = postgres.Sql<Record<string, unknown>>;
 type Raw = Record<string, unknown>;
+/** Ссылка на цель вне загрузки: строка, роль и допустимые классы конца. */
+type ExtRef = { line: number; role: string; allowed: string[] };
+/** Цели вне загрузки: id → первая ссылка с каждым набором допустимых классов (сверяется каждый набор). */
+type ExtRefs = Map<string, ExtRef[]>;
+
+function sameList(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((x, k) => x === b[k]);
+}
 
 export interface LoadOptions {
   /** Повтор id в загрузке: отменить загрузку (по умолчанию), оставить первую или последнюю строку. */
@@ -144,7 +152,7 @@ export interface InitialTuning {
 interface Pending {
   reg: Registry;
   tenant: string;
-  external: Map<string, { line: number; role: string; allowed: string[] }>;
+  external: ExtRefs;
   owners: Map<string, number>;
 }
 
@@ -618,6 +626,12 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       // ключ блокировки — арендатор корневого класса и имя корня (корень из System — ключ System)
       for (const r of roots) await conn.unsafe(`select ${S}.family_lock(${S}.class_row($1, $2::uuid), false)`, [r, tenant]);
       const reg = await readRegistry(conn as unknown as Sql);
+      // класс строки, удалённый между первым чтением реестра и блокировкой семейства, — отказ, а не прежнее описание
+      for (const i of portion) {
+        const n = p1[i]!.cls.name;
+        if (!reg.find(n)) issues.add({ line: i + 1, code: 'invalid_class', message: lmsg('write.load_class_not_found', { name: n }), id: p1[i]!.id, class: n });
+      }
+      if (issues.any) issues.fail();
       const [{ ts, xid }] = await conn.unsafe(`select clock_timestamp()::text as ts, pg_current_xact_id()::text as xid`);
       // от имени пользователя: арендатор доступен ему, планы прав READ и WRITE; класс без права — отказ
       if (asAcc) {
@@ -640,7 +654,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
         const prev = inLoad.get(id);
         inLoad.set(id, { cls: cls.name, alive: prev && opts.withHistory ? (isLastVersion(i) ? alive : prev.alive) : alive });
       }
-      const external = new Map<string, { line: number; role: string; allowed: string[] }>();
+      const external = new Map<string, ExtRef[]>();
       const classesTouched = new Set<string>();
       // существующие объекты — только в режимах skip и update, одним запросом на пачку и до проверок:
       // пропущенный объект для ссылок на него — вне загрузки (его сверит запрос в конце)
@@ -700,10 +714,11 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
         const found = new Map((await conn.unsafe(`select e.id, e.tenant, e.class from ${S}.entity e where e.id = any ($1::uuid[]) order by e.id for key share`, [ext]))
           .map((r) => [r.id as string, r as unknown as { id: string; tenant: string; class: string }]));
         for (const id of ext) {
-          const ref = external.get(id)!;
           const f = found.get(id);
-          if (!f || (f.tenant !== tenant && f.tenant !== SYSTEM_ID) || !accepts(reg, ref.allowed, f.class)) {
-            issues.add({ line: ref.line, code: 'target_not_found', message: lmsg('write.load_target_not_found', { role: ref.role }), id });
+          for (const ref of external.get(id)!) {
+            if (!f || (f.tenant !== tenant && f.tenant !== SYSTEM_ID) || !accepts(reg, ref.allowed, f.class)) {
+              issues.add({ line: ref.line, code: 'target_not_found', message: lmsg('write.load_target_not_found', { role: ref.role }), id });
+            }
           }
         }
       }
@@ -785,9 +800,9 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
 
   /** Проверки строки и ссылок; null — строка не пишется (нарушение уже в отчёте). */
   function check(reg: Registry, i: number, inLoad: Map<string, { cls: string; alive: boolean }>,
-    external: Map<string, { line: number; role: string; allowed: string[] }>, lastVersion: boolean): Shaped | null {
+    external: ExtRefs, lastVersion: boolean): Shaped | null {
     const raw = rows[i];
-    const cls = reg.find(p1[i]!.cls.name) ?? p1[i]!.cls;
+    const cls = reg.find(p1[i]!.cls.name)!; // наличие в свежем реестре проверено после блокировки (loadPortion)
     const sh = shape(reg, tenant!, cls, raw, true);
     if (sh.error) {
       issues.add({ line: i + 1, code: sh.error.code, message: sh.error.message, id: p1[i]!.id, class: cls.name, ...(sh.error.issues ? { issues: sh.error.issues } : {}) });
@@ -826,8 +841,12 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
         const t = inLoad.get(id);
         if (t) {
           if (!t.alive || !accepts(reg, allowed, t.cls)) issues.add({ line: i + 1, code: 'target_not_found', message: lmsg('write.load_target_not_found', { role }), id: p1[i]!.id, class: cls.name });
-        } else if (!external.has(id)) {
-          external.set(id, { line: i + 1, role, allowed });
+        } else {
+          // первая ссылка на id с каждым набором допустимых классов: тот же id под другой ролью может требовать
+          // другой класс (сверяются все наборы), повторы того же набора — не копятся
+          const refs = external.get(id);
+          if (!refs) external.set(id, [{ line: i + 1, role, allowed }]);
+          else if (!refs.some((r) => sameList(r.allowed, allowed))) refs.push({ line: i + 1, role, allowed });
         }
       }
     }
@@ -897,7 +916,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
 
   /** Пачка — подготовка и запись по очереди. */
   async function writeBatch(conn: Sql, reg: Registry, part: number[], inLoad: Map<string, { cls: string; alive: boolean }>,
-    external: Map<string, { line: number; role: string; allowed: string[] }>, ts: string, xid: string, touched: Set<string>,
+    external: ExtRefs, ts: string, xid: string, touched: Set<string>,
     live: Map<string, string>, past: Map<string, { rev: number; at: string }>): Promise<void> {
     const p = await prepareBatch(reg, part, inLoad, external, ts, xid, touched, live, past, 0);
     if (p) await flushBatch(conn, p, ts, touched);
@@ -910,7 +929,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
    * процесса); при ошибке подготовки запись в полёте доходит до конца, и откат идёт по готовому соединению.
    */
   async function pipeline(conn: Sql, reg: Registry, portion: number[], inLoad: Map<string, { cls: string; alive: boolean }>,
-    external: Map<string, { line: number; role: string; allowed: string[] }>, ts: string, xid: string, touched: Set<string>,
+    external: ExtRefs, ts: string, xid: string, touched: Set<string>,
     live: Map<string, string>, past: Map<string, { rev: number; at: string }>): Promise<void> {
     let flushing: Promise<void> | null = null;
     try {
@@ -941,7 +960,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
    * каждые столько строк (конвейер первой заливки). Нарушения — null.
    */
   async function prepareBatch(reg: Registry, part: number[], inLoad: Map<string, { cls: string; alive: boolean }>,
-    external: Map<string, { line: number; role: string; allowed: string[] }>, ts: string, xid: string, touched: Set<string>,
+    external: ExtRefs, ts: string, xid: string, touched: Set<string>,
     live: Map<string, string>, past: Map<string, { rev: number; at: string }>, yieldEvery: number): Promise<Prepared | null> {
     const ent: string[] = [];
     const log: string[] = [];
@@ -1052,7 +1071,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
 
   /** Режим истории: версии в журнал — волнами по номеру (первые версии всех объектов, затем вторые…), вставками по 5000. */
   async function historyWrite(conn: Sql, reg: Registry, portion: number[], inLoad: Map<string, { cls: string; alive: boolean }>,
-    external: Map<string, { line: number; role: string; allowed: string[] }>, xid: string, touched: Set<string>): Promise<void> {
+    external: ExtRefs, xid: string, touched: Set<string>): Promise<void> {
     const byId = new Map<string, number[]>();
     for (const i of portion) {
       const id = p1[i]!.id;
@@ -1233,10 +1252,11 @@ export async function initialSession<T>(env: LoadEnv, fn: (s: InitialSession) =>
         const found = new Map((await q(`select e.id, e.tenant, e.class from ${S}.entity e where e.id = any ($1::uuid[])`, [ext]))
           .map((r) => [r.id as string, r as unknown as { tenant: string; class: string }]));
         for (const id of ext) {
-          const ref = p.external.get(id)!;
           const f = found.get(id);
-          if (!f || (f.tenant !== p.tenant && f.tenant !== SYSTEM_ID) || !accepts(p.reg, ref.allowed, f.class)) {
-            issues.add({ line: ref.line, code: 'target_not_found', message: lmsg('write.load_target_not_found', { role: ref.role }), id });
+          for (const ref of p.external.get(id)!) {
+            if (!f || (f.tenant !== p.tenant && f.tenant !== SYSTEM_ID) || !accepts(p.reg, ref.allowed, f.class)) {
+              issues.add({ line: ref.line, code: 'target_not_found', message: lmsg('write.load_target_not_found', { role: ref.role }), id });
+            }
           }
         }
       }
