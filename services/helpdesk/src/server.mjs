@@ -739,9 +739,7 @@ export async function createApp() {
     await act(s, 'Удалить из компании', async (lines) => {
       await s.db.member(m.id).delete({ confirm: true, reason: 'удалён из компании' }).rows();
       lines.push('db.member(id).delete() — членства нет: следующий запрос этого человека получит tenant_denied');
-      const p = await s.db.Profile({ account }).first();
-      if (p) await s.db.Profile(p.id).anonymize(['name', 'login'], { reason: 'персональные данные стёрты' }).rows();
-      lines.push("db.Profile(id).anonymize(['name', 'login']) — имя и email затёрты новой версией");
+      lines.push('запись в справочнике (Profile) остаётся: по ней в заявках видно, кто их вёл; строки, которыми он владел в компании, база передала компании — их новые версии с owner = компания');
     });
     res.json({ ok: true });
   }));

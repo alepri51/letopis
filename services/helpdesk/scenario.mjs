@@ -11,6 +11,9 @@ import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/cli
 
 process.env.SCHEMA ??= 'helpdesk_scenario';
 process.env.FRESH ??= '1';
+// по умолчанию — база стенда, как у сервера (src/server.mjs): прямые подключения сценария ниже берут те же строки
+process.env.ADMIN_DSN ??= 'postgres://postgres:guide@127.0.0.1:15440/letopis';
+process.env.APP_DSN ??= 'postgres://helpdesk_app:helpdesk-app-secret@127.0.0.1:15440/letopis';
 const { createApp, DEMO } = await import('./src/server.mjs');
 
 const { app, schema, close } = await createApp();

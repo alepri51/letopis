@@ -14,7 +14,7 @@ const ROLES = Object.entries(ROLE).map(([value, label]) => ({ value, label }));
 
 /**
  * Команда компании (только руководитель): приглашение в арендатора с ролью, работа от имени, завершение чужих
- * сеансов (auth.revokeAll), удаление из компании (членство и anonymize профиля), закрытие компании (auth.purgeAccount).
+ * сеансов (auth.revokeAll), удаление из компании (членство), закрытие компании (auth.purgeAccount).
  */
 export function Team({ me, tick, onChanged }: { me: Me; tick: number; onChanged: () => void }) {
   const [team, setTeam] = useState<Member[]>([]);
@@ -92,7 +92,7 @@ export function Team({ me, tick, onChanged }: { me: Me; tick: number; onChanged:
           <DialogHeader><DialogTitle>Удалить {remove?.name} из компании?</DialogTitle>
             <DialogDescription>
               Членство удаляется — доступ закрывается сразу: следующий запрос этого человека получит отказ базы.
-              Имя и email в справочнике затираются (<code>anonymize</code>). Заявки остаются в компании.
+              Заявки остаются в компании, запись в справочнике (имя и email) — тоже: по ней видно, кто их вёл.
             </DialogDescription></DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRemove(null)}>Отмена</Button>
