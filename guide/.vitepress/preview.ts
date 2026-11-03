@@ -37,7 +37,7 @@ export function examplePreview(root: string, id: string): string {
     script
       ? '<details class="lt-ex-pre-source"><summary>Весь код примера — скрипт для своего проекта</summary>' +
         '<p class="lt-ex-pre-note">Тот же пример без каркаса сайта: обычные <code>up()</code>, <code>connect()</code> и <code>svc.as()</code>, ' +
-        'помощники <code>_shared/…</code> вставлены целиком, шаги идут подряд. Скопируйте в файл, задайте <code>ADMIN_DSN</code> и ' +
+        'помощники <code>_shared/…</code> вставлены целиком, шаги идут подряд. Скопируйте в файл проекта с <code>"type": "module"</code> (<code>npm pkg set type=module</code>), задайте <code>ADMIN_DSN</code> и ' +
         'запустите <code>npx tsx example.ts</code>. Пошаговый показ с результатами появится, когда загрузится снимок; на ' +
         'телефоне он грузится по кнопке «Показать пошагово» под примером.</p>' +
         `<pre class="lt-ex-pre-plain">${esc(script)}</pre></details>`

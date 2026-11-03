@@ -23,8 +23,10 @@ PowerShell — ожидание так: `do { Start-Sleep 1; docker exec pg18 pg
 **2. Пакеты** — в пустой папке проекта:
 
 ```sh
-npm init -y && npm i letopis zod && npm i -D tsx
+npm init -y && npm pkg set type=module && npm i letopis zod && npm i -D tsx
 ```
+
+`type=module` обязателен: скрипт использует `await` на верхнем уровне, в проекте CommonJS tsx его не запустит.
 
 **3. Код** — скопируйте скрипт в `hello.ts` (кнопка «Весь код примера» → «Копировать скрипт») и запустите:
 

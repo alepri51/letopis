@@ -271,7 +271,8 @@ export function standalone(file: string, guide: string): string {
   const head = [
     `// «${title}» — самостоятельный вариант примера сайта (файл examples/${id}.ts).`,
     '// Каркас сайта убран: example() и ctx раннера заменены обычным кодом, помощники _shared/… вставлены целиком,',
-    '// шаги идут подряд и печатают результат. Запуск: npm install letopis zod postgres, затем npx tsx example.ts.',
+    '// шаги идут подряд и печатают результат. Запуск: npm init -y && npm pkg set type=module && npm i letopis zod postgres && npm i -D tsx,',
+    '// затем npx tsx example.ts (await на верхнем уровне — нужен "type": "module").',
   ];
   if (!tenant) head.push('// APP_DSN — роль приложения из группы letopis_app (пример ставит схему сам и ею подключается).');
   if (imports.order.some((m) => m.startsWith('.'))) {
