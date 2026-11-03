@@ -27,7 +27,6 @@ export default example({
         await syncModels(db, [Greeting], { apply: true });
         await db.Greeting().create({ text: 'Hello, world!' }).rows();
         const [hello] = await db.Greeting().rows();
-        console.log(hello.data.text); // Hello, world!
         return { text: hello.data.text, id: hello.id, rev: hello.rev };
       },
     },

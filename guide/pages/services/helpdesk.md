@@ -2,6 +2,8 @@
 
 Служба поддержки для нескольких компаний. Каждая компания — отдельный арендатор: у неё свои заявки, сотрудники и клиенты, а чужого не видно даже по прямому запросу. Роли — руководитель, агент поддержки и клиент. Что кому можно, решают правила доступа в базе. Интерфейс собран из блоков shadcnblocks (`login1`, `signup1`, `navbar1`, `stats8`). Сервер — Express: JSON API и адрес `/mcp` для ИИ-агентов.
 
+**Сначала — исходники.** Сервисы лежат в [репозитории letopis](https://github.com/alepri51/letopis), а не в npm-пакете: `git clone https://github.com/alepri51/letopis.git && cd letopis` — все команды ниже выполняются из корня клона ([как запустить](./#run)).
+
 **Запустить в Docker:** `docker compose -f services/compose.yaml up --build helpdesk` → http://127.0.0.1:8083. Демо с нуля — переменная `FRESH=1`: схема пересоздаётся.
 
 **Запустить руками:** база — `docker compose -f services/compose.yaml up -d pg`, затем `services/helpdesk/run-local.sh`; шаги для PowerShell — в `services/helpdesk/README.md`.

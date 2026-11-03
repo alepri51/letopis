@@ -30,7 +30,7 @@ import { createTenant, syncModels } from 'letopis'
 const admin = postgres(ADMIN_DSN)                         // пул postgres() администратора базы — не строка DSN и не connect()
 const t = await createTenant(admin, 'shop', {             // 'shop' — то же имя, что в up({ schema }): станет v2.shop
   name: 'Лютик',
-  user: { name: 'Борис', login: 'boris@lutik.ru', password: 'Лютик-2026!' },
+  user: { name: 'Борис', login: 'boris@lutik.ru', password: process.env.BORIS_PASSWORD! },   // пароль — не в коде
 })
 await admin.end()                                         // пул закрывает вызывающий код
 const boris = await svc.as(t.user, { tenant: t.tenant })  // или connect({ dsn, schema, token: t.token })
@@ -40,7 +40,8 @@ await syncModels(boris, models, { apply: true })          // модель — в
 - **`admin` — пул `postgres()`**, его роль должна уметь стать владельцем схемы (тот же администратор, что вызывал `up()`). Строка DSN, подключение `connect()` letopis, `undefined` — отказ `invalid_query` (ключ `api.create_tenant_admin`) до запросов к базе.
 - **`schema`** — как в `connect()` и `up()`: имя без точки получает префикс `v2.` (`'shop'` → `v2.shop`), полное имя (`r.schema` из `up()`) — как есть.
 - **Ответ** — `{ tenant, user, token, created }`: id арендатора и пользователя, токен его сессии и `created: false`, если арендатор уже был. Повтор с тем же именем ничего не дублирует, только выдаёт новую сессию.
-- Права: по умолчанию пользователи нового арендатора могут всё в нём (`grantAll`, правило веса 10) — ниже, как это сузить.
+- **Пароль первого пользователя** берите из окружения или формы регистрации, а не из исходников: строка в коде попадёт в репозиторий. В базе он хранится только хэшем.
+- Права: по умолчанию `createTenant` заводит правило «своим можно всё» (вес 10) — чтение, запись и удаление (`READ`, `WRITE`, `DELETE`) на **классы** арендатора; права на эндпоинты API (`auth.*`, `letopis.*`) оно не даёт. `createTenant(admin, schema, { …, grantAll: false })` — без этого правила: права выдаёте сами (`db.acl.grant`), ниже — как.
 
 ## Пример: роль, запрет, право на отчёты
 
@@ -80,7 +81,7 @@ sequenceDiagram
 
 ## Подводные камни
 
-- **По умолчанию запрещено всё.** `createTenant` даёт правило «своим можно всё» (вес 10) — без него пользователи арендатора ничего не могут.
+- **По умолчанию запрещено всё.** `createTenant` даёт правило «своим можно всё» (вес 10): `READ`, `WRITE`, `DELETE` на классы арендатора, но не эндпоинты API; с `grantAll: false` его нет — и пользователи арендатора ничего не могут, пока вы не выдадите права.
 - **`createTenant` берёт пул `postgres()`, а не строку.** Строка DSN или подключение `connect()` — `invalid_query` (`api.create_tenant_admin`); закрыть пул — `admin.end()`.
 - **Запрет с большим весом сильнее.** Так из «можно всё» вырезают исключения: у `db.acl.deny` вес по умолчанию 50, а при равном весе запрет сильнее разрешения.
 - **Интерфейс только прячет кнопки** (`acl.check`, `acl.checkData`), а запрещает база: прямой вызов получит `acl_denied`.

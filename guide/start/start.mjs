@@ -1,7 +1,7 @@
 /**
  * letopis с нуля на вашей базе: пустая установка, роль приложения, арендатор, своя модель, данные.
  *
- *   cd guide/start && npm install
+ *   cd guide/start && npm install          (или в своей папке: npm init -y && npm pkg set type=module && npm i letopis@3 zod postgres)
  *   ADMIN_DSN=postgres://postgres:ПАРОЛЬ@localhost:5432/letopis node start.mjs
  *
  * Без ADMIN_DSN берётся postgres://postgres:guide@127.0.0.1:15440/letopis — например, из
@@ -19,24 +19,19 @@ const APP_ROLE = 'myapp_app', APP_PASSWORD = 'myapp-secret';
 // свой ключ сервиса — чтобы повторный запуск мог войти снова (lts_ и 32–128 шестнадцатеричных знаков)
 const SERVICE_KEY = process.env.SERVICE_KEY ?? 'lts_' + '0f1e2d3c4b5a6978'.repeat(2);
 
-// 1. Пустая установка: схема v2.myapp — таблицы, проверки, системные классы
-const r = await up({ dsn: ADMIN, schema: SCHEMA, serviceKey: SERVICE_KEY, quiet: true });
-console.log(`1. схема ${r.schema}: ${r.created ? 'поставлена' : 'уже была — накатили повторно'}`);
+// 1. Пустая установка: схема v2.myapp — таблицы, проверки, системные классы — и роль приложения: up({ login })
+// заводит её (повторный запуск обновляет пароль), включает в letopis_app и возвращает строку подключения r.login.dsn
+const r = await up({ dsn: ADMIN, schema: SCHEMA, serviceKey: SERVICE_KEY, quiet: true, login: { user: APP_ROLE, password: APP_PASSWORD } });
+console.log(`1. схема ${r.schema}: ${r.created ? 'поставлена' : 'уже была — накатили повторно'}; роль приложения ${r.login.user}`);
 
-// 2. Роль приложения (один раз) и арендатор с первым пользователем
+// 2. Арендатор с первым пользователем: createTenant принимает пул postgres() администратора, а не строку
 const admin = postgres(ADMIN, { max: 1, onnotice: () => {} });
-await admin.unsafe(`do $$ begin if not exists (select 1 from pg_roles where rolname = '${APP_ROLE}') then
-  create role ${APP_ROLE} login password '${APP_PASSWORD}'; end if; end $$`);
-await admin.unsafe(`grant letopis_app to ${APP_ROLE}`);
 const team = await createTenant(admin, r.schema, { name: 'Альфа', user: { name: 'Вера', login: 'vera@alpha.ru', password: 'Alpha-2026!' } });
 await admin.end();
 console.log(`2. арендатор «Альфа» ${team.created ? 'создан' : 'уже был'}, пользователь vera@alpha.ru`);
 
 // 3. Приложение: своя роль, ключ сервиса, вход пользователя
-const app = new URL(ADMIN);
-app.username = APP_ROLE;
-app.password = APP_PASSWORD;
-const svc = await connect({ dsn: app.toString(), schema: r.schema, apiKey: SERVICE_KEY });
+const svc = await connect({ dsn: r.login.dsn, schema: r.schema, apiKey: SERVICE_KEY });
 const login = await svc.auth.verifyPassword({ identifier: 'vera@alpha.ru', password: 'Alpha-2026!' });
 const db = await svc.as(login.account, { tenant: team.tenant });
 console.log('3. вошли как Вера');

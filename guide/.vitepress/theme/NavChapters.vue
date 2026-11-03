@@ -2,7 +2,7 @@
 /**
  * Главы сайта в меню-гамбургере (узкий экран). В обычной теме VitePress там только верхнее меню, а список глав
  * спрятан за отдельной кнопкой в полосе под шапкой — на телефоне её не находят. Здесь те же группы, что в боковой
- * панели (themeConfig.sidebar): первая открыта, остальные свёрнуты; переход по ссылке закрывает меню.
+ * панели (themeConfig.sidebar): первые две («Начать» и «Главы») открыты, остальные свёрнуты; переход по ссылке закрывает меню.
  */
 import { computed, inject } from 'vue';
 import { useData, useRoute, withBase } from 'vitepress';
@@ -20,7 +20,7 @@ const inGroup = (g: Item) => (g.items ?? []).some((it) => active(it.link));
 
 <template>
   <nav v-if="groups.length" class="lt-nav-chapters" aria-label="Главы">
-    <details v-for="(g, k) in groups" :key="g.text" class="lt-nav-group" :open="k === 0 || inGroup(g)">
+    <details v-for="(g, k) in groups" :key="g.text" class="lt-nav-group" :open="k < 2 || inGroup(g)">
       <summary>{{ g.text }}</summary>
       <ul>
         <li v-for="it in g.items" :key="it.link">

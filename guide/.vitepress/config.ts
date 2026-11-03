@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitepress';
 import { withPreviews } from './preview';
 import { standalonePlugin } from './standalone';
+import { deadAnchors } from './anchors';
 
 // каталог guide/; примеры и их снимки (превью в разметке, самостоятельный вариант) — в корневом examples/, сайт их
 // только читает
@@ -19,8 +20,14 @@ export default defineConfig({
   head: [['link', { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' }]],
   cleanUrls: true,
   lastUpdated: false,
+  // мёртвые якоря (`#…` на переименованный заголовок) — ошибка сборки: VitePress сам проверяет только страницы
+  buildEnd(site) {
+    const dead = deadAnchors(site.outDir);
+    if (dead.length) throw new Error(`мёртвые якоря (${dead.length}):\n${dead.join('\n')}`);
+  },
   // песочница: dev-сервер (5173) отправляет /api на сервер сайта с включённой песочницей (`npm run sandbox`, 8080)
-  // ?standalone — самостоятельный вариант примера для кнопки «Весь код примера» (.vitepress/standalone.ts)
+  // ?standalone — самостоятельный вариант примера модулем (.vitepress/standalone.ts); программу примера в HTML страницы
+  // вставляет preview.ts при сборке
   vite: {
     // dev-сервер отдаёт файлы вне guide/ только из разрешённых каталогов: примеры и снимки — в ../examples
     server: { proxy: { '/api': { target: 'http://127.0.0.1:8080', changeOrigin: true } }, fs: { allow: [ROOT, EXAMPLES] } },
@@ -51,10 +58,15 @@ export default defineConfig({
     ],
     sidebar: [
       {
-        text: 'Основы',
+        text: 'Начать',
         items: [
-          { text: 'Первые 15 минут', link: '/first/' },
-          { text: 'Старт с нуля', link: '/start/' },
+          { text: 'Первые 15 минут: один процесс', link: '/first/' },
+          { text: 'Старт с нуля: сервис по ключу', link: '/start/' },
+        ],
+      },
+      {
+        text: 'Главы',
+        items: [
           { text: '1. Что такое letopis', link: '/basics/what-is' },
           { text: '2. Установка и подключение', link: '/install/' },
           { text: '3. Модели', link: '/models/' },
@@ -68,10 +80,10 @@ export default defineConfig({
           { text: '11. Подписка, кэш, сигналы', link: '/watch/' },
           { text: '12. Массовая загрузка', link: '/load/' },
           { text: '13. Эксплуатация', link: '/ops/' },
-          { text: 'Логирование', link: '/logging/' },
-          { text: '14. ИИ-агенты: MCP', link: '/mcp/' },
-          { text: '15. Ошибки', link: '/errors/' },
-          { text: '16. Все нюансы', link: '/nuances/' },
+          { text: '14. Логирование', link: '/logging/' },
+          { text: '15. ИИ-агенты: MCP', link: '/mcp/' },
+          { text: '16. Ошибки', link: '/errors/' },
+          { text: '17. Все нюансы', link: '/nuances/' },
           { text: 'Карта понятий', link: '/concepts/' },
           { text: 'Глоссарий', link: '/glossary/' },
           { text: 'Песочница', link: '/sandbox' },

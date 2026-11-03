@@ -25,7 +25,7 @@ const Layout = defineComponent({
       run();
     });
     // в меню-гамбургере узкого экрана — ещё и главы (иначе они только за кнопкой «Главы» под шапкой);
-    // над текстом страницы на узком экране — раскрытое «На странице» (PageOutline)
+    // над текстом страницы на узком экране — свёрнутые «Разделы главы» (PageOutline)
     return () => h(DefaultTheme.Layout, null, {
       'nav-screen-content-after': () => h(NavChapters),
       'doc-before': () => h(PageOutline),

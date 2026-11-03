@@ -58,7 +58,7 @@ html.dark .lt-ex-code pre {
    догружает снимок, текст уезжает вниз из-под глаз. */
 .aside, .VPLocalNav, .VPNav, .VPSidebar { overflow-anchor: none; }
 
-/* Превью примера (.vitepress/preview.ts): заголовок и код первого шага в HTML страницы — видны, пока плеер грузит снимок. */
+/* Пример как самостоятельная программа (.vitepress/preview.ts) — в HTML страницы, до загрузки скриптов. */
 .lt-ex-pre { color: var(--vp-c-text-1); }
 .lt-ex-pre-badge {
   display: inline-block;
@@ -84,10 +84,21 @@ html.dark .lt-ex-code pre {
 }
 .lt-ex-pre .lt-ex-code code { background: transparent; padding: 0; }
 
-/* «Весь код примера» в превью: свёрнутый самостоятельный скрипт — его можно прочитать и скопировать до загрузки снимка */
-.lt-ex-pre-source { margin-top: 12px; }
-.lt-ex-pre-source > summary { cursor: pointer; color: var(--vp-c-brand-1); font-size: 14px; font-weight: 600; }
-.vp-doc .lt-ex-pre-note { margin: 8px 0; font-size: 13px; line-height: 1.55; color: var(--vp-c-text-2); }
+/* Программа примера (preview.ts): скрипт с кнопкой «Копировать», как запустить, ожидаемый вывод */
+.lt-ex-prog-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 14px 0 6px; }
+.lt-ex-prog-file { font-family: var(--vp-font-family-mono); font-size: 13px; font-weight: 600; color: var(--vp-c-text-2); }
+.lt-ex-pre .lt-btn {
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 8px;
+  padding: 4px 12px;
+  font-size: 14px;
+  background: var(--vp-c-bg-soft);
+  cursor: pointer;
+}
+.lt-ex-run, .lt-ex-out { margin-top: 14px; }
+.lt-ex-run-title { font-weight: 700; font-size: 15px; margin-bottom: 4px; }
+.vp-doc .lt-ex-pre-note { margin: 6px 0; font-size: 13px; line-height: 1.55; color: var(--vp-c-text-2); }
+.vp-doc .lt-ex-warn { color: var(--vp-c-warning-1); }
 .lt-ex-pre-plain {
   margin: 0;
   padding: 12px 14px;
@@ -99,23 +110,12 @@ html.dark .lt-ex-code pre {
   max-height: 560px;
   overflow: auto;
 }
+.lt-ex-output { max-height: 420px; }
 
-/* Телефон: код переносится по ширине экрана — без прокрутки вбок (блоки кода страниц, превью примеров) */
+/* Телефон: код — строками как в редакторе, с прокруткой вбок; длинный скрипт — в окне по высоте, а не на десятки
+   экранов переносов */
 @media (max-width: 640px) {
-  .vp-doc div[class*='language-'] pre,
-  .vp-doc div[class*='language-'] code,
-  .lt-ex-pre .lt-ex-code pre,
-  .lt-ex-pre-plain {
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-  }
-  .vp-doc div[class*='language-'] code { width: auto; min-width: 0; }
-  .lt-ex-pre .lt-ex-code pre { font-size: 12.5px; }
-  /* самостоятельный скрипт превью на телефоне раскрыт по умолчанию и читается целиком, без окна прокрутки: до загрузки
-     скриптов страницы — стилем (браузеры с ::details-content), после — атрибутом open (theme/Example.vue), тогда его
-     можно и свернуть */
-  .lt-ex-pre:not(.lt-js) .lt-ex-pre-source::details-content { content-visibility: visible; }
-  .lt-ex-pre-plain { max-height: none; }
+  .lt-ex-pre-plain { font-size: 12.5px; max-height: 60vh; }
 }
 
 /* Подвал с лицензией (themeConfig.footer) — на всех страницах: тема прячет его на страницах с боковой панелью,

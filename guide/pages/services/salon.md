@@ -2,6 +2,8 @@
 
 Веб-приложение для салонов красоты: расписание мастеров на день, запись клиента, перенос, отмена и возврат брони, её история, прайс услуг и отчёт дня. Интерфейс собран из блоков shadcnblocks на shadcn/ui, сервер — Express с JSON API. Каждый салон — отдельный арендатор: данные одного салона другому не видны.
 
+**Сначала — исходники.** Сервисы лежат в [репозитории letopis](https://github.com/alepri51/letopis), а не в npm-пакете: `git clone https://github.com/alepri51/letopis.git && cd letopis` — все команды ниже выполняются из корня клона ([как запустить](./#run)).
+
 **Запустить в Docker:** `docker compose -f services/compose.yaml up --build salon`, затем открыть http://127.0.0.1:8081.
 
 **Запустить руками, без Docker:** сначала база — `docker compose -f services/compose.yaml up -d pg` или своя (строки подключения — в `ADMIN_DSN` и `APP_DSN`). Затем `services/salon/run-local.sh`: скрипт соберёт библиотеку, поставит зависимости, соберёт интерфейс и запустит сервер. Шаги по отдельности и вариант для PowerShell — в `services/salon/README.md`.

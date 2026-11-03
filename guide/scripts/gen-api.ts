@@ -194,23 +194,36 @@ function paramsOf(node: ts.SignatureDeclaration): Param[] {
         });
       }
     } else if (type && ts.isTypeReferenceNode(type) && EXPAND_OPTIONS.has(type.typeName.getText())) {
-      // Именованный тип опций (объединение форм) — поля всех форм, как у литерала типа.
+      // Именованный тип опций (объединение форм) — поля всех форм, как у литерала типа. Тип поля — объединение его
+      // типов по ВСЕМ формам (у delete(): confirm — false | undefined в превью и true в подтверждении → boolean), а не
+      // тип из первой формы; поле обязательно, только если оно есть и не может быть undefined в каждой форме.
       const t = checker.getTypeAtLocation(type);
-      const seen = new Set<string>();
-      for (const part of t.isUnion() ? t.types : [t]) {
+      const parts = t.isUnion() ? t.types : [t];
+      const fields = new Map<string, { sym: ts.Symbol; types: Set<string>; optional: boolean }>();
+      for (const part of parts) {
         for (const sym of checker.getPropertiesOfType(part)) {
-          if (seen.has(sym.name)) continue;
-          seen.add(sym.name);
-          const decl = sym.declarations?.[0];
-          const md = decl ? jsdocOf(decl) : { text: '', params: {} as Record<string, string> };
-          out.push({
-            name: `${name}.${sym.name}`,
-            type: checker.typeToString(checker.getTypeOfSymbolAtLocation(sym, p)),
-            optional: true,
-            doc: md.text || undefined,
-            def: (md as { def?: string }).def,
-          });
+          const f = fields.get(sym.name) ?? { sym, types: new Set<string>(), optional: false };
+          fields.set(sym.name, f);
+          if (sym.flags & ts.SymbolFlags.Optional) f.optional = true;
+          const ft = checker.getTypeOfSymbolAtLocation(sym, p);
+          for (const x of ft.isUnion() ? ft.types : [ft]) f.types.add(checker.typeToString(x));
         }
+      }
+      for (const [field, f] of fields) {
+        if (parts.some((part) => !checker.getPropertyOfType(part, field))) f.optional = true;
+        if (f.types.has('undefined')) f.optional = true;
+        const types = [...f.types];
+        const shown = (types.includes('true') && types.includes('false') ? ['boolean', ...types.filter((x) => x !== 'true' && x !== 'false')] : types)
+          .filter((x) => x !== 'undefined');
+        const decl = f.sym.declarations?.[0];
+        const md = decl ? jsdocOf(decl) : { text: '', params: {} as Record<string, string> };
+        out.push({
+          name: `${name}.${field}`,
+          type: [...shown, ...(f.optional ? ['undefined'] : [])].join(' | ') || 'undefined',
+          optional: f.optional,
+          doc: md.text || undefined,
+          def: (md as { def?: string }).def,
+        });
       }
     }
   }

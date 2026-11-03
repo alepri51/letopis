@@ -1,12 +1,14 @@
 <script setup lang="ts">
 /**
- * Пошаговый плеер исполняемого примера.
- * Данные — снимок прогона на настоящей базе (`examples/_snapshots/<id>.json`, пишет `cd examples && npm run snapshots`):
- * код шага, его результат или ошибка и таблицы entity, log, secret после шага с подсветкой изменений.
+ * Исполняемый пример: самостоятельная программа и, по клику, пошаговый показ того, что она делает в базе.
+ * Программа — слот компонента: её HTML собирает при сборке `.vitepress/preview.ts` (заголовок, полный скрипт с кнопкой
+ * «Копировать», как запустить, ожидаемый вывод). Пошаговый плеер свёрнут: снимок прогона на настоящей базе
+ * (`examples/_snapshots/<id>.json`, пишет `cd examples && npm run snapshots`) грузится только по кнопке «Пошагово: что
+ * происходит в базе» — код шага, его результат или ошибка и таблицы entity, log, secret после шага с подсветкой изменений.
  * В снимке вместо uuid, времени и токенов — метки; настоящие значения того же прогона лежат рядом
  * (`examples/_snapshots/<id>.real.json`) и показываются на вкладке «Реальная таблица». Файла может не быть — тогда вкладки нет.
  */
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, shallowRef, useSlots, watch } from 'vue';
 import Sandbox from './Sandbox.vue';
 import { players, report } from './sync';
 import { keepHash } from './anchor';
@@ -59,30 +61,31 @@ interface Real {
 
 // sandbox — открыть редактор песочницы сразу (страница «Песочница»)
 const props = defineProps<{ id: string; sandbox?: boolean }>();
+const slots = useSlots();
 // снимки с метками; *.real.json грузятся отдельно, иначе каждый попал бы и в этот список
 const files = import.meta.glob<{ default: Snapshot }>(['../../../examples/_snapshots/**/*.json', '!../../../examples/_snapshots/**/*.real.json']);
 const realFiles = import.meta.glob<{ default: Real }>('../../../examples/_snapshots/**/*.real.json');
-// самостоятельный вариант примера — без каркаса сайта (собирает .vitepress/standalone.ts при сборке)
-const standaloneFiles = import.meta.glob<string>(['../../../examples/*/*.ts', '!../../../examples/_*/**'], { query: '?standalone', import: 'default' });
+const snapKey = `../../../examples/_snapshots/${props.id}.json`;
+// снимок есть — есть и пошаговый показ (без снимка — только программа)
+const hasSnap = !!files[snapKey];
 const snap = shallowRef<Snapshot | null>(null);
 // настоящие значения показанного снимка (null — их нет: старый снимок или песочница их не прислала)
 const real = shallowRef<Real | null>(null);
 // записанный снимок; в плеере может быть и снимок прогона из песочницы (mine)
 const recorded = shallowRef<Snapshot | null>(null);
 const recordedReal = shallowRef<Real | null>(null);
+// пошаговый показ раскрыт (по кнопке, по запросу схемы процесса <Flow> или сразу — в песочнице и без программы в слоте)
+const stepsOpen = ref(false);
 const opened = ref(false);
 const editing = ref(false);
 const mine = ref(false);
 const missing = ref(false);
 const i = ref(0);
 const showAllResult = ref(false);
+// файл примера сайта как есть (для раннера сайта: example({ steps }) и ctx) — по кнопке в плеере
 const showSource = ref(false);
 // вкладка данных шага: «Метки» или «Реальная таблица»; выбор живёт при листании шагов и смене снимка
 const tab = ref<'labels' | 'real'>('labels');
-// «Весь код примера»: самостоятельный скрипт (по умолчанию) или файл примера сайта как есть
-const codeView = ref<'standalone' | 'file'>('standalone');
-const standaloneText = ref<string | null>(null);
-const copied = ref(false);
 // узкий экран (телефон): таблицы базы свёрнуты, пока их не откроют; на широком — открыты
 const narrow = ref(false);
 const tablesOpen = ref<boolean | null>(null);
@@ -92,39 +95,24 @@ const tablesShown = computed(() => tablesOpen.value ?? !narrow.value);
 const fits = (s: Snapshot, r: Real | null | undefined): Real | null =>
   r && r.id === s.id && Array.isArray(r.steps) && r.steps.length === s.steps.length ? r : null;
 
-// Снимок грузится лениво: когда плеер подходит к экрану (или на него ведёт якорь адреса), а не все плееры страницы
-// сразу — на медленной сети первый пример на экране не ждёт остальные. Настоящие значения (*.real.json) — только
-// когда читатель открыл вкладку «Реальная таблица». На узком экране (телефон) снимок не грузится сам: превью с
-// раскрытым самостоятельным скриптом уже в HTML страницы, а пошаговый плеер — по кнопке (byButton).
+// Снимок грузится лениво — только когда читатель раскрыл пошаговый показ; настоящие значения (*.real.json) — только
+// когда он открыл вкладку «Реальная таблица». Программа (слот) уже в HTML страницы и от снимка не зависит.
 const root = ref<HTMLElement | null>(null);
 const anchorId = `ex-${props.id.replace(/[^a-z0-9]+/gi, '-')}`;
 const realKey = `../../../examples/_snapshots/${props.id}.real.json`;
 const hasReal = !!realFiles[realKey];
-let watcher: IntersectionObserver | null = null;
-let started = false;
-// телефон: плеер ждёт кнопку «Показать пошагово»
-const byButton = ref(false);
+let loading: Promise<void> | null = null;
 
-async function loadSnap() {
-  if (started) return;
-  started = true;
-  watcher?.disconnect();
-  const s = await files[`../../../examples/_snapshots/${props.id}.json`]().then((m) => m.default);
-  // «Весь код примера» из превью (его вставляет preview.ts при сборке): текст уже на странице, а если читатель открыл
-  // блок, пока грузился снимок, — он остаётся открытым и в плеере
-  const pre = root.value?.querySelector('.lt-ex-pre-source');
-  const text = pre?.querySelector('.lt-ex-pre-plain')?.textContent;
-  if (text && standaloneText.value === null) standaloneText.value = text;
-  // на телефоне скрипт в превью раскрыт по умолчанию: плеер открывают ради шагов — его «Весь код» остаётся свёрнутым
-  if (pre?.hasAttribute('open') && !narrow.value) {
-    codeView.value = 'standalone';
-    showSource.value = true;
-  }
-  recorded.value = s;
-  snap.value = s;
-  if (tab.value === 'real') void loadRecordedReal();
-  if (props.sandbox) opened.value = editing.value = true;
-  void nextTick(keepHash); // плеер вырос — якорь адреса мог уехать вниз
+function loadSnap(): Promise<void> {
+  loading ??= (async () => {
+    const s = await files[snapKey]().then((m) => m.default);
+    recorded.value = s;
+    snap.value = s;
+    if (tab.value === 'real') void loadRecordedReal();
+    if (props.sandbox) opened.value = editing.value = true;
+    void nextTick(keepHash); // плеер вырос — якорь адреса мог уехать вниз
+  })();
+  return loading;
 }
 async function loadRecordedReal() {
   const load = realFiles[realKey];
@@ -135,42 +123,41 @@ async function loadRecordedReal() {
 }
 watch(tab, (t) => { if (t === 'real') void loadRecordedReal(); });
 
-onMounted(() => {
-  narrow.value = window.matchMedia('(max-width: 640px)').matches;
-  if (!files[`../../../examples/_snapshots/${props.id}.json`]) {
-    missing.value = true;
-    return;
-  }
-  const targeted = decodeURIComponent(location.hash.slice(1)) === anchorId;
-  if (narrow.value && !props.sandbox && !targeted) {
-    // самостоятельный скрипт превью — раскрыт; его же раскрывает стиль ещё до загрузки скриптов страницы (style.css)
-    root.value?.querySelector('.lt-ex-pre-source')?.setAttribute('open', '');
-    root.value?.querySelector('.lt-ex-pre')?.classList.add('lt-js');
-    byButton.value = true;
-    return;
-  }
-  if (props.sandbox || targeted || typeof IntersectionObserver === 'undefined' || !root.value) {
-    void loadSnap();
-    return;
-  }
-  watcher = new IntersectionObserver((seen) => { if (seen.some((e) => e.isIntersecting)) void loadSnap(); }, { rootMargin: '600px 0px' });
-  watcher.observe(root.value);
-});
-onBeforeUnmount(() => watcher?.disconnect());
-
-watch(showSource, async (v) => {
-  if (!v || standaloneText.value !== null) return;
-  const load = standaloneFiles[`../../../examples/${props.id}.ts`];
-  standaloneText.value = load ? await load().catch(() => '') : '';
-});
-async function copyStandalone() {
-  if (!standaloneText.value) return;
-  await navigator.clipboard?.writeText(standaloneText.value);
-  copied.value = true;
-  setTimeout(() => (copied.value = false), 1500);
+/** Раскрыть пошаговый показ и дождаться снимка. */
+async function openSteps(): Promise<void> {
+  if (!hasSnap) return;
+  stepsOpen.value = true;
+  await loadSnap();
+}
+function toggleSteps() {
+  if (stepsOpen.value) stepsOpen.value = false;
+  else void openSteps();
 }
 
-function toggleEditor() {
+onMounted(() => {
+  narrow.value = window.matchMedia('(max-width: 640px)').matches;
+  if (!hasSnap) {
+    missing.value = !slots.default;
+    return;
+  }
+  // песочница открывает редактор сразу; без программы в слоте (пример вставлен не из разметки страницы) показывать
+  // больше нечего — плеер раскрыт
+  if (props.sandbox || !slots.default) void openSteps();
+});
+
+// «Копировать» в программе: кнопка — в статическом HTML слота (preview.ts), поэтому обработчик — на корне примера
+async function onRootClick(e: MouseEvent) {
+  const btn = (e.target as HTMLElement | null)?.closest<HTMLButtonElement>('.lt-ex-copy');
+  if (!btn) return;
+  const text = btn.closest('.lt-ex-pre')?.querySelector('.lt-ex-script')?.textContent;
+  if (!text) return;
+  await navigator.clipboard?.writeText(text);
+  btn.textContent = 'Скопировано';
+  setTimeout(() => (btn.textContent = 'Копировать'), 1500);
+}
+
+async function toggleEditor() {
+  await openSteps();
   opened.value = true;
   editing.value = !editing.value;
 }
@@ -195,10 +182,11 @@ const go = (n: number) => {
 watch(i, (n) => report(props.id, n), { immediate: true });
 watch(
   () => players[props.id]?.want,
-  (n) => {
+  async (n) => {
     if (n === null || n === undefined) return;
-    go(n);
     players[props.id].want = null;
+    await openSteps();
+    go(n);
   },
 );
 
@@ -251,10 +239,17 @@ const given = computed(() => {
 // Результат { $mermaid } — схема (например, ER-схема модели из db.registry.all()).
 const mermaidOf = (r: unknown) => (r && typeof r === 'object' && typeof (r as Rec).$mermaid === 'string' ? ((r as Rec).$mermaid as string) : null);
 const resultMermaid = computed(() => mermaidOf(step.value?.result));
-// Результат-строки (то, что вернул .rows(), versions() и т. п.) показываем таблицей, остальное — JSON.
+// Результат-строки (то, что вернул .rows(), versions() и т. п.) показываем таблицей, остальное — JSON целиком.
+// Строка letopis — только объект с id, rev и data-объектом, все поля которого — поля строки (Row) или служебные `$…`:
+// произвольный результат шага (например, { text, id, rev }) в таблицу не превращается — иначе его поля пропали бы.
+const ROW_KEYS = new Set(['id', 'class', 'rev', 'tenant', 'owner', 'links', 'data', 'tags', 'at', 'author', 'agent', 'op', 'reason']);
+const isRow = (x: unknown): x is Rec =>
+  !!x && typeof x === 'object' && !Array.isArray(x) && 'id' in x && 'rev' in x &&
+  !!(x as Rec).data && typeof (x as Rec).data === 'object' && !Array.isArray((x as Rec).data) &&
+  Object.keys(x).every((k) => k.startsWith('$') || ROW_KEYS.has(k));
 const asRows = (r: unknown): Rec[] | null => {
-  const arr = Array.isArray(r) ? r : r && typeof r === 'object' && 'id' in (r as Rec) && 'rev' in (r as Rec) ? [r] : null;
-  if (!arr || !arr.length || !arr.every((x) => x && typeof x === 'object' && 'id' in x && 'rev' in x)) return null;
+  const arr = Array.isArray(r) ? r : isRow(r) ? [r] : null;
+  if (!arr || !arr.length || !arr.every(isRow)) return null;
   return arr as Rec[];
 };
 const resultRows = computed(() => asRows(step.value?.result));
@@ -395,53 +390,47 @@ function onKey(e: KeyboardEvent) {
 </script>
 
 <template>
-  <div :id="anchorId" ref="root" class="lt-ex" tabindex="0" @keydown="onKey">
+  <div :id="anchorId" ref="root" class="lt-ex" tabindex="0" @keydown="onKey" @click="onRootClick">
+    <!-- программа: заголовок, скрипт, как запустить, ожидаемый вывод — статический HTML из preview.ts -->
+    <slot />
     <div v-if="missing" class="lt-ex-missing">Снимка примера «{{ id }}» нет: запустите <code>npm run examples</code>.</div>
-    <template v-else-if="snap && step">
+    <div v-if="hasSnap" class="lt-ex-bar">
+      <button class="lt-btn" :class="{ primary: !stepsOpen }" :aria-expanded="stepsOpen" @click="toggleSteps">
+        {{ stepsOpen ? '▾ Свернуть пошаговый показ' : '▸ Пошагово: что происходит в базе' }}
+      </button>
+      <button class="lt-btn ghost" @click="toggleEditor">{{ editing ? 'Скрыть редактор' : 'Изменить код и запустить' }}</button>
+    </div>
+    <div v-if="stepsOpen && !(snap && step)" class="lt-ex-loading">Загружаю пошаговый показ: результаты шагов и таблицы базы…</div>
+    <template v-else-if="stepsOpen && snap && step">
       <div class="lt-ex-head">
         <div class="lt-ex-top">
-          <div class="lt-ex-badge" :class="{ mine }">{{ mine ? 'Ваш прогон в песочнице' : 'Пример на настоящей базе' }}</div>
+          <div class="lt-ex-badge" :class="{ mine }">{{ mine ? 'Ваш прогон в песочнице' : 'Пошагово: прогон на настоящей базе' }}</div>
           <div class="lt-ex-actions">
             <button v-if="snap.sourceHtml || snap.source" class="lt-link" :aria-expanded="showSource" @click="showSource = !showSource">
-              {{ showSource ? 'Скрыть весь код' : 'Весь код примера' }}
+              {{ showSource ? 'Скрыть файл' : mine ? 'Код вашего прогона' : 'Файл примера сайта' }}
             </button>
-            <button class="lt-link" @click="toggleEditor">{{ editing ? 'Скрыть редактор' : 'Изменить код и запустить' }}</button>
           </div>
         </div>
-        <div class="lt-ex-title">{{ snap.title }}</div>
-        <p v-if="snap.summary" class="lt-ex-summary">{{ snap.summary }}</p>
+        <template v-if="!slots.default">
+          <div class="lt-ex-title">{{ snap.title }}</div>
+          <p v-if="snap.summary" class="lt-ex-summary">{{ snap.summary }}</p>
+        </template>
+        <p class="lt-ex-source-note">
+          Те же шаги, что в программе выше: код шага, его результат и что после него лежит в таблицах <code>entity</code>, <code>log</code> и <code>secret</code>.
+          Здесь шаги выполняет раннер сайта и передаёт им <code>ctx</code> (<code>db</code>, <code>svc</code>, <code>dsn</code>…; что чему равно — в блоке «Дано»).
+        </p>
         <div v-if="showSource && (snap.sourceHtml || snap.source)" class="lt-ex-source">
           <template v-if="mine">
             <div class="lt-ex-label">Код вашего прогона целиком</div>
             <pre class="lt-ex-plain">{{ snap.source }}</pre>
           </template>
           <template v-else>
-            <div class="lt-ex-tabs" role="tablist" aria-label="Какой код показать">
-              <button role="tab" class="lt-tab" :class="{ active: codeView === 'standalone' }" :aria-selected="codeView === 'standalone'" @click="codeView = 'standalone'">Скрипт для своего проекта</button>
-              <button role="tab" class="lt-tab" :class="{ active: codeView === 'file' }" :aria-selected="codeView === 'file'" @click="codeView = 'file'">Файл примера сайта</button>
-            </div>
-            <template v-if="codeView === 'standalone'">
-              <p class="lt-ex-source-note">
-                Тот же пример без каркаса сайта: вместо <code>example()</code> из <code>_shared/example.ts</code> и <code>ctx</code> раннера —
-                обычные <code>up()</code>, <code>connect()</code> и <code>svc.as()</code>, помощники <code>_shared/…</code> (например, <code>seedShop</code>) вставлены целиком,
-                шаги идут подряд. Скопируйте в файл, задайте <code>ADMIN_DSN</code> и запустите <code>npx tsx example.ts</code>.
-              </p>
-              <div class="lt-ex-source-bar">
-                <button class="lt-btn" :disabled="!standaloneText" @click="copyStandalone">{{ copied ? 'Скопировано' : 'Копировать скрипт' }}</button>
-              </div>
-              <pre v-if="standaloneText" class="lt-ex-plain">{{ standaloneText }}</pre>
-              <div v-else-if="standaloneText === null" class="lt-ex-loading">Собираю скрипт…</div>
-              <div v-else class="lt-ex-loading">Самостоятельного варианта нет — смотрите файл примера.</div>
-            </template>
-            <template v-else>
-              <p class="lt-ex-source-note">
-                Файл <code>examples/{{ id }}.ts</code> целиком — для раннера сайта: <code>example({ steps })</code> из <code>_shared/example.ts</code> — только каркас,
-                каждый шаг — функция <code>run</code>, которой раннер передаёт <code>ctx</code> (<code>db</code>, <code>svc</code>, <code>connect</code>, <code>dsn</code>…; что чему равно — в блоке «Дано» шага).
-                <code>connect</code> в <code>ctx</code> — тот же <code>connect</code> из <code>letopis</code>; помощники <code>_shared/…</code> — на вкладке «Скрипт для своего проекта».
-              </p>
-              <div v-if="snap.sourceHtml" class="lt-ex-code" v-html="snap.sourceHtml" />
-              <pre v-else class="lt-ex-plain">{{ snap.source }}</pre>
-            </template>
+            <p class="lt-ex-source-note">
+              Файл <code>examples/{{ id }}.ts</code> целиком — для раннера сайта: <code>example({ steps })</code> из <code>_shared/example.ts</code> — только каркас,
+              каждый шаг — функция <code>run</code>, которой раннер передаёт <code>ctx</code>. Для своего проекта — программа выше.
+            </p>
+            <div v-if="snap.sourceHtml" class="lt-ex-code" v-html="snap.sourceHtml" />
+            <pre v-else class="lt-ex-plain">{{ snap.source }}</pre>
           </template>
         </div>
       </div>
@@ -764,13 +753,6 @@ function onKey(e: KeyboardEvent) {
         <span>← → — листать шаги с клавиатуры</span>
       </div>
     </template>
-    <div v-else class="lt-ex-loading">
-      <slot />
-      <div v-if="byButton" class="lt-ex-loading-bar">
-        <button class="lt-btn primary" @click="byButton = false; loadSnap()">Показать пошагово: результаты и таблицы базы</button>
-      </div>
-      <div v-else class="lt-ex-loading-note">Загружаю пошаговый пример: результаты, таблицы и остальные шаги…</div>
-    </div>
   </div>
 </template>
 
@@ -935,10 +917,11 @@ function onKey(e: KeyboardEvent) {
 .sw.chg { background: var(--vp-c-warning-soft); border: 1px solid var(--vp-c-warning-2); }
 .sw.del { background: var(--vp-c-danger-soft); border: 1px solid var(--vp-c-danger-2); }
 .lt-ex-missing, .lt-ex-loading { color: var(--vp-c-text-2); }
-.lt-ex-loading-note { font-size: 13px; margin-top: 8px; }
-.lt-ex-loading-bar { margin-top: 12px; }
+.lt-ex-loading { margin-top: 12px; font-size: 14px; }
+/* кнопки под программой: пошаговый показ и песочница */
+.lt-ex-bar { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--vp-c-divider); }
+.lt-ex-head { margin-top: 14px; }
 .lt-ex-source-note { margin: 10px 0 8px; font-size: 13px; line-height: 1.55; color: var(--vp-c-text-2); }
-.lt-ex-source-bar { margin: 0 0 8px; }
 .lt-ex-tables-toggle { margin-top: 14px; }
 /* Телефон: строки таблиц — карточки «поле: значение», без прокрутки вбок */
 @media (max-width: 640px) {
@@ -955,8 +938,10 @@ function onKey(e: KeyboardEvent) {
   .lt-ex-real td { white-space: normal; }
   .lt-wrap { min-width: 0; }
   .lt-ex-tabs-hint { display: block; margin: 4px 0 5px; }
-  /* код шага, весь код примера и результат — с переносом по ширине экрана, без прокрутки вбок */
-  .lt-ex-code :deep(pre), .lt-ex-plain, .lt-ex-result pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+  /* код и результат — строки как в редакторе, с прокруткой вбок и по высоте: перенос по ширине растягивал скрипт на
+     десятки экранов */
+  .lt-ex-code :deep(pre), .lt-ex-plain, .lt-ex-result pre { white-space: pre; overflow: auto; max-height: 60vh; }
   .lt-ex-code :deep(pre) { font-size: 12.5px; }
+  .lt-ex-bar .lt-btn { flex: 1 1 100%; }
 }
 </style>

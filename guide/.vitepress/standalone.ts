@@ -8,8 +8,10 @@
  * шаги идут подряд, каждый печатает свой результат. Код шагов — ровно тот же, что в файле примера (вместе со строками
  * `// скрыть`).
  *
- * Плеер (`theme/Example.vue`) получает текст через `import.meta.glob('…/examples/*\/*.ts', { query: '?standalone' })`:
- * модуль с таким запросом отдаёт плагин `standalonePlugin` (подключён в `config.ts`).
+ * Скрипт не зависит от сайта: роль приложения заводит `up({ login })`, база по умолчанию — из рецепта запуска на
+ * главной (`DEFAULT_ADMIN_DSN`). В HTML страницы его вставляет `preview.ts` (программа примера: скрипт, команды запуска
+ * по `packages` и `file`, ожидаемый вывод по `titles`); модулем `examples/….ts?standalone` его отдаёт плагин
+ * `standalonePlugin` (подключён в `config.ts`).
  */
 import { readFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
@@ -98,8 +100,43 @@ function stringOf(e: ts.Expression | undefined, sf: ts.SourceFile): string {
 
 const lf = (s: string) => s.replace(/\r\n/g, '\n');
 
+/** Строка подключения администратора по умолчанию — база из рецепта запуска на главной (Docker, порт 15440). */
+export const DEFAULT_ADMIN_DSN = 'postgres://postgres:guide@127.0.0.1:15440/letopis';
+
+/** Имя файла скрипта в своём проекте: `first/01-rental` → `rental.ts`. */
+export const scriptName = (id: string) => `${id.split('/').pop()!.replace(/^\d+-/, '')}.ts`;
+
+/** Пакет npm по спецификатору импорта: `letopis/model` → `letopis`, `@scope/pkg/x` → `@scope/pkg`; встроенные — null. */
+function packageOf(spec: string): string | null {
+  if (spec.startsWith('.') || spec.startsWith('node:') || spec.startsWith('/')) return null;
+  const parts = spec.split('/');
+  return spec.startsWith('@') ? parts.slice(0, 2).join('/') : parts[0];
+}
+
+export interface StandaloneInfo {
+  /** Текст самостоятельного скрипта. */
+  text: string;
+  /** Имя файла скрипта (`rental.ts`). */
+  file: string;
+  /** Пакеты для `npm i` в порядке импорта; letopis — с версией (`letopis@3`). */
+  packages: string[];
+  /** Скрипт импортирует внутренний модуль репозитория letopis — вне репозитория он так не запустится. */
+  internal: boolean;
+  /** Шаги печатают и сами (console, `log: console`) — этого вывода в снимке нет. */
+  prints: boolean;
+  /** Заголовки шагов так, как их печатает скрипт («Шаг 1. …»). */
+  titles: string[];
+  /** Код ошибки, которой шаг обязан упасть (отказ — так и задумано), или null. */
+  expected: (string | null)[];
+}
+
 /** file — пример; guide — каталог guide/ (примеры — в соседнем корневом examples/). */
 export function standalone(file: string, guide: string): string {
+  return standaloneInfo(file, guide).text;
+}
+
+/** Самостоятельный скрипт и что нужно, чтобы его запустить. */
+export function standaloneInfo(file: string, guide: string): StandaloneInfo {
   // все пути — от examples/: id примера, помощники _shared/, внутренние модули репозитория (../lib/…)
   const root = join(guide, '..', 'examples');
   const src = lf(readFileSync(file, 'utf8'));
@@ -135,7 +172,8 @@ export function standalone(file: string, guide: string): string {
     }
     prelude.push(statementText(st, src, sf));
   }
-  if (!def) return `// examples/${id}.ts: не найден вызов example({ … })\n`;
+  const name = scriptName(id);
+  if (!def) return { text: `// examples/${id}.ts: не найден вызов example({ … })\n`, file: name, packages: [], internal: false, prints: false, titles: [], expected: [] };
 
   // помощники _shared/*.ts — целиком, без export; их импорты сливаются с импортами примера
   const kitCode: string[] = [];
@@ -187,7 +225,9 @@ export function standalone(file: string, guide: string): string {
     if (!lib.named.some((n) => n.name === name && n.as === as && !n.type)) lib.named.push({ name, as, type: false });
     lib.typeOnly = false;
   };
-  if (tenant) want('up', 'install');
+  // без установки раннера (setup: 'none') шаги, которым нужна роль приложения (dsn.app), получают её от up({ login })
+  const needApp = !tenant && steps.some((s) => /\bdsn\.app\b/.test(s.run));
+  if (tenant || needApp) want('up', 'install');
   want('connect');
   if (need('admin') || !tenant) {
     if (!imports.byModule.has('postgres')) {
@@ -202,8 +242,9 @@ export function standalone(file: string, guide: string): string {
   const pgName = imports.byModule.get('postgres')?.def ?? 'postgres';
 
   const ctx: string[] = [
-    "// База — своя PostgreSQL 18: ADMIN_DSN — администратор (суперпользователь или CREATEROLE).",
-    "const ADMIN_DSN = process.env.ADMIN_DSN ?? 'postgres://postgres:ПАРОЛЬ@127.0.0.1:15440/postgres';",
+    '// База — PostgreSQL 18; ADMIN_DSN — администратор, который ставит схему (какие права нужны — глава «Установка',
+    '// и подключение»). По умолчанию — база из Docker по рецепту на главной сайта.',
+    `const ADMIN_DSN = process.env.ADMIN_DSN ?? '${DEFAULT_ADMIN_DSN}';`,
     `// схема примера: каждый запуск ставит её заново${tenant ? ' (up({ fresh: true }))' : ''}`,
     `const schema = 'v2.example_${id.replace(/[^a-z0-9]+/gi, '_').toLowerCase()}';`,
     "const user = { login: 'anna@romashka.ru', password: 'Ромашка-2026!' };",
@@ -221,11 +262,24 @@ export function standalone(file: string, guide: string): string {
       'const svc = await connect({ dsn: dsn.app, schema, apiKey: installed.serviceKey! });',
       'const db = await svc.as(installed.tenant!.user!, { tenant: installed.tenant!.tenant });',
     );
+  } else if (needApp) {
+    ctx.push(
+      '// роль приложения (член группы letopis_app) заводит сам up({ login }) и возвращает её строку подключения;',
+      '// роль общая для кластера и остаётся, а схему пример ставит сам (up()) — поэтому она удаляется: пример начинает',
+      '// с пустой схемы, как у раннера сайта',
+      'const prepared = await install({',
+      '  dsn: ADMIN_DSN, schema, fresh: true, quiet: true,',
+      "  login: { user: 'example_app', password: 'example-app-secret' },",
+      '});',
+      'const dsn = { admin: ADMIN_DSN, app: prepared.login!.dsn! };',
+      `const reset = ${pgName}(ADMIN_DSN, { onnotice: () => {} });`,
+      "await reset.unsafe('drop schema if exists \"' + schema + '\" cascade');",
+      'await reset.end();',
+    );
   } else {
     ctx.push(
-      '// роль приложения — член группы letopis_app (как её завести — глава «Установка и подключение»)',
-      "const dsn = { admin: ADMIN_DSN, app: process.env.APP_DSN ?? 'postgres://myapp:ПАРОЛЬ@127.0.0.1:15440/postgres' };",
       '// пример сам ставит схему (up()), поэтому начинает с пустой — как у раннера сайта: прежняя схема примера удаляется',
+      'const dsn = { admin: ADMIN_DSN };',
       `const reset = ${pgName}(ADMIN_DSN, { onnotice: () => {} });`,
       "await reset.unsafe('drop schema if exists \"' + schema + '\" cascade');",
       'await reset.end();',
@@ -263,23 +317,33 @@ export function standalone(file: string, guide: string): string {
     '}',
   ];
 
+  const titles = steps.map((s, k) => `Шаг ${k + 1}. ${s.title.replace(/^\d+\.\s*/, '')}`);
   const stepCode = steps.map((s, k) => {
-    const name = `Шаг ${k + 1}. ${s.title.replace(/^\d+\.\s*/, '')}`.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-    return `await step('${name}', ${reindent(s.run)}${s.expected ? `, '${s.expected}'` : ''});`;
+    const label = titles[k].replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    return `await step('${label}', ${reindent(s.run)}${s.expected ? `, '${s.expected}'` : ''});`;
   });
+
+  // пакеты для npm i — по импортам скрипта; postgres ставится явно, даже если скрипт его не импортирует: им пользуются
+  // createTenant и свой SQL, а под pnpm и yarn PnP зависимость letopis из своего кода не видна
+  const packages = [...new Set(['letopis', 'zod', ...imports.order.map(packageOf).filter((p): p is string => !!p), 'postgres'])]
+    .map((p) => (p === 'letopis' ? 'letopis@3' : p));
+  const internal = imports.order.some((m) => m.startsWith('.'));
+  const prints = steps.some((s) => /\bconsole\.|log:\s*console\b/.test(s.run));
 
   const head = [
     `// «${title}» — самостоятельный вариант примера сайта (файл examples/${id}.ts).`,
     '// Каркас сайта убран: example() и ctx раннера заменены обычным кодом, помощники _shared/… вставлены целиком,',
-    '// шаги идут подряд и печатают результат. Запуск: npm init -y && npm pkg set type=module && npm i letopis zod postgres && npm i -D tsx,',
-    '// затем npx tsx example.ts (await на верхнем уровне — нужен "type": "module").',
+    '// шаги идут подряд и печатают результат. Запуск — в пустой папке проекта ("type": "module" нужен для await',
+    '// на верхнем уровне):',
+    `//   npm init -y && npm pkg set type=module && npm i ${packages.join(' ')} && npm i -D tsx`,
+    `//   ADMIN_DSN=${DEFAULT_ADMIN_DSN} npx tsx ${name}`,
+    `//   PowerShell: $env:ADMIN_DSN = '${DEFAULT_ADMIN_DSN}'; npx tsx ${name}`,
   ];
-  if (!tenant) head.push('// APP_DSN — роль приложения из группы letopis_app (пример ставит схему сам и ею подключается).');
-  if (imports.order.some((m) => m.startsWith('.'))) {
+  if (internal) {
     head.push('// Внимание: пример вызывает внутренний модуль репозитория letopis (помеченный импорт) — в своём проекте',
       '// вместо него команда в терминале: npx letopis … (глава «Эксплуатация»).');
   }
-  return [
+  const text = [
     head.join('\n'),
     printImports(imports),
     ...kitCode,
@@ -289,6 +353,7 @@ export function standalone(file: string, guide: string): string {
     `// ---------- шаги ----------\n${stepCode.join('\n\n')}`,
     '// пулы подключений держат процесс открытым — выходим явно\nprocess.exit(0);',
   ].filter(Boolean).join('\n\n') + '\n';
+  return { text, file: name, packages, internal, prints, titles, expected: steps.map((s) => s.expected) };
 }
 
 /** Vite: `examples/….ts?standalone` — модуль с самостоятельным вариантом примера строкой. */
