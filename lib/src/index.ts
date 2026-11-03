@@ -16,7 +16,7 @@ import { limits, registerDb } from './internal.js';
 import { makeAuth, type AuthApi } from './auth.js';
 import { makeAcl, type AclApi } from './acl.js';
 import { idOf as idOfClass } from './uuid.js';
-import { load, type LoadInput, type LoadOptions, type LoadReport } from './load.js';
+import { load, LOAD_OPTIONS, type LoadInput, type LoadOptions, type LoadReport } from './load.js';
 import { makeBatch, startEntity, startStep, type Batch, type BatchEntry, type Chain, type ChainCtx, type ChainRef, type StepFn } from './chain.js';
 import { or as orFilters } from './ops.js';
 import type { QueryEvent, Row } from './types.js';
@@ -118,7 +118,7 @@ export interface ConnectOptions {
   maintain?: string | number;
 }
 
-/** Все опции connect(): неизвестную checkOptions называет с похожими (план 2.0, 7.9 №6). */
+/** Все опции connect(): неизвестная — invalid_data с похожими именами (checkOptions; план 2.0, 7.10 №4). */
 const CONNECT_OPTIONS = {
   dsn: true, sql: true, schema: true, token: true, apiKey: true, service: true, refreshSession: true, allowBypassRls: true,
   admin: true, owner: true, notifyIntervalMs: true, max: true, onQuery: true, slowMs: true, models: true, listen: true,
@@ -373,6 +373,8 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
       return makeDb(sh, btx === txc ? scope : { ...scope, txc: btx }, t, owner, t) as DbTx;
     },
     load: async (input, o) => {
+      // опции — до всего прочего: неизвестная — отказ раньше admin_required пула администратора (план 2.0, 7.10 №4)
+      checkOptions('load', o, LOAD_OPTIONS);
       if (tx) throw lerr('api.load_in_tx');
       if (viaAdmin) {
         await adminReady();
@@ -414,9 +416,10 @@ export function connect(opts: ConnectOptions): Promise<Db>;
 /** Строгие типы без моделей Zod — из объявлений `letopis types`: `connect<Models>({ … })`. */
 export function connect<M extends readonly AnyModelLike[]>(opts: ConnectOptions): Promise<TypedDb<M>>;
 export async function connect(opts: ConnectOptions): Promise<Db> {
+  // опции — первыми: неизвестная — invalid_data с похожими именами до прочих проверок (план 2.0, 7.10 №4)
+  checkOptions('connect', opts, CONNECT_OPTIONS);
   if (!SCHEMA_NAME.test(opts.schema)) throw lerr('api.connect_schema', { schema: opts.schema });
   if (!opts.sql && !opts.dsn) throw lerr('api.connect_no_dsn');
-  checkOptions('connect', opts, CONNECT_OPTIONS);
   // интервал обслуживания — до пула и таймеров: неверный не оставляет за собой открытых соединений
   const maintainEvery = opts.maintain === undefined ? undefined : parseInterval(opts.maintain);
   if (opts.admin !== undefined && typeof opts.admin !== 'string' && typeof opts.admin !== 'function') {

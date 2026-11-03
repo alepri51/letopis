@@ -63,7 +63,7 @@ export interface McpOptions {
   allowSystemAdmin?: boolean;
 }
 
-/** Все опции createMcpServer: неизвестную checkOptions называет с похожими (план 2.0, 7.9 №6). */
+/** Все опции createMcpServer: неизвестная — invalid_data с похожими именами (checkOptions; план 2.0, 7.10 №4). */
 const MCP_OPTIONS = {
   write: true, maxRows: true, maxBytes: true, allowAclWrite: true, allowSystemAdmin: true,
 } satisfies Record<keyof McpOptions, true>;

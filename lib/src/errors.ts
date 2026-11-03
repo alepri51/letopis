@@ -45,7 +45,7 @@ export function lmsg(key: MsgKey, params?: Params): string {
 const warned = new Set<string>();
 /**
  * Предупреждение по записи каталога — «letopis: <текст>» в console.warn. once — ключ «один раз на процесс»; future —
- * хвост «в 2.0 — ошибка <код>»: так в 1.5 предупреждают о том, что в 2.0 станет отказом.
+ * хвост «в 2.0 — ошибка <код>»: так предупреждают о том, что станет отказом (неизвестное поле фильтра, sort, агрегата).
  */
 export function lwarn(key: MsgKey, params?: Params, opts: { once?: string; future?: boolean } = {}): void {
   if (opts.once !== undefined) {
@@ -133,8 +133,7 @@ export function similar(name: string, candidates: Iterable<string>, n = 5): stri
 export function checkOptions(where: string, opts: unknown, known: Readonly<Record<string, true>>): void {
   if (!opts || typeof opts !== 'object') return;
   for (const k of Object.keys(opts)) {
-    if (Object.hasOwn(known, k)) continue;
-    lwarn('api.unknown_option', { where, name: k, similar: similar(k, Object.keys(known)) }, { once: `${where}0000${k}`, future: true });
+    if (!Object.hasOwn(known, k)) throw lerr('api.unknown_option', { where, name: k, similar: similar(k, Object.keys(known)) });
   }
 }
 

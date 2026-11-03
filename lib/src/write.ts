@@ -210,16 +210,15 @@ export function precheckPlan(reg: Registry, steps: Step[]): void {
         if (!isPlain(op.data)) throw lerr('write.patch_not_object');
         splitPatch(op.data);
         if (op.rev !== undefined && (!Number.isInteger(op.rev) || op.rev < 1)) throw lerr('write.bad_rev');
-        // data.id у шага без фильтра — тоже цель (updateOp)
-        // TODO(2.0, строгий режим): включить после вырезки — update() без фильтра, id или limit → invalid_query, кроме { all: true }
-        // if (!op.all && !(s.filter === undefined && typeof op.data.id === 'string') && !narrowed(steps, i)) {
-        //   throw lerr('write.no_filter', { call: 'update()', cls: s.cls.name });
-        // }
+        // строгий режим (план 2.0, этап 4, п. 2; 7.10 №2): правка без сужения целей — отказ до записи, все строки —
+        // { all: true }; data.id у шага без фильтра — тоже цель (updateOp)
+        if (!op.all && !(s.filter === undefined && typeof op.data.id === 'string') && !narrowed(steps, i)) {
+          throw lerr('write.no_filter', { call: 'update()', cls: s.cls.name });
+        }
         break;
       case 'delete':
         // превью (без confirm) ничего не удаляет — его не сужают
-        // TODO(2.0, строгий режим): включить после вырезки
-        // if (op.confirm && !op.all && !narrowed(steps, i)) throw lerr('write.no_filter', { call: 'delete({ confirm: true })', cls: s.cls.name });
+        if (op.confirm && !op.all && !narrowed(steps, i)) throw lerr('write.no_filter', { call: 'delete({ confirm: true })', cls: s.cls.name });
         break;
       case 'restore':
         break;

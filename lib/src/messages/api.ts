@@ -53,6 +53,13 @@ export const api = {
     code: 'invalid_query',
     ru: '{name}() после {verb}() ни на что не действует: глагол проходит по всем целям шага, а ответ — его строки. Цели сужают limit(), offset() и sort() до глагола: db.Класс(…).limit(n).{verb}(…)',
   },
+  // chain.ts, afterNotPaged: after() перед count() или агрегатом чтения (sum, avg, min, max, countBy) — с 2.0 отказ, в 1.x
+  // курсор там молча не учитывался (план 2.0, этап 4, п. 2; 7.10 №7); fn — имя терминала
+  'api.after_not_paged': {
+    code: 'invalid_query',
+    ru: '{fn}() не листается: after() сдвигает начало страницы rows(), ids(), versions() и paths(), а {fn}() считает по всем объектам шага',
+    hint: 'убрать after() перед счётом и агрегатом; сузить то, что считается, — фильтром шага',
+  },
   // chain.ts, lockedRead: forUpdate() вне db.begin()
   'api.for_update_outside_tx': {
     code: 'tx_required',

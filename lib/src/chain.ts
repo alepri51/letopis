@@ -119,7 +119,7 @@ export interface ChainCore {
    * Постраничный вывод по курсору: ответ начинается строго после строки, на которой кончилась прошлая страница, в
    * порядке `sort()` (без `sort()` — ошибка `invalid_query`). Курсор этой строки даёт `cursorOf(строка, поле)` с тем же
    * полем, что в `sort()`. Листает `rows()`, `ids()`, `versions()` и `paths()` (курсор пути — `cursorOf(путь, поле)`);
-   * `count()` и агрегаты курсор не учитывают.
+   * перед `count()` и агрегатами (`sum`, `avg`, `min`, `max`, `countBy`) — `invalid_query`: они считают по всем объектам.
    */
   after(cursor: Cursor): Chain;
   /**
@@ -331,6 +331,14 @@ function afterVerbError(name: string, verb: string): LetopisError {
 }
 
 /**
+ * Курсор after() листает строки, а count() и агрегаты чтения считают по всем объектам шага: раньше курсор там молча не
+ * учитывался, с 2.0 — invalid_query до запроса (план 2.0, этап 4, п. 2; 7.10 №7).
+ */
+function afterNotPaged(mods: ChainMods, fn: string): void {
+  if (mods.after !== undefined) throw lerr('api.after_not_paged', { fn });
+}
+
+/**
  * Терминалы rows, first, ids, count и paths цепочки, которая кончается глаголом, отдают строки самой правки.
  * Модификатор выборки между глаголом и терминалом ни на что не подействовал бы: limit резал бы только ответ, хотя
  * правка прошла по всем целям, остальные молча пропускались. Поэтому — отказ до записи. После глагола модификатор
@@ -533,6 +541,7 @@ export function makeChain(ctx: ChainCtx, steps: Step[], mods: ChainMods, nodes: 
   };
 
   const agg = (fn: AggSpec['fn']) => async (field: string) => {
+    afterNotPaged(mods, fn);
     const { q, res } = await read<{ v?: unknown; k?: string; n?: number }>(ctx, steps, mods, 'agg', { fn, field });
     if (fn === 'countBy') return Object.fromEntries(res.map((r) => [r.k ?? 'null', r.n]));
     const v = res[0]?.v;
@@ -577,6 +586,7 @@ export function makeChain(ctx: ChainCtx, steps: Step[], mods: ChainMods, nodes: 
       case 'count':
         return async (opts?: { paths?: boolean }) => {
           checkAfterVerb(steps, mods);
+          afterNotPaged(mods, 'count');
           return (await read<{ n: number }>(ctx, steps, mods, opts?.paths ? 'countPaths' : 'count')).res[0].n;
         };
       case 'versions':

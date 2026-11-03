@@ -409,7 +409,7 @@ export interface LoginOptions {
   password: string;
 }
 
-/** Все опции up(): неизвестную checkOptions называет с похожими (план 2.0, 7.9 №6). */
+/** Все опции up(): неизвестная — invalid_data с похожими именами до подключения (checkOptions; план 2.0, 7.10 №4). */
 const UP_OPTIONS = {
   dsn: true, sql: true, schema: true, fresh: true, upgrade: true, quiet: true, waitTimeoutMs: true, pglite: true, tenant: true,
   login: true, owner: true, app: true, seeds: true, migrationsDir: true, serviceKey: true,
@@ -582,8 +582,8 @@ export async function up(opts: UpOptions): Promise<UpResult> {
       warnings.push(w);
       if (!opts.quiet) console.warn(`letopis.up: ${w}`);
     }
-    // хабы с зарезервированными именами, заведённые до 2.0 (план 2.0, этап 4, п. 2; 7.10 №3): накат их оставляет и
-    // называет, новых таких база не пишет. Строки Class — от роли владельца, как ANALYZE: у установщика без
+    // хабы с зарезервированными именами, заведённые мимо проверки базы (план 2.0, этап 4, п. 2; 7.10 №3): накат их
+    // оставляет и называет, новых таких база не пишет. Строки Class — от роли владельца, как ANALYZE: у установщика без
     // суперпользователя прав на таблицы нет, а RLS владельца таблицы не касается
     const reserved = await sql.begin(async (tx) => {
       await tx.unsafe(`set local role ${quoteIdent(res.owner)}`);

@@ -99,6 +99,7 @@ db.tenant          // арендатор сессии: по умолчанию �
 ```
 - `connect({ dsn | sql, schema: 'v2.имя', token | apiKey, max, listen, cache, onQuery, slowMs, maintain,
   allowBypassRls, models })`. `schema` — **полное** имя с `v2.`.
+  - неизвестная опция (и у `up`, `db.load`, `db.watch`, `createMcpServer`) → `invalid_data` с похожими именами.
   - администраторское подключение (`allowBypassRls`) → печатает предупреждение «RLS не действует» — так и должно
     быть.
 - `db.auth`: `setPassword`, `verifyPassword`, `issueApiKey`, `verifyApiKey`, `issueKeySecret`, `verifyKeySecret`,
@@ -175,7 +176,13 @@ npx letopis sync ./models.js --dsn "$APP" --schema v2.myapp --token "$TOKEN"    
 npx letopis sync ./models.js --dsn "$APP" --schema v2.myapp --token "$TOKEN" --apply    # применить
 npx letopis types --dsn "$APP" --schema v2.myapp --token "$TOKEN" --out types.ts       # типы классов из базы
 ```
-- Типы цепочек: `connect({ …, models: [Shop, Wallet, Payment, Note] })` — модели только для типов.
+- Строгие типы: `connect({ …, models: [Shop, Wallet, Payment, Note] })` или `connect<Models>({ … })` с файлом
+  `letopis types` — модели и объявления только для TypeScript:
+  - шаг от корня → только класс или алиас моделей и системные `Class`, `Account`, `member`, `Resource`, `rule`;
+  - переход → только по концам; слот → только роль класса (`add`/`remove` — у `many`, `unset` — у необязательного);
+  - поля фильтра, `or()`, `sum`/`avg` (числовые), `min`/`max`/`countBy` → поля класса;
+  - имя, известное только во время выполнения, → `loose(db)[имя]()`; `db.as()`, `db.begin()`, `db.batch()` и
+    `entity()` → цепочки без строгих типов.
 
 ### 4. Запись цепочками
 
@@ -194,7 +201,7 @@ const [up1] = await db.Shop().upsert({ name: 'Центр', city: 'Уфа' }).row
 await db.Wallet(w).Payment().create({ opId: 'op-1', amount: 500 }).Wallet().update({ balance: inc(500) }).rows()
 await db.Wallet(w).update({ balance: inc(-300) }).first()                      // баланс 200; итог ниже minimum (0) — invalid_data
 const cur = (await db.Wallet(w).first())!
-await db.Wallet(w).update({ balance: 0 }, { rev: cur.rev }).first()           // строгий режим: чужая правка — conflict
+await db.Wallet(w).update({ balance: 0 }, { rev: cur.rev }).first()           // { rev }: чужая правка — conflict
 // слоты концов после create / update / upsert: .Роль.set(x) .unset() и для many — .add(x) .remove(x)
 const [west] = await db.Shop().create({ name: 'Запад' }).rows()
 await db.Wallet(w).update({}).Shop.set(west).rows()
@@ -204,6 +211,8 @@ const batchRows = await b.run()                                              // 
 ```
 - `inc(n, { start })` → только в `update`; поля нет → ошибка (или `start`); маркер не получить из JSON.
 - `{ rev }` → только при одной цели шага; целей больше → `rev_ambiguous`.
+- `update()` без фильтра, id, `tags()`, `owner()` и `limit()` ни у одного шага → `invalid_query` до записи; все строки
+  → `update(патч, { all: true })`.
 - Затронуто меньше строк, чем нашёл шаг, → откат плана с `target_not_found` (не видна), `conflict` (`rev` разошёлся)
   или `acl_denied`.
 
@@ -230,7 +239,7 @@ await db.Wallet(or({ number: 'W-1' }, { number: 'W-2' })).ids()
 - `after(cursorOf(строка, поле))`:
   - требует `sort()` по тому же полю;
   - листает `rows()`, `versions()` и `paths()` (курсор пути — `cursorOf(путь, поле)`, ключи пути — в порядке шагов);
-  - `count()` и агрегаты → курсор не учитывают.
+  - перед `count()` и агрегатами → `invalid_query` (они считают по всем объектам шага).
 
 Операторы фильтра и их ключи в JSON-фильтре MCP (инструмент `letopis_query`, п. 14):
 
@@ -267,6 +276,8 @@ const preview = await db.Shop(shop).delete().rows()     // ничего не у�
 await db.Note(n.id).delete({ confirm: true }).rows()   // надгробия (row.$deleted); каскад — по onDelete концов
 await db.Note(n.id).restore().rows()                   // вернуть удалённое (id прежний); живое — not_deleted
 ```
+- `delete({ confirm: true })` без фильтра, id, `tags()`, `owner()` и `limit()` у шагов → `invalid_query` до записи;
+  все строки → `delete({ confirm: true, all: true })`; превью → без условий.
 
 ### 7. Загрузчик
 
@@ -430,7 +441,7 @@ await adm.close(); await db.close(); await svc.close()
    - частичная правка → `update`.
 2. **`update` никогда не создаёт.**
    - шаг ничего не нашёл → пустой ответ без ошибки, проверяйте длину;
-   - без фильтра и без `data.id` → правятся все строки шага;
+   - без фильтра, id, `tags()`, `owner()`, `limit()` и `data.id` → `invalid_query` до записи; все строки → `{ all: true }`;
    - `target_not_found` → при `{ rev }` или если строку удалили между поиском и правкой.
 3. **Глаголы возвращают цепочку.**
    - без терминала (`.rows()`, `.first()` …) → ничего не исполнится;
@@ -474,8 +485,8 @@ await adm.close(); await db.close(); await svc.close()
     - чужой id → `id_mismatch`;
     - id для класса без ключа → `id_from_db`.
 13. **Имена методов зарезервированы**:
-    - класс с именем `count`, `sort`, `set`, `run`, `sql`, `auth` … → как шаг недостижим (список —
-      `RESERVED_CLASS_NAMES`).
+    - хаб с именем `count`, `sort`, `set`, `run`, `sql`, `auth` … → `invalid_class` от `hub()`, `syncModels` и базы;
+      связь → от базы (список — `RESERVED_CLASS_NAMES`).
 14. **Права запрещают по умолчанию.**
     - новый арендатор без правил → ничего не видит;
     - быстрый старт → `up({ tenant })` и `createTenant` (`grantAll`);
@@ -485,7 +496,9 @@ await adm.close(); await db.close(); await svc.close()
     - ошибка данных (`ValidationError`) → `err.issues: [{ path, keyword, message }]`;
     - `err.hint` — что делать, `err.docs` — ссылка на код в разделе «Ошибки» README;
     - неизвестный класс или роль → похожие имена в тексте и в `err.params.similar`;
-    - опечатка в поле фильтра, `sort()`, агрегате или в опции → предупреждение с похожими.
+    - неизвестная опция `connect()`, `up()`, `db.load()`, `db.watch()`, `createMcpServer()` → `invalid_data` с
+      похожими;
+    - опечатка в поле фильтра, `sort()` или агрегате → пока только предупреждение с похожими.
 16. **Подписка с `'now'` — с момента ответа базы.**
     - `db.watch()` → возвращается сразу, а момент «now» подписка берёт первым запросом к базе;
     - запись сразу после `db.watch()` → может зафиксироваться раньше и в поток не попасть;

@@ -72,8 +72,11 @@ export interface LoadOptions {
   initial?: boolean;
 }
 
-/** Все опции load(): неизвестную checkOptions называет с похожими (план 2.0, 7.9 №6). */
-const LOAD_OPTIONS = {
+/**
+ * Все опции load(): неизвестная — invalid_data с похожими (checkOptions; план 2.0, 7.10 №4). Фасад db.load() сверяет их
+ * до пула администратора (index.ts), load() — ещё раз до проверки прав.
+ */
+export const LOAD_OPTIONS = {
   duplicates: true, existing: true, batch: true, commitEvery: true, withHistory: true, class: true, tenant: true,
   agent: true, as: true, initial: true,
 } satisfies Record<keyof LoadOptions, true>;
