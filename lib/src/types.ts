@@ -4,10 +4,10 @@
 
 /**
  * Ревизия схемы, которую знает эта версия пакета, — номер версии SQL-части letopis (таблиц и функций в схеме установки).
- * После `up()` у схемы та же ревизия (`r.revision`); схему отставшей ревизии `up()` обновляет только с `upgrade: true`,
- * а `connect()` о ней предупреждает.
+ * После `up()` у схемы та же ревизия (`r.revision`); схему отставшей ревизии 2.x `up()` обновляет только с
+ * `upgrade: true`, а `connect()` о ней предупреждает.
  */
-export const DDL_REVISION = 7;
+export const DDL_REVISION = 8;
 
 /**
  * Классы, строки которых меняют права и схему: их запись повышает счётчик прав (загрузчик), а сигнал
@@ -20,31 +20,29 @@ export const ACL_CLASS_NAMES: readonly string[] = ['rule', 'Resource', 'member',
 // ---------------------------------------------------------------------------
 
 /**
- * Имена методов цепочки: модификаторы, терминалы, глаголы записи и слоты концов, а также `then` и снятые методы прежних
- * версий. После шага цепочки эти имена библиотека не ищет среди классов; все они входят в `RESERVED_CLASS_NAMES`.
+ * Имена методов цепочки: модификаторы, терминалы, глаголы записи и слоты концов, а также `then`. После шага цепочки эти
+ * имена библиотека не ищет среди классов; все они входят в `RESERVED_CLASS_NAMES`.
  */
 export const CHAIN_METHODS = [
   'then', 'entity', 'paths', 'rows', 'first', 'ids', 'count', 'limit', 'offset', 'sort', 'asOf', 'withDeleted',
   'deep', 'exact', 'sum', 'avg', 'min', 'max', 'countBy', 'after', 'versions', 'create', 'update', 'upsert', 'set',
-  'unset', 'add', 'remove', 'delete', 'anonymize', 'reclass', 'restore', 'purge', 'alias', 'tags', 'owner',
-  'forUpdate', 'cache', 'rekey', 'run', 'execute', 'account', 'diff', 'blame',
+  'unset', 'add', 'remove', 'delete', 'restore', 'alias', 'tags', 'owner', 'forUpdate', 'cache',
 ] as const;
 
 /** Свойства корня db (и транзакции db.begin()). */
 export const DB_METHODS = [
-  'as', 'begin', 'commit', 'rollback', 'lock', 'batch', 'watch', 'close', 'registry', 'sql', 'load', 'verify',
-  'maintain', 'reset', 'describe', 'auth', 'acl', 'idOf', 'refresh', 'transaction', 'flushSignals', 'schema',
-  'token', 'tenant', 'reloadSchema', 'accounts', 'credentials', 'resources', 'rules', 'compact',
-  'trimHistory', 'rekeyClass', 'cache', 'projector', 'rebuildAggregates',
+  'as', 'begin', 'commit', 'rollback', 'lock', 'batch', 'watch', 'close', 'registry', 'sql', 'load',
+  'maintain', 'auth', 'acl', 'idOf', 'refresh', 'transaction', 'flushSignals', 'schema', 'token', 'tenant', 'cache',
 ] as const;
 
 /** Свойства батча db.batch(name). */
-export const BATCH_METHODS = ['discard', 'size'] as const;
+export const BATCH_METHODS = ['run', 'discard', 'size'] as const;
 
 /**
  * Имена методов цепочки, корня `db` и батча. Там, где имя занято методом, библиотека не ищет его среди классов, и шаг с
- * таким именем до класса не дойдёт; класс-связь (`link`) с таким именем база не создаст (`invalid_class`). Не давайте
- * классам эти имена.
+ * таким именем до класса не дойдёт. Хаб с таким именем отклоняют `hub()`, `syncModels` и база, связь (`link`) — база
+ * (`invalid_class`; план 2.0, этап 4, п. 2); хаб, заведённый мимо проверки базы, `up()` оставляет и называет в
+ * предупреждении.
  */
 export const RESERVED_CLASS_NAMES: readonly string[] = [...new Set<string>([...CHAIN_METHODS, ...DB_METHODS, ...BATCH_METHODS])];
 
@@ -56,7 +54,7 @@ export const RESERVED_CLASS_NAMES: readonly string[] = [...new Set<string>([...C
 export interface Row<D = Record<string, unknown>, L = Record<string, string | string[]>> {
   id: string;
   class: string;
-  /** Номер версии — для update(patch, { rev }) (этап 4). */
+  /** Номер версии — для update(patch, { rev }). */
   rev: number;
   tenant: string;
   owner: string;
@@ -67,23 +65,17 @@ export interface Row<D = Record<string, unknown>, L = Record<string, string | st
   at: string;
   author: string;
   agent?: string;
-  /** Вид операции версии: create, update, delete, reclass, … */
+  /** Вид операции версии: create, update, delete, restore, … */
   op: string;
   reason?: string;
-  /** Связь со старым или новым id при reclass и rekey. */
-  moved?: string;
   /** Надгробие: удалённая сущность (withDeleted) или версия удаления (versions). */
   $deleted?: true;
   /** Глубина узла при deep() (1 — прямой потомок); в превью удаления — уровень каскада (0 — цель). */
   $depth?: number;
-  /** Что сделал upsert (этап 4). */
+  /** Что сделал upsert. */
   $upsert?: 'created' | 'updated' | 'unchanged';
   /** Превью удаления (delete() без confirm): удалится, снимется конец или помешает (restrict). */
   $action?: 'delete' | 'unset' | 'restrict';
-  /** purge(): число версий в журнале (превью) или стёртых. */
-  $versions?: number;
-  /** purge({ confirm: true }): история стёрта. */
-  $purged?: true;
 }
 
 /** Путь paths(): узел на каждый шаг цепочки. */
@@ -135,82 +127,17 @@ export interface ChainMods {
   withDeleted?: boolean;
   /** Чтение с блокировкой строк последнего шага (только в db.begin()). */
   forUpdate?: boolean;
-  /** versions({ follow: true }): история и через смену id (reclass, rekey) по колонке moved. */
-  follow?: boolean;
   /** Кэш результатов (§2.12): .cache() — срок по умолчанию, .cache({ ttl }) — свой, секунды. */
   cache?: { ttl?: number };
-  /** Параметры терминалов diff() и blame() (план 1.1, §2.1): номера версий или моменты (ISO). */
-  hist?: { from?: number | string; to?: number | string; at?: string; follow?: boolean; limit?: number };
 }
 
 /** Событие хука onQuery: один запрос цепочки. */
 export interface QueryEvent {
-  mode: 'paths' | 'rows' | 'ids' | 'count' | 'versions' | 'agg' | 'diff' | 'blame';
+  mode: 'paths' | 'rows' | 'ids' | 'count' | 'versions' | 'agg';
   /** Классы шагов цепочки. */
   classes: string[];
   ms: number;
   rows: number;
   /** ms > slowMs. */
   slow: boolean;
-}
-
-// ---------------------------------------------------------------------------
-// История: diff и blame (план 1.1, §2.1)
-// ---------------------------------------------------------------------------
-
-/** Изменение пути: added — не было, removed — не стало, changed — другое значение. */
-export interface DiffChange {
-  /** Путь: первый сегмент — раздел строки (data, links, tags, owner, class). */
-  path: string[];
-  kind: 'added' | 'removed' | 'changed';
-  before?: unknown;
-  after?: unknown;
-}
-
-/** Различия объекта между двумя версиями (diff()). */
-export interface DiffResult {
-  id: string;
-  class: string | null;
-  from: { rev: number; at: string; id?: string } | null;
-  to: { rev: number; at: string; id?: string; deleted?: true } | null;
-  changes: DiffChange[];
-}
-
-/** Кто и почему последним изменил лист версии (blame()). */
-export interface BlameField {
-  path: string[];
-  rev: number;
-  at: string;
-  author: string;
-  agent?: string;
-  op: string;
-  reason?: string;
-  /** Другой id (история прошла через смену id при reclass или rekey). */
-  id?: string;
-  /** false — до найденной версии история неполная: изменение могло быть раньше. */
-  exact: boolean;
-}
-
-/** Поля версии объекта с версиями, которые их изменили (blame()). */
-export interface BlameResult {
-  id: string;
-  class: string;
-  rev: number;
-  deleted?: true;
-  /** История просмотрена целиком и без пропусков. */
-  complete: boolean;
-  fields: BlameField[];
-}
-
-/** diff(): «до» и «после» — номер версии или момент (ISO-строка, Date); follow — через смену id. */
-export interface DiffOptions {
-  from?: number | string | Date;
-  to?: number | string | Date;
-  follow?: boolean;
-}
-
-/** blame(): версия на момент at (по умолчанию текущая); limit — сколько версий просматривать (1000). */
-export interface BlameOptions {
-  at?: string | Date;
-  limit?: number;
 }

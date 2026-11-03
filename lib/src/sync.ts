@@ -6,11 +6,14 @@
  * мешающими строками отклоняет сама база (`tightening_conflict` с перечнем) уже в сухом прогоне.
  * generateTypes: объявления TypeScript для классов из реестра — в том числе созданных данными.
  */
-import type { Db } from './index.js';
-import { LetopisError } from './errors.js';
+import type { DbCore } from './index.js';
+import { lerr, lmsg } from './errors.js';
+import { internalsOf } from './internal.js';
+import type { Tx } from './tx.js';
 import type { AnyModel, LostRule } from './model.js';
 import type { JsonSchema } from './jsonschema.js';
 import type { Registry } from './registry.js';
+import { RESERVED_CLASS_NAMES } from './types.js';
 
 export interface SyncResult {
   applied: boolean;
@@ -32,33 +35,37 @@ function canon(v: unknown): string {
   return JSON.stringify(v);
 }
 
-export async function syncModels(db: Db, models: readonly AnyModel[], opts: { apply?: boolean } = {}): Promise<SyncResult> {
+export async function syncModels(db: DbCore, models: readonly AnyModel[], opts: { apply?: boolean } = {}): Promise<SyncResult> {
+  // хаб с именем метода цепочки или корня db (модель собрана мимо hub()) — отказ до записи (план 2.0, этап 4, п. 2;
+  // 7.10 №3); связь с таким именем отклоняет база
+  for (const m of models) {
+    if (m.kind === 'hub' && RESERVED_CLASS_NAMES.includes(m.name)) throw lerr('model.sync_hub_name_reserved', { name: m.name });
+  }
   const res: SyncResult = { applied: Boolean(opts.apply), created: [], updated: [], unchanged: [], skipped: [], lost: models.flatMap((m) => m.lostRules()) };
   const S = `"${db.schema.replace(/"/g, '""')}"`;
-  // предок раньше потомка; класс-источник агрегата раньше цели: агрегат над классом, которого ещё нет, база отклоняет.
-  // Круг (агрегат над собственным потомком, цикл агрегатов) так не упорядочить — отказ до записи с самим кругом (хвост
-  // ревью доработок после 1.2.0: раньше обход молча ставил потомка раньше предка)
+  // предок раньше потомка: потомка класса, которого ещё нет, база отклоняет. Круг родителей (модель, собранная мимо
+  // hub()) так не упорядочить — отказ до записи с самим кругом (хвост ревью доработок после 1.2.0: раньше обход молча
+  // ставил потомка раньше предка)
   const ordered: AnyModel[] = [];
   const path: AnyModel[] = [];
   const visit = (m: AnyModel) => {
     if (ordered.includes(m)) return;
     const at = path.indexOf(m);
     if (at >= 0) {
-      throw new LetopisError('invalid_class', `syncModels: модели зависят друг от друга по кругу: ${[...path.slice(at), m].map((x) => x.name).join(' → ')} — `
-        + 'родителя и источник агрегата база ждёт раньше класса');
+      throw lerr('model.models_cycle', { cycle: [...path.slice(at), m].map((x) => x.name).join(' → ') });
     }
     path.push(m);
     if (m.parent && models.includes(m.parent)) visit(m.parent);
-    for (const a of Object.values(m.describe().aggregate ?? {})) {
-      const src = models.find((x) => x.name === a.of);
-      if (src) visit(src);
-    }
     path.pop();
     ordered.push(m);
   };
   models.forEach(visit);
+  // у корня connect({ admin }) классы пишет администраторский пул с той же сессией (план 2.0, 7.9 №3): правка класса
+  // со строками требует прав, которых у роли приложения может не быть
+  const adminTx = internalsOf(db)?.adminTx;
+  const run = <T>(fn: (tx: Tx) => Promise<T>): Promise<T> => (adminTx ? adminTx(fn) : db.transaction(fn));
   try {
-    await db.transaction(async (tx) => {
+    await run(async (tx) => {
       for (const m of ordered) {
         const desc = m.describe();
         const [cur] = await tx.unsafe(`select tenant = ${S}.ctx_tenant() as own, data - 'resolved' as data from ${S}.entity
@@ -120,21 +127,40 @@ export function schemaToTs(s: JsonSchema | undefined, indent = ''): string {
   }).join(' | ');
 }
 
-/** Объявления `<Класс>Data` и `<Класс>Links` для классов реестра (кроме системных). */
+/**
+ * Объявления `<Класс>Data` и `<Класс>Links` для классов реестра и `<Класс>Model` — имя, алиас, концы с классами целей
+ * и предки (ModelLike, typed.ts), — а в конце список `Models`: строгие типы цепочек без моделей Zod, `connect<Models>()`
+ * (план 2.0, этап 4, п. 1). Классы арендатора System (системные и классы сидов пакета) — только с includeSystem
+ * (`letopis types --system`); без него системные классы даёт встроенный набор SystemModels. Пометка в первой строке —
+ * запись каталога model.types_header.
+ */
 export function generateTypes(registry: Registry, opts: { includeSystem?: boolean } = {}): string {
-  const out = ['// Сгенерировано letopis types — не править руками.', ''];
+  const out = [`// ${lmsg('model.types_header')}`, ''];
+  const models: string[] = [];
+  const lit = (v: string): string => JSON.stringify(v);
   for (const c of registry.all().sort((a, b) => a.name.localeCompare(b.name))) {
     if (!opts.includeSystem && c.tenant === '2eba6d0a-1edd-4bb6-a85a-a703dab49035') continue;
     // идентификатор TypeScript — буквы Unicode, цифры, _ и $: кириллические имена классов допустимы (план 2.0, 7.5 №1)
-    if (!/^[\p{L}_$][\p{L}\p{N}_$]*$/u.test(c.name)) throw new LetopisError('invalid_class', `types: имя класса ${c.name} не годится для идентификатора TypeScript`);
+    if (!/^[\p{L}_$][\p{L}\p{N}_$]*$/u.test(c.name)) throw lerr('model.types_class_name', { name: c.name });
     // additionalProperties: false верхнего уровня в тип не переносится — лишние ключи и так ошибка типов
     const { additionalProperties: _closed, ...open } = c.schema;
     void _closed;
     // объектный литерал — интерфейс; класс без полей, union и открытая схема — псевдоним типа (иначе неверный TypeScript)
     const data = schemaToTs(open);
     out.push(/^\{[\s\S]*\}$/.test(data) && !/\}\s*&/.test(data) ? `export interface ${c.name}Data ${data}` : `export type ${c.name}Data = ${data};`);
-    const ends = Object.entries(c.ends).map(([role, e]) => `  ${JSON.stringify(role)}${e.required || (e.min ?? 0) > 0 ? '' : '?'}: ${e.many ? 'string[]' : 'string'};`);
-    out.push(`export interface ${c.name}Links {${ends.length ? `\n${ends.join('\n')}\n` : ''}}`, '');
+    const required = (e: { required?: boolean; min?: number }): boolean => e.required === true || (e.min ?? 0) > 0;
+    const ends = Object.entries(c.ends).map(([role, e]) => `  ${lit(role)}${required(e) ? '' : '?'}: ${e.many ? 'string[]' : 'string'};`);
+    out.push(`export interface ${c.name}Links {${ends.length ? `\n${ends.join('\n')}\n` : ''}}`);
+    // концы с классами целей и предки — переходы, слоты и семейства строгих типов (typed.ts: ModelLike)
+    const specs = Object.entries(c.ends).map(([role, e]) => {
+      const targets = (Array.isArray(e.class) ? e.class : [e.class]).map(lit).join(' | ');
+      return `      ${lit(role)}: { targets: ${targets}; many: ${e.many === true}; required: ${required(e)} };`;
+    });
+    out.push(`export interface ${c.name}Model {`, `  readonly name: ${lit(c.name)};`, ...(c.alias ? [`  readonly alias: ${lit(c.alias)};`] : []),
+      '  readonly __types?: {', `    data: ${c.name}Data;`, `    links: ${c.name}Links;`,
+      `    ends: {${specs.length ? `\n${specs.join('\n')}\n    ` : ''}};`, `    ancestors: ${(c.ancestors.length ? c.ancestors : [c.name]).map(lit).join(' | ')};`, '  };', '}', '');
+    models.push(`${c.name}Model`);
   }
+  out.push(`export type Models = readonly [${models.join(', ')}];`, '');
   return out.join('\n');
 }

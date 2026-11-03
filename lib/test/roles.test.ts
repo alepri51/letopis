@@ -1,12 +1,13 @@
 /**
- * roles — роли и права (план, §2.7, §2.9; тест-план §7.3.8 №3–8 и §7.3.5 №11).
+ * roles — роли и права (план, §2.7, §2.9; тест-план §7.3.8 №3–8 и §7.3.5 №11); up() от установщика без суперпользователя:
+ * ANALYZE и fresh от роли владельца (ревью).
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import postgres from 'postgres';
 import { engine, lt, SYSTEM_ID, type Engine, type Tenant } from './_engine.js';
 import { ADMIN_DSN, ident, type Sql } from './_harness.js';
-import { install } from '../src/up.js';
+import { install, up } from '../src/up.js';
 
 let e: Engine;
 let t: Tenant;
@@ -49,6 +50,47 @@ test('7.3.8 №3: установка от роли с CREATEROLE без прав
     const [m] = await e.sql.unsafe(`select inherit_option, set_option from pg_auth_members
       where roleid = 'lt_nosu_owner'::regrole and member = 'lt_installer'::regrole and set_option`);
     assert.deepEqual({ ...m }, { inherit_option: false, set_option: true });
+  } finally {
+    await inst.end({ timeout: 5 });
+    await e.sql.unsafe(`drop schema if exists ${ident(schema)} cascade`);
+  }
+});
+
+test('ревью: up() от установщика без суперпользователя (CREATEROLE, create на базе) — ANALYZE от роли владельца, analyzed — только собранные; fresh удаляет схему от роли владельца', async () => {
+  const schema = 'v2.t_roles_analyze';
+  await e.sql.unsafe(`drop schema if exists ${ident(schema)} cascade`);
+  await e.sql.unsafe(`do $$ begin
+    if not exists (select 1 from pg_roles where rolname = 'lt_installer') then
+      create role lt_installer login createrole password 'test';
+    end if;
+  end $$`);
+  await e.sql.unsafe(`grant create on database ${ident(new URL(ADMIN_DSN).pathname.slice(1))} to lt_installer`);
+  const u = new URL(ADMIN_DSN);
+  u.username = 'lt_installer';
+  u.password = 'test';
+  // предупреждения сервера (WARNING «permission denied to analyze … skipping it») — сюда, а не в никуда
+  const notices: string[] = [];
+  const inst = postgres(u.toString(), { max: 1, onnotice: (n) => void notices.push(String(n.message)) }) as Sql;
+  /** Таблицы схемы со статистикой: last_analyze заполнен. */
+  const analyzedNow = async () => (await e.sql.unsafe(`select relname from pg_stat_user_tables
+    where schemaname = $1 and last_analyze is not null order by relname`, [schema])).map((r) => r.relname as string);
+  const opts = { sql: inst, schema, owner: 'lt_an_owner', app: 'lt_an_app', quiet: true };
+  try {
+    const r1 = await up(opts);
+    assert.equal(r1.created, true);
+    assert.deepEqual(r1.analyzed, ['entity', 'log', 'secret']);
+    assert.deepEqual(r1.warnings, []);
+    assert.deepEqual(await analyzedNow(), ['entity', 'log', 'secret'], 'статистика собрана');
+    assert.deepEqual(notices.filter((n) => /permission denied to analyze/.test(n)), [], 'ANALYZE ничего не пропустил');
+    const r2 = await up(opts);
+    assert.deepEqual(r2.analyzed, [], 'повторный накат: статистика уже есть');
+    // fresh от того же установщика: схему удаляет роль владельца (сам он не владелец — inherit false)
+    const r3 = await up({ ...opts, fresh: true });
+    assert.equal(r3.created, true);
+    assert.deepEqual(r3.analyzed, ['entity', 'log', 'secret']);
+    assert.deepEqual(await analyzedNow(), ['entity', 'log', 'secret']);
+    const [{ owner }] = await e.sql.unsafe(`select tableowner as owner from pg_tables where schemaname = $1 and tablename = 'entity'`, [schema]);
+    assert.equal(owner, 'lt_an_owner');
   } finally {
     await inst.end({ timeout: 5 });
     await e.sql.unsafe(`drop schema if exists ${ident(schema)} cascade`);
@@ -129,35 +171,19 @@ test('7.3.8 №4: перечень функций владельца — search_
     delete_preview: async () => {
       assert.deepEqual([...await e.as(null, (tx) => tx.unsafe(`select * from ${S}.delete_preview(array[$1::uuid])`, [t.id]))], []);
     },
-    // пути колонки changed (ревью №1 точки А плана 1.1): без сессии — ничего
-    version_paths: async () => {
-      assert.deepEqual([...await e.as(null, (tx) => tx.unsafe(`select * from ${S}.version_paths(array[$1::uuid], array[2])`, [t.id]))], []);
-    },
-    reclass: () => assert.rejects(e.as(null, (tx) => tx.unsafe(`select ${S}.reclass(gen_random_uuid(), 'Doc')`)), lt('no_session')),
-    verify: () => assert.rejects(q(`select ${S}.verify()`), lt('acl_denied')),
     // этап 6: история и эксплуатация
     session_expires: async () => {
       const [r] = await e.as(null, (tx) => tx.unsafe(`select ${S}.session_expires() as x`));
       assert.equal(r.x, null);
     },
     restore: () => assert.rejects(e.as(null, (tx) => tx.unsafe(`select ${S}.restore(gen_random_uuid())`)), lt('no_session')),
-    purge: () => assert.rejects(e.as(null, (tx) => tx.unsafe(`select ${S}.purge(gen_random_uuid(), true)`)), lt('no_session')),
-    trim_history: () => assert.rejects(e.as(null, (tx) => tx.unsafe(`select ${S}.trim_history(null, array['Doc'], now())`)), lt('no_session')),
-    rekey: () => assert.rejects(e.as(null, (tx) => tx.unsafe(`select ${S}.rekey(gen_random_uuid(), '{}')`)), lt('no_session')),
-    rekey_class: () => assert.rejects(e.as(null, (tx) => tx.unsafe(`select ${S}.rekey_class('Doc', '[]')`)), lt('no_session')),
     account_purge: async () => {
       const other = await e.tenant('roles-other');
       await assert.rejects(q(`select ${S}.account_purge($1)`, [other.id]), lt('acl_denied'));
     },
-    reset: () => assert.rejects(q(`select ${S}.reset('sessions', $1)`, [e.schema]), lt('acl_denied')),
     maintain: () => assert.rejects(q(`select ${S}.maintain()`), lt('acl_denied')),
     // ключ сигналов (план 1.1, этап 2): только с правом letopis.signals по правилам System
     signal_key: () => assert.rejects(q(`select ${S}.signal_key()`), lt('acl_denied')),
-    // уход строки из классов подписки (хвост ревью №3): без сессии — ничего
-    watch_leaving: async () => {
-      const r = await e.as(null, (tx) => tx.unsafe(`select * from ${S}.watch_leaving('0'::xid8, 0, array['Note'], 10)`));
-      assert.equal(r.length, 0);
-    },
     trg_entity_bi: () => assert.rejects(q(`select ${S}.trg_entity_bi()`), lt('42501')),
     trg_entity_bu: () => assert.rejects(q(`select ${S}.trg_entity_bu()`), lt('42501')),
     trg_entity_ai: () => assert.rejects(q(`select ${S}.trg_entity_ai()`), lt('42501')),
@@ -166,10 +192,6 @@ test('7.3.8 №4: перечень функций владельца — search_
     // удаление аккаунта (ревизия 7): гашение сессий и запрет удалить System — триггерная функция приложению не выдана
     trg_entity_bd_account: () => assert.rejects(q(`select ${S}.trg_entity_bd_account()`), lt('42501')),
     trg_entity_ad: () => assert.rejects(q(`select ${S}.trg_entity_ad()`), lt('42501')),
-    // агрегаты в базе (план 1.1, этап 4б): триггерные функции приложению не выданы
-    trg_entity_total_ai: () => assert.rejects(q(`select ${S}.trg_entity_total_ai()`), lt('42501')),
-    trg_entity_total_au: () => assert.rejects(q(`select ${S}.trg_entity_total_au()`), lt('42501')),
-    trg_entity_total_ad: () => assert.rejects(q(`select ${S}.trg_entity_total_ad()`), lt('42501')),
   };
   const fns = await e.sql.unsafe(`select p.proname, p.proconfig, pg_get_userbyid(p.proowner) as owner
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = $1 and p.prosecdef order by p.proname`, [e.schema]);
@@ -188,18 +210,13 @@ test('7.3.8 №6: приложение не создаёт постоянных 
   await assert.rejects(q(`create function ${S}.lt_evil() returns int language sql return 1`), lt('42501'));
 });
 
-test('7.3.8 №7: триггеры entity по каталогу — условие для владельца и enable always; триггеры агрегатов и удаления аккаунта — без условия для владельца', async () => {
+test('7.3.8 №7: триггеры entity по каталогу — условие для владельца и enable always; триггер удаления аккаунта — без условия для владельца', async () => {
   const trg = await e.sql.unsafe(`select tgname, tgenabled, pg_get_triggerdef(oid) as def from pg_trigger
     where tgrelid = $1::regclass and not tgisinternal order by tgname`, [`${S}.entity`]);
-  assert.deepEqual(trg.map((r) => r.tgname), ['entity_ad', 'entity_ai', 'entity_au', 'entity_bd', 'entity_bd_account', 'entity_bi', 'entity_bu',
-    'entity_total_ad', 'entity_total_ai', 'entity_total_au']);
+  assert.deepEqual(trg.map((r) => r.tgname), ['entity_ad', 'entity_ai', 'entity_au', 'entity_bd', 'entity_bd_account', 'entity_bi', 'entity_bu']);
   for (const r of trg) {
     assert.equal(r.tgenabled, 'A', r.tgname);
-    if (r.tgname.startsWith('entity_total_')) {
-      // агрегаты в базе (план 1.1, §2.4): срабатывают и для владельца — каскад, функции владельца, загрузчик
-      assert.doesNotMatch(r.def, /WHEN/, r.tgname);
-      assert.match(r.def, /AFTER (INSERT|UPDATE|DELETE) ON .* REFERENCING .* FOR EACH STATEMENT/, r.tgname);
-    } else if (r.tgname === 'entity_bd_account') {
+    if (r.tgname === 'entity_bd_account') {
       // удаление аккаунта (ревизия 7): аккаунты удаляют и функции владельца (каскад trg_entity_ad, account_purge) — сессии
       // гаснут с сигналом до каскада внешнего ключа secret.account при любой роли
       assert.doesNotMatch(r.def, /CURRENT_USER/, r.tgname);
@@ -234,11 +251,11 @@ test('права по каталогу: функции приложения — 
     'account_purge', 'acl_all', 'acl_check', 'acl_check_data', 'acl_ok', 'acl_plan', 'acl_token', 'auth_credentials', 'auth_enroll_totp', 'auth_issue_apikey',
     'auth_issue_keysecret', 'auth_issue_otp', 'auth_link', 'auth_login_apikey', 'auth_logout', 'auth_logout_all', 'auth_lookup', 'auth_password_get',
     'auth_refresh', 'auth_revoke_credential', 'auth_session_info', 'auth_set_flags', 'auth_set_password', 'auth_switch', 'auth_tenants', 'auth_totp_enabled',
-    'auth_verify_totp', 'blame', 'change_paths', 'class_stamp', 'ctx', 'ctx_account', 'ctx_tenant', 'delete_preview', 'diff_versions', 'error_catalog', 'find_deep', 'find_hop', 'find_ids',
-    'history_default', 'history_iv', 'history_policy', 'history_segments', 'inc', 'issue_session', 'jsonb_changes', 'link_ids', 'links_patch', 'login_apikey', 'login_keysecret',
-    'login_otp', 'maintain', 'merge', 'purge', 'reclass', 'rekey', 'rekey_class', 'reserved_names', 'reset', 'restore', 'role_has', 'role_ids', 'row_changes',
-    'row_leaves', 'session_expires', 'signal_key', 'signal_mode', 'snapshot', 'trim_history', 'uuid_v5', 'v5_id', 'v5_name', 'verify', 'version_hash',
-    'version_paths', 'watch_head', 'watch_leaving', 'watch_read',
+    'auth_verify_totp', 'class_stamp', 'ctx', 'ctx_account', 'ctx_tenant', 'delete_preview', 'error_catalog', 'find_deep', 'find_hop', 'find_ids',
+    'inc', 'issue_session', 'link_ids', 'links_patch', 'login_apikey', 'login_keysecret',
+    'login_otp', 'lt_text', 'maintain', 'merge', 'message_catalog', 'reserved_names', 'restore', 'role_has', 'role_ids',
+    'session_expires', 'signal_key', 'signal_mode', 'uuid_v5', 'v5_id', 'v5_name',
+    'watch_head', 'watch_read',
   ]);
   const pubFns = await e.sql.unsafe(`select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = $1 and has_function_privilege('public', p.oid, 'execute')`, [e.schema]);
@@ -254,9 +271,8 @@ test('права по каталогу: функции приложения — 
     from pg_attribute a where a.attrelid = $1::regclass and a.attnum > 0 and not a.attisdropped order by a.attnum`, [`${S}.entity`]);
   assert.deepEqual(cols.filter((c) => c.ins).map((c) => c.attname).sort(), ['class', 'data', 'id', 'links', 'owner', 'tags', 'tenant']);
   assert.deepEqual(cols.filter((c) => c.upd).map((c) => c.attname).sort(), ['class', 'data', 'links', 'tags']);
-  // журнал — все колонки, кроме changed: её пути описывают разницу с предыдущей версией, а та читателю может быть
-  // не видна (ревью №1 точки А плана 1.1)
+  // журнал — все колонки на чтение (строки отбирает RLS)
   const logCols = await e.sql.unsafe(`select a.attname, has_column_privilege('letopis_app', a.attrelid, a.attnum, 'SELECT') as sel
     from pg_attribute a where a.attrelid = $1::regclass and a.attnum > 0 and not a.attisdropped order by a.attnum`, [`${S}.log`]);
-  assert.deepEqual(logCols.filter((c) => !c.sel).map((c) => c.attname), ['changed']);
+  assert.deepEqual(logCols.filter((c) => !c.sel).map((c) => c.attname), []);
 });

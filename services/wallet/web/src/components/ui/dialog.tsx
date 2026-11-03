@@ -41,19 +41,34 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  finalFocus,
   ...props
 }: DialogPrimitive.Popup.Props & {
   showCloseButton?: boolean
 }) {
+  // Правка поверх shadcn (файл одинаков у четырёх сервисов). Base UI ставит aria-hidden на всё вне диалога сразу при
+  // открытии, а фокус переносит внутрь позже (микрозадача и rAF): кнопка, открывшая диалог, на это время остаётся в
+  // фокусе внутри скрытого предка — Chrome пишет «Blocked aria-hidden on an element because its descendant retained
+  // focus». Подложка монтируется раньше попапа: её ref снимает фокус с кнопки до aria-hidden, а finalFocus возвращает
+  // его на кнопку после закрытия (без кнопки — поведение Base UI по умолчанию)
+  const opener = React.useRef<HTMLElement | null>(null)
+  const release = React.useCallback((node: HTMLDivElement | null) => {
+    if (!node) return
+    const el = document.activeElement
+    opener.current = el instanceof HTMLElement && el !== document.body ? el : null
+    opener.current?.blur()
+  }, [])
+  const back = React.useCallback(() => (opener.current?.isConnected ? opener.current : true), [])
   return (
     <DialogPortal>
-      <DialogOverlay />
+      <DialogOverlay ref={release} />
       <DialogPrimitive.Popup
         data-slot="dialog-content"
         className={cn(
           "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
           className
         )}
+        finalFocus={finalFocus ?? back}
         {...props}
       >
         {children}

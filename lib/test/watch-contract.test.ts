@@ -1,16 +1,17 @@
 /**
  * watch-contract — обещания README о подписке, сигналах и подключении, которые нашло ревью плана 2.0 (тест-план §7.4):
- * опрос молчащей подписки, закрытие подписок вместе с подключением, сигнал прежнего класса при reclass, новый участник
- * проектора, проектор без LISTEN, предел реестров db.as().
+ * опрос молчащей подписки, закрытие подписок вместе с подключением, подписка на потомка, заведённого после watch(),
+ * предел реестров db.as(). Новый участник проектора и проектор без LISTEN (7.4 №5, №6) сняты вместе с проекторами, сигнал
+ * прежнего класса при его смене (7.4 №4) — вместе со сменой класса в 2.0.0.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import postgres from 'postgres';
-import { engine, type Engine, type Tenant } from './_engine.js';
+import { engine, waitForLock, type Engine, type Tenant } from './_engine.js';
 import { account, member } from './_access.js';
 import { limits } from '../src/internal.js';
-import { ADMIN_DSN, appDsn } from './_harness.js';
-import { connect, type Db, type ProjectorChange, type ProjectorOut, type ProjectorOptions } from '../src/index.js';
+import { appDsn } from './_harness.js';
+import { connect, type Db } from '../src/index.js';
 
 let e: Engine;
 let t: Tenant;
@@ -19,8 +20,6 @@ let db: Db;
 before(async () => {
   e = await engine(import.meta.filename);
   t = await e.tenant('watch-contract');
-  await e.defineClass(t, { name: 'Lead', kind: 'hub', fields: { properties: { name: { type: 'string' } } } });
-  await e.defineClass(t, { name: 'Client', kind: 'hub', fields: { properties: { name: { type: 'string' } } } });
   db = await connect({ dsn: appDsn(), schema: e.schema, token: t.token, max: 3 });
 });
 
@@ -71,16 +70,30 @@ test('план 2.0, 7.4 №8: close() подключения закрывает 
   }
 });
 
-test('план 2.0, 7.4 №4: reclass класса без ключа сбрасывает кэш и прежнего класса', async () => {
-  const [x] = await db.Lead().create({ name: 'Анна' }).rows();
-  // сигнал своей записи приходит не сразу: пока он не пришёл, ответ в кэш не кладётся — читаем, пока не ляжет
-  const stored = db.cache.stats().stores;
-  for (let i = 0; i < 200 && db.cache.stats().stores === stored; i++) await db.Lead().cache().rows();
-  assert.ok(db.cache.stats().stores > stored, 'ответ Lead лёг в кэш');
-  await db.Lead(x.id).reclass('Client').rows();
-  const leads = await db.Lead().cache().rows();
-  assert.equal(leads.some((r) => r.id === x.id), false, 'строка ушла из Lead — прежний ответ кэша сброшен');
-  assert.equal((await db.Client(x.id).rows()).length, 1);
+test('план 2.0, 7.4 №8: close() подписки, пока идёт её запрос журнала, завершает for await', async () => {
+  // находка обхода сервисов: поток SSE после выхода не закрывался — подписку закрыли, пока шёл её первый запрос, и цикл
+  // for await ждал будильника, которого уже не будет (таймер снят, сигналы отписаны). Запрос держит на месте
+  // исключительная блокировка журнала, пока подписку закрывают
+  const sub = db.watch({ from: 'now', pollMs: 50 });
+  await sub.ready();
+  const conn = await e.sql.reserve();
+  try {
+    await conn.unsafe('begin');
+    await conn.unsafe(`lock table ${e.S}.log in access exclusive mode`);
+    const loop = (async () => {
+      for await (const _ of sub) { /* событий нет */ }
+      return 'вышел';
+    })();
+    await waitForLock(e.sql);
+    sub.close();
+    await conn.unsafe('rollback');
+    const res = await Promise.race([loop, new Promise((r) => setTimeout(() => r('висит'), 5000))]);
+    assert.equal(res, 'вышел', 'цикл for await закрытой подписки завершился');
+  } finally {
+    await conn.unsafe('rollback').catch(() => {});
+    conn.release();
+    sub.close();
+  }
 });
 
 test('план 2.0, 7.4 №2: подписка на класс получает события потомка, заведённого после watch()', async () => {
@@ -96,67 +109,6 @@ test('план 2.0, 7.4 №2: подписка на класс получает 
     assert.equal(ev.value.class, 'Child2');
   } finally {
     sub.close();
-  }
-});
-
-/** Проектор «число продаж арендатора»: Sale<k> → Tot<k> { k: 'all', n }. */
-async function projectorCase(k: string) {
-  const into = `Tot${k}`;
-  const tot = { name: into, kind: 'hub', key: ['k'], derivedBy: `p${k}`, history: false,
-    fields: { properties: { k: { type: 'string' }, n: { type: 'integer' } }, required: ['k'] } };
-  const [a, b] = [await e.tenant(`p${k}-a`), await e.tenant(`p${k}-b`)];
-  for (const x of [a, b]) await e.defineClass(x, { name: `Sale${k}`, kind: 'hub', fields: { properties: { n: { type: 'integer' } } } });
-  await e.defineDerived(a, tot);
-  const handle = async (changes: ProjectorChange[], out: ProjectorOut) => {
-    for (const c of changes) if (c.op === 'create') out.inc(into, { k: 'all' }, { n: 1 }, { tenant: c.tenant });
-  };
-  const def: ProjectorOptions = { from: [`Sale${k}`], into: [into], version: 1, handle };
-  const adb = await connect({ dsn: appDsn(), schema: e.schema, token: a.token, max: 2 });
-  const bdb = await connect({ dsn: appDsn(), schema: e.schema, token: b.token, max: 2 });
-  const count = async (d: Db) => {
-    const row = await (d as unknown as Record<string, () => { first(): Promise<{ data: { n?: number } } | null> }>)[into]().first();
-    return Number(row?.data.n ?? 0);
-  };
-  return { a, b, tot, def, adb, bdb, count, join: () => e.defineDerived(b, tot),
-    close: async () => { await adb.close(); await bdb.close(); } };
-}
-
-test('план 2.0, 7.4 №5: новый участник проектора получает начальную перестройку — его прежние строки в проекции', async () => {
-  const c = await projectorCase('745');
-  const adm = await connect({ dsn: ADMIN_DSN, schema: e.schema, allowBypassRls: true, max: 2 });
-  try {
-    await c.adb.Sale745().create({ n: 1 }).rows();
-    for (const n of [1, 2]) await c.bdb.Sale745().create({ n }).rows(); // до вступления b
-    await adm.projector('p745', c.def).run({ once: true }); // участник — только a
-    assert.equal(await c.count(c.adb), 1);
-    await c.join();
-    // тот же проектор в другом процессе: состав перечитан, чекпоинт b ещё не знает
-    const p = adm.projector('p745', c.def);
-    await p.run({ once: true });
-    assert.equal(await c.count(c.bdb), 2, 'строки b, заведённые до вступления, — в проекции');
-    await c.bdb.Sale745().create({ n: 3 }).rows();
-    await p.run({ once: true });
-    assert.deepEqual([await c.count(c.adb), await c.count(c.bdb)], [1, 3], 'дальше — по журналу, без повторов');
-  } finally {
-    await adm.close();
-    await c.close();
-  }
-});
-
-test('план 2.0, 7.4 №6: проектор без LISTEN перечитывает свой состав — арендатор, вступивший после запуска, в проекции', async () => {
-  const c = await projectorCase('746');
-  const adm = await connect({ dsn: ADMIN_DSN, schema: e.schema, allowBypassRls: true, max: 2, listen: false });
-  try {
-    const p = adm.projector('p746', c.def);
-    await c.adb.Sale746().create({ n: 1 }).rows();
-    await p.run({ once: true }); // участник — только a
-    await c.join();
-    for (const n of [1, 2]) await c.bdb.Sale746().create({ n }).rows(); // после вступления b
-    await p.run({ once: true }); // тот же экземпляр: сигнала о новом классе без LISTEN нет
-    assert.deepEqual([await c.count(c.adb), await c.count(c.bdb)], [1, 2]);
-  } finally {
-    await adm.close();
-    await c.close();
   }
 });
 

@@ -64,17 +64,6 @@ test('находка 1: блокировка семейства — по аре�
   }
 });
 
-test('находка 1: rekeyClass в одном арендаторе не останавливает запись одноимённого класса другого', async () => {
-  const held = await e.hold(a.token, (tx) => tx.unsafe(`select ${S}.rekey_class('Coded', '["code"]') as n`));
-  try {
-    const [row] = await quick(b, `insert into ${S}.entity (class, data) values ('Coded', '{"code": "k1"}') returning id`);
-    assert.ok(row.id);
-    await assert.rejects(quick(a, `insert into ${S}.entity (class, data) values ('Coded', '{"code": "k1"}')`), lt('55P03'));
-  } finally {
-    await held.finish(false);
-  }
-});
-
 test('находка 2: account_purge без права — один ответ acl_denied, есть аккаунт или нет; чужой Account не блокируется', async () => {
   await assert.rejects(as(a, `select ${S}.account_purge($1)`, [randomUUID()]), lt('acl_denied'));
   await assert.rejects(as(a, `select ${S}.account_purge($1)`, [b.id]), lt('acl_denied'));
@@ -91,7 +80,7 @@ test('находка 2: account_purge без права — один ответ 
   }
 });
 
-test('находка 3: restore и purge чужого id не блокируют его запись журнала и не ждут её', async () => {
+test('находка 3: restore чужого id не блокирует его запись журнала и не ждёт её', async () => {
   const note = await ins(b, 'Note', { text: 'b' });
   await as(b, `delete from ${S}.entity where id = $1`, [note.id]);
   // B восстанавливает объект и держит транзакцию: последняя запись журнала id под for update
@@ -99,7 +88,6 @@ test('находка 3: restore и purge чужого id не блокируют
   try {
     // до исправления A ждал блокировку чужой строки (55P03) — то есть узнавал о работе B с этим id
     await assert.rejects(quick(a, `select ${S}.restore($1)`, [note.id]), lt('target_not_found'));
-    await assert.rejects(quick(a, `select ${S}.purge($1, true)`, [note.id]), lt('target_not_found'));
   } finally {
     await held.finish(false);
   }
@@ -108,23 +96,18 @@ test('находка 3: restore и purge чужого id не блокируют
   assert.equal(r.id, note.id);
 });
 
-test('функции этапа 6 на чужих id и классах: тот же ответ, что для несуществующих; данные B не меняются', async () => {
+test('функции этапа 6 на чужих id: тот же ответ, что для несуществующих; данные B не меняются', async () => {
   const note = await ins(b, 'Note', { text: 'keep' });
   const coded = await ins(b, 'Coded', { code: 'c-b' });
-  await assert.rejects(as(a, `select ${S}.trim_history(array[$1::uuid], null, now() + interval '1 day')`, [note.id]), lt('target_not_found'));
-  await assert.rejects(as(a, `select ${S}.rekey($1, '{"code": "stolen"}')`, [coded.id]), lt('target_not_found'));
-  await assert.rejects(as(a, `select ${S}.reclass($1, 'Note')`, [coded.id]), lt('target_not_found'));
-  // обрезка по классу трогает только свой арендатор
-  const [{ n }] = await as(a, `select ${S}.trim_history(null, array['Note'], now() + interval '1 day') as n`);
-  assert.equal(n, 0);
+  for (const id of [note.id, coded.id, randomUUID()]) {
+    await assert.rejects(as(a, `select ${S}.restore($1)`, [id]), lt('target_not_found'));
+  }
   const [{ c }] = await e.sql.unsafe(`select count(*)::int as c from ${S}.log where id = $1`, [note.id]);
   assert.equal(c, 1);
   const [still] = await e.sql.unsafe(`select data->>'code' as code from ${S}.entity where id = $1`, [coded.id]);
   assert.equal(still.code, 'c-b');
-  // сброс, обслуживание и verify — только по правам letopis.* (правила System)
-  await assert.rejects(as(a, `select ${S}.reset('tenant', $1, $2)`, [e.schema, b.id]), lt('acl_denied'));
-  await assert.rejects(as(a, `select ${S}.maintain(null, 1000000)`), lt('acl_denied'));
-  await assert.rejects(as(a, `select ${S}.verify(true)`), lt('acl_denied'));
+  // обслуживание — только по праву letopis.maintain (правила System)
+  await assert.rejects(as(a, `select ${S}.maintain()`), lt('acl_denied'));
 });
 
 test('log_refs_at приложению не выдана; срезы find_* по журналу не отдают строки чужого арендатора', async () => {
@@ -153,7 +136,7 @@ test('log_refs_at приложению не выдана; срезы find_* по
 test('подписка watch_read — с правами вызывающего: события чужого арендатора не видны', async () => {
   await ins(b, 'Note', { text: 'event-b' });
   await ins(a, 'Note', { text: 'event-a' });
-  const rows = await as(a, `select tenant from ${S}.watch_read('0'::xid8, 0, null, null, 100000)`);
+  const rows = await as(a, `select tenant from ${S}.watch_read('0'::xid8, 0, null, 100000)`);
   assert.ok(rows.length > 0);
   assert.ok(rows.every((r) => r.tenant === a.id || r.tenant === SYSTEM_ID), 'только свой арендатор и системные классы');
 });

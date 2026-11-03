@@ -28,10 +28,11 @@ export default example({
     {
       title: 'Одна правка всех пяти',
       text:
-        '`update` без фильтра правит все метки одним оператором, и база пишет пять версий в журнал. Порядок записей — ' +
-        'по id меток: он не совпадает с порядком, в котором метки создавались.',
+        '`update` с `{ all: true }` правит все метки одним оператором, и база пишет пять версий в журнал (без фильтра ' +
+        'и без `all` библиотека откажет — `invalid_query`). Порядок записей — по id меток: он не совпадает с порядком, ' +
+        'в котором метки создавались.',
       run: async ({ db, admin, schema }) => {
-        await db.Tag().update({ active: true }, { reason: 'включить все' }).rows();
+        await db.Tag().update({ active: true }, { all: true, reason: 'включить все' }).rows();
         const journal = await admin.unsafe(`select data->>'name' as name from "${schema}".log where class = 'Tag' and op = 'update' order by seq`);
         const ids = await admin.unsafe(`select data->>'name' as name from "${schema}".entity where class = 'Tag' order by id`);
         return {

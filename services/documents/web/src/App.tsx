@@ -43,8 +43,20 @@ function Office({ me }: { me: Me }) {
   useEffect(() => {
     const es = new EventSource('/api/events');
     es.addEventListener('changed', () => setTick((t) => t + 1));
-    es.onerror = () => toast.error('Живое обновление прервалось — обновите страницу');
-    return () => es.close();
+    // поток закрылся — сервер закрывает его вместе с веб-сессией (выход, в том числе в другой вкладке): вошёл другой или
+    // никто — страница заново, иначе данные новой сессии того же браузера оказались бы под прежней шапкой
+    es.onerror = () => {
+      const lost = () => toast.error('Живое обновление прервалось — обновите страницу');
+      api<Me | null>('/api/me').then((m) => { if (m?.name !== me.name || m?.firm !== me.firm) location.reload(); else lost(); }, lost);
+    };
+    // уход со страницы (переход на /logout) — поток закрыть сразу: иначе сервер, закрывая его вместе с сессией, будил бы
+    // onerror, и перезагрузка перебивала бы начатый переход
+    const leave = () => es.close();
+    addEventListener('beforeunload', leave);
+    return () => {
+      removeEventListener('beforeunload', leave);
+      es.close();
+    };
   }, []);
   useEffect(() => { refresh(); }, [refresh, route, tick]);
   const page = route.startsWith('/trash') ? <Trash tick={tick} onChanged={refresh} />
@@ -58,7 +70,7 @@ function Office({ me }: { me: Me }) {
         auth={{ login: { title: 'Документация', url: DOCS }, signup: { title: 'Выйти', url: '/logout' } }} />
       {stats && (
         <Stats8 className="mb-6 py-6" heading="Документы с полной историей"
-          description="Каждая правка — новая версия в журнале: кто, когда и почему. Любое прошлое состояние можно открыть, сравнить и проверить."
+          description="Каждая правка — новая версия в журнале: кто, когда и почему. Любое прошлое состояние можно открыть на дату, удалённое — вернуть из корзины."
           link={{ text: 'Как устроен сервис', url: DOCS }}
           stats={[
             { id: 'drafts', value: String(stats.drafts), label: 'черновиков' },

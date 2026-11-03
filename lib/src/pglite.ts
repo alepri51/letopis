@@ -7,6 +7,7 @@
  * Пакеты @electric-sql/pglite и @electric-sql/pglite-socket — необязательные peer-зависимости:
  * основная точка входа их не импортирует, up({ pglite }) загружает их по требованию.
  */
+import { lmsg } from './errors.js';
 
 export interface PgliteOptions {
   /** Каталог данных (по умолчанию — в памяти, данные теряются при остановке). */
@@ -27,7 +28,8 @@ export async function startPglite(opts: PgliteOptions = {}): Promise<PgliteServe
     try {
       return await import(name) as Record<string, unknown>;
     } catch {
-      throw new Error(`letopis.up: для pglite нужен пакет ${name} — npm i -D @electric-sql/pglite @electric-sql/pglite-socket`);
+      // обычный Error, как у up(): подходящего кода нет
+      throw new Error(`letopis.up: ${lmsg('boot.pglite_package', { name })}`);
     }
   };
   const { PGlite } = await load('@electric-sql/pglite') as { PGlite: { create(dir?: string, o?: unknown): Promise<{ close(): Promise<void> }> } };

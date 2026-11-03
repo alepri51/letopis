@@ -3,36 +3,38 @@ paths:
   - 'lib/src/up.ts'
   - 'lib/src/pglite.ts'
   - 'db/apply.mjs'
-synced: f20b1cf
+synced: 447fae7
 ---
 # M-BOOTSTRAP — установщик install(), up(), штамп движка, createTenant, PGlite
 
 **Инварианты и грабли**
-- Общая часть установки — роли, членство установщика, pgcrypto и `usage` на его схему — в `install()` одна транзакция под advisory-блокировкой (пара int4 `hashtext('letopis')`, `hashtext('install')`): без неё параллельные `up()` разных схем одной базы падали `tuple concurrently updated` на `grant usage on schema`. Новый оператор над объектами всей базы или кластера — туда же. Блокировка действует в пределах базы: гонку ролей и членства из другой базы гасят `unique_violation` и `23505`.
-- Накат одной схемы — вторая транзакция `install()` под advisory-блокировкой схемы (`lockSchema`: `hashtext('letopis')`, `hashtext(<имя схемы>)`): в ней `fresh` (`drop schema`), ревизия `found` (по ней миграции — от `max(migrateFrom, found)` — и `created`/`upgraded` у `up()`), `create schema`, ядро, сиды, ключ сервиса. Ревизию до блокировки `up()` читает только для ранних отказов. `createTenant` берёт ту же блокировку: одновременные `up({ tenant })` заводят арендатора один раз. Новый шаг наката схемы — внутрь этой транзакции.
-- Установка от роли с `CREATEROLE` без суперпользователя проходит, только если роль владельца создала она сама: иначе у неё нет ADMIN на эту роль и выдать себе членство нельзя.
-- Идентификатор схемы в SQL — только `quoteIdent`: имя всегда с точкой (`v2.имя`), а хелпер `sql(name)` из postgres.js режет его по точке.
-- `up()` штамп движка не сверяет и не отказывает: если схему той же ревизии ставила более новая версия, накат старым пакетом молча вернёт прежние функции. Предупреждает только `connect()` через `stampDrift` (решение — коммит a8a9f51).
-- Сессия, которую выдаёт `createTenant`, — без способов входа (в `meta` нет `methods`): сменить по ней свой пароль нельзя.
+- `install()` — две транзакции под advisory-блокировками (пары int4). Общая часть (роли, членство установщика, pgcrypto, `usage` на его схему) — под `hashtext('letopis')`, `hashtext('install')`: новый оператор над объектами всей базы или кластера — туда, иначе параллельные `up()` разных схем падают `tuple concurrently updated`; гонку из другой базы гасят `unique_violation` и `23505`. Накат схемы — под `lockSchema` (ключ — имя схемы): `fresh`, ревизия `found` (миграции — от `max(migrateFrom, found)`, по ней же `created`/`upgraded`), ядро, сиды, ключ сервиса; новый шаг наката — внутрь. `createTenant` берёт `lockSchema`, `up({ login })` — блокировку `install`.
+- Схема ниже `FIRST_REVISION` (8) или без штампа ревизии (`schemaRevision` → 0) — отказ `refuse1x` (`invalid_data`, `boot.schema_1x`, подсказка `up({ fresh: true })`): `up()` — по ревизии до блокировки, раньше общей части `install()`, то есть до любых изменений, с `upgrade` тоже (`fresh` ревизию не читает и проходит); `connect()` — до входа по ключу. Политику ревизий держит `up()`, а `install()` — механизм наката: тест миграций зовёт его напрямую с `migrateFrom`. Отставшую ревизию (`FIRST_REVISION` ≤ N < `DDL_REVISION`) обновляет только `upgrade`: миграции `lib/sql/migrate/`.
+- Установщику с `CREATEROLE` без суперпользователя нужен ADMIN на роль владельца (создал её сам или получил `with admin option`), иначе `admin_required` (`boot.owner_no_admin`).
+- Установщик без суперпользователя состоит в роли владельца без наследования прав (`inherit false, set true`): что требует прав владельца — под `set local role` владельца (`fresh` при `SET` без `USAGE`, `ANALYZE`, поиск хабов с зарезервированными именами в `up()`), иначе 42501 или `ANALYZE` пропустит таблицы с WARNING.
+- Тексты `up()` — ключи раздела `boot` (`lib/src/messages/boot.ts`): с подходящим кодом — `lerr`, без него — `Error` с префиксом `letopis.up:` и текстом `lmsg`. К чужим ошибкам наката префикс — только имя (`migrate/…`, файл ядра, сид).
+- Идентификатор схемы в SQL — только `quoteIdent`: имя всегда с точкой (`v2.имя`), а хелпер `sql(name)` postgres.js режет его по точке.
+- `up()` штамп движка не сверяет и не отказывает: схему той же ревизии от более новой версии накат старым пакетом молча вернёт к прежним функциям; предупреждает только `connect()` (`stampDrift`, решение — a8a9f51).
+- Сессия от `createTenant` — без способов входа (в `meta` нет `methods`): сменить по ней свой пароль нельзя.
 
 **Что ещё менять вместе**
 - Новая подстановка `@ИМЯ@` → `vars` в `install()` и таблица в `lib/sql/README.md`.
-- Новый файл ядра → имя по шаблону `engineFiles` (две цифры, дефис, строчная латиница; другое имя установщик пропустит, и в хэш штампа файл не войдёт), место — в порядке из `lib/sql/README.md`; функции — `revoke … from public` в том же файле.
-- Переименовал опцию `up()` или поле `UpResult` → `db/apply.mjs` (передаёт и печатает их поимённо). Обёртку не вызывают ни CI, ни тесты, ни бенчи — поломка сама не всплывёт; её флаги и вывод описаны в `docs/atlas/F-BOOT.md`.
-- Раскладка сборки: `SQL_DIR` и версия для штампа (package.json) берутся относительно файла модуля, поэтому собранный dist/up.js лежит на одном уровне с src/up.ts (`lib/tsconfig.build.json`), а каталог sql обязан входить в `files` пакета.
+- Новый файл ядра → имя по шаблону `engineFiles` (иное установщик пропустит, и в хэш штампа файл не войдёт), место — по порядку из `lib/sql/README.md`; функции — `revoke … from public` в том же файле.
+- Новая ревизия → `DDL_REVISION`, `ddl_revision` в `99-revision.sql`, миграция `lib/sql/migrate/NNNN-*.sql`, если повторный накат её не догонит (`lib/sql/migrate/README.md`), и тест наката с прошлого выпуска (M-TESTS). `FIRST_REVISION` поднимается только в мажоре (`lib/README.md`, «Версии и совместимость»).
+- Переименовал опцию `up()` или поле `UpResult` → `db/apply.mjs` (передаёт и печатает их поимённо). Обёртку не зовут ни CI, ни тесты, ни бенчи — поломка сама не всплывёт; флаги и вывод — в `docs/atlas/F-BOOT.md`.
+- Раскладка сборки: `SQL_DIR` и package.json штампа — относительно файла модуля: dist/up.js — на уровне src/up.ts (`lib/tsconfig.build.json`), каталог sql — в `files` пакета.
 
 **Состояние и побочки**
-- Любая правка файла ядра (`engineFiles`, в том числе `95-seed.system.sql`; даже комментарий) меняет хэш штампа: `connect()` предупреждает на существующих схемах той же ревизии, пока на них не накатят `up()`. Сиды `seed.*.sql` и миграции в хэш не входят.
+- Хэш штампа меняет любая правка файла ядра (`engineFiles`, в том числе `95-seed.system.sql`; даже комментарий) и текстов разделов `sql-*` каталога `lib/src/messages`: `connect()` предупреждает на схемах той же ревизии, пока на них не накатят `up()`. Сиды `seed.*.sql` и миграции в хэш не входят.
 - Новый сервисный `APIKEY` `install()` выпускает на любом накате, где не осталось ни одного неотозванного ключа API.
 - `up({ pglite })` оставляет PGlite работать в процессе (сокет на `127.0.0.1`, без `dataDir` — данные в памяти): останавливает вызывающий — `r.pglite.close()`, при ошибке `up()` — сам.
 
 **Неимпортные связи**
-- Комментарий схемы `letopis ddl_revision=N engine=<версия> sql=<хэш>` пишет `lib/sql/99-revision.sql` (маркеры `@ENGINE_VERSION@`, `@ENGINE_SQL@`), а разбирают регэкспами `schemaRevision`, `stampDrift`, `connect()` в `lib/src/index.ts` (ревизию — своим регэкспом), `lib/scripts/check-docs.mjs` (ревизия = `DDL_REVISION`) и тесты `up`. Меняешь формат — правь всех.
+- Комментарий схемы `letopis ddl_revision=N engine=<версия> sql=<хэш>` пишет `lib/sql/99-revision.sql` (маркеры `@ENGINE_VERSION@`, `@ENGINE_SQL@`); разбирают регэкспами `schemaRevision`, `stampDrift`, `connect()` в `lib/src/index.ts` (ревизию — своим регэкспом, отказ — общий `refuse1x`), `lib/scripts/check-docs.mjs` (ревизия = `DDL_REVISION`) и тесты `up`. Меняешь формат — правь всех. Штамп без `engine=` (комментарий правили руками) — `boot.stamp_unknown`.
 
 **Проверка**
-- `cd lib && npx tsx --test --test-concurrency=1 --test-force-exit test/install.test.ts test/up.test.ts test/upgrade.test.ts test/roles.test.ts`
-- up: «штамп движка…», «6.10 отставшая ревизия…», «up({ pglite })…», «createTenant после удаления…»; upgrade: №1 (1.1.0 → текущая: предупреждение штампа до наката, после — нет), №2 (1.0.1, миграция 0006); roles: «7.3.8 №3» (CREATEROLE без суперпользователя).
-- Сигналы: `console.warn` из `connect()` с текстом `stampDrift`; `UpResult.warnings` (сервер ниже 18.2).
+- `cd lib && npx tsx --test --test-concurrency=1 --test-force-exit test/<файл>.test.ts`: `install`; `up` — 7.10 №5 (ниже `FIRST_REVISION`), 7.10 №3 (`boot.reserved_hubs`), 7.5 №3 (без ADMIN OPTION), «6.10 накат миграций…», «штамп движка…», «up({ pglite })…», «createTenant после удаления…», «up() — ошибки…»; `roles` — 7.3.8 №3 (CREATEROLE), «ревью: up() от установщика…»; `one-process` — 7.9 №4 (`up({ login })`); `messages` — 7.10 №4 (`UP_OPTIONS`).
+- Сигналы: `console.warn` из `connect()` с текстом `stampDrift`; `UpResult.warnings` (сервер ниже 18.2, таблицы без статистики после `ANALYZE`, хабы с зарезервированными именами).
 
 **Точки входа**
 - `lib/src/up.ts:install` — накат ядра, миграций и сидов; сервисный ключ
@@ -43,4 +45,4 @@ synced: f20b1cf
 - `lib/sql/95-seed.system.sql:bootstrap_service` — сервисный аккаунт и ключ
 
 **Не здесь**
-- Содержание системного сида → M-SEEDS; файлы ядра и ревизия → M-ENGINE; режимы сигналов → M-TIME; предупреждения `connect()` → M-API.
+- Содержание системного сида → M-SEEDS; файлы ядра и ревизия → M-ENGINE; режимы сигналов → M-TIME; предупреждения `connect()`, `checkOptions` → M-API.

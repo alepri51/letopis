@@ -2,7 +2,7 @@
  * signals — режимы сигналов NOTIFY (план 1.1, §2.2, этап 2; тест-план §7.3 №1–9, №12–17): нагрузка у
  * посторонней роли в каждом режиме, точность до арендатора, строки System, классы прав, процесс без
  * ключа, один путь у библиотеки и сырого SQL, загрузчик, подписка, ключ, режим none, склейка, версия
- * сервера, смена класса, повтор отправки, режим после повторного up() и reset({ all }).
+ * сервера, повтор отправки, режим после повторного up(). №16 (смена класса) снят в 2.0.0 вместе со сменой класса.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -52,7 +52,7 @@ async function hear(fn: () => Promise<unknown>): Promise<string[]> {
 }
 
 /** Режим сигналов схемы файла — повторным накатом с опцией. */
-const setMode = (mode: SignalMode) => install(e.sql, { schema: e.schema, allowReset: true, signals: mode });
+const setMode = (mode: SignalMode) => install(e.sql, { schema: e.schema, signals: mode });
 
 /** Ключ сигналов (администраторское подключение) и токены — независимо от кода библиотеки. */
 async function keyHex(): Promise<string> {
@@ -87,8 +87,6 @@ before(async () => {
   tB = await e.tenant('signals-b');
   for (const t of [tA, tB]) await e.defineClass(t, { name: 'Item', kind: 'hub', fields: { properties: { n: { type: 'integer' } } } });
   await e.defineClass(tA, { name: 'Note', kind: 'hub', fields: { properties: { text: { type: 'string' } } } });
-  await e.defineClass(tA, { name: 'Old', kind: 'hub', fields: { properties: { n: { type: 'integer' } } } });
-  await e.defineClass(tA, { name: 'New', kind: 'hub', fields: { properties: { n: { type: 'integer' } } } });
   // общий класс System: строки арендаторов и строки самого System
   await e.asOwner((tx) => tx.unsafe(`select ${e.S}.sys_create(${e.S}.v5_id($1::uuid, 'Class', array['Common']), 'Class', $1::uuid, '{}', $2::jsonb)`,
     [SYSTEM_ID, { name: 'Common', kind: 'hub', fields: { properties: { n: { type: 'integer' } } } } as never]));
@@ -360,28 +358,6 @@ test('7.3 №15: версия сервера — до 18.2 предупрежд�
   assert.deepEqual(checkServer(180006, 'UTF8'), []);
 });
 
-test('7.3 №16: смена класса без ключа сбрасывает в других процессах ответы прежнего класса', async () => {
-  await setMode('class');
-  const w = await appDb(tA.token);
-  const r = await appDb(tA.token);
-  try {
-    await until(() => r.cache.stats().enabled);
-    const s0 = r.cache.stats().signals;
-    const [row] = await w.Old().create({ n: 160 }).rows();
-    await w.flushSignals();
-    await until(() => r.cache.stats().signals > s0);
-    assert.ok((await r.Old().cache().rows()).some((x) => x.id === row.id));
-    const s1 = r.cache.stats().signals;
-    await e.as(tA.token, (tx) => tx.unsafe(`update ${e.S}.entity set class = 'New' where id = $1`, [row.id]));
-    await until(() => r.cache.stats().signals >= s1 + 2);
-    assert.ok(!(await r.Old().cache().rows()).some((x) => x.id === row.id), 'ответ прежнего класса сброшен');
-    assert.ok((await r.New().cache().rows()).some((x) => x.id === row.id));
-  } finally {
-    await w.close();
-    await r.close();
-  }
-});
-
 test('7.3 №17: отправка сигнала нотификатором упала — нагрузка уходит повтором', async () => {
   let calls = 0;
   const flaky = ((strings: TemplateStringsArray, ...values: unknown[]) =>
@@ -398,24 +374,18 @@ test('7.3 №17: отправка сигнала нотификатором уп
   assert.deepEqual(got, ['Signals17'], 'сигнал ушёл повтором');
 });
 
-test('7.3 №12: режим хранится в схеме — повторный up() без опции и reset({ all }) его не меняют', async () => {
+test('7.3 №12: режим хранится в схеме — повторный up() без опции его не меняет', async () => {
   const mode = async () => ((await e.sql.unsafe(`select ${e.S}.signal_mode() as m`))[0].m as string);
-  const r1 = await up({ dsn: ADMIN_DSN, schema: e.schema, signals: 'opaque', allowReset: true, quiet: true });
+  const r1 = await up({ dsn: ADMIN_DSN, schema: e.schema, signals: 'opaque', quiet: true });
   assert.equal(r1.signals, 'opaque');
   assert.ok(Array.isArray(r1.warnings));
   assert.equal(await mode(), 'opaque');
-  const r2 = await up({ dsn: ADMIN_DSN, schema: e.schema, allowReset: true, quiet: true });
+  const r2 = await up({ dsn: ADMIN_DSN, schema: e.schema, quiet: true });
   assert.equal(r2.signals, 'opaque', 'up() без опции — прежний режим');
   assert.equal(await mode(), 'opaque');
-  const adm = await connect({ dsn: ADMIN_DSN, schema: e.schema, allowBypassRls: true, max: 2, cache: false });
-  try {
-    await adm.reset({ level: 'all', confirm: e.schema });
-  } finally {
-    await adm.close();
-  }
   const [{ m }] = await e.sql.unsafe(`select meta->>'signals' as m from ${e.S}.secret where id = $1 and kind = 'KEY'`, [SYSTEM_ID]);
-  assert.equal(m, 'opaque', 'reset({ all }) кладёт режим в новую строку ключа');
-  const r3 = await up({ dsn: ADMIN_DSN, schema: e.schema, allowReset: true, quiet: true });
+  assert.equal(m, 'opaque', 'режим лежит в строке ключа');
+  const r3 = await up({ dsn: ADMIN_DSN, schema: e.schema, quiet: true });
   assert.equal(r3.signals, 'opaque');
   assert.equal(await mode(), 'opaque');
 });

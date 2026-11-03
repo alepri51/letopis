@@ -20,9 +20,9 @@ export default example({
       },
     },
     {
-      title: 'Схему «поставила старая версия»',
+      title: 'Схему поставила неизвестная версия',
       text:
-        'Изображаем схему версии до 1.4: в комментарии только ревизия, штампа нет. Ревизия та же, поэтому ' +
+        'Изображаем схему без штампа движка: в комментарии только ревизия. Ревизия та же, поэтому ' +
         '`connect()` подключается, но предупреждает и называет команду, которая всё исправит.',
       run: async ({ admin, connect, warnings, dsn, schema, up }) => {
         await admin.unsafe(`comment on schema "${schema}" is 'letopis ddl_revision=${DDL_REVISION}'`);
@@ -53,6 +53,23 @@ export default example({
         const again = await up({ dsn: dsn.admin, schema, quiet: true }).then(() => 'поставлено', (e: Error) => e.message);
         await admin.unsafe(`comment on schema "${schema}" is '${comment}'`); // скрыть
         return { 'connect() предупредил': printed, 'up() отказал': again };
+      },
+    },
+    {
+      title: 'Схема ревизии 7 — только заново',
+      text:
+        'Изображаем схему ревизии 7 — младше первой ревизии, которую знает пакет (8). Такую схему пакет не обновляет: ' +
+        '`connect()` и `up()` отказывают с `invalid_data` ещё до любых изменений и подсказывают ' +
+        '`up({ schema, fresh: true })` — схема пересоздаётся, данные не переносятся.',
+      run: async ({ admin, connect, dsn, schema, up: installed }) => {
+        const [row] = await admin`select obj_description(oid, 'pg_namespace') as comment from pg_namespace where nspname = ${schema}`;
+        const comment = String(row.comment);
+        await admin.unsafe(`comment on schema "${schema}" is 'letopis ddl_revision=7'`);
+        const why = (e: Error) => e.message;
+        const conn = await connect({ dsn: dsn.app, schema, token: installed.tenant!.token! }).then(() => 'подключено', why);
+        const again = await up({ dsn: dsn.admin, schema, quiet: true }).then(() => 'поставлено', why);
+        await admin.unsafe(`comment on schema "${schema}" is '${comment}'`); // скрыть
+        return { 'connect()': conn, 'up()': again };
       },
     },
   ],

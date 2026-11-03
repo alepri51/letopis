@@ -8,6 +8,7 @@ import postgres from 'postgres';
 import { engine, type Engine, type Tenant } from './_engine.js';
 import { ADMIN_DSN, appDsn } from './_harness.js';
 import { connect, ValidationError, LetopisError, type Db } from '../src/index.js';
+import { member } from './_access.js';
 
 let e: Engine;
 let t: Tenant;
@@ -96,5 +97,49 @@ test('отказ по сессии переводится в LetopisError', asyn
       (x: LetopisError) => x instanceof LetopisError && x.code === 'no_session');
   } finally {
     await bad.close();
+  }
+});
+
+test('ревью: сессия, истёкшая по простою, — подключение по ключу APIKEY обменивает ключ заново (цепочка и db.begin() проходят, арендатор auth.switch() прежний), по токену — no_session, а не пустое чтение (сервис)', async (tc) => {
+  const S = `"${e.schema}"`;
+  const [k] = await e.sql.unsafe(`select account from ${S}.secret where kind = 'APIKEY' and ident = $1`, [e.serviceKey.slice(0, 12)]);
+  await member(e, k.account as string, t.id, ['staff']);
+  const svc = await connect({ dsn: appDsn(), schema: e.schema, apiKey: e.serviceKey, max: 2 });
+  // простой дольше срока сессии: сессии аккаунта истекли в базе, а часы процесса ушли вперёд ещё на две минуты
+  let clock = Date.now();
+  const idle = async (account: string) => {
+    await e.sql.unsafe(`update ${S}.secret set expires_at = clock_timestamp() - interval '1 second'
+      where kind = 'SESSION' and account = $1 and deleted_at is null`, [account]);
+    clock += 120_000;
+    tc.mock.timers.reset();
+    tc.mock.timers.enable({ apis: ['Date'], now: clock });
+  };
+  try {
+    await db.Org().upsert({ name: 'Простой' }).rows();
+    await svc.auth.switch(t.id);
+    const seen = (await svc.Org().rows()).length;
+    assert.ok(seen > 0);
+    await idle(k.account as string);
+    assert.equal((await svc.Org().rows()).length, seen, 'новая сессия — в арендаторе, выбранном auth.switch()');
+    await idle(k.account as string);
+    const tr = await svc.begin();
+    assert.equal((await tr.Org().rows()).length, seen, 'db.begin() открывается и после истечения');
+    await tr.rollback();
+    assert.equal(String(svc.tenant).toLowerCase(), t.id.toLowerCase());
+    tc.mock.timers.reset();
+    // по токену: ключа нет — сессию заново не выдать; чтение — no_session, а не пустой ответ анонима
+    const u = await e.tenant('connect-idle');
+    const byToken = await connect({ dsn: appDsn(), schema: e.schema, token: u.token, max: 1 });
+    try {
+      await byToken.Class().rows();
+      await idle(u.id);
+      await assert.rejects(byToken.Class().rows(), (x: LetopisError) => x instanceof LetopisError && x.code === 'no_session');
+    } finally {
+      tc.mock.timers.reset();
+      await byToken.close();
+    }
+  } finally {
+    tc.mock.timers.reset();
+    await svc.close();
   }
 });

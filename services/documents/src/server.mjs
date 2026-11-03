@@ -3,15 +3,12 @@
  *
  * - Модель: контрагент Party и семейство документов Doc (ключ — номер) → Draft (черновик) и Contract (договор) —
  *   классы арендатора; при каждом запуске их пишет syncModels администраторского подключения, а не сессия пользователя.
- *   Подписание — reclass черновика в договор, смена номера — rekey; versions({ follow: true }) ведёт историю
- *   через обе смены id.
- * - Каждая правка — версия с причиной (reason); diff двух версий, blame («кто последним менял поле»), asOf —
- *   документ на любой момент (ползунок в интерфейсе).
- * - Удаление с превью, корзина (withDeleted), restore, purge; anonymize персональных данных контрагента;
- *   trimHistory — обрезка истории до даты.
- * - Хранение по ярусам: политика history класса Doc и maintain({ now }) «как будто через N дней».
- * - verify({ data: true }) и кнопка «испортить запись журнала» (прямой UPDATE в обход библиотеки).
- * - Архив старых договоров — первая заливка db.load(…, { initial: true }) с историей; сброс демо — reset.
+ * - Подписание: ключ и класс строки неизменны, класс входит в v5-id — договор новый объект. Одна транзакция db.begin():
+ *   create Contract с данными черновика и delete Draft. Лента версий договора — версии обоих id (id черновика —
+ *   db.idOf('Draft', { number })).
+ * - Каждая правка — версия с причиной (reason); asOf — документ на любой момент (ползунок в интерфейсе).
+ * - Удаление с превью, корзина (withDeleted), restore; надгробие подписанного черновика — не в корзине, restore — 409.
+ * - Архив старых договоров — первая заливка db.load(…, { initial: true, withHistory: true }); обслуживание — maintain().
  * - Живое обновление (watch → SSE) и панель «Под капотом»: цепочки, запросы (onQuery), записанные версии и сигналы.
  */
 import express from 'express';
@@ -42,14 +39,6 @@ export const USERS = {
   lawyer: { name: 'Анна Юристова', login: 'lawyer@pravo.ru', password: 'Pravo-2026!', role: 'юрист' },
   head: { name: 'Борис Главный', login: 'head@pravo.ru', password: 'Head-2026!', role: 'руководитель' },
 };
-// ярусы хранения истории документов (POLICY — в src/models.mjs): свежее — всё, старше — по одной версии на день, неделю, месяц, год
-const POLICY_TEXT = [
-  { tier: 'all — 1 день', keep: 'все версии за последние сутки' },
-  { tier: 'daily — 1 неделя', keep: 'последняя версия каждого дня за неделю' },
-  { tier: 'weekly — 1 месяц', keep: 'последняя версия каждой недели за месяц' },
-  { tier: 'monthly — 1 год', keep: 'последняя версия каждого месяца за год' },
-  { tier: 'yearly — навсегда', keep: 'последняя версия каждого года' },
-];
 
 // ---------- модель (src/models.mjs) ----------
 const MODELS = documentModels(model, z);
@@ -58,29 +47,32 @@ class HttpError extends Error { constructor(status, message, code) { super(messa
 
 export async function createApp() {
   const admin = postgres(ENV.admin, { max: 2, onnotice: () => {} });
-  const r = await up({ dsn: ENV.admin, schema: ENV.schema, upgrade: true, fresh: ENV.fresh, serviceKey: ENV.serviceKey, allowReset: true, quiet: true });
+  // роль приложения заводит up({ login }): имя и пароль квотирует база, повтор обновляет пароль (план 2.0, 7.6 №7, 7.9 №4)
   const appUrl = new URL(ENV.app);
-  // роль приложения — имя и пароль квотируются, а не склеиваются в SQL: пароль с ' не ломает запуск (план 2.0, 7.6 №7)
-  const appUser = decodeURIComponent(appUrl.username);
-  const ident = (v) => `"${v.replace(/"/g, '""')}"`;
-  const [{ known }] = await admin`select exists (select 1 from pg_roles where rolname = ${appUser}) as known`;
-  if (!known) await admin.unsafe(`create role ${ident(appUser)} login password '${decodeURIComponent(appUrl.password).replace(/'/g, "''")}'`);
-  await admin.unsafe(`grant letopis_app to ${ident(appUser)}`);
+  const r = await up({ dsn: ENV.admin, schema: ENV.schema, upgrade: true, fresh: ENV.fresh, serviceKey: ENV.serviceKey, quiet: true,
+    login: { user: decodeURIComponent(appUrl.username), password: decodeURIComponent(appUrl.password) } });
   // журнал «под капотом»: запросы к базе, записанные версии и сигналы текущего действия;
-  // обслуживание (trimHistory, maintain) идёт администраторским подключением adm — его сигналы тоже
+  // обслуживание (maintain) идёт администраторским подключением adm — его сигналы тоже
   const trace = await createTrace({ admin, schema: r.schema, size: 15, flush: (s) => [s.db, adm] });
   const { onQuery } = trace;
   const svc = await connect({ dsn: ENV.app, schema: r.schema, apiKey: ENV.serviceKey, onQuery });
-  const t = await createTenant(admin, r.schema, { name: FIRM, user: { name: USERS.head.name, login: USERS.head.login, password: USERS.head.password, ttl: '7 days' } });
+  // сессия createTenant руководителя — только на запись модели при запуске (ниже), потом она погашена: срок короткий
+  const t = await createTenant(admin, r.schema, { name: FIRM, user: { name: USERS.head.name, login: USERS.head.login, password: USERS.head.password, ttl: '10 minutes' } });
   await createTenant(admin, r.schema, { name: FIRM, user: { name: USERS.lawyer.name, login: USERS.lawyer.login, password: USERS.lawyer.password, roles: ['staff'], ttl: '1 minute' } });
-  // обслуживание (verify, maintain, trimHistory, load, reset) — администраторское подключение в сессии руководителя
-  // сессия руководителя — на 7 дней простоя (connect её продлевает): с 10 минутами trimHistory после простоя падал
-  // на no_session (план 2.0, 7.6 №5)
-  const adm = await connect({ dsn: ENV.admin, schema: r.schema, token: t.token, allowBypassRls: true, onQuery });
-  // модель — классы арендатора фирмы: при каждом запуске их пишет syncModels этого подключения, сессия пользователя
-  // модель не пишет. Не System: классы System syncModels пропускает, а сид установки уже существующий класс не меняет —
-  // изменение модели до работающей установки так не дошло бы
-  await syncModels(adm, MODELS, { apply: true });
+  // модель — классы арендатора фирмы: при каждом запуске их пишет syncModels администраторского подключения в сессии
+  // руководителя (токен createTenant), сессия пользователя модель не пишет. Не System: классы System syncModels
+  // пропускает, а сид установки уже существующий класс не меняет — изменение модели до работающей установки так не дошло
+  // бы. Подключение — только на эту запись: потом revoke и close, как syncCompany в helpdesk
+  const boot = await connect({ dsn: ENV.admin, schema: r.schema, token: t.token, allowBypassRls: true, listen: false, refreshSession: false });
+  try {
+    await syncModels(boot, MODELS, { apply: true });
+  } finally {
+    await boot.auth.revoke().catch(() => {});
+    await boot.close();
+  }
+  // обслуживание (maintain, load архива) — администраторское подключение без сессии: maintain пускает его роль, load
+  // пишет в арендатора, названного явно. Постоянного токена у него нет — простою сервиса нечему истечь (план 2.0, 7.6 №5)
+  const adm = await connect({ dsn: ENV.admin, schema: r.schema, allowBypassRls: true, onQuery });
   const head = await svc.as(t.user, { tenant: t.tenant });
   const accountOf = async (u) => (await svc.auth.verifyPassword({ identifier: u.login, password: u.password, ttl: 60 })).account;
   let archive = null;
@@ -99,7 +91,8 @@ export async function createApp() {
     }
     // версии одного объекта — по возрастанию времени: $at растёт вместе с $rev
     for (let k = 0; k < 12; k++) for (let v = 0; v < 4; v++) Contract_[k * 4 + v].$at = new Date(Date.UTC(2025, 0, 1) + (k * 20 + v * 5) * 86_400_000).toISOString();
-    const report = await adm.load({ Party: Party_, Contract: Contract_ }, { initial: true, withHistory: true, agent: 'перенос архива' });
+    // арендатор — явно: у администраторского подключения нет сессии, из которой его взять
+    const report = await adm.load({ Party: Party_, Contract: Contract_ }, { initial: true, withHistory: true, agent: 'перенос архива', tenant: t.tenant });
     // свежие черновики — уже обычными цепочками от людей фирмы
     const lawyer = await svc.as(await accountOf(USERS.lawyer), { tenant: t.tenant });
     const parties = await head.Party().rows();
@@ -131,10 +124,14 @@ export async function createApp() {
     status: d.data.status ?? '', signedBy: d.data.signedBy ?? '', party: d.links.Party, partyName: parties?.get(d.links.Party)?.data.name ?? '—',
     rev: d.rev, at: d.at, archived: !!d.data.archived,
   });
-  // подписание (reclass) и смена номера (rekey) оставляют у прежнего id надгробие с moved → новый id: это не удаление,
-  // документ живёт под новым id — в корзину такое надгробие не попадает
-  const inTrash = (d) => d.$deleted && !d.moved;
-  const MOVED = 'Это прежний id документа: его подписали или сменили ему номер — теперь у документа новый id';
+  // подписание удаляет черновик той же транзакцией, что создаёт договор с его номером: это не удаление, а смена класса —
+  // надгробие черновика, у номера которого есть договор (живой или в корзине), в корзину не попадает
+  const SIGNED = 'Черновик подписан — теперь это договор с тем же номером. Вернуть черновик нельзя: с одним номером стало бы два документа';
+  const trashOf = async (db) => {
+    const all = await db.Doc().withDeleted().rows();
+    const signed = new Set(all.filter((d) => d.class === 'Contract').map((d) => d.data.number));
+    return all.filter((d) => d.$deleted && !(d.class === 'Draft' && signed.has(d.data.number)));
+  };
   const docOf = async (db, id) => {
     const d = await db.Doc(id).first();
     if (!d) throw new HttpError(404, 'Документ не найден');
@@ -160,7 +157,7 @@ export async function createApp() {
     const db = req.s.db;
     res.json({
       drafts: await db.Draft().count(), contracts: await db.Contract().count(),
-      deleted: (await db.Doc().withDeleted().rows()).filter(inTrash).length,
+      deleted: (await trashOf(db)).length,
       versions: (await admin.unsafe(`select count(*)::int as n from ${quote(r.schema)}.log where tenant = $1`, [t.tenant]))[0].n,
     });
   }));
@@ -170,14 +167,16 @@ export async function createApp() {
     const docs = await db.Doc().sort('data.number').rows();
     res.json({
       docs: docs.map((d) => view(d, parties)),
-      parties: [...parties.values()].map((p) => ({ id: p.id, name: p.data.name, passport: p.data.passport, phone: p.data.phone, anonymized: p.tags?.includes('anonymized') })),
+      parties: [...parties.values()].map((p) => ({ id: p.id, name: p.data.name, passport: p.data.passport, phone: p.data.phone })),
     });
   }));
 
   app.post('/api/docs', auth, route(async (req, res) => {
     const s = req.s, { number = '', title = '', amount = 0, body = '', party = '' } = req.body ?? {};
+    // второй черновик с тем же номером не даст база (тот же id); номер договора — другой класс, другой id: его сверяет сервис
+    if (await s.db.Contract({ number: String(number) }).withDeleted().count()) throw new HttpError(422, `Номер ${number} уже у договора`);
     const d = await act(s, `Новый черновик ${number}`, async (lines) => {
-      lines.push(`db.Draft().create({ number: '${number}', … }).Party.set(контрагент) — id из номера (ключ, v5)`);
+      lines.push(`db.Draft().create({ number: '${number}', … }).Party.set(контрагент) — id из класса и номера (ключ, v5)`);
       const [row] = await s.db.Draft().create({ number: String(number), title: String(title), amount: Number(amount), body: String(body), status: 'draft' }, { reason: 'новый черновик' }).Party.set(String(party)).rows();
       return row;
     });
@@ -186,14 +185,18 @@ export async function createApp() {
 
   app.get('/api/docs/:id', auth, route(async (req, res) => {
     const db = req.s.db, d = await docOf(db, req.params.id);
+    // договор — новый объект: до подписания документ жил черновиком с тем же номером; его id — из класса и номера
+    const ids = d.class === 'Contract' ? [d.id, db.idOf('Draft', { number: d.data.number })] : [d.id];
     const versions = await act(req.s, `История ${d.data.number}`, async (lines) => {
-      lines.push(`db.${d.class}(id).versions({ follow: true }) — через смену номера (rekey) и класса (reclass)`);
-      return db.Doc(d.id).versions({ follow: true });
+      lines.push(d.class === 'Contract'
+        ? "db.Doc([id, db.idOf('Draft', { number })]).withDeleted().sort('at').versions() — версии договора и черновика, из которого он подписан"
+        : "db.Doc(id).withDeleted().sort('at').versions()");
+      return db.Doc(ids).withDeleted().sort('at').versions();
     });
     res.json({
       doc: view(d, await partyMap(db)),
       versions: versions.map((v) => ({
-        id: v.id, rev: v.rev, op: v.op, class: v.class, at: v.at, who: v.author ? nameOf(v.author) : '—', reason: v.reason ?? '', data: v.data ?? {},
+        id: v.id, rev: v.rev, op: v.op, class: v.class, at: v.at, who: v.author ? nameOf(v.author) : '—', reason: v.reason ?? '', agent: v.agent ?? '', data: v.data ?? {},
       })),
     });
   }));
@@ -219,50 +222,34 @@ export async function createApp() {
     res.json({ doc: view(d, await partyMap(s.db)) });
   }));
 
+  // подписание: класс строки неизменен, а класс входит в v5-id — договор новый объект. Одна транзакция: договор с данными
+  // черновика и удаление черновика; ошибка любого шага откатывает оба
   app.post('/api/docs/:id/sign', auth, route(async (req, res) => {
     const s = req.s, cur = await docOf(s.db, req.params.id);
     if (cur.class !== 'Draft') throw new HttpError(409, 'Подписать можно только черновик');
     const d = await act(s, `Подписание ${cur.data.number}`, async (lines) => {
       const { status: _st, ...data } = cur.data;
-      lines.push(`db.Draft(id).reclass('Contract', { …данные, signedBy: '${s.name}' }) — договор с новым id: класс входит в v5-id`);
-      const [row] = await s.db.Draft(cur.id).reclass('Contract', { ...data, signedBy: s.name }, { reason: `подписан: ${s.name}` }).rows();
-      return row;
+      const reason = `подписан: ${s.name}`;
+      const tr = await s.db.begin({ reason });
+      lines.push(`db.begin({ reason: '${reason}' }) — подписание одной транзакцией`);
+      try {
+        lines.push(`tr.Contract().create({ …данные черновика, signedBy: '${s.name}' }).Party.set(контрагент) — договор: новый объект, id из класса и номера`);
+        const [row] = await tr.Contract().create({ ...data, signedBy: s.name }).Party.set(cur.links.Party).rows();
+        lines.push('tr.Draft(id).delete({ confirm: true }) — черновик удалён: надгробие, история остаётся');
+        await tr.Draft(cur.id).delete({ confirm: true }).rows();
+        await tr.commit();
+        lines.push('tr.commit()');
+        return row;
+      } catch (e) {
+        await tr.rollback().catch(() => {});
+        lines.push(`tr.rollback() — ${e.code ?? e.message}`);
+        throw e;
+      }
     });
     res.json({ doc: view(d, await partyMap(s.db)) });
   }));
 
-  app.post('/api/docs/:id/renumber', auth, route(async (req, res) => {
-    const s = req.s, cur = await docOf(s.db, req.params.id), number = String(req.body?.number ?? '').trim();
-    if (!number || number === cur.data.number) throw new HttpError(422, 'Укажите новый номер');
-    const d = await act(s, `Смена номера ${cur.data.number} → ${number}`, async (lines) => {
-      lines.push(`db.${cur.class}(id).rekey({ number: '${number}' }) — номер в ключе: новый id, ссылки переведены, старая строка удалена`);
-      const [row] = await s.db[cur.class](cur.id).rekey({ number }, { reason: `новый номер ${number}` }).rows();
-      return row;
-    });
-    res.json({ doc: view(d, await partyMap(s.db)) });
-  }));
-
-  app.get('/api/docs/:id/diff', auth, route(async (req, res) => {
-    const s = req.s, from = String(req.query.from ?? ''), to = String(req.query.to ?? '');
-    const out = await act(s, 'Сравнение версий', async (lines) => {
-      lines.push(`db.Doc(id).diff({ from: момент, to: момент, follow: true })`);
-      return s.db.Doc(req.params.id).diff({ from, to, follow: true });
-    });
-    const changes = (Array.isArray(out) ? out : [out]).flatMap((x) => x?.changes ?? []).map((c) => ({ field: (c.path ?? []).join('.'), before: c.before ?? c.from, after: c.after ?? c.to }));
-    res.json({ changes });
-  }));
-
-  app.get('/api/docs/:id/blame', auth, route(async (req, res) => {
-    const s = req.s;
-    const out = await act(s, 'Кто менял', async (lines) => {
-      lines.push('db.Doc(id).blame() — для каждого поля последняя версия, которая его изменила');
-      return s.db.Doc(req.params.id).blame();
-    });
-    const fields = (Array.isArray(out) ? out : [out]).flatMap((x) => x?.fields ?? []).map((f) => ({ field: (f.path ?? []).join('.'), who: nameOf(f.author), at: f.at, op: f.op, rev: f.rev }));
-    res.json({ fields });
-  }));
-
-  // id — той версии, на которую указывает ползунок: до смены номера или класса документ жил под другим id
+  // id — той версии, на которую указывает ползунок: до подписания документ жил черновиком под другим id
   app.get('/api/docs/:id/asof', auth, route(async (req, res) => {
     const s = req.s, at = String(req.query.at ?? '');
     const d = await act(s, 'Машина времени', async (lines) => {
@@ -282,91 +269,27 @@ export async function createApp() {
   }));
 
   app.get('/api/trash', auth, route(async (req, res) => {
-    const rows = (await req.s.db.Doc().withDeleted().rows()).filter(inTrash);
+    const rows = await trashOf(req.s.db);
     res.json(rows.map((d) => ({ id: d.id, class: d.class, number: d.data.number, title: d.data.title, amount: d.data.amount, at: d.at, who: nameOf(d.author) })));
   }));
   app.post('/api/trash/:id/restore', auth, route(async (req, res) => {
     const s = req.s;
-    // надгробие подписания или смены номера restore оживил бы рядом с живым документом — стало бы два документа
+    // надгробие подписанного черновика restore оживил бы рядом с договором — стало бы два документа с одним номером
     const [was] = await s.db.Doc(req.params.id).withDeleted().rows();
-    if (was?.$deleted && was.moved) throw new HttpError(409, MOVED, 'moved');
+    if (was?.$deleted && was.class === 'Draft' && (await s.db.Contract({ number: was.data.number }).withDeleted().count())) throw new HttpError(409, SIGNED, 'signed');
     await act(s, 'Восстановление', async (lines) => {
       lines.push('db.Doc(id).restore() — прежний id, новая версия restore');
       await s.db.Doc(req.params.id).restore({ reason: `восстановил ${s.name}` }).rows();
     });
     res.json({ ok: true });
   }));
-  app.post('/api/trash/:id/purge', auth, route(async (req, res) => {
-    const s = req.s;
-    const deleted = (await s.db.Doc().withDeleted().rows()).filter((d) => d.$deleted);
-    // надгробие подписания или смены номера purge стёр бы из истории живого документа
-    if (deleted.find((d) => d.id === req.params.id)?.moved) throw new HttpError(409, MOVED, 'moved');
-    // прежние id документа (до подписания и смены номера) — надгробия с moved → следующий id: стираются вместе с ним
-    const ids = [req.params.id];
-    for (let i = 0; i < ids.length; i++) for (const d of deleted) if (d.moved === ids[i]) ids.push(d.id);
-    await act(s, 'Стереть навсегда', async (lines) => {
-      lines.push(`db.Doc([id${ids.length > 1 ? ', …прежние id' : ''}]).purge({ confirm: true }) — история удалённого стёрта${ids.length > 1 ? ` вместе с прежними id (${ids.length - 1}: подписание, смена номера)` : ''}; без confirm, как delete, — только превью`);
-      await s.db.Doc(ids).purge({ confirm: true, reason: `стёр навсегда: ${s.name}` }).rows();
-    });
-    res.json({ ok: true });
-  }));
-
-  app.post('/api/parties/:id/anonymize', auth, route(async (req, res) => {
-    const s = req.s;
-    await act(s, 'Обезличить контрагента', async (lines) => {
-      lines.push("db.Party(id).anonymize(['passport', 'phone']) — поля затёрты новой версией, прежние версии в журнале");
-      await s.db.Party(req.params.id).anonymize(['passport', 'phone'], { reason: 'запрос субъекта данных' }).rows();
-    });
-    res.json({ ok: true });
-  }));
-
-  app.post('/api/docs/:id/trim', auth, route(async (req, res) => {
-    const s = req.s;
-    const n = await act(s, 'Обрезка истории', async (lines) => {
-      lines.push('adm.trimHistory(id, сегодня) — версии старше даты стёрты, первая оставшаяся получила запись trim');
-      return adm.trimHistory(req.params.id, new Date(new Date().toISOString().slice(0, 10)));
-    });
-    res.json({ trimmed: n });
-  }));
 
   // ---------- обслуживание (администраторское подключение) ----------
-  app.get('/api/admin/info', auth, (_req, res) => res.json({ archive, policy: POLICY_TEXT }));
-  const numberOf = async (id) => (await admin.unsafe(`select data->>'number' as n from ${quote(r.schema)}.log where id = $1 order by rev desc limit 1`, [id]))[0]?.n ?? id.slice(0, 8);
-  app.get('/api/admin/verify', auth, route(async (req, res) => {
-    const v = await act(req.s, 'Проверка целостности', async (lines) => {
-      lines.push('adm.verify({ data: true }) — цепочка хэшей журнала и данные против описаний классов');
-      return adm.verify({ data: true });
-    });
-    const checked = (await admin.unsafe(`select count(*)::int as n from ${quote(r.schema)}.log`))[0].n;
-    res.json({ ok: v.ok, checked, issues: await Promise.all(v.issues.map(async (i) => ({ id: i.id, rev: i.rev ?? null, problem: i.problem, number: await numberOf(i.id) }))) });
-  }));
-  let damaged = null; // запись журнала, испорченная кнопкой, — чтобы вернуть байт в байт
-  app.post('/api/admin/corrupt', auth, route(async (req, res) => {
-    if (damaged) throw new HttpError(409, 'Одна запись уже испорчена — сначала верните её');
-    const [row] = await admin.unsafe(`select l.id, l.rev, l.data from ${quote(r.schema)}.log l where l.tenant = $1 and l.class in ('Contract', 'Draft') and l.op = 'update' and exists (select 1 from ${quote(r.schema)}.log n where n.id = l.id and n.rev > l.rev) order by l.seq limit 1`, [t.tenant]);
-    if (!row) throw new HttpError(404, 'Нет промежуточной версии для порчи — измените документ ещё раз');
-    await act(req.s, 'Порча записи журнала', async (lines) => {
-      lines.push(`update log set data = jsonb_set(data, '{amount}', '1') where id = … and rev = ${row.rev} — в обход библиотеки, от суперпользователя`);
-      await admin.unsafe(`update ${quote(r.schema)}.log set data = jsonb_set(data, '{amount}', '1') where id = $1 and rev = $2`, [row.id, row.rev]);
-    });
-    damaged = row;
-    res.json({ number: row.data.number, rev: row.rev });
-  }));
-  app.post('/api/admin/repair', auth, route(async (req, res) => {
-    if (!damaged) throw new HttpError(409, 'Испорченной записи нет');
-    await act(req.s, 'Вернуть запись журнала', async (lines) => {
-      lines.push('update log set data = прежние данные — хэш снова сходится с prev_hash следующей версии');
-      await admin.unsafe(`update ${quote(r.schema)}.log set data = $3::jsonb where id = $1 and rev = $2`, [damaged.id, damaged.rev, damaged.data]);
-    });
-    damaged = null;
-    res.json({ ok: true });
-  }));
+  app.get('/api/admin/info', auth, (_req, res) => res.json({ archive }));
   app.post('/api/admin/maintain', auth, route(async (req, res) => {
-    const days = Math.max(0, Math.min(3650, Number(req.body?.days ?? 0)));
-    const now = new Date(Date.now() + days * 86_400_000);
-    const report = await act(req.s, `Прореживание «через ${days} дн»`, async (lines) => {
-      lines.push(`adm.maintain({ now: '${now.toISOString().slice(0, 10)}' }) — политика ярусов «как будто сейчас — через ${days} дн» (allowReset)`);
-      return adm.maintain({ now });
+    const report = await act(req.s, 'Обслуживание', async (lines) => {
+      lines.push('adm.maintain() — истёкшие и погашенные сессии и коды, строки-замки удалённых классов, очередь сигналов; журнал не трогает');
+      return adm.maintain();
     });
     res.json(report);
   }));

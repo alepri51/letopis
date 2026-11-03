@@ -2,15 +2,16 @@
  * impersonation — имперсонация (план, §2.9, этап 5, п. 3; тест-план §7.7, 5.7; атака 7.3.1 №17):
  * letopis.account действует только для сессии с правом auth.impersonate (правила System, категория
  * Service); целевой аккаунт включён, не System, не сервис и не системный администратор; арендатор —
- * собственный аккаунта или по членству. В журнале author — пользователь, agent — сервис.
+ * собственный аккаунта или по членству. В журнале author — пользователь, agent — сервис. План 2.0, 7.5 №3: auth.switch
+ * при имперсонации — понятная LetopisError с кодом каталога.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { engine, lt, SYSTEM_ID, type Engine } from './_engine.js';
 import { install } from '../src/up.js';
 import { appDsn } from './_harness.js';
-import { account, member, session, sqlAs, sysadmin, type Acc } from './_access.js';
-import { connect, type Db } from '../src/index.js';
+import { account, member, service, session, sqlAs, sysadmin, type Acc } from './_access.js';
+import { connect, LetopisError, type Db } from '../src/index.js';
 
 let e: Engine;
 let S: string;
@@ -89,6 +90,22 @@ test('5.7 от имени System, сервиса, системного адми�
     'пользовательская сессия, выпущенная сервисом, имперсонации не даёт');
 });
 
+test('план 2.0, 7.5 №3: auth.switch при имперсонации — LetopisError acl_denied из каталога (LT006), а не lt_fail(invalid_query) вне каталога: LT000 и сырая ошибка', async () => {
+  const u = await svc.as(user.id);
+  // метод фасада db.as() отказывает до базы: арендатора при имперсонации задаёт db.as(…, { tenant })
+  await assert.rejects(u.auth.switch(org), (err: unknown) => err instanceof LetopisError && err.code === 'invalid_query');
+  // сырой SQL от имени пользователя через фасад: отказ базы — LetopisError с кодом из каталога
+  await assert.rejects(u.transaction((q) => q.unsafe(`select ${S}.auth_switch($1::uuid)`, [org])), (err: unknown) => {
+    assert.ok(err instanceof LetopisError, `ожидалась LetopisError, получено: ${(err as Error)?.constructor?.name} ${(err as { code?: string })?.code} ${(err as Error)?.message}`);
+    assert.equal(err.code, 'acl_denied');
+    assert.match(err.message, /auth\.switch/);
+    return true;
+  });
+  // в базе — SQLSTATE каталога ошибок (LT006), а не LT000
+  await assert.rejects(sqlAs(e, (await service(e)).token, { account: user.id })(`select ${S}.auth_switch($1::uuid)`, [org]), lt('LT006'));
+  assert.equal((await u.transaction((q) => q.unsafe(`select tenant from ${S}.ctx()`)))[0].tenant, user.id, 'арендатор не сменился');
+});
+
 test('5.7 db.auth.sessionFor: короткая сессия пользователя для другого процесса', async () => {
   const tok = await svc.auth.sessionFor(user.id, { ttl: 600 });
   const db = await connect({ dsn: appDsn(), schema: e.schema, token: tok, max: 1 });
@@ -141,7 +158,7 @@ test('доработки после точки Б: реестр db.as() — од
 });
 
 test('доработки после точки Б: сигнал Class с токеном арендатора (режим tenant) перечитывает реестр db.as() только этого арендатора', async () => {
-  await install(e.sql, { schema: e.schema, allowReset: true, signals: 'tenant' });
+  await install(e.sql, { schema: e.schema, signals: 'tenant' });
   const svcT = await connect({ dsn: appDsn(), schema: e.schema, apiKey: e.serviceKey, max: 2 });
   try {
     const a = await shopWithNote('Арендатор-А');
@@ -162,7 +179,7 @@ test('доработки после точки Б: сигнал Class с ток�
     assert.equal(loadsB, 0, 'реестр Б не перечитывался');
   } finally {
     await svcT.close();
-    await install(e.sql, { schema: e.schema, allowReset: true });
+    await install(e.sql, { schema: e.schema });
   }
 });
 

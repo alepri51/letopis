@@ -18,7 +18,6 @@
         "CHAIN_METHODS",
         "DB_METHODS",
         "DDL_REVISION",
-        "LETOPIS_NS",
         "LetopisError",
         "RESERVED_CLASS_NAMES",
         "Registry",
@@ -29,7 +28,6 @@
         "connect",
         "createTenant",
         "cursorOf",
-        "describeText",
         "ends",
         "exists",
         "fromDbError",
@@ -48,6 +46,7 @@
         "isNull",
         "isOp",
         "like",
+        "loose",
         "lt",
         "lte",
         "ne",
@@ -59,7 +58,6 @@
         "totpCode",
         "up",
         "uuidv5",
-        "uuidv7",
         "v5Id",
         "v5Name",
         "verifyHash"
@@ -69,19 +67,19 @@
         "AclDataDecision",
         "AclDecision",
         "AclOp",
-        "AggregateInfo",
+        "AclRule",
+        "AclRuleSpec",
+        "AclTarget",
         "AnyModelLike",
         "AuthApi",
         "Batch",
         "BatchEntry",
-        "BlameField",
-        "BlameOptions",
-        "BlameResult",
         "CacheOptions",
         "CacheStats",
         "Chain",
         "ChainCore",
         "ChainMods",
+        "ChainRef",
         "ClassInfo",
         "ConnectOptions",
         "Credential",
@@ -89,15 +87,11 @@
         "Db",
         "DbCore",
         "DbTx",
-        "DiffChange",
-        "DiffOptions",
-        "DiffResult",
         "EndInfo",
         "FieldFilter",
         "FieldFilterOf",
         "Filter",
         "FilterOf",
-        "HistoryPolicy",
         "IncMarker",
         "Issue",
         "KeyedClass",
@@ -106,25 +100,15 @@
         "LoadIssue",
         "LoadOptions",
         "LoadReport",
+        "LoginOptions",
         "LoginResult",
-        "MaintainOptions",
         "MaintainReport",
-        "ModelDescription",
         "ModelLike",
         "Op",
+        "OrOp",
         "PatchOf",
         "Path",
-        "Projector",
-        "ProjectorChange",
-        "ProjectorFailure",
-        "ProjectorOptions",
-        "ProjectorOut",
-        "ProjectorReport",
-        "ProjectorRow",
-        "ProjectorStatus",
         "QueryEvent",
-        "ResetOptions",
-        "ResetResult",
         "Row",
         "RowOf",
         "Scalar",
@@ -134,6 +118,7 @@
         "StepsOf",
         "Subscription",
         "SyncResult",
+        "SystemModels",
         "TenantOptions",
         "TenantResult",
         "TypedChain",
@@ -141,8 +126,6 @@
         "UpOptions",
         "UpResult",
         "Validator",
-        "VerifyIssue",
-        "VerifyResult",
         "WatchEvent",
         "WatchOptions",
         "WriteRow"
@@ -159,12 +142,10 @@
         "translatePattern"
       ],
       "types": [
-        "AggregateDef",
         "AnyModel",
         "ClassDef",
         "ClassDescription",
         "ClassMeta",
-        "HistoryPolicy",
         "Infer",
         "InferLinks",
         "JsonSchema",
@@ -183,24 +164,19 @@
     }
   },
   "chain": [
-    "account",
     "add",
     "after",
     "alias",
-    "anonymize",
     "asOf",
     "avg",
-    "blame",
     "cache",
     "count",
     "countBy",
     "create",
     "deep",
     "delete",
-    "diff",
     "entity",
     "exact",
-    "execute",
     "first",
     "forUpdate",
     "ids",
@@ -210,13 +186,9 @@
     "offset",
     "owner",
     "paths",
-    "purge",
-    "reclass",
-    "rekey",
     "remove",
     "restore",
     "rows",
-    "run",
     "set",
     "sort",
     "sum",
@@ -229,7 +201,6 @@
     "withDeleted"
   ],
   "db": [
-    "accounts",
     "acl",
     "as",
     "auth",
@@ -238,162 +209,42 @@
     "cache",
     "close",
     "commit",
-    "compact",
-    "credentials",
-    "describe",
     "flushSignals",
     "idOf",
     "load",
     "lock",
     "maintain",
-    "projector",
-    "rebuildAggregates",
     "refresh",
     "registry",
-    "rekeyClass",
-    "reloadSchema",
-    "reset",
-    "resources",
     "rollback",
-    "rules",
     "schema",
     "sql",
     "tenant",
     "token",
     "transaction",
-    "trimHistory",
-    "verify",
     "watch"
   ],
   "batch": [
     "discard",
+    "run",
     "size"
-  ],
-  "removed": [
-    {
-      "removed": "LETOPIS_NS",
-      "removedIn": "1.0.0",
-      "replacement": "пространство имён v5 — id арендатора: idOf(класс, ключ, { tenant })"
-    },
-    {
-      "removed": "account()",
-      "removedIn": "1.0.0",
-      "replacement": "арендатор сессии и auth.switch() (этап 5)"
-    },
-    {
-      "removed": "batch.execute()",
-      "removedIn": "1.0.0",
-      "replacement": "batch.run()"
-    },
-    {
-      "removed": "compact()",
-      "removedIn": "1.0.0",
-      "replacement": "db.trimHistory(цель, момент), политика хранения history и history: false"
-    },
-    {
-      "removed": "db.acl.reload()",
-      "removedIn": "1.0.0",
-      "replacement": "права обновляются сами: база применяет действующие правила"
-    },
-    {
-      "removed": "db.auth.sessions(store)",
-      "removedIn": "1.0.0",
-      "replacement": "сессии хранятся в базе: sessionFor, refresh, revoke, revokeAll"
-    },
-    {
-      "removed": "execute()",
-      "removedIn": "1.0.0",
-      "replacement": "paths()"
-    },
-    {
-      "removed": "load({ trust })",
-      "removedIn": "1.0.0",
-      "replacement": "запрос по целям вне загрузки стоит 0,1–1,3 % её времени — режим доверия убран (решение 2 точки А)"
-    },
-    {
-      "removed": "reloadSchema()",
-      "removedIn": "1.0.0",
-      "replacement": "реестр обновляется сам по сигналу; принудительно — db.refresh()"
-    },
-    {
-      "removed": "run()",
-      "removedIn": "1.0.0",
-      "replacement": "paths()"
-    },
-    {
-      "removed": "uuidv7()",
-      "removedIn": "1.0.0",
-      "replacement": "uuidv5() и idOf(): id объекта вычисляется из ключа"
-    },
-    {
-      "removed": "watch(cb) и watch(класс, cb)",
-      "removedIn": "1.0.0",
-      "replacement": "watch({ from }) — подписка по курсору"
-    },
-    {
-      "removed": "опция connect({ container })",
-      "removedIn": "1.0.0",
-      "replacement": "Docker в up() не нужен"
-    },
-    {
-      "removed": "опция connect({ dataDir })",
-      "removedIn": "1.0.0",
-      "replacement": "Docker в up() не нужен"
-    },
-    {
-      "removed": "опция connect({ enforceAccount })",
-      "removedIn": "1.0.0",
-      "replacement": "изоляция арендаторов включена всегда (RLS)"
-    },
-    {
-      "removed": "опция connect({ enforceAcl })",
-      "removedIn": "1.0.0",
-      "replacement": "права включены всегда (этап 5)"
-    },
-    {
-      "removed": "опция connect({ image })",
-      "removedIn": "1.0.0",
-      "replacement": "Docker в up() не нужен"
-    },
-    {
-      "removed": "опция connect({ partition })",
-      "removedIn": "1.0.0",
-      "replacement": "отдельные схемы установки (v2.<имя>)"
-    },
-    {
-      "removed": "опция connect({ redisPort })",
-      "removedIn": "1.0.0",
-      "replacement": "Redis не нужен: сессии в базе"
-    },
-    {
-      "removed": "опция connect({ version })",
-      "removedIn": "1.0.0",
-      "replacement": "версия схемы — константа движка"
-    },
-    {
-      "removed": "фасад db.<…>",
-      "removedIn": "1.0.0",
-      "replacement": "системные классы Account, Resource, rule, member и db.auth (accounts.purge — db.auth.purgeAccount)"
-    }
   ],
   "codes": [
     "acl_denied",
     "admin_required",
-    "aggregate_field",
     "bypass_rls",
     "class_not_loadable",
     "commit_unknown",
-    "confirm_mismatch",
     "confirmation_required",
     "conflict",
-    "cursor_expired",
     "delete_restricted",
-    "derived_class",
+    "deleted",
     "duplicate",
     "exists",
     "id_from_db",
     "id_mismatch",
     "immutable_key",
+    "internal",
     "invalid_class",
     "invalid_data",
     "invalid_query",
@@ -404,13 +255,7 @@
     "no_session",
     "not_deleted",
     "not_empty",
-    "projector_busy",
-    "projector_pending",
-    "rebuild_required",
-    "reclass_denied",
     "recreated_in_statement",
-    "removed",
-    "reset_disabled",
     "rev_ambiguous",
     "target_not_found",
     "tenant_denied",
@@ -418,7 +263,6 @@
     "tx_required",
     "tx_rolled_back",
     "undeclared_end",
-    "use_reclass",
     "user_session_required"
   ],
   "errors": [
@@ -428,23 +272,7 @@
     },
     {
       "module": "15-errors",
-      "message": "letopis: aggregate_field: агрегатное поле считает база"
-    },
-    {
-      "module": "15-errors",
-      "message": "letopis: confirm_mismatch: подтверждение не совпадает с именем схемы"
-    },
-    {
-      "module": "15-errors",
-      "message": "letopis: cursor_expired: курсор подписки старше яруса all"
-    },
-    {
-      "module": "15-errors",
       "message": "letopis: delete_restricted: удалению мешают ссылающиеся строки"
-    },
-    {
-      "module": "15-errors",
-      "message": "letopis: derived_class: строки производного класса пишет только его проектор"
     },
     {
       "module": "15-errors",
@@ -476,23 +304,11 @@
     },
     {
       "module": "15-errors",
-      "message": "letopis: not_deleted: объект не удалён — restore и purge только для удалённых"
-    },
-    {
-      "module": "15-errors",
-      "message": "letopis: projector_pending: проектор источника ещё не прочёл удаление"
-    },
-    {
-      "module": "15-errors",
-      "message": "letopis: reclass_denied: смена класса отклонена"
+      "message": "letopis: not_deleted: объект не удалён — restore только для удалённых"
     },
     {
       "module": "15-errors",
       "message": "letopis: recreated_in_statement: id удалён и создан заново одним оператором"
-    },
-    {
-      "module": "15-errors",
-      "message": "letopis: reset_disabled: reset выключен в этой установке"
     },
     {
       "module": "15-errors",
@@ -511,84 +327,12 @@
       "message": "letopis: undeclared_end: конец не объявлен в классе"
     },
     {
-      "module": "15-errors",
-      "message": "letopis: use_reclass: класс с ключом меняется функцией reclass()"
-    },
-    {
-      "module": "20-context",
-      "message": "letopis: no_session: неверный ключ"
-    },
-    {
-      "module": "30-validate",
-      "message": "letopis: invalid_class: format %s внутри anyOf не поддерживается (узел %s)"
-    },
-    {
-      "module": "30-validate",
-      "message": "letopis: invalid_class: format %s не поддерживается (узел %s)"
-    },
-    {
-      "module": "30-validate",
-      "message": "letopis: invalid_class: minProperties внутри anyOf не поддерживается (узел %s)"
-    },
-    {
-      "module": "30-validate",
-      "message": "letopis: invalid_class: uniqueItems внутри anyOf не поддерживается (узел %s)"
-    },
-    {
-      "module": "30-validate",
-      "message": "letopis: invalid_class: длина строки внутри anyOf не поддерживается (узел %s)"
-    },
-    {
-      "module": "30-validate",
-      "message": "letopis: invalid_class: ключевое слово %s не поддерживается (узел %s)"
-    },
-    {
-      "module": "30-validate",
-      "message": "letopis: invalid_class: неизвестный тип в узле %s"
-    },
-    {
-      "module": "30-validate",
-      "message": "letopis: invalid_class: описание узла %s — не объект"
-    },
-    {
-      "module": "30-validate",
-      "message": "letopis: invalid_class: перечисление объектов внутри anyOf не поддерживается (узел %s)"
-    },
-    {
-      "module": "30-validate",
-      "message": "letopis: invalid_class: шаблон "
-    },
-    {
       "module": "60-write",
       "message": "letopis: invalid_data: "
     },
     {
-      "module": "60-write",
-      "message": "letopis: invalid_data: links_patch: неизвестная операция "
-    },
-    {
-      "module": "90-time",
-      "message": "letopis: cursor_expired: курсор подписки старше яруса all — события могли проредиться, перечитайте текущее состояние"
-    },
-    {
-      "module": "admin",
-      "message": "letopis: maintain по расписанию: <…>"
-    },
-    {
-      "module": "admin",
-      "message": "letopis: очередь сигналов PostgreSQL заполнена на <…> % — проверьте зависших слушателей"
-    },
-    {
-      "module": "chain",
-      "message": "letopis: .<…>() у класса <…> без журнала (history: false) — истории нет"
-    },
-    {
-      "module": "cli",
-      "message": "letopis: user_session_required: letopis mcp принимает только токен сессии пользователя (--token или LETOPIS_TOKEN): ключ сервиса даёт все права auth.* и не должен лежать на машине агента"
-    },
-    {
-      "module": "cli",
-      "message": "letopis: user_session_required: letopis mcp — нужен токен сессии пользователя: --token или LETOPIS_TOKEN"
+      "module": "errors",
+      "message": "letopis: <…>"
     },
     {
       "module": "errors",
@@ -599,24 +343,12 @@
       "message": "letopis: invalid_data: <…>"
     },
     {
-      "module": "import",
-      "message": "letopis.import: <…>"
+      "module": "messages/index",
+      "message": "letopis: ключ каталога <…> повторяется"
     },
     {
-      "module": "index",
-      "message": "letopis: администраторское подключение — RLS не действует, данные всех арендаторов видны"
-    },
-    {
-      "module": "index",
-      "message": "letopis: движок схемы <…> ревизии <…> новее библиотеки (она знает <…>) — обновите пакет letopis"
-    },
-    {
-      "module": "mcp",
-      "message": "letopis.mcp: нужен пакет @modelcontextprotocol/server — npm i @modelcontextprotocol/server"
-    },
-    {
-      "module": "pglite",
-      "message": "letopis.up: для pglite нужен пакет <…> — npm i -D @electric-sql/pglite @electric-sql/pglite-socket"
+      "module": "messages/index",
+      "message": "letopis: ключ каталога <…> — не из раздела <…>"
     },
     {
       "module": "up",
@@ -632,51 +364,7 @@
     },
     {
       "module": "up",
-      "message": "letopis.up: history: <…>"
-    },
-    {
-      "module": "up",
       "message": "letopis.up: migrate/<…>: <…>"
-    },
-    {
-      "module": "up",
-      "message": "letopis.up: serviceKey — lts_ и не меньше 32 шестнадцатеричных знаков"
-    },
-    {
-      "module": "up",
-      "message": "letopis.up: база <…> не готова за <…> с"
-    },
-    {
-      "module": "up",
-      "message": "letopis.up: база в кодировке <…>, нужна UTF8 (casefold и коллация pg_unicode_fast)"
-    },
-    {
-      "module": "up",
-      "message": "letopis.up: неизвестный маркер <…> в SQL"
-    },
-    {
-      "module": "up",
-      "message": "letopis.up: нужен PostgreSQL 18 или новее, а сервер — <…>"
-    },
-    {
-      "module": "up",
-      "message": "letopis.up: нужен PostgreSQL 18 или новее, а сервер — <…> (<…>)"
-    },
-    {
-      "module": "up",
-      "message": "letopis.up: нужен dsn или sql"
-    },
-    {
-      "module": "up",
-      "message": "letopis.up: роль <…> уже есть, а у установщика нет на неё ADMIN OPTION — установку ведёт роль, создавшая <…>, или роль с этим правом (grant <…> to <установщик> with admin option)"
-    },
-    {
-      "module": "up",
-      "message": "letopis.up: схема <…> ревизии <…>, а библиотека знает только <…> — обновите пакет"
-    },
-    {
-      "module": "up",
-      "message": "letopis: схему <…> обновила letopis <…>, библиотека старее (<…>) — обновите пакет: up() этой версией вернул бы прежние функции"
     }
   ]
 }

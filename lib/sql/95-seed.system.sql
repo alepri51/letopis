@@ -21,18 +21,12 @@ begin
   if p_class = 'Class' then
     select c.data, c.validator into d, vld from @SCHEMA@.class_prepare(d, p_tenant) c;
   end if;
-  -- журнал раньше строки: агрегатные поля новой цели триггер после вставки досчитывает в ту же версию — и в entity,
-  -- и в уже записанную версию журнала (план 1.1, §2.4)
   insert into @SCHEMA@.log (id, rev, class, tenant, owner, links, data, tags, at, author, op)
   values (p_id, 1, p_class, p_tenant, p_tenant, coalesce(p_links, '{}'), d, '{}', now_ts, '@SYSTEM@', 'create');
   insert into @SCHEMA@.entity (id, rev, class, tenant, owner, links, data, at, created_at, author, op, validator)
   values (p_id, 1, p_class, p_tenant, p_tenant, coalesce(p_links, '{}'), d, now_ts, now_ts, '@SYSTEM@', 'create', vld);
   if p_class in ('rule', 'Resource', 'member', 'Account', 'Class') then
     perform @SCHEMA@.acl_bump();
-  end if;
-  -- новая цель агрегатов: метки её источников — заново
-  if p_class = 'Class' and d->'resolved' ? 'aggregate' then
-    perform @SCHEMA@.agg_mark(p_tenant, @SCHEMA@.agg_of(d->'resolved'));
   end if;
   return p_id;
 end $$;
@@ -58,10 +52,10 @@ alter function @SCHEMA@.sys_resource(uuid, text, text, jsonb) owner to @OWNER@;
 alter function @SCHEMA@.sys_rule(uuid, uuid, uuid, text, int, jsonb) owner to @OWNER@;
 revoke all on function @SCHEMA@.sys_resource(uuid, text, text, jsonb), @SCHEMA@.sys_rule(uuid, uuid, uuid, text, int, jsonb) from public;
 
--- Системный сид целиком (установка и reset({ all }), этап 6): ключ подписи и счётчик прав, System,
+-- Системный сид целиком (установка, этап 6): ключ подписи и счётчик прав, System,
 -- системные классы, общие группы и системные права (этап 5, п. 8). Роль admin — роль членства в
 -- System: системные администраторы работают в арендаторе System. Права auth.* — сервису
--- (имперсонация, выпуск сессий, креды), letopis.* (verify, reset, maintain) — только системному
+-- (имперсонация, выпуск сессий, креды), letopis.* (maintain) — только системному
 -- администратору. Повторный вызов ничего не меняет.
 create or replace function @SCHEMA@.seed_system() returns void
 language plpgsql volatile
@@ -78,16 +72,15 @@ declare
   o_signals uuid;
   op text;
 begin
-  -- аккаунт System — раньше строки ключа: служебные строки secret (KEY, LOCK, PROJECTOR) принадлежат ему, а внешний
+  -- аккаунт System — раньше строки ключа: служебные строки secret (KEY, LOCK) принадлежат ему, а внешний
   -- ключ secret.account (ревизия 7) требует строку аккаунта в entity. Счётчик прав sys_create повышает, только когда
-  -- строка ключа уже есть, — на свежей установке и после reset({ all }) ей неоткуда взяться, и начальный v — 0
+  -- строка ключа уже есть, — на свежей установке ей неоткуда взяться, и начальный v — 0
   perform @SCHEMA@.sys_create('@SYSTEM@'::uuid, 'Account', '@SYSTEM@'::uuid, '{}',
     '{"name": "System", "categories": ["System"], "enabled": true}');
 
   -- Ключ подписи пропуска прав и счётчик изменений прав (50-acl.sql: acl_token, acl_bump); от ключа же
   -- выводится ключ сигналов. Режим сигналов (up({ signals })) хранится в meta этой строки: установщик
-  -- читает его перед накатом, поэтому повторный up() без опции режим не меняет, а reset({ all }) кладёт
-  -- его заново из константы установки.
+  -- читает его перед накатом, поэтому повторный up() без опции режим не меняет.
   insert into @SCHEMA@.secret as k (id, account, kind, material, meta)
   values ('@SYSTEM@'::uuid, '@SYSTEM@'::uuid, 'KEY', @PGCRYPTO@.gen_random_bytes(32), '{"v": 0, "signals": "@SIGNALS@"}')
   on conflict (id) do update set meta = k.meta || '{"signals": "@SIGNALS@"}'
@@ -148,8 +141,8 @@ begin
   foreach op in array array['READ', 'WRITE', 'DELETE'] loop
     perform @SCHEMA@.sys_rule(sys, g_admin, @SCHEMA@.sys_resource(sys, 'all:' || op, op, null), 'allow', 100);
   end loop;
-  -- строки-замки (60-write.sql: lock_row) семейств всех классов, в том числе классов арендаторов, заведённых до 1.2, и
-  -- обслуживания — заранее: первое обращение под нагрузкой их не вставляет
+  -- строки-замки (60-write.sql: lock_row) семейств всех классов — системных, из сидов (sys_create их не заводит) и
+  -- арендаторов — и обслуживания — заранее: первое обращение под нагрузкой их не вставляет
   perform @SCHEMA@.family_rows(c.tenant, c.data) from @SCHEMA@.entity c where c.class = 'Class';
   perform @SCHEMA@.lock_row('@SCHEMA_NAME@:maintain');
 end $$;

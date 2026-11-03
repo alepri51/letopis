@@ -31,11 +31,6 @@ export interface Engine {
    */
   asAdmin<T>(token: string | null, fn: (tx: Sql) => Promise<T>): Promise<T>;
   /**
-   * Определить производный класс (`derivedBy`, свой или унаследованный) от имени арендатора администраторским
-   * подключением: такие классы заводит только администратор (право letopis.projector).
-   */
-  defineDerived(t: Tenant, desc: Record<string, unknown>): Promise<postgres.Row>;
-  /**
    * Транзакция A для гонок: выполняет шаг и держит транзакцию открытой, пока тест не вызовет
    * finish(true) — фиксация, или finish(false) — откат.
    */
@@ -56,7 +51,7 @@ export async function engine(file: string, opts: { keep?: boolean; seeds?: strin
   const schema = schemaFor(file);
   const S = ident(schema);
   await sql.unsafe(`drop schema if exists ${S} cascade`);
-  const inst = await install(sql, { schema, allowReset: true, seeds: opts.seeds });
+  const inst = await install(sql, { schema, seeds: opts.seeds });
   await ensureAppRole(sql);
   const app = appSql(16);
 
@@ -104,11 +99,6 @@ export async function engine(file: string, opts: { keep?: boolean; seeds?: strin
       return row;
     },
     asAdmin,
-    async defineDerived(t, desc) {
-      const [row] = await asAdmin(t.token, (tx) =>
-        tx.unsafe(`insert into ${S}.entity (class, data) values ('Class', $1::jsonb) returning *`, [desc as never]));
-      return row;
-    },
     async hold<T>(token: string | null, step: (tx: Sql) => Promise<T>) {
       const ROLLBACK = new Error('rollback');
       let ready!: (v: T) => void;
@@ -154,6 +144,23 @@ export async function waitForLock(sql: Sql, n = 1, timeoutMs = 10000): Promise<v
   }
 }
 
+/**
+ * Сверка журнала для гонок и сценариев (проверка целостности базой снята в 2.0.0): номера версий каждого id идут подряд с 1, а строка
+ * entity класса с журналом совпадает с его последней версией — номер, класс, данные, концы, теги, владелец. Возвращает
+ * нарушения: id и что не так; пустой список — журнал цел.
+ */
+export async function journalIssues(sql: Sql, S: string): Promise<{ id: string; problem: string }[]> {
+  return [...await sql.unsafe(`
+    select l.id, 'номера версий не подряд' as problem
+    from (select x.id, x.rev, row_number() over (partition by x.id order by x.rev) as n from ${S}.log x) l
+    where l.rev <> l.n
+    union all
+    select e.id, 'строка не совпадает с последней версией журнала'
+    from ${S}.entity e
+    left join lateral (select x.* from ${S}.log x where x.id = e.id order by x.rev desc limit 1) l on true
+    where coalesce((${S}.class_row(e.class, e.tenant)).data->'resolved'->>'history', 'true') <> 'false'
+      and (l.rev, l.class, l.data, l.links, l.tags, l.owner) is distinct from (e.rev, e.class, e.data, e.links, e.tags, e.owner)`)] as never;
+}
 
 /** Ошибка letopis с заданным именем (`letopis: <имя>:`) или кодом SQLSTATE. */
 export function lt(nameOrCode: string) {

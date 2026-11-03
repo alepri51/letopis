@@ -49,8 +49,9 @@ export const flows: Record<string, FlowDef> = {
     title: 'Запись: create, update, upsert',
     example: 'write/01-create-update-upsert',
     code: `flowchart LR
-  chain["цепочка<br/>с глаголом"] --> pre{"проверки без базы:<br/>ключ upsert, данные"}
+  chain["цепочка<br/>с глаголом"] --> pre{"проверки без базы:<br/>ключ upsert, условие update, данные"}
   pre -- "upsert без ключа" --> nokey["отказ no_key"]
+  pre -- "update без фильтра, id и limit" --> nofilter["отказ invalid_query —<br/>все строки только с all: true"]
   pre --> find{"цели<br/>найдены?"}
   find -- "update: нет" --> empty["пустой ответ,<br/>не ошибка"]
   find -- "да или создать" --> trg["триггер: умолчания,<br/>проверка данных, id по ключу"]
@@ -74,7 +75,7 @@ export const flows: Record<string, FlowDef> = {
     title: 'Чтение: шаги и переходы',
     example: 'read/01-steps',
     code: `flowchart LR
-  parse["разбор цепочки<br/>без базы"] --> sql["один SQL-запрос:<br/>переходы по ссылкам"]
+  parse["разбор цепочки<br/>без базы"] --> sql["один SQL-запрос:<br/>переходы по концам"]
   sql --> rls["RLS отсекает<br/>чужие строки"]
   rls --> last["строки последнего шага,<br/>без повторов"]
   last --> fin{"окончание"}
@@ -82,8 +83,8 @@ export const flows: Record<string, FlowDef> = {
   fin --> ids["ids() / count()"]`,
     steps: {
       1: { nodes: [], note: 'Подготовка: магазины, категории, товары, заказы.' },
-      2: { nodes: ['parse', 'sql', 'rls', 'last', 'rows'], note: 'Назад по ссылке: товары, которые ссылаются на магазин.' },
-      3: { nodes: ['parse', 'sql', 'rls', 'last', 'rows'], note: 'Вперёд по ссылке: магазин, на который ссылается товар.' },
+      2: { nodes: ['parse', 'sql', 'rls', 'last', 'rows'], note: 'Назад по концу: товары, которые ссылаются на магазин.' },
+      3: { nodes: ['parse', 'sql', 'rls', 'last', 'rows'], note: 'Вперёд по концу: магазин, на который ссылается товар.' },
       4: { nodes: ['parse', 'sql', 'rls', 'last', 'rows'], note: 'Три перехода одним запросом: заказ → строка заказа → товар.' },
       5: { nodes: ['parse', 'sql', 'rls', 'last', 'rows'], note: 'Шаг по роли конца: родительская категория.' },
       6: { nodes: ['parse', 'sql', 'rls', 'last', 'rows'], note: 'Покупатели заказов магазина — каждый один раз.' },
@@ -92,14 +93,15 @@ export const flows: Record<string, FlowDef> = {
   },
 
   delete: {
-    title: 'Удаление: каскад, снятие ссылки, запрет',
+    title: 'Удаление: каскад, очистка конца, запрет',
     example: 'delete/01-delete-cascade',
     code: `flowchart TD
   prev["delete() без confirm:<br/>предпросмотр, база не меняется"]
   go["delete({ confirm: true })"] --> who{"кто ссылается<br/>на цель?"}
+  go -- "без фильтра, id и limit" --> nofilter["отказ invalid_query —<br/>все строки только с all: true"]
   who -- "никто" --> gone["цель удалена,<br/>надгробие в журнале"]
   who -- "конец cascade" --> casc["удалить и ссылающуюся строку —<br/>каскад идёт дальше"]
-  who -- "конец unset" --> unset["снять ссылку —<br/>новая версия строки"]
+  who -- "конец unset" --> unset["очистить конец —<br/>новая версия строки"]
   who -- "конец restrict (по умолчанию)" --> restrict["отказ delete_restricted —<br/>не удалено ничего"]
   casc --> gone
   unset --> gone`,
@@ -109,7 +111,7 @@ export const flows: Record<string, FlowDef> = {
       3: { nodes: ['go', 'who', 'casc', 'gone'], note: 'Заказ и обе строки удалены: надгробия по уровням каскада, внутри уровня — по id.' },
       4: { nodes: ['prev'], note: 'Предпросмотр магазина: товары помечены $action: restrict.' },
       5: { nodes: ['go', 'who', 'restrict'], note: 'Товары мешают: delete_restricted, не удалено ничего.' },
-      6: { nodes: ['go', 'who', 'unset', 'gone'], note: 'Категория удалена, у товаров ссылка снята — новая версия каждого.' },
+      6: { nodes: ['go', 'who', 'unset', 'gone'], note: 'Категория удалена, у товаров конец очищен — новая версия каждого.' },
     },
   },
 
@@ -217,77 +219,20 @@ export const flows: Record<string, FlowDef> = {
   },
 
   history: {
-    title: 'История: версии, срез, сравнение, авторство',
-    example: 'history/01-versions-asof-diff-blame',
+    title: 'История: версии и срез на момент',
+    example: 'history/01-versions-asof',
     code: `flowchart LR
-  edits["правки с причиной<br/>(reason)"] --> log[("журнал log:<br/>все версии")]
+  edits["правки с причиной<br/>(reason)"] --> log[("журнал log:<br/>все версии, без прореживания")]
   log --> versions["versions():<br/>все версии по порядку"]
+  log --> last["sort() и limit():<br/>последние версии"]
   log --> asof["asOf(момент):<br/>последняя версия не позже"]
-  log --> diff["diff():<br/>что изменилось"]
-  log --> blame["blame():<br/>кто последним менял поле"]`,
+  asof --> once["объект на нескольких путях —<br/>в rows() один раз"]`,
     steps: {
       1: { nodes: ['edits', 'log'], note: 'Товар и три правки — у каждой своя причина.' },
       2: { nodes: ['log', 'versions'], note: 'Все версии по порядку — с автором, временем и причиной.' },
       3: { nodes: ['log', 'asof'], note: 'Товар на момент создания.' },
-      4: { nodes: ['log', 'diff'], note: 'Что изменилось между первой и последней версией.' },
-      5: { nodes: ['log', 'blame'], note: 'Кто последним менял каждое поле.' },
-    },
-  },
-
-  retention: {
-    title: 'Хранение истории по ярусам',
-    example: 'history/03-retention-maintain-trim',
-    code: `flowchart LR
-  policy["политика history:<br/>all, daily, weekly, monthly"] --> grow["журнал растёт:<br/>версия каждый день"]
-  grow --> thin["maintain(): прореживание<br/>старше яруса all"]
-  thin --> kept["остаются первая, текущая,<br/>особые и по одной на период"]
-  grow --> trim["trimHistory(до даты):<br/>запись trim под номером 1"]
-  thin --> expired["курсор старше яруса all:<br/>cursor_expired"]`,
-    steps: {
-      1: { nodes: ['policy'], note: 'Класс с политикой хранения по ярусам.' },
-      2: { nodes: ['grow'], note: 'Архив показаний: 90 дней по версии в день и три правки в последний день.' },
-      3: { nodes: ['thin', 'kept'], note: 'maintain() прореживает версии старше яруса all.' },
-      4: { nodes: ['kept'], note: 'Прореживание — не разрыв: verify() цепочку принимает.' },
-      5: { nodes: ['trim'], note: 'trimHistory стирает версии до даты, на месте первой — запись trim.' },
-      6: { nodes: ['expired'], note: 'Подписка с курсором старше яруса all: cursor_expired.' },
-    },
-  },
-
-  aggregate: {
-    title: 'Агрегат: итог считает база',
-    example: 'derived/01-aggregate',
-    code: `flowchart LR
-  src["строка источника:<br/>операция кошелька"] --> trg["триггер после оператора:<br/>приращение агрегата"]
-  trg --> rule{"ограничение модели<br/>для итога"}
-  rule -- "выполнено" --> ver["новая версия кошелька<br/>в журнале"]
-  rule -- "нарушено" --> bad["отказ invalid_data"]
-  direct["запись в агрегатное поле<br/>напрямую"] --> agg["отказ aggregate_field"]
-  rebuild["rebuildAggregates():<br/>пересчёт из источника"] --> ver`,
-    steps: {
-      1: { nodes: [], note: 'Кошелёк и класс операций — источник агрегата balance.' },
-      2: { nodes: ['src', 'trg', 'rule', 'ver'], note: 'Пополнение 1000: баланс пересчитала сама база.' },
-      3: { nodes: ['src', 'trg', 'rule', 'ver'], note: 'Списание −300 — баланс 700.' },
-      4: { nodes: ['src', 'trg', 'rule', 'bad'], note: 'Уйти в минус нельзя: ограничение модели для итога — invalid_data.' },
-      5: { nodes: ['direct', 'agg'], note: 'Писать в агрегатное поле нельзя: aggregate_field.' },
-      6: { nodes: ['rebuild', 'ver'], note: 'Ремонт: итог пересчитан из источника.' },
-    },
-  },
-
-  projector: {
-    title: 'Проектор: итоги из журнала',
-    example: 'derived/02-projector',
-    code: `flowchart LR
-  src["строки источника"] --> log[("журнал log")]
-  log --> run["run(): чтение журнала<br/>после курсора"]
-  run --> handle["handle:<br/>out.inc / out.upsert"]
-  handle --> derived["производный класс"]
-  run --> cp[("чекпоинт:<br/>курсор в secret")]
-  cp --> status["status(): состояние,<br/>версия, отставание"]`,
-    steps: {
-      1: { nodes: ['src', 'log'], note: 'Магазин с заказами и производный класс итогов.' },
-      2: { nodes: ['run', 'handle', 'derived', 'cp'], note: 'Проектор догоняет журнал и запоминает курсор.' },
-      3: { nodes: ['src', 'log', 'run', 'handle', 'derived'], note: 'Новая продажа попадает в итог на следующем проходе — писатель проектор не ждёт.' },
-      4: { nodes: ['cp', 'status'], note: 'Состояние проектора: работает (running), версия 1, отставание 0.' },
+      4: { nodes: ['log', 'last'], note: 'Две последние версии, новые первыми: ограничение — в самом запросе.' },
+      5: { nodes: ['asof', 'once'], note: 'Товар в двух категориях в срезе — одна строка, путей два.' },
     },
   },
 
@@ -297,7 +242,7 @@ export const flows: Record<string, FlowDef> = {
     code: `flowchart LR
   empty["пустая схема:<br/>только классы, аккаунты, права"] --> strip["TRUNCATE, снять триггеры,<br/>ограничения и индексы"]
   strip --> copy["COPY … FREEZE<br/>все строки"]
-  copy --> back["вернуть индексы и триггеры,<br/>агрегаты, проверки разом"]
+  copy --> back["вернуть индексы и триггеры,<br/>проверки разом"]
   back --> analyze["ANALYZE, сигнал"]
   copy -. "любая ошибка" .-> undo["откат всего"]
   full["в схеме уже есть данные"] --> notempty["отказ not_empty"]`,
@@ -315,7 +260,7 @@ export const flows: Record<string, FlowDef> = {
   agent["ИИ-агент"] --> srv["сервер MCP<br/>от имени пользователя"]
   srv --> model["letopis_model:<br/>классы и поля"]
   srv --> query["letopis_query:<br/>чтение JSON-цепочкой"]
-  srv --> hist["letopis_history:<br/>кто и что менял"]
+  srv --> hist["letopis_history:<br/>версии объекта"]
   srv --> write{"letopis_write:<br/>версия указана?"}
   write -- "нет" --> refuse["отказ invalid_query"]
   write -- "да, rev совпал" --> ok["записано —<br/>под правами пользователя"]`,
@@ -325,24 +270,7 @@ export const flows: Record<string, FlowDef> = {
       3: { nodes: ['srv', 'query'], note: 'Чтение цепочкой, описанной в JSON.' },
       4: { nodes: ['srv', 'write', 'refuse'], note: 'Запись без версии — отказ: агент должен знать, что правит.' },
       5: { nodes: ['srv', 'write', 'ok'], note: 'Запись с версией rev — прошла.' },
-      6: { nodes: ['srv', 'hist'], note: 'История: кто и что менял, с причинами.' },
-    },
-  },
-
-  verify: {
-    title: 'Проверка целостности журнала',
-    example: 'ops/01-verify-corrupt',
-    code: `flowchart LR
-  v1["v1: hash₁ =<br/>sha256(данные₁)"] --> v2["v2: hash₂ =<br/>sha256(hash₁ + данные₂)"]
-  v2 --> v3["v3: hash₃ =<br/>sha256(hash₂ + данные₃)"]
-  sql["UPDATE log … rev = 2<br/>в обход библиотеки"] -. "hash₂ пересчитан —<br/>не сходится с prev_hash v3" .-> v3
-  check{"verify()"} -- "цепочка сходится" --> ok["нарушений нет"]
-  check -- "хэш или звено не то" --> bad["список нарушений"]`,
-    steps: {
-      1: { nodes: ['v1', 'v2', 'v3', 'check', 'ok'], note: 'Данные записаны, verify() нарушений не нашёл.' },
-      2: { nodes: ['sql', 'v2', 'v3', 'check', 'bad'], note: 'Цену во второй версии поправили прямо в SQL — её хэш не сходится с prev_hash третьей.' },
-      3: { nodes: ['check', 'ok'], note: 'Вернули байт в байт — цепочка снова сходится.' },
-      4: { nodes: ['check', 'bad'], note: 'Версию удалили из журнала — звено пропало.' },
+      6: { nodes: ['srv', 'hist'], note: 'Версии объекта: кто, когда и почему менял.' },
     },
   },
 };

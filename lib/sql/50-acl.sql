@@ -306,7 +306,7 @@ declare
   c record;
 begin
   if p_op not in ('READ', 'WRITE', 'DELETE') then
-    perform @SCHEMA@.lt_fail('invalid_data', format('операция %s: нужна READ, WRITE или DELETE', p_op));
+    perform @SCHEMA@.lt_fail('sql-access.acl_bad_op', jsonb_build_object('op', p_op));
   end if;
   select * into c from @SCHEMA@.ctx();
   if c.account is null then
@@ -382,14 +382,14 @@ begin
   select e.data into a from @SCHEMA@.entity e
   where e.id = p_account and e.class = 'Account' and e.tenant = '@SYSTEM@'::uuid and coalesce((e.data->>'enabled')::boolean, true);
   if a is null then
-    perform @SCHEMA@.lt_fail('target_not_found', 'аккаунт не найден или отключён');
+    perform @SCHEMA@.lt_fail('sql-access.account_unavailable');
   end if;
   if p_tenant <> p_account then
     select x.data into m from @SCHEMA@.entity x
     where x.id = @SCHEMA@.v5_id(p_tenant, 'member', array[p_account::text, p_tenant::text]) and x.class = 'member' and x.tenant = p_tenant;
     if m is null or not exists (select 1 from @SCHEMA@.entity e where e.id = p_tenant and e.class = 'Account'
                                 and e.tenant = '@SYSTEM@'::uuid and coalesce((e.data->>'enabled')::boolean, true)) then
-      perform @SCHEMA@.lt_fail('tenant_denied', 'нет членства в арендаторе');
+      perform @SCHEMA@.lt_fail('sql-access.no_membership');
     end if;
   end if;
   cats := array(select jsonb_array_elements_text(coalesce(a->'categories', '[]'::jsonb)));
@@ -417,7 +417,7 @@ begin
       where @SCHEMA@.acl_endpoint_ok(r.pattern, p_endpoint)
       order by r.weight desc, r.deny desc, r.alias, r.id
       limit 1) w),
-    jsonb_build_object('allow', false, 'message', 'нет подходящего правила (запрет по умолчанию)'));
+    jsonb_build_object('allow', false, 'message', @SCHEMA@.lt_text('sql-access.default_deny')));
 end $$;
 
 -- db.acl.check(endpoint): решение для актора сессии по правилам System и его арендатора.
@@ -430,7 +430,7 @@ declare
 begin
   select * into c from @SCHEMA@.ctx();
   if c.account is null then
-    perform @SCHEMA@.lt_fail('no_session', 'нет действующей сессии');
+    perform @SCHEMA@.lt_fail('sql-access.no_session');
   end if;
   return @SCHEMA@.acl_api_for(c.tenant, c.categories, c.roles, p_endpoint, false);
 end $$;
@@ -445,10 +445,10 @@ declare
 begin
   select * into c from @SCHEMA@.ctx();
   if c.account is null then
-    perform @SCHEMA@.lt_fail('no_session', 'нет действующей сессии');
+    perform @SCHEMA@.lt_fail('sql-access.no_session');
   end if;
   if not coalesce((@SCHEMA@.acl_api_for(c.tenant, c.categories, c.roles, p_endpoint, true)->>'allow')::boolean, false) then
-    perform @SCHEMA@.lt_fail('acl_denied', format('нет права %s', p_endpoint));
+    perform @SCHEMA@.lt_fail('sql-access.no_right', jsonb_build_object('endpoint', p_endpoint));
   end if;
 end $$;
 
@@ -479,9 +479,7 @@ return (p_tenant = c_tenant and (p_class = 'Class' or @SCHEMA@.acl_row_ok(c_plan
     or (p_class = 'Account' and p_id = c_account)
     or (p_class = 'member' and p_links->>'User' = c_account::text);
 
--- до этапа 5 видимость не зависела от прав
-drop function if exists @SCHEMA@.row_visible(uuid, text, uuid, uuid, uuid);
-
+-- Политики: create policy не знает or replace — повторный накат пересоздаёт их (drop policy if exists и create policy).
 drop policy if exists entity_select on @SCHEMA@.entity;
 create policy entity_select on @SCHEMA@.entity for select to @APP@
   using (
@@ -519,9 +517,6 @@ create policy log_select on @SCHEMA@.log for select to @APP@
     or (class = 'Account' and id = (select @SCHEMA@.ctx_account()))
     or (class = 'member' and links->>'User' = (select @SCHEMA@.ctx_account())::text)
   );
-
--- ранняя редакция этапа 5: проверка строки по одной карте плана в политиках
-drop function if exists @SCHEMA@.acl_ok(jsonb, text, uuid, uuid, uuid, text[], jsonb, jsonb);
 
 do $$
 declare f text;

@@ -178,7 +178,7 @@ const given = computed(() => {
   });
 });
 
-// Результат { $mermaid } — схема (например, ER-схема модели из db.describe()).
+// Результат { $mermaid } — схема (например, ER-схема модели из db.registry.all()).
 const mermaidOf = (r: unknown) => (r && typeof r === 'object' && typeof (r as Rec).$mermaid === 'string' ? ((r as Rec).$mermaid as string) : null);
 const resultMermaid = computed(() => mermaidOf(step.value?.result));
 // Результат-строки (то, что вернул .rows(), versions() и т. п.) показываем таблицей, остальное — JSON.
@@ -382,7 +382,7 @@ function onKey(e: KeyboardEvent) {
                 <thead>
                   <tr>
                     <th>id</th><th>rev</th><th>действие</th><th>данные</th>
-                    <th v-if="hasLinks(resultRows)">ссылки</th>
+                    <th v-if="hasLinks(resultRows)">концы</th>
                     <th v-for="k in extraKeys" :key="k">{{ k }}</th>
                     <th>автор</th><th>когда</th>
                   </tr>
@@ -492,7 +492,7 @@ function onKey(e: KeyboardEvent) {
             <thead>
               <tr>
                 <th>id</th><th>класс</th><th>rev</th><th>данные</th>
-                <th v-if="entLinks">ссылки</th>
+                <th v-if="entLinks">концы</th>
                 <th>действие</th><th>автор</th><th>когда</th>
               </tr>
             </thead>
@@ -765,7 +765,7 @@ function onKey(e: KeyboardEvent) {
 .lt-op { font-family: var(--vp-font-family-mono); font-size: 12px; padding: 1px 6px; border-radius: 4px; background: var(--vp-c-default-soft); }
 .lt-op.op-create { background: var(--vp-c-green-soft); }
 .lt-op.op-update { background: var(--vp-c-warning-soft); }
-.lt-op.op-delete, .lt-op.op-purge { background: var(--vp-c-danger-soft); }
+.lt-op.op-delete { background: var(--vp-c-danger-soft); }
 .lt-op.op-restore { background: var(--vp-c-brand-soft); }
 .lt-link { background: none; border: 0; color: var(--vp-c-brand-1); cursor: pointer; padding: 0; font-size: 13px; }
 .lt-counts { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }

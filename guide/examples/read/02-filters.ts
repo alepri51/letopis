@@ -78,8 +78,8 @@ export default example({
       }),
     },
     {
-      title: 'Фильтр по ссылке и корневые категории',
-      text: 'Роль конца в фильтре — id цели. `null` — «ссылки нет»: так находятся корневые категории.',
+      title: 'Фильтр по концу и корневые категории',
+      text: 'Роль конца в фильтре — id цели. `null` — «конец пуст»: так находятся корневые категории.',
       run: async ({ db }) => ({
         'товары «Лютика»': await titles(db.Product({ Shop: d.lutik }).rows()),
         'корневые категории': (await db.Category({ Parent: null }).rows()).map((c) => c.data.name).sort(),

@@ -1,11 +1,10 @@
 /**
  * docs — примеры документации исполняются. Блок ```ts, перед которым стоит `<!-- run -->` или `<!-- run: имя -->`,
  * входит в сценарий с этим именем (без имени — `main`); блоки сценария склеиваются по порядку и выполняются
- * против PostgreSQL 18: lib/README.md и README.en.md, lib/AGENT-CHEATSHEET.md и AGENT-CHEATSHEET.en.md, корневые
- * README.md и README.en.md. Каждый
- * сценарий — в своей свежей схеме v2.t_docs_<документ>[_<сценарий>]: строки `const ADMIN = …` и `const APP = …`
+ * против PostgreSQL 18: lib/README.md, lib/AGENT-CHEATSHEET.md и корневой README.md. Каждый сценарий — в своей свежей
+ * схеме v2.t_docs_<документ>[_<сценарий>]: строки `const ADMIN = …` и `const APP = …`
  * заменяются подключениями обвязки, имя схемы примеров — схемой теста, импорты 'letopis', 'letopis/model' и 'letopis/mcp' —
- * исходниками пакета, `import type` убирается. Блоки без пометки (командная строка, импорт из 0.21, PGlite, сброс)
+ * исходниками пакета, `import type` убирается. Блоки без пометки (командная строка, PGlite)
  * не исполняются: их покрывают свои тесты.
  */
 import { test, before, after } from 'node:test';
@@ -31,7 +30,7 @@ interface Doc {
   /**
    * Проверки после сценария: результаты, обещанные комментариями примеров (`// { allow: false }` и т. п.).
    * Код дописывается в конец модуля и видит переменные сценария; `assert` и `__connect` (connect пакета) —
-   * в его импортах. Русская и английская версии — один код, поэтому и проверки общие.
+   * в его импортах.
    */
   expect?: Record<string, string>;
 }
@@ -47,17 +46,14 @@ assert.equal(plan.applied, false)
 assert.equal(applied.applied, true)
 assert.deepEqual([...applied.created].sort(), ['Category', 'Customer', 'Movement', 'Order', 'Product', 'Shop', 'Vip', 'Wallet', 'line'])
 assert.equal(kept.$upsert, 'unchanged')
-assert.equal(moved.$upsert, 'updated')
-assert.notEqual(mug2.id, mug.id)                  // rekey: новый id
-assert.equal(vip.id, olga.id)                     // reclass класса без ключа: id прежний
-assert.equal(vip.class, 'Vip')
+assert.equal(replaced.$upsert, 'updated')
 assert.equal(l1.class, 'line')                    // терминал плана — строки последнего шага
-assert.equal(products.length, 3)                  // чайник, сенча, кружка после rekey
+assert.equal(products.length, 3)                  // чайник, сенча, кружка
 assert.equal(shopOf!.id, shop.id)
 assert.equal(inOrder.length, 2)
 assert.equal(parent!.id, tea.id)
-assert.equal(allCustomers.length, 1)              // Ольга — теперь Vip, шаг Customer её находит
-assert.equal(onlyCustomer.length, 0)              // exact(): без потомков
+assert.equal(allCustomers.length, 2)              // Ольга и Вера: шаг Customer находит и потомка Vip
+assert.equal(onlyCustomer.length, 1)              // exact(): без потомков — только Ольга
 assert.equal(cheap.length, 2)
 assert.equal(twoIds.length, 2)
 assert.equal(active.length, 1)
@@ -73,7 +69,6 @@ assert.equal(orderPaths.length, 2)
 assert.equal(preview.length, 3)                   // заказ и две его строки
 assert.ok(preview.every((x) => x.$action === 'delete'))
 assert.equal(blockers.length, 3)                  // товары не дают удалить магазин
-assert.equal(before[0].$versions, 2)              // создание и удаление
 assert.deepEqual(results.map((x) => x.length), [1, 1])
 assert.equal(rep.loaded, 4)
 assert.deepEqual(rep.byClass, { Shop: 1, Product: 2, Customer: 1 })
@@ -90,11 +85,8 @@ assert.equal(canRead.allow, true)
 assert.equal(canReport.allow, true)
 assert.equal(canReport.rule?.weight, 50)
 assert.equal(atCreation!.data.price, 2500)
-assert.ok(trimmed >= 1)
-assert.equal(audit.ok, true)
 assert.notEqual(cursor, '')
 assert.equal(report.skipped, false)
-assert.match(modelText, /Product/)
 {
   const chk = await __connect({ dsn: APP, schema: r.schema, token: r.tenant!.token!, listen: false })
   try {
@@ -138,7 +130,6 @@ assert.ok(login)
 assert.equal(db.tenant, SALON)
 assert.deepEqual([...synced.created].sort(), ['Note', 'Payment', 'Shop', 'Wallet'])
 assert.equal(up1.$upsert, 'updated')
-assert.notEqual(w200.id, w2.id)                   // rekey: новый id
 assert.deepEqual(batchRows.map((x) => x.length), [1, 1])
 assert.equal(paid, 500)
 assert.equal(page.length, 2)
@@ -170,12 +161,9 @@ assert.equal(typeof earlier, 'number')
 };
 
 const DOCS: Doc[] = [
-  { file: '../README.md', schema: 't_docs_root_ru', token: 'salon', minBlocks: 1, expect: ROOT_EXPECT },
-  { file: '../README.en.md', schema: 't_docs_root_en', token: 'salon', minBlocks: 1, expect: ROOT_EXPECT },
-  { file: 'README.md', schema: 't_docs_readme_ru', token: 'shop', minBlocks: 30, expect: README_EXPECT },
-  { file: 'README.en.md', schema: 't_docs_readme_en', token: 'shop', minBlocks: 30, expect: README_EXPECT },
-  { file: 'AGENT-CHEATSHEET.md', schema: 't_docs_cheat_ru', token: 'myapp', minBlocks: 10, expect: CHEAT_EXPECT },
-  { file: 'AGENT-CHEATSHEET.en.md', schema: 't_docs_cheat_en', token: 'myapp', minBlocks: 10, expect: CHEAT_EXPECT },
+  { file: '../README.md', schema: 't_docs_root', token: 'salon', minBlocks: 1, expect: ROOT_EXPECT },
+  { file: 'README.md', schema: 't_docs_readme', token: 'shop', minBlocks: 30, expect: README_EXPECT },
+  { file: 'AGENT-CHEATSHEET.md', schema: 't_docs_cheat', token: 'myapp', minBlocks: 10, expect: CHEAT_EXPECT },
 ];
 
 const BLOCK = /<!--\s*run(?::\s*([\w-]+))?\s*-->[ \t]*\r?\n```ts\r?\n([\s\S]*?)\r?\n```/g;

@@ -108,7 +108,8 @@ export function Assistant({ onChanged }: { onChanged: () => void }) {
     let m: RegExpExecArray | null;
     try {
       if (/открыт|очеред/i.test(text)) {
-        const data = await tool('letopis_query', { class: 'Ticket', filter: { status: { $in: ['new', 'open'] } }, sort: { field: 'data.due' } });
+        // открытые — как у счётчика и очереди: новая, в работе, ждёт клиента
+        const data = await tool('letopis_query', { class: 'Ticket', filter: { status: { $in: ['new', 'open', 'pending'] } }, sort: { field: 'data.due' } });
         say(list(data.rows as Row[]));
       } else if (/срочн/i.test(text)) {
         const data = await tool('letopis_query', { class: 'Ticket', filter: { priority: 'urgent', status: { $ne: 'solved' } } });

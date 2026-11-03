@@ -1,9 +1,10 @@
 /**
  * mcp — инструменты MCP (план 1.1, §2.5, этап 5; тест-план §7.6 №1–12): модель, права, JSON-цепочка и подсказки,
  * предел и курсор, обёртка недоверенных данных, запись только с write, update только с rev, удаление с
- * подтверждением человека (elicitation в ревизиях 2025 и 2026-07-28), причина в blame, учётные данные, схемы
+ * подтверждением человека (elicitation в ревизиях 2025 и 2026-07-28), причина в версиях, учётные данные, схемы
  * инструментов, основная точка входа без SDK. Дополнительно: letopis mcp по stdio (клиент SDK запускает команду) и
- * обработчик HTTP приложения (createMcpHandler SDK, как в README). Клиент — из SDK, транспорт — в памяти.
+ * обработчик HTTP приложения (createMcpHandler SDK, как в README). Клиент — из SDK, транспорт — в памяти. Описания
+ * инструментов, их параметров и instructions — у каждого есть, по-русски.
  */
 import { test, before, after, mock } from 'node:test';
 import assert from 'node:assert/strict';
@@ -198,7 +199,7 @@ test('№3: JSON-цепочка — шаги по ролям и классам; 
     const op = refused(await call(cn, 'letopis_query', { class: 'Task', filter: { n: { $gtt: 5 } } }), 'invalid_query');
     assert.ok(op.similar?.includes('$gt'));
     // имена методов цепочки и корня, свойства Object.prototype — не шаги: отказ, а не вызов метода
-    for (const name of ['auth', 'sql', 'describe', 'constructor', 'rows']) refused(await call(cn, 'letopis_query', { class: name }), 'invalid_class');
+    for (const name of ['auth', 'sql', 'maintain', 'constructor', 'rows']) refused(await call(cn, 'letopis_query', { class: name }), 'invalid_class');
     refused(await call(cn, 'letopis_query', { class: 'Task', steps: [{ step: 'delete' }] }), 'invalid_class');
     refused(await call(cn, 'letopis_query', { class: 'Task', id: 'не-uuid' }), 'invalid_query');
     refused(await call(cn, 'letopis_query', { class: 'Task', filter: JSON.parse('{"__proto__": {"n": 1}}') }), 'invalid_query');
@@ -443,22 +444,21 @@ test('доработки после точки Б: requestState подтверж
   }
 });
 
-test('№9: причина mcp: letopis_write — в blame', async () => {
+test('№9: причина mcp: letopis_write — в версиях', async () => {
   const cn = await open(db, { write: true });
   try {
     const created = await call(cn, 'letopis_write', { op: 'upsert', class: 'Doc', data: { code: 'D-1', text: 'черновик' } });
     const doc = created.structuredContent!.data.rows[0];
     await call(cn, 'letopis_write', { op: 'update', class: 'Doc', id: doc.id, rev: doc.rev, data: { text: 'итог' } });
-    const b = await call(cn, 'letopis_history', { class: 'Doc', id: doc.id, kind: 'blame' });
-    const text = b.structuredContent!.data.blame.fields.find((f: { path: string[] }) => f.path.join('.') === 'data.text');
-    assert.equal(text.reason, 'mcp: letopis_write');
-    assert.equal(text.rev, 2);
     const v = await call(cn, 'letopis_history', { class: 'Doc', id: doc.id, kind: 'versions' });
-    assert.deepEqual(v.structuredContent!.data.versions.map((x: { reason?: string }) => x.reason), ['mcp: letopis_write', 'mcp: letopis_write']);
-    const d = await call(cn, 'letopis_history', { class: 'Doc', id: doc.id, kind: 'diff' });
-    assert.deepEqual(d.structuredContent!.data.diff.changes.map((x: { path: string[] }) => x.path.join('.')), ['data.text']);
+    const versions = v.structuredContent!.data.versions as { rev: number; reason?: string; data: { text: string } }[];
+    assert.deepEqual(versions.map((x) => [x.rev, x.reason, x.data.text]),
+      [[1, 'mcp: letopis_write', 'черновик'], [2, 'mcp: letopis_write', 'итог']]);
+    // kind необязателен: по умолчанию — версии
+    const plain = await call(cn, 'letopis_history', { class: 'Doc', id: doc.id });
+    assert.deepEqual(plain.structuredContent!.data.versions.map((x: { rev: number }) => x.rev), [1, 2]);
     // значения перечислений проверяет схема инструмента (SDK): отказ без данных базы
-    const bad = await call(cn, 'letopis_history', { class: 'Doc', id: doc.id, kind: 'blam' });
+    const bad = await call(cn, 'letopis_history', { class: 'Doc', id: doc.id, kind: 'blame' });
     assert.equal(bad.isError, true);
     assert.match(bad.content[0].text ?? '', /kind/);
   } finally {
@@ -536,7 +536,8 @@ test('№12: основная точка входа и CLI не импортир
       }
     }
     assert.ok(seen.size > 3, 'разбор импортов нашёл модули');
-    assert.ok(![...seen].some((f) => f.endsWith('mcp.ts')), `${entry} тянет mcp.ts статически`);
+    // сам модуль letopis/mcp, а не раздел каталога сообщений src/messages/mcp.ts (план 2.0, этап 3, п. 3)
+    assert.ok(![...seen].some((f) => f === join(LIB, 'src', 'mcp.ts')), `${entry} тянет mcp.ts статически`);
   }
 });
 
@@ -718,4 +719,42 @@ test('решение точки Б (ревью безопасности №2, О
   assert.equal(r.status, 1);
   assert.match(r.stderr, /user_session_required: createMcpServer: сессия в арендаторе System/);
   assert.equal(r.stdout, '', 'в stdout — только протокол');
+});
+
+test('описания инструментов, их параметров и instructions — у каждого есть, по-русски', async () => {
+  const CYRILLIC = /[а-яё]/i;
+  /** Описания параметров входной схемы — рекурсивно: properties, items и вложенные объекты. */
+  const described = (v: unknown, out: string[] = []): string[] => {
+    if (Array.isArray(v)) for (const x of v) described(x, out);
+    else if (v && typeof v === 'object') {
+      for (const [k, x] of Object.entries(v)) {
+        if (k === 'description' && typeof x === 'string') out.push(x);
+        else described(x, out);
+      }
+    }
+    return out;
+  };
+  // с write — все четыре инструмента и условные фразы (запись, классы прав)
+  const cn = await open(db, { write: true });
+  try {
+    const { tools } = await cn.client.listTools();
+    assert.deepEqual(tools.map((x) => x.name).sort(), ['letopis_history', 'letopis_model', 'letopis_query', 'letopis_write']);
+    const instructions = cn.client.getInstructions() ?? '';
+    assert.ok(instructions.length > 0);
+    const texts: [string, string][] = [['instructions', instructions]];
+    for (const tool of tools) {
+      const params = described(tool.inputSchema);
+      assert.ok(params.length > 0, `${tool.name}: у параметров есть описания`);
+      texts.push([tool.name, tool.description ?? ''], ...(tool.title ? [[`${tool.name}.title`, tool.title] as [string, string]] : []),
+        ...params.map((p) => [`${tool.name} (параметр)`, p] as [string, string]));
+    }
+    for (const [where, s] of texts) {
+      assert.ok(s.trim(), `${where}: текст есть`);
+      assert.match(s, CYRILLIC, `${where} — по-русски: ${s}`);
+    }
+    const desc = tools.find((x) => x.name === 'letopis_write')!.description ?? '';
+    assert.match(desc, /Классы прав \(rule, Resource, member, Account, Class и их потомки\) этот сервер не пишет/);
+  } finally {
+    await cn.close();
+  }
 });

@@ -110,8 +110,8 @@ test('5.9 системные строки: свой Account; правила и �
 test('роль admin, выданная арендатором, не даёт прав по правилам System; категорию Service себе не выдать', async () => {
   const bossSql = sqlAs(e, await session(e, boss.id, { tenant: org }));
   // правило System «admin → letopis.*» действует только для ролей в System
-  await assert.rejects(bossSql(`select ${S}.verify()`), lt('acl_denied'));
-  const [d] = await bossSql(`select ${S}.acl_check('letopis.reset') as d`);
+  await assert.rejects(bossSql(`select ${S}.maintain()`), lt('acl_denied'));
+  const [d] = await bossSql(`select ${S}.acl_check('letopis.maintain') as d`);
   assert.equal(d.d.allow, false);
   // категории — в строке Account, она в System: администратор арендатора её не правит
   assert.equal((await bossSql(`update ${S}.entity set data = ${S}.merge(data, '{"categories": ["Service"]}') where id = $1 returning id`, [boss.id])).length, 0);

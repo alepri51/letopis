@@ -4,9 +4,9 @@ import { seedShop, type ShopData } from '../../kit/shop.ts';
 let d: ShopData;
 
 export default example({
-  title: 'Ссылки шагами: set, unset, add, remove; entity(), cache(); await цепочки — не запрос',
+  title: 'Концы шагами ролей: set, unset, add, remove; entity(), cache(); await цепочки — не запрос',
   summary:
-    'Ссылку меняют шагом по роли конца: одиночную — set и unset, множественную — add и remove. Цепочку можно ' +
+    'Конец меняют шагом роли: одиночный — set и unset, множественный — add и remove. Цепочку можно ' +
     'продолжить с готовой строки — entity(), повтор чтения взять из кэша — cache(). await цепочки ничего не читает — нужен rows().',
   tables: ['entity'],
   classes: ['Product', 'Category'],
@@ -47,15 +47,16 @@ export default example({
       text:
         '`.cache()` — повтор того же чтения без запроса к базе, пока данные не изменились. Попадания считаем на свежем ' +
         'подключении Анны. У `db` сигнал о записи из прошлого шага мог бы прийти во время первого чтения: такой ответ ' +
-        'мог устареть, и кэш его не сохраняет (защита от гонки чтения и сигнала, счётчик `raced`). В описании класса — ' +
-        'его поля (`fields`) и настройка кэша (`cache`).',
+        'мог устареть, и кэш его не сохраняет (защита от гонки чтения и сигнала, счётчик `raced`). В описании класса из ' +
+        'реестра подключения (`db.registry.find()`) — поля класса (`schema.properties`, их задаёт `fields` модели) и ' +
+        'настройка кэша (`cache`).',
       run: async ({ connect, dsn, schema, up }) => {
         const anna = await connect({ dsn: dsn.app, schema, token: up.tenant!.token! });
         await anna.Product().cache({ ttl: 30 }).count(); // запрос к базе — ответ сохраняется в кэше
         await anna.Product().cache({ ttl: 30 }).count(); // то же чтение — из кэша
         const { hits, raced } = anna.cache.stats();
-        const desc = anna.describe().classes.find((c) => c.name === 'Product')!;
-        return { 'попаданий в кэш': hits, raced, 'поля Product': Object.keys((desc.fields as { properties?: object }).properties ?? desc.fields).slice(0, 4), cache: desc.cache ?? null };
+        const desc = anna.registry.find('Product')!;
+        return { 'попаданий в кэш': hits, raced, 'поля Product': Object.keys(desc.schema.properties ?? {}).slice(0, 4), cache: desc.cache ?? null };
       },
     },
   ],

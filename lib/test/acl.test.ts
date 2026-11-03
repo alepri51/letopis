@@ -344,7 +344,7 @@ test('ревью безопасности №2, Н2: с одним правом 
   const setClass = (name: string, patch: Record<string, unknown>) =>
     raw(`update ${S}.entity set data = data || $1::jsonb where class = 'Class' and tenant = $2 and data->>'name' = $3 returning id`, [patch, org, name]);
   const rev = async () => (await e.sql.unsafe(`select rev from ${S}.entity where class = 'Class' and tenant = $1 and data->>'name' = 'Ledger'`, [org]))[0].rev as number;
-  const denied = (op: string, c: string) => new RegExp(`letopis: acl_denied: класс Ledger меняет предков, алиас или derivedBy: нужно право ${op} на все строки класса ${c}$`);
+  const denied = (op: string, c: string) => new RegExp(`letopis: acl_denied: класс Ledger меняет предков или алиас: нужно право ${op} на все строки класса ${c}$`);
   const rev0 = await rev();
   await assert.rejects(setClass('Ledger', { alias: 'Книга' }), denied('READ', 'Ledger'));
   await assert.rejects(setClass('Ledger', { parent: 'Open' }), denied('READ', 'Ledger'));
@@ -393,7 +393,7 @@ test('ревью безопасности №2, Н2 (г): подкласс кл�
   const rev0 = await rev();
   await assert.rejects(raw(`update ${S}.entity set data = (data - 'parent') || $1::jsonb where class = 'Class' and tenant = $2 and data->>'name' = 'Shelf' returning id`,
     [{ fields: { properties: { n: { type: 'integer' } } } }, org]),
-  /letopis: acl_denied: класс Shelf меняет предков, алиас или derivedBy: нужно право DELETE на все строки класса Shelf$/);
+  /letopis: acl_denied: класс Shelf меняет предков или алиас: нужно право DELETE на все строки класса Shelf$/);
   assert.equal(await rev(), rev0, 'Shelf по-прежнему потомок Archive');
 });
 

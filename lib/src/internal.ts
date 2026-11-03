@@ -10,6 +10,11 @@ export interface DbInternals {
   readonly allTenants: boolean;
   /** Фасад явной транзакции db.begin(). */
   readonly explicit: boolean;
+  /**
+   * Транзакция на администраторском пуле connect({ admin }) с сессией фасада (план 2.0, 7.9 №3): ею пишет syncModels.
+   * Только у корня подключения с опцией admin.
+   */
+  readonly adminTx?: <T>(fn: (tx: import('./tx.js').Tx) => Promise<T>) => Promise<T>;
 }
 
 const facades = new WeakMap<object, DbInternals>();

@@ -4,11 +4,17 @@
  * слова нарушений. Им пользуются загрузчик (этап 4) и ранние ошибки библиотеки; совпадение с базой
  * закрепляет дифференциальный тест validator-parity.
  *
+ * Исключение — `pattern` (ревью): шаблон задаёт арендатор, и движок V8 с перебором на шаблоне вроде
+ * `^(a+)+$` повесил бы процесс приложения. Такие правила (`db`) проверяет только база (`like_regex`,
+ * движок без катастрофического перебора); здесь шаблон лишь разбирается — то, что база не примет, и
+ * шаблон, неверный для JavaScript, — `invalid_class`. `anyOf`/`oneOf`, в ветке которых есть `pattern`,
+ * без него не решить (у `oneOf` вышло бы ложное нарушение) — их тоже проверяет только база.
+ *
  * Как и в базе, правило — «нет узла по пути, нарушающего условие»: обычное правило даёт одно
  * нарушение, сколько бы узлов его ни нарушили; дополнительные проверки (длина строки, uniqueItems,
  * смысл даты, перечисления объектов, число ключей) — по нарушению на каждый узел.
  */
-import { LetopisError, type Issue } from './errors.js';
+import { lerr, lmsg, type Issue, type MsgKey, type Params } from './errors.js';
 import { SUPPORTED, translatePattern, type JsonSchema } from './jsonschema.js';
 
 type J = unknown;
@@ -22,6 +28,8 @@ interface Rule {
   /** Условие на узел; для дополнительной проверки — возвращает сообщение нарушения или null. */
   test: (node: J) => boolean;
   extra?: (node: J) => string | null;
+  /** Правило проверяет только база (`pattern` и `anyOf`/`oneOf` с ним): в процессе приложения не исполняется. */
+  db?: true;
 }
 
 const isObj = (v: J): v is Record<string, J> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -69,6 +77,11 @@ const FORMAT_RE: Record<string, RegExp> = {
   'date-time': /^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,6})?(Z|[+-][0-9]{2}:[0-9]{2})$/,
   email: /^[^@\s]+@[^@\s]+\.[^@\s]+$/,
 };
+/**
+ * Предел длины адреса для format: 'email' — 254 символа (RFC 5321). Длиннее — нарушение без шаблона: на подобранной
+ * строке (много точек в домене и лишний символ в конце) шаблон email перебирает квадратично (ревью).
+ */
+const EMAIL_MAX = 254;
 
 /** Смысл даты и времени, как pg_input_is_valid(…, 'date' | 'timestamptz') для уже проверенной формы. */
 function validDate(s: string, withTime: boolean): boolean {
@@ -104,29 +117,30 @@ const items = (sel: Select): Select => (root) => sel(root).flatMap((n) => (Array
 const others = (sel: Select, known: string[]): Select => (root) => sel(root).flatMap((n) => (isObj(n) ? Object.keys(n).filter((k) => !known.includes(k)).map((k) => n[k]) : []));
 const keys = (sel: Select): Select => (root) => sel(root).flatMap((n) => (isObj(n) ? Object.keys(n) : []));
 
-function fail(path: Path, msg: string): never {
-  throw new LetopisError('invalid_class', `${msg} (узел ${JSON.stringify(path)})`);
+/** Описание не компилируется (`invalid_class`): ключ каталога и параметры; путь узла — параметр node. */
+function fail(path: Path, key: MsgKey, params?: Params): never {
+  throw lerr(key, { ...params, node: JSON.stringify(path) });
 }
 
 /** Компиляция узла схемы в правила — порядок и состав как в jp_compile. */
 function compileNode(s: J, sel: Select, path: Path, inAny: boolean, out: Rule[]): void {
   if (s === undefined || s === true || (isObj(s) && Object.keys(s).length === 0)) return;
-  if (!isObj(s)) fail(path, `описание узла ${JSON.stringify(path)} — не объект`);
+  if (!isObj(s)) fail(path, 'model.validator_node_not_object');
   const sch = s as JsonSchema;
   for (const k of Object.keys(sch)) {
-    if (!SUPPORTED.has(k) && !k.startsWith('x-')) fail(path, `ключевое слово ${k} не поддерживается`);
+    if (!SUPPORTED.has(k) && !k.startsWith('x-')) fail(path, 'model.validator_keyword_unsupported', { keyword: k });
   }
   if (sch.type !== undefined) {
     const types = Array.isArray(sch.type) ? (sch.type as string[]) : [sch.type as string];
-    const tests = types.map((t) => TYPE_TEST[t] ?? fail(path, `неизвестный тип в узле ${JSON.stringify(path)}`));
+    const tests = types.map((t) => TYPE_TEST[t] ?? fail(path, 'model.validator_unknown_type'));
     out.push({ path, keyword: 'type', select: sel, test: (v) => tests.some((f) => f(v)) });
   }
   if (sch.enum !== undefined || sch.const !== undefined) {
     const keyword = sch.enum !== undefined ? 'enum' : 'const';
     const values = (sch.enum ?? [sch.const]) as J[];
     if (values.some((v) => typeof v === 'object' && v !== null)) {
-      if (inAny) fail(path, 'перечисление объектов внутри anyOf не поддерживается');
-      out.push({ path, keyword, select: sel, test: () => true, extra: (v) => (values.some((x) => jsonEqual(x, v)) ? null : 'значение не из перечисления') });
+      if (inAny) fail(path, 'model.validator_enum_objects_in_any_of');
+      out.push({ path, keyword, select: sel, test: () => true, extra: (v) => (values.some((x) => jsonEqual(x, v)) ? null : lmsg('model.issue_enum')) });
     } else {
       out.push({ path, keyword, select: sel, test: (v) => values.some((x) => typeOf(x) === typeOf(v) && jsonEqual(x, v)) });
     }
@@ -139,50 +153,50 @@ function compileNode(s: J, sel: Select, path: Path, inAny: boolean, out: Rule[])
   if (sch.multipleOf !== undefined) out.push({ path, keyword: 'multipleOf', select: sel, test: num((v, b) => isMultiple(v, b), sch.multipleOf as number) });
   if (sch.pattern !== undefined) {
     const src = translatePattern(sch.pattern as string); // то, чего база не понимает, — своя ошибка invalid_class
-    let re: RegExp;
     try {
-      re = new RegExp(src);
+      new RegExp(src); // только разбор, без исполнения на данных: проверку шаблона делает база (ревью, ReDoS)
     } catch {
       // шаблон, неверный уже для JavaScript (незакрытая скобка и т. п.): translatePattern его пропускает, RegExp — нет.
       // Текст V8 в сообщение не идёт: он зависит от версии движка
-      fail(path, `pattern ${JSON.stringify(sch.pattern)} — неверное регулярное выражение`);
+      fail(path, 'model.validator_bad_pattern', { pattern: JSON.stringify(sch.pattern) });
     }
-    out.push({ path, keyword: 'pattern', select: sel, test: (v) => typeof v !== 'string' || re.test(v) });
+    out.push({ path, keyword: 'pattern', select: sel, test: () => true, db: true });
   }
   if (sch.format !== undefined) {
     const f = sch.format as string;
-    const re = FORMAT_RE[f] ?? fail(path, `format ${f} не поддерживается`);
-    out.push({ path, keyword: 'format', select: sel, test: (v) => typeof v !== 'string' || re.test(v) });
+    const re = FORMAT_RE[f] ?? fail(path, 'model.validator_format_unsupported', { format: f });
+    const max = f === 'email' ? EMAIL_MAX : Infinity;
+    out.push({ path, keyword: 'format', select: sel, test: (v) => typeof v !== 'string' || (v.length <= max && re.test(v)) });
     if (f === 'date' || f === 'date-time') {
-      if (inAny) fail(path, `format ${f} внутри anyOf не поддерживается`);
+      if (inAny) fail(path, 'model.validator_format_in_any_of', { format: f });
       out.push({ path, keyword: 'format', select: sel, test: () => true,
-        extra: (v) => (typeof v !== 'string' || !re.test(v) || validDate(v, f === 'date-time') ? null : 'такой даты не бывает') });
+        extra: (v) => (typeof v !== 'string' || !re.test(v) || validDate(v, f === 'date-time') ? null : lmsg('model.issue_date')) });
     }
   }
   if (sch.minLength !== undefined || sch.maxLength !== undefined) {
-    if (inAny) fail(path, 'длина строки внутри anyOf не поддерживается');
+    if (inAny) fail(path, 'model.validator_string_length_in_any_of');
     const min = (sch.minLength as number | undefined) ?? 0;
     const max = (sch.maxLength as number | undefined) ?? Infinity;
     out.push({ path, keyword: sch.minLength !== undefined ? 'minLength' : 'maxLength', select: sel, test: () => true,
-      extra: (v) => { if (typeof v !== 'string') return null; const n = [...v].length; return n < min || n > max ? 'длина строки вне границ' : null; } });
+      extra: (v) => { if (typeof v !== 'string') return null; const n = [...v].length; return n < min || n > max ? lmsg('model.issue_string_length') : null; } });
   }
   if (sch.minItems !== undefined) out.push({ path, keyword: 'minItems', select: sel, test: (v) => !Array.isArray(v) || v.length >= (sch.minItems as number) });
   if (sch.maxItems !== undefined) out.push({ path, keyword: 'maxItems', select: sel, test: (v) => !Array.isArray(v) || v.length <= (sch.maxItems as number) });
   if (sch.uniqueItems === true) {
-    if (inAny) fail(path, 'uniqueItems внутри anyOf не поддерживается');
+    if (inAny) fail(path, 'model.validator_unique_items_in_any_of');
     out.push({ path, keyword: 'uniqueItems', select: sel, test: () => true,
-      extra: (v) => (Array.isArray(v) && v.some((x, i) => v.findIndex((y) => jsonEqual(x, y)) !== i) ? 'элементы повторяются' : null) });
+      extra: (v) => (Array.isArray(v) && v.some((x, i) => v.findIndex((y) => jsonEqual(x, y)) !== i) ? lmsg('model.issue_unique_items') : null) });
   }
   if (sch.items !== undefined) compileNode(sch.items, items(sel), [...path, '*'], inAny, out);
   if (Array.isArray(sch.required)) {
     for (const k of sch.required as string[]) out.push({ path: [...path, k], keyword: 'required', select: sel, test: (v) => !isObj(v) || Object.prototype.hasOwnProperty.call(v, k) });
   }
   if (sch.minProperties !== undefined || sch.maxProperties !== undefined) {
-    if (inAny) fail(path, 'minProperties внутри anyOf не поддерживается');
+    if (inAny) fail(path, 'model.validator_min_properties_in_any_of');
     const min = (sch.minProperties as number | undefined) ?? 0;
     const max = (sch.maxProperties as number | undefined) ?? Infinity;
     out.push({ path, keyword: sch.minProperties !== undefined ? 'minProperties' : 'maxProperties', select: sel, test: () => true,
-      extra: (v) => { if (!isObj(v)) return null; const n = Object.keys(v).length; return n < min || n > max ? 'число ключей вне границ' : null; } });
+      extra: (v) => { if (!isObj(v)) return null; const n = Object.keys(v).length; return n < min || n > max ? lmsg('model.issue_property_count') : null; } });
   }
   const known = isObj(sch.properties) ? Object.keys(sch.properties) : [];
   if (isObj(sch.properties)) {
@@ -198,11 +212,17 @@ function compileNode(s: J, sel: Select, path: Path, inAny: boolean, out: Rule[])
   }
   for (const kw of ['anyOf', 'oneOf'] as const) {
     if (!Array.isArray(sch[kw])) continue;
-    const branches = (sch[kw] as J[]).map((b) => {
+    const compiled = (sch[kw] as J[]).map((b) => {
       const rules: Rule[] = [];
       compileNode(b, (root) => [root], path, true, rules);
-      return (node: J) => rules.every((r) => r.select(node).every((n) => r.test(n)));
+      return rules;
     });
+    // ветку с правилом базы здесь не решить: anyOf/oneOf целиком проверяет база (у oneOf иначе — ложное нарушение)
+    if (compiled.some((rules) => rules.some((r) => r.db))) {
+      out.push({ path, keyword: kw, select: sel, test: () => true, db: true });
+      continue;
+    }
+    const branches = compiled.map((rules) => (node: J) => rules.every((r) => r.select(node).every((n) => r.test(n))));
     out.push({ path, keyword: kw, select: sel, test: kw === 'anyOf'
       ? (v) => branches.some((b) => b(v))
       : (v) => branches.filter((b) => b(v)).length === 1 });
@@ -215,13 +235,15 @@ export interface Validator {
 }
 
 /**
- * Превращает JSON Schema данных класса в функцию проверки — ту же проверку, что выполняет база при записи. Схема
+ * Превращает JSON Schema данных класса в функцию проверки — ту же проверку, что выполняет база при записи, кроме
+ * `pattern` (и `anyOf`/`oneOf` с ним в ветке): шаблоны задаёт арендатор, их проверяет только база. Схема
  * класса — `db.registry.resolve(имя).schema`.
  */
 export function compileValidator(schema: JsonSchema): Validator {
-  const rules: Rule[] = [];
-  compileNode(schema, (root) => [root], [], false, rules);
-  return (data: unknown) => {
+  const all: Rule[] = [];
+  compileNode(schema, (root) => [root], [], false, all);
+  const rules = all.filter((r) => !r.db);
+  const v: Validator = (data: unknown) => {
     const issues: Issue[] = [];
     for (const r of rules) {
       const nodes = r.select(data);
@@ -231,11 +253,24 @@ export function compileValidator(schema: JsonSchema): Validator {
           if (msg) issues.push({ path: r.path, keyword: r.keyword, message: msg });
         }
       } else if (!nodes.every((n) => r.test(n))) {
-        issues.push({ path: r.path, keyword: r.keyword, message: `нарушено правило ${r.keyword}` });
+        issues.push({ path: r.path, keyword: r.keyword, message: lmsg('model.issue_rule', { keyword: r.keyword }) });
       }
     }
     return issues;
   };
+  if (rules.length < all.length) LEAVES_TO_DB.add(v);
+  return v;
+}
+
+/** Валидаторы с правилами, которые проверяет только база. */
+const LEAVES_TO_DB = new WeakSet<Validator>();
+
+/**
+ * Оставляет ли валидатор правила базе (`pattern` и `anyOf`/`oneOf` с ним): строки таких классов загрузчик, который
+ * пишет мимо триггеров, сверяет запросом к базе. Не входит в API пакета.
+ */
+export function leavesToDb(v: Validator): boolean {
+  return LEAVES_TO_DB.has(v);
 }
 
 /**

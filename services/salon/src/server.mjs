@@ -6,8 +6,8 @@
  * - Вход по паролю (db.auth.verifyPassword). Токен letopis в cookie не попадает: веб-сессия живёт на сервере,
  *   cookie несёт только её случайный номер. Запросы идут от имени вошедшего: svc.as(account, { tenant }).
  * - Бронь — одной транзакцией под блокировкой мастера (domain.mjs); двойная бронь невозможна.
- * - Перенос брони — rekey под той же блокировкой: id брони из ключа (мастер, начало), у переноса — новый id; история
- *   идёт через смену id (versions({ follow: true })).
+ * - Перенос брони — под той же блокировкой: id брони из ключа (мастер, начало), а ключ не меняется, поэтому перенос —
+ *   новая бронь на новом слоте и удаление прежней одной транзакцией; у новой брони — новый id и своя история.
  * - Прайс — класс price сида (ключ [Item, note]): правка цены — upsert, список — db.load({ existing: 'update' })
  *   администраторским подключением letopis от имени вошедшего. Отчёт дня — брони по мастерам (report()).
  * - Живое расписание: db.watch() по классу booking → SSE → вторая вкладка обновляется сама.
@@ -19,7 +19,7 @@ import postgres from 'postgres';
 import { fileURLToPath } from 'node:url';
 import { up, connect, createTenant } from 'letopis';
 import {
-  HOURS, today, directory, dayBookings, book, cancel, restore, move, history, report, priceList, setPrice, parsePriceList, loadPrices,
+  HOURS, MOVE_REASON, today, directory, dayBookings, book, cancel, restore, move, history, report, priceList, setPrice, parsePriceList, loadPrices,
 } from './domain.mjs';
 // общее у четырёх сервисов-примеров: журнал «под капотом», веб-сессии по cookie, подписка → SSE
 import { createTrace } from '../../shared/trace.mjs';
@@ -48,14 +48,10 @@ export const SALONS = [
 export async function createApp() {
   // ---------- установка и подключение ----------
   const admin = postgres(ENV.admin, { max: 2, onnotice: () => {} });
-  const r = await up({ dsn: ENV.admin, schema: ENV.schema, upgrade: true, seeds: ['booking'], serviceKey: ENV.serviceKey, quiet: true });
+  // роль приложения заводит up({ login }): имя и пароль квотирует база, повтор обновляет пароль (план 2.0, 7.6 №7, 7.9 №4)
   const appUrl = new URL(ENV.app);
-  // роль приложения — имя и пароль квотируются, а не склеиваются в SQL: пароль с ' не ломает запуск (план 2.0, 7.6 №7)
-  const appUser = decodeURIComponent(appUrl.username);
-  const ident = (v) => `"${v.replace(/"/g, '""')}"`;
-  const [{ known }] = await admin`select exists (select 1 from pg_roles where rolname = ${appUser}) as known`;
-  if (!known) await admin.unsafe(`create role ${ident(appUser)} login password '${decodeURIComponent(appUrl.password).replace(/'/g, "''")}'`);
-  await admin.unsafe(`grant letopis_app to ${ident(appUser)}`);
+  const r = await up({ dsn: ENV.admin, schema: ENV.schema, upgrade: true, seeds: ['booking'], serviceKey: ENV.serviceKey, quiet: true,
+    login: { user: decodeURIComponent(appUrl.username), password: decodeURIComponent(appUrl.password) } });
 
   // журнал «под капотом»: запросы к базе, записанные версии и сигналы текущего действия
   const trace = await createTrace({
@@ -65,16 +61,18 @@ export async function createApp() {
       : v.class === 'price' ? `${v.data?.note ?? ''}: ${v.data?.amounts?.RUB ?? '—'} ₽` : ''),
   });
   const svc = await connect({ dsn: ENV.app, schema: r.schema, apiKey: ENV.serviceKey, onQuery: trace.onQuery });
+  // загрузчику (db.load — прайс списком) нужно администраторское подключение letopis: роль, которая обходит RLS и может
+  // стать владельцем схемы. Сессии у него нет, и оно одно на все салоны: автора и арендатора загрузчик берёт из
+  // load({ as, tenant }) — вошедший и его салон, право WRITE на price проверяет по as. Постоянный токен истекал бы при
+  // простое (план 2.0, 7.6 №5)
+  const adm = await connect({ dsn: ENV.admin, schema: r.schema, allowBypassRls: true, onQuery: trace.onQuery });
 
   // ---------- демо-данные: салоны и справочники (повтор ничего не дублирует) ----------
-  const tenants = new Map(); // логин → { tenant, account, adm }
+  const tenants = new Map(); // логин → { tenant, account }
   for (const s of SALONS) {
-    const t = await createTenant(admin, r.schema, { name: s.name, user: s.user });
-    // загрузчику (db.load — прайс списком) нужно администраторское подключение letopis: роль, которая обходит RLS и
-    // может стать владельцем схемы. Сессия — токен createTenant: управляющий в своём салоне (новый на каждый старт,
-    // живёт 7 дней простоя, connect продлевает), так подключение работает в арендаторе салона вошедшего.
-    const adm = await connect({ dsn: ENV.admin, schema: r.schema, token: t.token, allowBypassRls: true, onQuery: trace.onQuery });
-    tenants.set(s.user.login.toLowerCase(), { tenant: t.tenant, account: t.user, adm });
+    // токен createTenant не нужен: справочник пишет сервис от имени управляющего (svc.as) — сессия гаснет через минуту
+    const t = await createTenant(admin, r.schema, { name: s.name, user: { ...s.user, ttl: '1 minute' } });
+    tenants.set(s.user.login.toLowerCase(), { tenant: t.tenant, account: t.user });
     const db = await svc.as(t.user, { tenant: t.tenant });
     if (await db.Org().count()) continue;
     const [org] = await db.Org().create({ name: s.name }).rows();
@@ -86,7 +84,7 @@ export async function createApp() {
   }
 
   // ---------- веб-сессии и журнал «под капотом» ----------
-  const web = createSessions(); // sid → { account, tenant, name, salon, trace: [], db, adm }
+  const web = createSessions(); // sid → { account, tenant, name, salon, trace: [], db }
   const { auth } = web;
   const { act } = trace;
   // фасад пользователя (svc.as — асинхронный) создаётся один раз при входе и живёт в веб-сессии
@@ -106,7 +104,7 @@ export async function createApp() {
     if (!login || !known) return res.status(401).json({ error: 'Неверный логин или пароль' });
     const salon = SALONS.find((x) => x.user.login.toLowerCase() === key);
     const db = await svc.as(login.account, { tenant: known.tenant });
-    web.open(res, { account: login.account, tenant: known.tenant, name: salon.user.name, salon: salon.name, trace: [], db, adm: known.adm });
+    web.open(res, { account: login.account, tenant: known.tenant, name: salon.user.name, salon: salon.name, trace: [], db });
     res.json({ salon: salon.name, name: salon.user.name });
   });
   app.post('/api/logout', async (req, res) => {
@@ -129,9 +127,9 @@ export async function createApp() {
     const view = (b) => ({ id: b.id, staff: b.links.Staff, hour: Number(String(b.data.start_datetime).slice(11, 13)),
       customer: customers.get(b.links.Customer) ?? 'клиент', service: serviceName.get(b.links.Item) ?? '' });
     const bookings = (await dayBookings(db, day)).map(view);
-    // перенос (rekey) оставляет у прежнего id надгробие с moved → новый id: это не отмена
+    // перенос удаляет прежнюю бронь с причиной MOVE_REASON: это надгробие переноса, а не отмена
     const cancelled = (await db.booking().withDeleted().rows())
-      .filter((b) => b.$deleted && !b.moved && String(b.data.start_datetime).startsWith(day)).map(view);
+      .filter((b) => b.$deleted && b.reason !== MOVE_REASON && String(b.data.start_datetime).startsWith(day)).map(view);
     return {
       day, hours: HOURS, bookings, cancelled, total: bookings.length,
       staff: dir.staff.map((m) => ({ id: m.id, name: m.data.name, specialization: m.data.specialization ?? '' })),
@@ -162,7 +160,8 @@ export async function createApp() {
       await act(req.s, 'Вернуть бронь', (lines) => restore(userDb(req.s), req.params.id, lines));
       res.json({ ok: true });
     } catch (e) {
-      res.status(e.code === 'moved' ? 409 : 400).json({ error: `Не удалось вернуть: ${e.code ?? ''} ${e.message}` });
+      // e.status — отказ сервиса (надгробие переноса — 409), остальное — ошибки letopis
+      res.status(e.status ?? 400).json({ error: `Не удалось вернуть: ${e.status ? e.message : `${e.code ?? ''} ${e.message}`}` });
     }
   });
   // перенос: мастер (по умолчанию тот же), день (по умолчанию тот же) и час; занятый слот — 409
@@ -181,14 +180,15 @@ export async function createApp() {
       });
     }
   });
-  // история — и через перенос: у версий разные id (прежний и новый), мастер и время — из самой версии
+  // история — версии этой брони (одного id); мастер и время — из самой версии
   app.get('/api/bookings/:id/history', auth, async (req, res) => {
     const db = userDb(req.s);
     const versions = await act(req.s, 'История брони', (lines) => history(db, req.params.id, lines));
     const staff = new Map((await directory(db)).staff.map((m) => [m.id, m.data.name]));
     res.json(versions.map((v) => ({
       id: v.id, rev: v.rev, op: v.op, staff: staff.get(v.links?.Staff) ?? '', start: String(v.data?.start_datetime ?? '').slice(11, 16),
-      reason: v.reason ?? '', at: String(v.at).slice(11, 19),
+      // at — момент версии целиком (ISO, UTC): местное время показывает браузер, как в «Под капотом»
+      reason: v.reason ?? '', at: v.at,
     })));
   });
 
@@ -205,7 +205,7 @@ export async function createApp() {
 
   // ---------- API: прайс ----------
   app.get('/api/price', auth, async (req, res) => res.json(await priceList(userDb(req.s))));
-  // прайс списком — db.load() администраторским подключением салона (s.adm) от имени вошедшего;
+  // прайс списком — db.load() администраторским подключением (adm) от имени вошедшего и в его салоне;
   // услуги — из каталога сессии (под RLS), поэтому чужую услугу в список не подставить
   app.post('/api/price/load', auth, async (req, res) => {
     const s = req.s;
@@ -216,7 +216,7 @@ export async function createApp() {
       return res.status(422).json({ error: `Прайс не загружен: ${e.message}` });
     }
     try {
-      const r = await act(s, 'Прайс списком', (lines) => loadPrices(s.adm, s, items, lines));
+      const r = await act(s, 'Прайс списком', (lines) => loadPrices(adm, s, items, lines));
       res.json({ rows: r.rows, loaded: r.loaded, updated: r.updated, skipped: r.skipped, ms: Math.round(r.ms) });
     } catch (e) {
       res.status(e.code === 'acl_denied' ? 403 : 422).json({ error: `Прайс не загружен: ${e.code ?? ''} ${e.message}` });
@@ -244,10 +244,7 @@ export async function createApp() {
 
   return {
     app, schema: r.schema,
-    close: async () => {
-      for (const t of tenants.values()) await t.adm.close();
-      await svc.close(); await admin.end({ timeout: 2 });
-    },
+    close: async () => { await adm.close(); await svc.close(); await admin.end({ timeout: 2 }); },
   };
 }
 

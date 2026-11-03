@@ -1,12 +1,13 @@
 /**
  * Сценарий «день работы» кошелька: сервис в этом же процессе, шаги — через его JSON API (как интерфейс).
  *   ADMIN_DSN=… APP_DSN=… node scenario.mjs        Код выхода 1 — сбой.
- * «Чужая транзакция», которая держит строку выписки (проверка lockTimeout и lockRetries проектора), и порча данных
- * в обход библиотеки для verify — тоже через API сервиса, как кнопки интерфейса.
+ * Простой сервиса дольше срока сессии — без ожидания: срок сессий createTenant оператора истекает в базе отдельным
+ * подключением по ADMIN_DSN.
  */
+import postgres from 'postgres';
 import { createApp, OPERATOR } from './src/server.mjs';
 
-const { app, close } = await createApp();
+const { app, schema, close } = await createApp();
 const server = app.listen(0, '127.0.0.1');
 await new Promise((r) => server.once('listening', r));
 const base = `http://127.0.0.1:${server.address().port}`;
@@ -16,7 +17,6 @@ const call = async (cookie, path, body) => {
   const r = await fetch(`${base}${path}`, body === undefined ? { headers: { cookie } } : { method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify(body) });
   return { status: r.status, cookie: (r.headers.get('set-cookie') ?? '').split(';')[0], data: await r.json().catch(() => null) };
 };
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const run = Date.now().toString(36);
 const card = '4242 4242 4242 4242';
 try {
@@ -32,16 +32,24 @@ try {
   const again = await call(cookie, '/api/topup', { wallet: w1.id, amount: 100000, card, opId: `t-${run}` });
   check(again.data?.result === 'уже было' && (await balance('W-1')) === b1 + 100000, 'повтор того же opId — «уже было», баланс не удвоился');
   const over = await call(cookie, '/api/debit', { wallet: w2.id, amount: b2 + 1, opId: `d-${run}` });
-  check(over.status === 422 && (await balance('W-2')) === b2, 'списание больше баланса — отказ, баланс прежний');
+  const hoodOver = (await call(cookie, '/api/trace')).data?.[0];
+  check(over.status === 422 && /^Недостаточно средств/.test(over.data?.error) && (await balance('W-2')) === b2
+    && hoodOver?.lines.some((l) => l.startsWith('invalid_data — balance: minimum')) && !hoodOver.versions.length,
+    'списание больше баланса — min(0) над итогом inc: отказ 422, план откатился целиком (ни операции, ни версии), баланс прежний');
   const tr = await call(cookie, '/api/transfer', { from: w1.id, to: w2.id, amount: 30000, opId: `x-${run}` });
   check(tr.data?.result === 'проведено' && (await balance('W-1')) === b1 + 70000 && (await balance('W-2')) === b2 + 30000, 'перевод 300 ₽ W-1 → W-2 одной транзакцией');
-  // панель «Под капотом»: перевод записал две операции и два баланса (агрегат), сигналы — в канале схемы
+  // панель «Под капотом»: перевод записал две операции и два баланса (inc в том же плане), сигналы — в канале схемы
   const hood = (await call(cookie, '/api/trace')).data?.[0];
   check(hood?.title === `Перевод x-${run}` && hood.versions.filter((v) => v.class === 'Movement' && v.op === 'create').length === 2
-    && hood.versions.filter((v) => v.class === 'Wallet' && v.fields.join() === 'balance').length === 2 && hood.signals.includes('Movement'),
-    'под капотом: перевод — версии двух Movement и баланса двух Wallet, сигналы канала схемы');
+    && hood.versions.filter((v) => v.class === 'Wallet' && v.fields.join() === 'balance').length === 2
+    && hood.signals.includes('Movement') && hood.signals.includes('Wallet') && hood.lines.some((l) => l.includes('inc(')),
+    'под капотом: перевод — версии двух Movement и баланса двух Wallet (inc), сигналы Movement и Wallet');
   const hist = (await call(cookie, `/api/wallets/${w1.id}/history`)).data;
   check(hist.at(-1).reason === `transfer x-${run}`, 'история баланса W-1: последняя версия — перевод с причиной');
+  // время версии сервер отдаёт целиком, а местное показывает браузер: обрезка строки давала UTC без пометки пояса
+  const moments = [...hist.map((v) => v.at), ...(await call(cookie, '/api/wallets')).data.movements.map((m) => m.at)];
+  check(moments.length > 0 && moments.every((at) => String(at).length > 19 && !Number.isNaN(Date.parse(at))),
+    `история баланса и последние операции: at — полный момент версии (${moments[0]})`);
 
   // гонка: два списания с W-2 в одну секунду, каждое больше половины баланса — база ставит их в очередь по счёту,
   // и второе упирается в min(0) посчитанного баланса: проходит одно
@@ -97,50 +105,37 @@ try {
   const del = await call(cookie, `/api/wallets/${w1.id}/delete`, {});
   check(del.status === 409 && del.data?.code === 'delete_restricted' && !!(await read(cookie)), 'удалить счёт с операциями нельзя — delete_restricted, 409, счёт на месте');
 
-  // проектор выписки: дождаться, пока он догонит журнал, и запомнить пополнения W-1 за месяц
-  const statusOf = async () => (await call(cookie, '/api/statement')).data;
+  // выписка — обычный запрос на чтение: сводка операций по счёту и месяцу, без отставания
   const month = new Date().toISOString().slice(0, 7);
-  const topups = async () => (await call(cookie, '/api/wallets')).data.statements.find((s) => s.wallet === 'W-1' && s.month === month)?.topup ?? 0;
-  let st = await statusOf();
-  for (let i = 0; i < 40 && (st.lag > 0 || st.failed); i++) { await sleep(250); st = await statusOf(); }
-  check(st.state === 'running' && !st.failed && st.options.lockTimeout === 1000 && st.options.lockRetries === 3,
-    'проектор выписки: status() — running, догнал журнал; lockTimeout 1000 мс, lockRetries 3');
+  const statement = async () => (await call(cookie, '/api/wallets')).data;
+  const topups = async () => (await statement()).statements.find((s) => s.wallet === 'W-1' && s.month === month)?.topup ?? 0;
   const t0 = await topups();
-  const rb = await call(cookie, '/api/statement/rebuild', {});
-  check(rb.status === 200 && rb.data.created > 0 && (await topups()) === t0, 'перестроить выписку — rebuild(): строки построены заново, итоги те же');
+  await call(cookie, '/api/topup', { wallet: w1.id, amount: 700, card, opId: `st-${run}` });
+  check((await topups()) === t0 + 700, 'выписка — обычный запрос: пополнение 7 ₽ в выписке за месяц сразу, без ожидания');
+  // порядок выписки — месяц (новые сверху), в месяце — номер счёта
+  const lines = (await statement()).statements;
+  check(lines.length > 1 && lines.every((s, i) => i === 0 || lines[i - 1].month > s.month
+    || (lines[i - 1].month === s.month && lines[i - 1].wallet.localeCompare(s.wallet, 'ru', { numeric: true }) < 0)),
+    `выписка — по месяцам и номерам счетов (${lines.map((s) => `${s.month} ${s.wallet}`).join(', ')})`);
+  // баланс каждого счёта равен сумме его операций: inc в одном плане с операцией ничего не теряет (гонки, 40P01, обрывы)
+  const all = await statement();
+  const sums = new Map();
+  for (const s of all.statements) sums.set(s.wallet, (sums.get(s.wallet) ?? 0) + s.topup - s.debit);
+  check(all.wallets.every((w) => sums.get(w.number) === w.balance),
+    `баланс = сумма операций по выписке: ${all.wallets.map((w) => `${w.number} ${w.balance} = ${sums.get(w.number)}`).join(', ')}`);
 
-  // «чужая транзакция» из интерфейса: сначала держит горизонт (проектор не видит новых операций), после пополнения
-  // берёт строку выписки этого счёта (for update), горизонт закрывается — пачка доходит до пополнения и упирается в
-  // lockTimeout; после lockRetries проходов подряд арендатор выбывает (55P03), и сервис сам закрывает чужую транзакцию;
-  // rebuild({ tenant }) возвращает арендатора
-  const armed = await call(cookie, '/api/admin/hold', {});
-  check(armed.status === 200 && (await statusOf()).hold?.stage === 'armed', 'чужая транзакция: держит горизонт и ждёт пополнения');
-  await call(cookie, '/api/topup', { wallet: w1.id, amount: 700, card, opId: `ph-${run}` });
-  st = await statusOf();
-  check(st.hold?.stage === 'rows', 'после пополнения чужая транзакция держит строку выписки счёта');
-  for (let i = 0; i < 60 && !st.failed; i++) { await sleep(250); st = await statusOf(); }
-  check(st.failed?.code === '55P03' && /в течение 3 проходов подряд дольше lockTimeout/.test(st.failed.message),
-    `строку выписки держит чужая транзакция — после ${st.options.lockRetries} проходов дольше lockTimeout арендатор выбыл (status().failed, 55P03)`);
-  for (let i = 0; i < 20 && st.hold; i++) { await sleep(250); st = await statusOf(); }
-  check(!st.hold, 'арендатор выбыл — сервис сам закрыл чужую транзакцию');
-  const fix = await call(cookie, '/api/statement/rebuild', {});
-  const hoodFix = (await call(cookie, '/api/trace')).data?.[0];
-  check(fix.status === 200 && !(await statusOf()).failed && (await topups()) === t0 + 700 && hoodFix?.lines.some((l) => l.startsWith('statement.rebuild({ tenant })')),
-    'перестроить выписку — rebuild({ tenant }): отметка выбывшего снята, пополнение 7 ₽ в выписке');
-
-  // целостность — после всех записей сценария, обрывов и перестроек
-  const v = await call(cookie, '/api/admin/verify');
-  check(v.status === 200 && v.data.ok === true && v.data.issues.length === 0 && v.data.checked > 0 && /^[0-9a-f]{64}$/.test(v.data.anchor),
-    'verify({ data: true }) — нарушений нет: цепочки хэшей, данные, balance равен сумме операций');
-
-  // порча журнала в обход библиотеки: verify находит разрыв цепочки хэшей, «вернуть как было» отменяет
-  const bad = await call(cookie, '/api/admin/corrupt', {});
-  const v1 = await call(cookie, '/api/admin/verify');
-  check(bad.status === 200 && v1.data.ok === false && v1.data.issues.some((i) => i.label === bad.data.label && i.rev === bad.data.rev && /хэш/.test(i.problem)),
-    `испортить запись журнала: verify нашёл версию ${bad.data?.rev} счёта ${bad.data?.label} (${v1.data.issues.map((i) => i.problem).join('; ')})`);
-  const fixed = await call(cookie, '/api/admin/repair', {});
-  const v3 = await call(cookie, '/api/admin/verify');
-  check(fixed.status === 200 && v3.data.ok === true && v3.data.issues.length === 0, 'вернуть как было: нарушений снова нет');
+  // простой дольше срока сессии оператора — без ожидания: срок её сессий createTenant (без methods; веб-сессия входа по
+  // паролю не трогается) истекает в базе. Сервис держит подключение по ключу сервиса, а не по токену createTenant, —
+  // операции и выписка идут как прежде (план 2.0, 7.6 №5)
+  const sql = postgres(process.env.ADMIN_DSN ?? 'postgres://postgres:guide@127.0.0.1:15440/letopis', { max: 1, onnotice: () => {} });
+  const S = `"${schema.replace(/"/g, '""')}"`;
+  const expired = await sql.unsafe(`update ${S}.secret set expires_at = clock_timestamp() - interval '1 second'
+    where kind = 'SESSION' and not (meta ? 'methods') and account = (select account from ${S}.secret where kind = 'PASSWORD' and ident = $1)`, [OPERATOR.login])
+    .finally(() => sql.end({ timeout: 2 }));
+  const t1 = await topups();
+  const late = await call(cookie, '/api/topup', { wallet: w1.id, amount: 300, card, opId: `id-${run}` });
+  check(late.data?.result === 'проведено' && (await topups()) === t1 + 300,
+    `после простоя (истекло сессий createTenant: ${expired.count}): пополнение 3 ₽ проведено и сразу в выписке`);
 } catch (e) {
   failures.push(String(e?.stack ?? e));
   console.log(`✗ сценарий упал: ${e?.stack ?? e}`);

@@ -66,9 +66,9 @@ export default example({
     {
       title: 'Модели — для типов, service — то же, что apiKey',
       text:
-        '`models` нужны только для TypeScript: цепочки получают типы полей. Описания классов база берёт у себя. ' +
-        '`service` — то же, что `apiKey`. `maintain: \'1h\'` запускает обслуживание по расписанию (истёкшие сессии, ' +
-        'прореживание журнала).',
+        '`models` нужны только для TypeScript: цепочки получают строгие типы классов и полей. Описания классов база ' +
+        'берёт у себя. `service` — то же, что `apiKey`. `maintain: \'1h\'` запускает обслуживание по расписанию ' +
+        '(истёкшие и погашенные сессии и коды).',
       run: async ({ connect, dsn, schema, up }) => {
         const svc = await connect({ dsn: dsn.app, schema, service: up.serviceKey!, models: [Product], maintain: '1h' });
         return { tenant: svc.tenant, schema: svc.schema };

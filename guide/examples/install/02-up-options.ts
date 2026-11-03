@@ -5,14 +5,14 @@ import { example } from '../../kit/example.ts';
 const MY_KEY = 'lts_' + '0123456789abcdef'.repeat(2);
 
 export default example({
-  title: 'Опции up(): сиды, режим сигналов, свой ключ, история, обновление, установка заново',
+  title: 'Опции up(): сиды, режим сигналов, свой ключ, обновление, установка заново',
   summary:
     'up() настраивает установку опциями. Часть настроек хранится в самой схеме (режим сигналов), поэтому ' +
     'повторный up() без опции их не меняет. fresh ставит схему заново и стирает данные.',
   setup: 'none',
   tables: ['counts'],
   covers: [
-    'up.seeds', 'up.signals', 'up.serviceKey', 'up.allowReset', 'up.history', 'up.upgrade', 'up.fresh',
+    'up.seeds', 'up.signals', 'up.serviceKey', 'up.upgrade', 'up.fresh',
     'up.waitTimeoutMs', 'signals.tenant', 'signals.opaque', 'nuance.signals-mode-sticky', 'nuance.fresh-drops-data',
     'nuance.up-concurrent',
   ],
@@ -21,16 +21,14 @@ export default example({
       title: 'Установка с готовой моделью салона и своими настройками',
       text:
         '`seeds: [\'booking\']` добавляет готовые классы салона (мастера, услуги, брони) — в сводке классов стало ' +
-        'больше. `signals` — режим сигналов, `serviceKey` — свой ключ вместо случайного, `allowReset` разрешает ' +
-        '`db.reset()`, `history` — политика хранения истории для классов без своей, `waitTimeoutMs` — сколько ждать базу.',
+        'больше. `signals` — режим сигналов, `serviceKey` — свой ключ вместо случайного, `waitTimeoutMs` — сколько ждать ' +
+        'базу. Неизвестную опцию `up()` отклоняет до подключения — `invalid_data` с похожими именами.',
       run: async ({ dsn, schema }) => {
         const r = await up({
           dsn: dsn.admin, schema, quiet: true, waitTimeoutMs: 10_000,
           seeds: ['booking'],
           signals: 'tenant',
           serviceKey: MY_KEY,
-          allowReset: true,
-          history: { all: '1 day', daily: '1 week', weekly: '1 month', monthly: '1 year', yearly: 'forever', tz: 'Europe/Moscow' },
         });
         return { created: r.created, signals: r.signals, ourKey: r.serviceKey === MY_KEY };
       },

@@ -7,7 +7,10 @@ import { api, rub, when } from '@/lib/api';
 
 type Deleted = { id: string; class: string; number: string; title: string; amount: number; at: string; who: string };
 
-/** Корзина: удалённые документы (withDeleted) — восстановить (restore) или стереть историю навсегда (purge). */
+/**
+ * Корзина: удалённые документы (withDeleted) — восстановить (restore) с прежним id. Надгробия подписанных черновиков здесь
+ * нет: это не удаление — документ живёт договором.
+ */
 export function Trash({ tick, onChanged }: { tick: number; onChanged: () => void }) {
   const [rows, setRows] = useState<Deleted[]>([]);
   const load = () => api<Deleted[]>('/api/trash').then(setRows, (e) => toast.error(e.message));
@@ -22,7 +25,8 @@ export function Trash({ tick, onChanged }: { tick: number; onChanged: () => void
         <CardTitle>Корзина</CardTitle>
         <CardDescription>
           Удалённый документ — надгробие в журнале: <code>withDeleted()</code> его находит, <code>restore()</code> возвращает
-          с прежним id. <code>purge()</code> стирает историю удалённого целиком — вернуть уже нельзя.
+          с прежним id. История удалённого остаётся в журнале целиком. Подписанного черновика здесь нет: он не удалён, а
+          стал договором.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -35,7 +39,6 @@ export function Trash({ tick, onChanged }: { tick: number; onChanged: () => void
                 <TableCell>{r.who}</TableCell><TableCell>{when(r.at)}</TableCell>
                 <TableCell className="flex gap-1">
                   <Button size="sm" variant="secondary" onClick={() => act(`/api/trash/${r.id}/restore`, `${r.number} восстановлен`)}>Восстановить</Button>
-                  <Button size="sm" variant="destructive" onClick={() => act(`/api/trash/${r.id}/purge`, `История ${r.number} стёрта`)}>Стереть навсегда</Button>
                 </TableCell>
               </TableRow>))}</TableBody>
           </Table>)}

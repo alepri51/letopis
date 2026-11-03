@@ -1,19 +1,23 @@
 import {
   idOf, uuidv5, v5Name, hashPassword, verifyHash, compileValidator, applyDefaults, ValidationError, generateTypes, schemaToTs,
-  Registry, CHAIN_METHODS, DB_METHODS, RESERVED_CLASS_NAMES, DDL_REVISION,
+  Registry, CHAIN_METHODS, DB_METHODS, RESERVED_CLASS_NAMES, DDL_REVISION, loose,
 } from 'letopis';
+import { hub } from 'letopis/model';
+import { z } from 'zod';
 import { example } from '../../kit/example.ts';
-import { syncShop } from '../../kit/shop.ts';
+import { syncShop, shopModels } from '../../kit/shop.ts';
 
 export default example({
-  title: 'Служебные экспорты: id из ключа, пароли, валидатор, типы, зарезервированные имена',
+  title: 'Служебные экспорты: id из ключа, пароли, валидатор, типы, строгие типы, зарезервированные имена',
   summary:
     'Помимо connect и цепочек пакет отдаёт помощников: вычислить id объекта по ключу без запроса, захэшировать ' +
-    'пароль, проверить данные тем же валидатором, что и база, сгенерировать типы TypeScript, узнать занятые имена.',
+    'пароль, проверить данные тем же валидатором, что и база, сгенерировать типы TypeScript, снять строгие типы ' +
+    'для имени из переменной, узнать занятые имена.',
   tables: [],
   covers: ['export.idOf', 'export.uuidv5', 'export.v5Name', 'export.hashPassword', 'export.verifyHash', 'export.compileValidator',
     'export.applyDefaults', 'export.ValidationError', 'export.generateTypes', 'export.schemaToTs', 'export.Registry',
-    'export.CHAIN_METHODS', 'export.DB_METHODS', 'export.RESERVED_CLASS_NAMES', 'export.DDL_REVISION', 'export.connect'],
+    'export.CHAIN_METHODS', 'export.DB_METHODS', 'export.RESERVED_CLASS_NAMES', 'export.DDL_REVISION', 'export.connect',
+    'export.loose', 'connect.models', 'nuance.strict-types-loose'],
   steps: [
     {
       title: 'id объекта по ключу — без запроса к базе',
@@ -74,13 +78,35 @@ export default example({
       }),
     },
     {
+      title: 'Строгие типы и loose(db)',
+      text:
+        'Подключение с моделями (`connect({ models })`) или с объявлениями `letopis types` (`connect<Models>()`) — со ' +
+        'строгими типами: опечатку в имени класса, роли или поля TypeScript находит при компиляции. Имя, известное ' +
+        'только во время выполнения (из настроек, из запроса), — `loose(db)[имя]()`: то же подключение без строгих ' +
+        'типов, проверки во время выполнения те же.',
+      run: async ({ connect, dsn, schema, up }) => {
+        const typed = await connect({ dsn: dsn.app, schema, token: up.tenant!.token!, models: shopModels });
+        const shops = await typed.Shop({ name: 'Ромашка' }).count(); // класс Shop есть в моделях — типы строгие
+        const name: string = 'Shop'; // имя из переменной
+        return { 'typed.Shop(…).count()': shops, 'loose(typed) — тот же объект': loose(typed) === typed, 'loose(typed)[name]().count()': await loose(typed)[name]().count() };
+      },
+    },
+    {
       title: 'Зарезервированные имена и ревизия движка',
-      text: 'Имена методов цепочки и `db` не дают классам: связь с таким именем база отклоняет, а хаб с ним создаётся, но цепочка дойдёт до него не всегда — библиотека сначала ищет метод с таким именем и только потом класс.',
+      text:
+        'Имена методов цепочки и `db` классам не дают: библиотека разбирает их раньше классов. Хаб с таким именем ' +
+        'отклоняют `hub()`, `syncModels` и база, связь — база (`invalid_class`).',
       run: async () => ({
         'методов цепочки': CHAIN_METHODS.length, 'методов db': DB_METHODS.length,
         'зарезервировано имён': RESERVED_CLASS_NAMES.length, 'среди них where?': RESERVED_CLASS_NAMES.includes('where'),
         'ревизия движка': DDL_REVISION,
       }),
+    },
+    {
+      title: 'Хаб с зарезервированным именем — отказ',
+      text: '`hub("count", …)` отказывает сразу, до базы: шаг `db.count()` цепочка приняла бы за метод.',
+      run: async () => hub('count', { n: z.number() }, {}),
+      expect: { error: 'invalid_class' },
     },
   ],
 });

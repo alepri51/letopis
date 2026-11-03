@@ -32,7 +32,7 @@ jobs:
           --health-cmd "pg_isready -U postgres -d letopis"
           --health-interval 5s --health-timeout 5s --health-retries 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -50,15 +50,20 @@ jobs:
           gh release edit "${{ github.event.release.tag_name }}" --notes-file RELEASE_NOTES.md
           echo "::notice::тело релиза взято из lib/CHANGELOG.md"
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
           cache: npm
           cache-dependency-path: lib/package-lock.json
+      # setup-node v7 больше не выставляет заглушку NODE_AUTH_TOKEN (actions/setup-node#1558), а .npmrc
+      # от registry-url ссылается на неё. npm ci получает заглушку, как было при v4: настоящий токен —
+      # только у шага публикации, скрипты установки зависимостей его не видят.
       - name: Install
         working-directory: lib
         run: npm ci
+        env:
+          NODE_AUTH_TOKEN: XXXXX-XXXXX-XXXXX-XXXXX
       # Шаг версии против прошлого выпуска (README, «Версии и совместимость»): контракт API и ревизия
       # движка из тега этой версии сравниваются с тегом прошлого выпуска; неверный шаг — публикации нет.
       - name: Check semver

@@ -21,7 +21,7 @@ export default example({
     },
     {
       title: 'Два товара',
-      text: 'Ссылка на магазин берётся из пути цепочки `db.Shop(shop).Product()`.',
+      text: 'Конец `Shop` (магазин) берётся из пути цепочки `db.Shop(shop).Product()`.',
       run: async ({ db }) => {
         [kettle] = await db.Shop(shop).Product()
           .create({ sku: 'K-1', title: 'Чайник', price: 2500, specs: { color: 'белый', volume: 1.7 }, labels: ['хит'] }).rows();

@@ -118,16 +118,6 @@ test('№6 погашенная сессия: каждый путь — след
     ['выход везде', async (_a, u) => u.auth.revokeAll()],
     ['отключение аккаунта', async (a) => e.asOwner((tx) => tx.unsafe(`update ${e.S}.entity set data = data || '{"enabled": false}' where id = $1`, [a.id]))
       .then(() => e.sql.unsafe(`select ${e.S}.auth_kill($1, null)`, [a.id]).catch(() => null))],
-    ['reset sessions', async () => {
-      const { sysadmin } = await import('./_access.js');
-      const ad = await sysadmin(e, 'cache-admin');
-      const adb = await connect({ dsn: appDsn(), schema: e.schema, token: ad.token, max: 1 });
-      try {
-        await adb.reset({ level: 'sessions', confirm: e.schema });
-      } finally {
-        await adb.close();
-      }
-    }],
   ];
   for (const [name, kill] of paths) {
     const a = await account(e, `s-${name}`);
@@ -147,16 +137,6 @@ test('№6 погашенная сессия: каждый путь — след
       assert.deepEqual(await udb.Item().cache().rows(), [], name);
     } finally {
       await udb.close();
-    }
-    // снова сессия админа таблицы: reset sessions погасил и сессию арендатора теста
-    if (name === 'reset sessions') {
-      const [{ tok: nt }] = await e.sql.unsafe(`select ${e.S}.new_session($1::uuid, interval '1 day', '{}') as tok`, [t.id]);
-      t.token = nt as string;
-      await db.close();
-      await other.close();
-      db = await connect({ dsn: appDsn(), schema: e.schema, token: t.token, max: 4, notifyIntervalMs: 10, onQuery: (ev) => events.push(ev) });
-      other = await connect({ dsn: appDsn(), schema: e.schema, token: t.token, max: 2, notifyIntervalMs: 10 });
-      await until(() => db.cache.stats().enabled);
     }
   }
 });
@@ -278,7 +258,24 @@ test('№17 (ревью №1 точки А): заливка разными по�
   assert.equal(c.get('k'), undefined, 'настоящий сигнал по-прежнему сбрасывает ответ');
 });
 
-test('№14 каскад и смена класса: сразу после фиксации сброшены ответы всех задетых классов', async () => {
+test('№18 (план 2.0, 7.7 — находка долгого прогона): гашения чужих сессий не растят счётчики кэша, гашение своей по-прежнему сбрасывает', () => {
+  const c = new ResultCache();
+  c.listen();
+  const own = 'a'.repeat(16);
+  const m = c as unknown as Record<'sessionEpoch', Map<string, number>>;
+  const tok = c.token(['Item'], own);
+  // вход и выход пользователей сервиса: 20 000 гашений сессий, которые через этот кэш не читали (прежде — 20 000 записей)
+  for (let i = 0; i < 20_000; i++) c.signal(`session:${i.toString(16).padStart(16, '0')}`);
+  assert.equal(m.sessionEpoch.size, 1, 'счётчик — только у сессии запроса');
+  assert.equal(c.set('k', [1], ['Item'], own, tok, 60_000, null), true, 'чужие гашения ответ не портят');
+  const tok2 = c.token(['Item'], own);
+  c.signal(`session:${own}`);
+  assert.equal(c.set('k2', [1], ['Item'], own, tok2, 60_000, null), false, 'ответ, начатый до гашения своей сессии, в кэш не кладётся');
+  assert.equal(c.get('k'), undefined, 'ответы погашенной сессии сброшены');
+  assert.equal(m.sessionEpoch.size, 1);
+});
+
+test('№14 каскад: сразу после фиксации сброшены ответы всех задетых классов', async () => {
   const [it] = await db.Item().create({ n: 140 }).rows();
   await db.Item(it.id).Part().create({ n: 1 }).rows();
   db.cache.clear();
@@ -287,12 +284,6 @@ test('№14 каскад и смена класса: сразу после фи�
   await db.Item(it.id).delete({ confirm: true }).rows();
   assert.equal(db.cache.stats().size, 0, 'каскад удалил Part — его ответы сброшены');
   assert.ok(!(await db.Part().cache().rows()).some((r) => r.links.Item === it.id));
-  await e.defineClass(t, { name: 'Item2', kind: 'hub', fields: { properties: { n: { type: 'integer' }, kind: { type: 'string' } } } });
-  await db.refresh();
-  const [x] = await db.Item().create({ n: 141 }).rows();
-  await db.Item2().cache().rows();
-  await db.Item(x.id).reclass('Item2').rows();
-  assert.ok((await db.Item2().cache().rows()).some((r) => r.id === x.id));
 });
 
 /** Сырой SQL через db.sql с готовым текстом (имя схемы — не значение, а часть текста). */

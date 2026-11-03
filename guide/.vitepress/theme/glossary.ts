@@ -10,11 +10,15 @@ interface Term { words: string[]; def: string }
 /** Markdown ячейки → простой текст: ссылки, код и жирный — без разметки. */
 const plain = (s: string) => s.replace(/\[([^\]]+)\]\([^)]*\)/g, '$1').replace(/`([^`]+)`/g, '$1').replace(/\*\*([^*]+)\*\*/g, '$1').trim();
 
-/** Строки таблицы «Термин | Что это | Где подробнее»; варианты термина — через запятую, пояснения в скобках — не термин. */
-const TERMS: Term[] = raw.split('\n')
+/** Строки таблицы «Термин | Что это | Где подробнее» (колонки — по заголовку); варианты термина — через запятую, пояснения в скобках — не термин. */
+const lines = raw.split('\n');
+const head = (lines.find((l) => l.startsWith('| Термин')) ?? '').split('|').map((c) => c.trim());
+const [TERM, DEF] = [head.indexOf('Термин'), head.indexOf('Что это')];
+const TERMS: Term[] = lines
   .filter((l) => l.startsWith('| ') && !l.startsWith('| Термин'))
   .map((l) => l.split('|').map((c) => c.trim()))
-  .map(([, term = '', def = '']) => ({
+  .map((cells) => ({ term: cells[TERM] ?? '', def: cells[DEF] ?? '' }))
+  .map(({ term, def }) => ({
     words: term.replace(/\([^)]*\)/g, '').split(',').map(plain).filter((w) => w.length >= 3),
     def: plain(def),
   }))

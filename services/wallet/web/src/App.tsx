@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,12 +19,6 @@ type M = { id: string; wallet: string; opId: string; kind: string; amount: numbe
 type S = { wallet: string; month: string; topup: number; debit: number; count: number };
 type Data = { wallets: W[]; movements: M[]; statements: S[] };
 type Version = { rev: number; op: string; balance: number; reason: string; at: string };
-/** Состояние проектора выписки (status()) и его опции; failed — арендатор сессии выбыл. */
-type Status = { state: string; version: number | null; cursor: string | null; at: string | null; lag: number;
-  failed: { code: string; message: string } | null; options: { lockTimeout: number; lockRetries: number };
-  /** «Чужая транзакция»: armed — держит горизонт и ждёт пополнения, rows — держит строку выписки. */
-  hold: { stage: 'armed' | 'rows'; since: string } | null };
-type Verify = { ok: boolean; checked: number; anchor: string; issues: { id: string; rev: number | null; class: string; problem: string; label: string }[] };
 type ApiError = Error & { status?: number; code?: string };
 
 async function api<T>(path: string, body?: unknown): Promise<T> {
@@ -35,6 +28,8 @@ async function api<T>(path: string, body?: unknown): Promise<T> {
   return data as T;
 }
 const rub = (k: number) => `${(k / 100).toLocaleString('ru-RU', { minimumFractionDigits: 2 })} ₽`;
+/** Время версии (at библиотеки — ISO в UTC) — местное, как в «Под капотом». */
+const clock = (iso: string) => new Date(iso).toLocaleTimeString('ru-RU');
 const newOp = () => `op-${Date.now().toString(36)}`;
 
 export default function App() {
@@ -64,59 +59,29 @@ function Billing({ me }: { me: { name: string } }) {
   // счёт в диалоге владельца — снимок на момент открытия: его rev и есть «прочитанная версия»
   const [owner, setOwner] = useState<W | null>(null);
   const [drop, setDrop] = useState<W | null>(null);
-  const [status, setStatus] = useState<Status | null>(null);
-  const [verify, setVerify] = useState<Verify | null>(null);
   const reload = useCallback(async () => { setData(await api<Data>('/api/wallets')); setTrace(await api<Trace[]>('/api/trace')); }, []);
   useEffect(() => {
     reload();
     const es = new EventSource('/api/events');
     es.addEventListener('ready', () => setLive(true));
     es.addEventListener('changed', () => { reload(); });
-    return () => es.close();
-  }, [reload]);
-  // состояние проектора — раз в 2 с; курсор сдвинулся — проектор записал пачку, выписку перечитать (у Statement нет
-  // журнала, подписка о нём не сообщает)
-  const cursor = useRef<string | null>(null);
-  useEffect(() => {
-    const poll = () => api<Status>('/api/statement').then((st) => {
-      setStatus(st);
-      if (cursor.current !== null && cursor.current !== st.cursor) reload();
-      cursor.current = st.cursor;
-    }, () => {});
-    poll();
-    const id = setInterval(poll, 2000);
-    return () => clearInterval(id);
+    // поток закрылся — сервер закрывает его вместе с веб-сессией (выход, в том числе в другой вкладке): вошёл другой или
+    // никто — страница заново, иначе данные новой сессии того же браузера оказались бы под прежней шапкой
+    es.onerror = () => {
+      setLive(false);
+      api<{ name: string } | null>('/api/me').then((m) => { if (m?.name !== me.name) location.reload(); }, () => {});
+    };
+    // уход со страницы (переход на /logout) — поток закрыть сразу: иначе сервер, закрывая его вместе с сессией, будил бы
+    // onerror, и перезагрузка перебивала бы начатый переход
+    const leave = () => es.close();
+    addEventListener('beforeunload', leave);
+    return () => {
+      removeEventListener('beforeunload', leave);
+      es.close();
+    };
   }, [reload]);
   if (!data) return null;
   const total = data.wallets.reduce((s, w) => s + w.balance, 0);
-  const rebuild = async () => {
-    try { const r = await api<{ changes: number; created: number }>('/api/statement/rebuild', {}); toast.success(`Выписка перестроена: операций ${r.changes}, строк выписки ${r.created}`); }
-    catch (e) { toast.error((e as Error).message); }
-    reload();
-  };
-  const check = async () => {
-    try { setVerify(await api<Verify>('/api/admin/verify')); } catch (e) { toast.error((e as Error).message); }
-    reload();
-  };
-  const refreshStatus = () => api<Status>('/api/statement').then(setStatus, () => {});
-  const arm = async () => {
-    try { await api('/api/admin/hold', {}); toast.message('Чужая транзакция держит горизонт — теперь пополните счёт'); }
-    catch (e) { toast.error((e as Error).message); }
-    refreshStatus();
-  };
-  const release = async () => {
-    try { await api('/api/admin/hold/release', {}); toast.success('Чужая транзакция закрыта'); } catch (e) { toast.error((e as Error).message); }
-    refreshStatus();
-  };
-  const corrupt = async () => {
-    try { const r = await api<{ label: string; rev: number }>('/api/admin/corrupt', {}); toast.warning(`Запись журнала: счёт ${r.label}, версия ${r.rev} испорчена прямым UPDATE`); }
-    catch (e) { toast.error((e as Error).message); }
-    await check();
-  };
-  const repair = async () => {
-    try { await api('/api/admin/repair', {}); toast.success('Возвращено как было'); } catch (e) { toast.error((e as Error).message); }
-    await check();
-  };
   const remove = async (w: W) => {
     setDrop(null);
     try { await api(`/api/wallets/${w.id}/delete`, {}); toast.success(`Счёт ${w.number} удалён`); }
@@ -130,7 +95,7 @@ function Billing({ me }: { me: { name: string } }) {
         menu={[{ title: 'Счета', url: '/' }, { title: live ? 'Живое обновление включено' : 'Подключается…', url: '/' }]}
         auth={{ login: { title: 'Документация', url: 'http://127.0.0.1:8080/services/wallet' }, signup: { title: 'Выйти', url: '/logout' } }} />
       <Stats8 className="mb-6 py-6" heading="Деньги без двойного списания"
-        description="Баланс — сумма операций, её держит сама база. Повтор операции с тем же opId ничего не спишет второй раз."
+        description="Операция и приращение баланса (inc) — одна транзакция, уход в минус отклоняет база. Повтор операции с тем же opId ничего не спишет второй раз."
         link={{ text: 'Как устроен сервис', url: 'http://127.0.0.1:8080/services/wallet' }}
         stats={[
           { id: 'total', value: rub(total), label: 'на всех счетах' },
@@ -165,64 +130,24 @@ function Billing({ me }: { me: { name: string } }) {
             <CardHeader><CardTitle>Последние операции</CardTitle></CardHeader>
             <CardContent><Table>
               <TableHeader><TableRow><TableHead>когда</TableHead><TableHead>счёт</TableHead><TableHead>opId</TableHead><TableHead>вид</TableHead><TableHead className="text-right">сумма</TableHead></TableRow></TableHeader>
-              <TableBody>{data.movements.map((m) => <TableRow key={m.id}><TableCell>{m.at}</TableCell><TableCell>{m.wallet}</TableCell><TableCell className="font-mono text-xs">{m.opId}</TableCell>
+              <TableBody>{data.movements.map((m) => <TableRow key={m.id}><TableCell>{clock(m.at)}</TableCell><TableCell>{m.wallet}</TableCell><TableCell className="font-mono text-xs">{m.opId}</TableCell>
                 <TableCell><Badge variant="outline">{m.kind}{m.card4 ? ` ·${m.card4}` : ''}</Badge></TableCell><TableCell className="text-right tabular-nums">{rub(m.amount)}</TableCell></TableRow>)}</TableBody>
             </Table></CardContent>
           </Card>
           <Card>
-            <CardHeader><CardTitle>Выписка по месяцам</CardTitle><CardDescription>Пишет проектор statement из журнала операций — с небольшим отставанием. Чужую блокировку строки выписки пачка ждёт не дольше lockTimeout; после lockRetries таких проходов подряд арендатор выбывает до перестройки. Проверить: «Чужая транзакция: занять выписку», затем пополнение.</CardDescription></CardHeader>
-            <CardContent className="grid gap-3">
-              {status && (
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground" data-status={status.state}>
-                  <Badge variant="outline">status(): {status.state}</Badge>
-                  <span>версия {status.version ?? '—'}</span>
-                  <span data-lag={status.lag}>отставание {status.lag} мс</span>
-                  <span>проход {status.at ? status.at.slice(11, 19) : '—'}</span>
-                  <span>lockTimeout {status.options.lockTimeout} мс · lockRetries {status.options.lockRetries}</span>
-                </div>)}
-              {status?.failed && (
-                <Alert variant="destructive" data-failed={status.failed.code}>
-                  <AlertTitle>Выписка остановлена: {status.failed.code}</AlertTitle>
-                  <AlertDescription>{status.failed.message}. Изменения пропускаются до перестройки — «Перестроить выписку» (rebuild({'{'} tenant {'}'})).</AlertDescription>
-                </Alert>)}
+            <CardHeader><CardTitle>Выписка по месяцам</CardTitle><CardDescription>Обычный запрос на чтение: операции сведены по счёту и месяцу (group by под правами сессии) при каждом показе — выписка всегда совпадает с операциями.</CardDescription></CardHeader>
+            <CardContent>
               <Table>
                 <TableHeader><TableRow><TableHead>месяц</TableHead><TableHead>счёт</TableHead><TableHead className="text-right">пополнено</TableHead><TableHead className="text-right">списано</TableHead><TableHead className="text-right">операций</TableHead></TableRow></TableHeader>
                 <TableBody>{data.statements.map((s, i) => <TableRow key={i}><TableCell>{s.month}</TableCell><TableCell>{s.wallet}</TableCell><TableCell className="text-right" data-topup={s.wallet}>{rub(s.topup)}</TableCell><TableCell className="text-right">{rub(s.debit)}</TableCell><TableCell className="text-right">{s.count}</TableCell></TableRow>)}</TableBody>
               </Table>
-              {status?.hold && (
-                <Alert data-hold={status.hold.stage}>
-                  <AlertTitle>{status.hold.stage === 'armed' ? 'Чужая транзакция держит горизонт' : 'Чужая транзакция держит строку выписки'}</AlertTitle>
-                  <AlertDescription>{status.hold.stage === 'armed'
-                    ? 'Пока она открыта, проектор не видит новых операций. Пополните счёт: после пополнения она займёт строку выписки этого счёта за месяц.'
-                    : `Пачка проектора ждёт строку не дольше lockTimeout; после ${status.options.lockRetries} таких проходов подряд арендатор выбудет (55P03), и чужая транзакция закроется сама.`}</AlertDescription>
-                </Alert>)}
-              <div className="flex flex-wrap gap-2">
-                <Button size="sm" variant="outline" data-act="rebuild" onClick={rebuild}>Перестроить выписку</Button>
-                {status?.hold
-                  ? <Button size="sm" variant="secondary" data-act="release" onClick={release}>Отпустить чужую транзакцию</Button>
-                  : <Button size="sm" variant="outline" data-act="hold" onClick={arm}>Чужая транзакция: занять выписку</Button>}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader><CardTitle>Целостность</CardTitle><CardDescription>verify({'{'} data: true {'}'}) администраторским подключением: цепочки хэшей журнала, данные против описаний классов, баланс каждого счёта против суммы его операций. «Испортить запись журнала» меняет баланс в старой версии счёта прямым UPDATE в обход библиотеки — как правка руками в SQL.</CardDescription></CardHeader>
-            <CardContent className="grid gap-3">
-              <div className="flex flex-wrap gap-2">
-                <Button size="sm" data-act="verify" onClick={check}>Проверить целостность</Button>
-                <Button size="sm" variant="destructive" data-act="corrupt" onClick={corrupt}>Испортить запись журнала</Button>
-                <Button size="sm" variant="outline" data-act="repair" onClick={repair}>Вернуть как было</Button>
-              </div>
-              {verify && (verify.ok
-                ? <Alert data-verify="ok"><AlertTitle>Нарушений нет</AlertTitle><AlertDescription>Проверено версий: {verify.checked}. Цепочки хэшей сходятся, балансы равны сумме операций. Якорь {verify.anchor.slice(0, 16)}… — один хэш текущих версий всех объектов: храните его вне базы, тогда заметна и подмена самых свежих версий.</AlertDescription></Alert>
-                : <Alert variant="destructive" data-verify="issues"><AlertTitle>Найдены нарушения: {verify.issues.length}</AlertTitle>
-                    <AlertDescription><ul>{verify.issues.map((i, k) => <li key={k}>{i.class} {i.label} v{i.rev ?? '—'}: {i.problem}</li>)}</ul></AlertDescription></Alert>)}
             </CardContent>
           </Card>
         </div>
         <UnderHood trace={trace} height="h-[640px]" empty="Пока пусто — проведите операцию."
           description="Цепочки, запросы к базе, записанные версии и сигналы классов, которые записало действие." />
       </div>
-      <OpDialog dlg={dlg} wallets={data.wallets} onClose={() => setDlg(null)} onDone={() => { setDlg(null); reload(); }} />
+      <OpDialog dlg={dlg} wallets={data.wallets} onClose={() => setDlg(null)} onDone={() => { setDlg(null); reload(); }} onFail={reload} />
       <OwnerDialog wallet={owner} onClose={() => setOwner(null)} onDone={() => { setOwner(null); reload(); }} />
       <Dialog open={drop !== null} onOpenChange={(o) => !o && setDrop(null)}>
         <DialogContent><DialogHeader><DialogTitle>Удалить счёт {drop?.number}?</DialogTitle>
@@ -231,9 +156,9 @@ function Billing({ me }: { me: { name: string } }) {
         </DialogContent>
       </Dialog>
       <Dialog open={history !== null} onOpenChange={(o) => !o && setHistory(null)}>
-        <DialogContent><DialogHeader><DialogTitle>История баланса</DialogTitle><DialogDescription>Каждое изменение баланса — версия кошелька с причиной операции.</DialogDescription></DialogHeader>
+        <DialogContent><DialogHeader><DialogTitle>История баланса</DialogTitle><DialogDescription>Каждое изменение баланса — версия кошелька с причиной операции: inc пишет её в той же транзакции, что и операцию.</DialogDescription></DialogHeader>
           <Table><TableHeader><TableRow><TableHead>rev</TableHead><TableHead>баланс</TableHead><TableHead>причина</TableHead><TableHead>когда</TableHead></TableRow></TableHeader>
-            <TableBody>{(history ?? []).map((v) => <TableRow key={v.rev}><TableCell>{v.rev}</TableCell><TableCell>{rub(v.balance)}</TableCell><TableCell>{v.reason}</TableCell><TableCell>{v.at}</TableCell></TableRow>)}</TableBody></Table>
+            <TableBody>{(history ?? []).map((v) => <TableRow key={v.rev}><TableCell>{v.rev}</TableCell><TableCell>{rub(v.balance)}</TableCell><TableCell>{v.reason}</TableCell><TableCell>{clock(v.at)}</TableCell></TableRow>)}</TableBody></Table>
         </DialogContent>
       </Dialog>
     </div>
@@ -243,7 +168,7 @@ function Billing({ me }: { me: { name: string } }) {
 /** Обрыв связи с базой на COMMIT (пополнение): связь рвёт TCP-прокси сервиса. */
 const CUTS = [['', 'нет'], ['before', 'до COMMIT — база его не получит'], ['after', 'после COMMIT — база зафиксирует, ответ не дойдёт']] as const;
 
-function OpDialog({ dlg, wallets, onClose, onDone }: { dlg: { kind: 'topup' | 'debit' | 'transfer'; wallet: W } | null; wallets: W[]; onClose: () => void; onDone: () => void }) {
+function OpDialog({ dlg, wallets, onClose, onDone, onFail }: { dlg: { kind: 'topup' | 'debit' | 'transfer'; wallet: W } | null; wallets: W[]; onClose: () => void; onDone: () => void; onFail: () => void }) {
   const [amount, setAmount] = useState('');
   const [card, setCard] = useState('');
   const [exp, setExp] = useState('');
@@ -277,6 +202,9 @@ function OpDialog({ dlg, wallets, onClose, onDone }: { dlg: { kind: 'topup' | 'd
       onDone();
     } catch (err) {
       const e2 = err as ApiError;
+      // диалог остаётся открытым, а «Под капотом» и счета перечитываются: отказ (например, invalid_data — нехватка
+      // средств) ничего не записал, и подписка о нём не сообщит
+      onFail();
       if (e2.status === 504) { toast.warning(`${e2.message}. Нажмите «Провести» ещё раз — тот же opId.`); setLose(false); return; }
       toast.error(e2.message);
     } finally {

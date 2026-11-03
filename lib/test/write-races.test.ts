@@ -9,12 +9,12 @@
  * - гонка 10: загрузчик и ужесточение описания класса — в обоих порядках строка, не проходящая новое
  *   описание, не появляется.
  * - гонка 17: загрузчик с existing: 'update' и параллельная правка того же объекта — обе версии
- *   в журнале, ни одна правка не потеряна, verify() чист.
+ *   в журнале, ни одна правка не потеряна, журнал цел (номера версий подряд, строка — последняя версия).
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import postgres from 'postgres';
-import { engine, waitForLock, lt, type Engine, type Tenant } from './_engine.js';
+import { engine, journalIssues, waitForLock, lt, type Engine, type Tenant } from './_engine.js';
 import { ADMIN_DSN, appDsn } from './_harness.js';
 import { connect, type Db, type Row } from '../src/index.js';
 
@@ -32,10 +32,7 @@ const code = (c: string) => (err: { code?: string }) => {
   assert.equal(err.code, c, String((err as Error).message));
   return true;
 };
-const verifyOk = async () => {
-  const [{ v }] = await e.sql.unsafe(`select ${S}.verify() as v`);
-  assert.equal(v.ok, true, JSON.stringify(v.issues));
-};
+const journalOk = async () => assert.deepEqual(await journalIssues(e.sql, S), []);
 const docRequired = (required: string[]) =>
   `update ${S}.entity set data = ${S}.merge(data, '${JSON.stringify({ fields: { required } })}') where class = 'Class' and tenant = '${t.id}' and data->>'name' = 'Doc'`;
 
@@ -99,7 +96,7 @@ test('4.3 двадцать соединений правят разные пол
   assert.equal(now.rev, N + 1, 'по версии на правку');
   const revs = (await db.Card(card.id).versions()).map((v) => v.rev);
   assert.deepEqual(revs, Array.from({ length: N + 1 }, (_, i) => i + 1), 'журнал без пропусков и повторов');
-  await verifyOk();
+  await journalOk();
 });
 
 test('4.3 строгий режим: двадцать правок с одним прочитанным rev — ровно одна проходит, прочие conflict', async () => {
@@ -152,7 +149,7 @@ test('4.4 / гонка 11: параллельные add и remove множест
     const variants = [[...rest].sort(), [...rest, z].sort()].map((v) => JSON.stringify(v));
     assert.ok(variants.includes(JSON.stringify([...fin].sort())), `раунд ${round}: итог ${fin.length} концов — не последовательный`);
   }
-  await verifyOk();
+  await journalOk();
 });
 
 test('гонка 10: загрузчик и ужесточение описания класса — несоответствующая строка не появляется', async () => {
@@ -183,7 +180,7 @@ test('гонка 10: загрузчик и ужесточение описани
   // описание не ужесточилось: строка без a по-прежнему допустима
   await db.Doc().create({ name: 'без-a-3' }).rows();
   assert.equal(await db.Doc({ name: 'без-a-2' }).count(), 1);
-  await verifyOk();
+  await journalOk();
 });
 
 test('гонка 17: загрузчик с existing: update и параллельная правка — обе версии в журнале, правки целы', async () => {
@@ -225,5 +222,5 @@ test('гонка 17: загрузчик с existing: update и параллел�
   const v2 = await db.Doc(d2.id).versions();
   assert.deepEqual(v2.map((v) => v.rev), [1, 2, 3]);
   assert.equal(v2[1].agent, 'letopis load');
-  await verifyOk();
+  await journalOk();
 });

@@ -19,12 +19,12 @@
  */
 import { randomUUID } from 'node:crypto';
 import type postgres from 'postgres';
-import { LetopisError, fromDbError, removed, type Issue } from './errors.js';
+import { LetopisError, checkOptions, fromDbError, issuesFromDb, lerr, lmsg, type Issue } from './errors.js';
 import { isOp } from './ops.js';
-import { Registry, aggregateFields, type ClassInfo, type EndInfo } from './registry.js';
+import { Registry, type ClassInfo, type EndInfo } from './registry.js';
 import { accepts } from './sql.js';
 import { v5Id } from './uuid.js';
-import { applyDefaults } from './validate.js';
+import { applyDefaults, leavesToDb } from './validate.js';
 import { isInc } from './write.js';
 import { ACL_CLASS_NAMES } from './types.js';
 import { isConnectionError, release, rollbackAfter } from './tx.js';
@@ -49,15 +49,13 @@ export interface LoadOptions {
    * переносят историю объектов из другой системы.
    */
   withHistory?: boolean;
-  /** В конце перепроверить загруженные строки проверкой базы. */
-  verify?: boolean;
   /** Класс строк без $class (CLI --class). */
   class?: string;
   /** Арендатор строк (по умолчанию — арендатор сессии). */
   tenant?: string;
   /**
    * Исполнитель записи — строка, которую журнал сохранит в поле `agent` загруженных версий рядом с автором (по умолчанию
-   * «letopis load»; импорт — «letopis import»).
+   * «letopis load»).
    */
   agent?: string;
   /**
@@ -67,12 +65,21 @@ export interface LoadOptions {
    */
   as?: string;
   /**
-   * Первая заливка (план 1.1, §2.3): только в пустую схему (кроме строк системных классов — иначе
+   * Первая заливка: только в пустую схему (кроме строк системных классов — иначе
    * not_empty), одной транзакцией; на время загрузки схема закрыта, индексы и триггеры сняты и
    * перестраиваются в конце. Без commitEvery, existing (кроме 'error') и { as }.
    */
   initial?: boolean;
 }
+
+/**
+ * Все опции load(): неизвестная — invalid_data с похожими (checkOptions; план 2.0, 7.10 №4). Фасад db.load() сверяет их
+ * до пула администратора (index.ts), load() — ещё раз до проверки прав.
+ */
+export const LOAD_OPTIONS = {
+  duplicates: true, existing: true, batch: true, commitEvery: true, withHistory: true, class: true, tenant: true,
+  agent: true, as: true, initial: true,
+} satisfies Record<keyof LoadOptions, true>;
 
 export interface LoadReport {
   /** Строк во входе. */
@@ -139,8 +146,6 @@ interface Pending {
   tenant: string;
   external: Map<string, { line: number; role: string; allowed: string[] }>;
   owners: Map<string, number>;
-  /** verify: true — id записанных строк. */
-  verify: string[] | null;
 }
 
 /** Состояние сессии первой заливки. */
@@ -154,13 +159,9 @@ export interface InitialState {
   freeze: boolean;
 }
 
-/** Первая заливка для нескольких загрузок (импорт): соединение и транзакция сессии. */
+/** Первая заливка для нескольких загрузок: загрузки идут на соединении и в транзакции сессии. */
 export interface InitialSession {
-  /** Соединение сессии (роль владельца): свои операторы импорта — в той же транзакции. */
-  readonly sql: Sql;
   load(input: LoadInput, opts?: LoadOptions): Promise<LoadReport>;
-  /** id уже есть в схеме: строка системного класса или объект, записанный этой сессией. */
-  taken(id: string): boolean;
 }
 
 // значения без обратной косой, табуляции и переводов строки (почти все: uuid, числа, время) — как есть, без четырёх
@@ -171,9 +172,8 @@ const esc = (v: unknown): string => {
   const s = String(v);
   return ESCAPED.test(s) ? s.replace(/\\/g, '\\\\').replace(/\t/g, '\\t').replace(/\n/g, '\\n').replace(/\r/g, '\\r') : s;
 };
-const hex = (b: Buffer | null | undefined): string | null => (b ? '\\x' + b.toString('hex') : null);
-const ENTITY_COLS = 'id, rev, class, cv, tenant, owner, links, data, tags, at, created_at, author, agent, op, reason, moved, prev_hash, validator';
-const LOG_COLS = 'id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash, tx';
+const ENTITY_COLS = 'id, rev, class, cv, tenant, owner, links, data, tags, at, created_at, author, agent, op, reason, validator';
+const LOG_COLS = 'id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, tx';
 const asList = (v: string | string[]): string[] => (Array.isArray(v) ? v : [v]);
 /** Теги → литерал text[] для COPY (экранирование COPY — потом, в esc). */
 const pgArray = (tags: readonly string[]): string => `{${tags.map((t) => `"${t.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`).join(',')}}`;
@@ -204,9 +204,12 @@ class Issues {
     const first = this.list[0];
     const rest = this.total - 1;
     const why = [...this.unchecked].join('; ');
-    const more = why ? ` (${rest ? `и ещё не меньше ${rest}` : 'возможно, не единственная'}: ${why})` : rest ? ` (и ещё ${rest})` : '';
-    throw new LetopisError(first.code, `загрузка отменена: строка ${first.line} — ${first.message}${more}`,
-      { rows: this.list, total: this.total, truncated: this.total > this.list.length, limit: ISSUES_LIMIT, complete: !why });
+    // форма текста — по полноте проверки и числу остальных нарушений: четыре записи каталога, а не склейка
+    const key = why ? (rest ? 'write.load_cancelled_at_least' : 'write.load_cancelled_maybe_more') : rest ? 'write.load_cancelled_more' : 'write.load_cancelled';
+    const params = { line: first.line, message: first.message, rest, why };
+    // код ошибки — код первого нарушения, а не записи каталога (поэтому не lerr): ключ и параметры — как у fromDbError
+    throw new LetopisError(first.code, lmsg(key, params),
+      { rows: this.list, total: this.total, truncated: this.total > this.list.length, limit: ISSUES_LIMIT, complete: !why }, { key, params });
   }
 }
 
@@ -223,7 +226,7 @@ async function toList(input: LoadInput, cls?: string): Promise<Raw[]> {
     return Array.from(input as Iterable<Raw>, (r) => (cls && !r.$class ? { ...r, $class: cls } : r));
   }
   if (isObj(input)) return Object.entries(input).flatMap(([c, rows]) => tag(rows as Iterable<Raw>, c));
-  throw new LetopisError('invalid_data', 'load(): вход — объект «класс → строки», массив или поток строк с $class');
+  throw lerr('write.load_bad_input');
 }
 
 interface Plan1 {
@@ -233,22 +236,22 @@ interface Plan1 {
 
 /** Ссылка на цель: id, { $key: […] } или { $ext } (у полиморфного конца — с $class). */
 function refOf(reg: Registry, tenant: string, end: EndInfo, v: unknown): { id: string } | { error: string } {
-  if (typeof v === 'string') return UUID.test(v) ? { id: v.toLowerCase() } : { error: 'значение конца не uuid' };
-  if (!isObj(v) || (!('$key' in v) && !('$ext' in v))) return { error: 'значение конца — id, { $key } или { $ext }' };
+  if (typeof v === 'string') return UUID.test(v) ? { id: v.toLowerCase() } : { error: lmsg('write.load_end_not_uuid') };
+  if (!isObj(v) || (!('$key' in v) && !('$ext' in v))) return { error: lmsg('write.load_end_value') };
   const classes = asList(end.class);
   const name = typeof v.$class === 'string' ? v.$class : classes.length === 1 ? classes[0] : null;
-  if (!name) return { error: 'полиморфный конец: укажите $class цели' };
+  if (!name) return { error: lmsg('write.load_end_polymorphic') };
   const c = reg.find(name);
-  if (!c || c.abstract) return { error: `класс цели ${name} не найден или абстрактный` };
+  if (!c || c.abstract) return { error: lmsg('write.load_target_class', { name }) };
   if ('$key' in v) {
     const vals = v.$key;
     if (!Array.isArray(vals) || vals.length !== c.key.length || !vals.every((x) => typeof x === 'string')) {
-      return { error: `$key цели ${c.name} — список строк ключа [${c.key.join(', ')}]` };
+      return { error: lmsg('write.load_target_key', { cls: c.name, key: c.key.join(', ') }) };
     }
     return { id: v5Id(tenant, c.name, vals.map((x, i) => (c.ends[c.key[i]] ? (x as string).toLowerCase() : (x as string)))) };
   }
-  if (c.key.length) return { error: `$ext — для класса без ключа, а у ${c.name} ключ [${c.key.join(', ')}]` };
-  if (typeof v.$ext !== 'string') return { error: '$ext — строка' };
+  if (c.key.length) return { error: lmsg('write.load_ext_keyed', { cls: c.name, key: c.key.join(', ') }) };
+  if (typeof v.$ext !== 'string') return { error: lmsg('write.load_ext_string') };
   return { id: v5Id(tenant, c.name, [v.$ext]) };
 }
 
@@ -272,31 +275,28 @@ function shape(reg: Registry, tenant: string, cls: ClassInfo, raw: Raw, check: b
       if (v === null || v === undefined) continue;
       const end = cls.ends[k];
       if (end.many) {
-        if (!Array.isArray(v)) return { data, links, error: { code: 'invalid_data', message: `конец ${k} — список целей` } };
+        if (!Array.isArray(v)) return { data, links, error: { code: 'invalid_data', message: lmsg('write.load_end_list', { role: k }) } };
         const ids: string[] = [];
         for (const x of v) {
           const r = refOf(reg, tenant, end, x);
-          if ('error' in r) return { data, links, error: { code: 'invalid_data', message: `конец ${k}: ${r.error}` } };
-          if (ids.includes(r.id)) return { data, links, error: { code: 'invalid_data', message: `конец ${k}: цель повторяется` } };
+          if ('error' in r) return { data, links, error: { code: 'invalid_data', message: lmsg('write.load_end_ref', { role: k, error: r.error }) } };
+          if (ids.includes(r.id)) return { data, links, error: { code: 'invalid_data', message: lmsg('write.load_end_repeat', { role: k }) } };
           ids.push(r.id);
         }
         links[k] = ids;
       } else {
         const r = refOf(reg, tenant, end, v);
-        if ('error' in r) return { data, links, error: { code: 'invalid_data', message: `конец ${k}: ${r.error}` } };
+        if ('error' in r) return { data, links, error: { code: 'invalid_data', message: lmsg('write.load_end_ref', { role: k, error: r.error }) } };
         links[k] = r.id;
       }
     } else {
       data[k] = v;
     }
   }
-  // агрегатные поля считает база (план 1.1, §2.4): переданное значение не пишется — 0, итог посчитает триггер
-  // после оператора, а первая заливка — agg_fill
-  for (const f of aggregateFields(cls)) data[f] = 0;
   if (!check) return { data, links };
   const scan = (v: unknown, path: string): string | null => {
-    if (isInc(v)) return `inc() — только в update() (${path})`;
-    if (isOp(v)) return `оператор фильтра в данных (${path})`;
+    if (isInc(v)) return lmsg('write.load_inc', { path });
+    if (isOp(v)) return lmsg('write.load_filter_op', { path });
     if (Array.isArray(v)) {
       for (let i = 0; i < v.length; i++) {
         const m = scan(v[i], `${path}.${i}`);
@@ -314,12 +314,12 @@ function shape(reg: Registry, tenant: string, cls: ClassInfo, raw: Raw, check: b
   if (bad) return { data, links, error: { code: 'invalid_data', message: bad } };
   const full = applyDefaults(cls.schema, data) as Raw;
   const issues = cls.validator()(full);
-  if (issues.length) return { data: full, links, error: { code: 'invalid_data', message: `данные не проходят описание класса ${cls.name}`, issues } };
+  if (issues.length) return { data: full, links, error: { code: 'invalid_data', message: lmsg('write.load_invalid_data', { cls: cls.name }), issues } };
   for (const [role, end] of Object.entries(cls.ends)) {
     const n = end.many ? (links[role]?.length ?? 0) : links[role] ? 1 : 0;
     const min = Math.max(end.min ?? 0, end.required ? 1 : 0);
-    if (end.many ? n < min : end.required && !n) return { data: full, links, error: { code: 'invalid_data', message: end.many ? `у конца ${role} слишком мало целей` : `обязательный конец ${role} не задан` } };
-    if (end.many && end.max !== undefined && n > end.max) return { data: full, links, error: { code: 'invalid_data', message: `у конца ${role} слишком много целей` } };
+    if (end.many ? n < min : end.required && !n) return { data: full, links, error: { code: 'invalid_data', message: lmsg(end.many ? 'write.load_end_too_few' : 'write.load_end_required', { role }) } };
+    if (end.many && end.max !== undefined && n > end.max) return { data: full, links, error: { code: 'invalid_data', message: lmsg('write.load_end_too_many', { role }) } };
   }
   return { data: full, links };
 }
@@ -327,18 +327,18 @@ function shape(reg: Registry, tenant: string, cls: ClassInfo, raw: Raw, check: b
 /** id строки: класс с ключом — v5 от ключа; без ключа — от $ext или от случайной части (§2.3). */
 function idOfRow(reg: Registry, tenant: string, cls: ClassInfo, raw: Raw): string | { error: string } {
   if (!cls.key.length) {
-    if (raw.$ext !== undefined) return typeof raw.$ext === 'string' ? v5Id(tenant, cls.name, [raw.$ext]) : { error: '$ext — строка' };
+    if (raw.$ext !== undefined) return typeof raw.$ext === 'string' ? v5Id(tenant, cls.name, [raw.$ext]) : { error: lmsg('write.load_ext_string') };
     return v5Id(tenant, cls.name, [randomUUID()]);
   }
   const vals: string[] = [];
   for (const k of cls.key) {
     if (cls.ends[k]) {
       const r = refOf(reg, tenant, cls.ends[k], raw[k]);
-      if ('error' in r) return { error: `часть ключа ${k}: ${r.error}` };
+      if ('error' in r) return { error: lmsg('write.load_key_part_ref', { part: k, error: r.error }) };
       vals.push(r.id);
     } else {
       const v = raw[k] ?? (cls.schema.properties as Record<string, { default?: unknown }> | undefined)?.[k]?.default;
-      if (typeof v !== 'string') return { error: `часть ключа ${k} — строка` };
+      if (typeof v !== 'string') return { error: lmsg('write.load_key_part_string', { part: k }) };
       vals.push(v);
     }
   }
@@ -433,20 +433,6 @@ async function copyLines(conn: Sql, text: string, lines: string[]): Promise<void
   });
 }
 
-/** verify: true — загруженные строки перепроверяет проверка базы (данные и цели концов); нарушения — в to. */
-async function verifyIds(conn: Sql, S: string, ids: string[], to: Issues): Promise<void> {
-  const bad = await conn.unsafe(`select e.id, e.class, ${S}.validate_data(c.data->'resolved'->'rules', c.validator, c.data->'resolved'->'vars', e.data) as issues
-    from ${S}.entity e cross join lateral ${S}.class_row(e.class, e.tenant) c
-    where e.id = any ($1::uuid[]) and ${S}.validate_data(c.data->'resolved'->'rules', c.validator, c.data->'resolved'->'vars', e.data) <> '[]'::jsonb limit ${ISSUES_LIMIT}`, [ids]);
-  for (const r of bad) to.add({ line: 0, code: 'invalid_data', message: `проверка базы: строка ${r.id} не проходит описание класса ${r.class}`, id: r.id as string, issues: r.issues as Issue[] });
-  if (bad.length >= ISSUES_LIMIT) to.unchecked.add(`проверка базы называет не больше ${ISSUES_LIMIT} строк`);
-  const [t] = await conn.unsafe(`select ${S}.targets_bad((select jsonb_agg(jsonb_build_object('class', e.class, 'tenant', e.tenant, 'links', e.links))
-    from ${S}.entity e where e.id = any ($1::uuid[]) and e.links <> '{}'::jsonb), false) as role`, [ids]);
-  const role = t?.role as string | null | undefined;
-  if (role?.startsWith('!')) to.add({ line: 0, code: 'derived_class', message: `проверка базы: конец ${role.slice(1)} ведёт на строку производного класса` });
-  else if (role) to.add({ line: 0, code: 'target_not_found', message: `проверка базы: цель конца ${role} не найдена` });
-}
-
 /**
  * Загрузить строки (§2.6). Одна транзакция (или порции commitEvery): описания классов под
  * разделяемыми блокировками семейств, проверки в коде, COPY пачками, запрос по целям вне загрузки,
@@ -454,21 +440,21 @@ async function verifyIds(conn: Sql, S: string, ids: string[], to: Issues): Promi
  * называет строки и нарушения.
  */
 export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {}): Promise<LoadReport> {
-  if ('trust' in opts) throw removed('load({ trust })', 'запрос по целям вне загрузки стоит 0,1–1,3 % её времени — режим доверия убран (решение 2 точки А)');
-  if (!env.admin) throw new LetopisError('admin_required', 'загрузчику нужно администраторское подключение (connect({ allowBypassRls: true }) роли, которая может стать владельцем схемы)');
+  checkOptions('load', opts, LOAD_OPTIONS);
+  if (!env.admin) throw lerr('write.load_admin_required');
   const asAcc = opts.as;
-  if (asAcc !== undefined && (typeof asAcc !== 'string' || !UUID.test(asAcc))) throw new LetopisError('invalid_data', 'load({ as }): id аккаунта');
-  if (asAcc !== undefined && opts.withHistory) throw new LetopisError('invalid_data', 'load({ as }) и режим истории несовместимы: историю импортирует администратор');
-  if (opts.withHistory && opts.existing === 'update') throw new LetopisError('invalid_data', "режим истории: existing — 'error' или 'skip' (новую версию существующего объекта пишет загрузка без истории)");
+  if (asAcc !== undefined && (typeof asAcc !== 'string' || !UUID.test(asAcc))) throw lerr('write.load_as_not_uuid');
+  if (asAcc !== undefined && opts.withHistory) throw lerr('write.load_as_history');
+  if (opts.withHistory && opts.existing === 'update') throw lerr('write.load_history_update');
   const ini = env.session ?? null;
   if (opts.initial || ini) {
     // снятые индексы и TRUNCATE — одна транзакция; в пустой схеме пропускать и обновлять нечего
-    if (opts.commitEvery) throw new LetopisError('invalid_data', 'первая заливка (initial) несовместима с commitEvery: снятые индексы и TRUNCATE требуют одной транзакции');
-    if (opts.existing !== undefined && opts.existing !== 'error') throw new LetopisError('invalid_data', "первая заливка (initial): existing — только 'error', в пустой схеме пропускать и обновлять нечего");
-    if (asAcc !== undefined) throw new LetopisError('invalid_data', 'первая заливка (initial) — от администратора, без { as }');
+    if (opts.commitEvery) throw lerr('write.load_initial_commit_every');
+    if (opts.existing !== undefined && opts.existing !== 'error') throw lerr('write.load_initial_existing');
+    if (asAcc !== undefined) throw lerr('write.load_initial_as');
   }
   const tenant = opts.tenant ?? asAcc ?? env.tenant;
-  if (!tenant) throw new LetopisError('invalid_data', 'load(): нет арендатора — сессия без арендатора и не задан { tenant }');
+  if (!tenant) throw lerr('write.load_no_tenant');
   const dupMode = opts.duplicates ?? 'error';
   const existing = opts.existing ?? 'error';
   const batch = opts.batch ?? 10000;
@@ -515,23 +501,17 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
     const name = raw?.$class;
     const cls = typeof name === 'string' ? reg0.find(name) : undefined;
     if (!cls) {
-      issues.add({ line, code: 'invalid_class', message: typeof name === 'string' ? `класс ${name} не найден` : 'нет $class' });
+      issues.add({ line, code: 'invalid_class', message: typeof name === 'string' ? lmsg('write.load_class_not_found', { name }) : lmsg('write.load_no_class') });
       p1[i] = null;
       continue;
     }
     if (cls.name === 'Class') {
-      issues.add({ line, code: 'class_not_loadable', message: 'строки Class задают letopis sync и create — там база компилирует проверку', class: cls.name });
+      issues.add({ line, code: 'class_not_loadable', message: lmsg('write.load_class_rows'), class: cls.name });
       p1[i] = null;
       continue;
     }
     if (cls.abstract) {
-      issues.add({ line, code: 'invalid_class', message: `класс ${cls.name} абстрактный`, class: cls.name });
-      p1[i] = null;
-      continue;
-    }
-    // строки производного класса пишет только его проектор (план 1.1, §2.4)
-    if (cls.derivedBy) {
-      issues.add({ line, code: 'derived_class', message: `класс ${cls.name} производный: его строки пишет проектор ${cls.derivedBy}`, class: cls.name });
+      issues.add({ line, code: 'invalid_class', message: lmsg('write.load_class_abstract', { cls: cls.name }), class: cls.name });
       p1[i] = null;
       continue;
     }
@@ -543,7 +523,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
     }
     // первая заливка: первичного ключа нет — повтор id со строками системных классов и прошлых загрузок сессии ловит проход 1
     if (ini?.ids.has(id)) {
-      issues.add({ line, code: 'exists', message: 'объект уже есть в схеме: строка системного класса или запись этой же первой заливки', id, class: cls.name });
+      issues.add({ line, code: 'exists', message: lmsg('write.load_taken'), id, class: cls.name });
       p1[i] = null;
       continue;
     }
@@ -560,7 +540,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       lineOf.set(id, i);
       chosen.add(i);
     } else if (dupMode === 'error') {
-      issues.add({ line, code: 'duplicate', message: `id ${id} уже был в строке ${prev + 1}`, id, class: cls.name });
+      issues.add({ line, code: 'duplicate', message: lmsg('write.load_duplicate', { id, prev: prev + 1 }), id, class: cls.name });
     } else {
       report.duplicates++;
       if (dupMode === 'last') {
@@ -626,7 +606,6 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
     laterUnchecked(portion, issues);
     // первая заливка: транзакцию, роль и пояс поставила сессия, фиксирует и откатывает тоже она
     const conn: Awaited<ReturnType<Sql['reserve']>> = ini ? (ini.conn as unknown as Awaited<ReturnType<Sql['reserve']>>) : await env.sql.reserve();
-    const written: string[] = [];
     let failed: unknown = null;
     try {
       if (!ini) {
@@ -649,7 +628,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
           const n = p1[i]!.cls.name;
           if (!(n in acl.write) && !denied.has(n)) {
             denied.add(n);
-            issues.add({ line: i + 1, code: 'acl_denied', message: `нет права WRITE на класс ${n}`, class: n });
+            issues.add({ line: i + 1, code: 'acl_denied', message: lmsg('write.load_no_write', { cls: n }), class: n });
           }
         }
         if (issues.any) issues.fail();
@@ -667,13 +646,13 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       // пропущенный объект для ссылок на него — вне загрузки (его сверит запрос в конце)
       // живые строки пачки: id → класс (existing: 'update' правит только объект того же класса)
       const live = new Map<string, string>();
-      const past = new Map<string, { rev: number; hash: Buffer; at: string }>();
+      const past = new Map<string, { rev: number; at: string }>();
       if (existing !== 'error' && !opts.withHistory) {
         for (let b = 0; b < portion.length; b += batch) {
           const ids = portion.slice(b, b + batch).map((i) => p1[i]!.id);
           const lock = existing === 'update' ? ' order by e.id for no key update' : '';
           for (const r of await conn.unsafe(`select e.id, e.class from ${S}.entity e where e.id = any ($1::uuid[])${lock}`, [ids])) live.set(r.id as string, r.class as string);
-          for (const r of await conn.unsafe(`select distinct on (l.id) l.id, l.rev, l.hash, l.at::text as at from ${S}.log l
+          for (const r of await conn.unsafe(`select distinct on (l.id) l.id, l.rev, l.at::text as at from ${S}.log l
               where l.id = any ($1::uuid[]) order by l.id, l.rev desc`, [ids])) past.set(r.id as string, r as never);
         }
         if (existing === 'skip') for (const i of portion) if (live.has(p1[i]!.id) || past.has(p1[i]!.id)) inLoad.delete(p1[i]!.id);
@@ -694,20 +673,20 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       }
 
       if (opts.withHistory) {
-        await historyWrite(conn as unknown as Sql, reg, todo, inLoad, external, xid as string, classesTouched, written);
+        await historyWrite(conn as unknown as Sql, reg, todo, inLoad, external, xid as string, classesTouched);
       } else if (ini) {
-        await pipeline(conn as unknown as Sql, reg, portion, inLoad, external, ts as string, xid as string, classesTouched, written, live, past);
+        await pipeline(conn as unknown as Sql, reg, portion, inLoad, external, ts as string, xid as string, classesTouched, live, past);
       } else {
         for (let b = 0; b < portion.length; b += batch) {
           const part = portion.slice(b, b + batch);
-          await writeBatch(conn as unknown as Sql, reg, part, inLoad, external, ts as string, xid as string, classesTouched, written, live, past);
+          await writeBatch(conn as unknown as Sql, reg, part, inLoad, external, ts as string, xid as string, classesTouched, live, past);
         }
       }
       if (issues.any) issues.fail();
       if (ini) {
-        // цели, владельцы, арендатор и проверка базы — в конце сессии, по перестроенным индексам
+        // цели, владельцы и арендатор — в конце сессии, по перестроенным индексам
         report.external += external.size;
-        ini.pending.push({ reg, tenant: tenant!, external, owners: new Map(owners), verify: opts.verify ? written : null });
+        ini.pending.push({ reg, tenant: tenant!, external, owners: new Map(owners) });
         for (const id of inLoad.keys()) ini.ids.add(id);
         let set = ini.touched.get(tenant!);
         if (!set) ini.touched.set(tenant!, (set = new Set()));
@@ -724,9 +703,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
           const ref = external.get(id)!;
           const f = found.get(id);
           if (!f || (f.tenant !== tenant && f.tenant !== SYSTEM_ID) || !accepts(reg, ref.allowed, f.class)) {
-            issues.add({ line: ref.line, code: 'target_not_found', message: `цель конца ${ref.role} не найдена`, id });
-          } else if (reg.find(f.class)?.derivedBy) {
-            issues.add({ line: ref.line, code: 'derived_class', message: `цель конца ${ref.role} — строка производного класса ${f.class}`, id });
+            issues.add({ line: ref.line, code: 'target_not_found', message: lmsg('write.load_target_not_found', { role: ref.role }), id });
           }
         }
       }
@@ -736,7 +713,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
         const found = new Set(ids.length
           ? (await conn.unsafe(`select e.id from ${S}.entity e where e.id = any ($1::uuid[]) and e.class = 'Account' order by e.id for key share`, [ids])).map((r) => r.id as string)
           : []);
-        for (const id of ids) if (!found.has(id)) issues.add({ line: owners.get(id)!, code: 'target_not_found', message: `владелец ${id} не найден`, id });
+        for (const id of ids) if (!found.has(id)) issues.add({ line: owners.get(id)!, code: 'target_not_found', message: lmsg('write.load_owner_not_found', { id }), id });
       }
       // от имени пользователя цели ссылок должны быть ему видны (право READ): и из загрузки, и вне её
       if (acl && targets.size) {
@@ -746,17 +723,13 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
           [ids, tenant, asAcc, acl.read as never]);
         for (const h of hidden) {
           const t = targets.get(h.id as string)!;
-          issues.add({ line: t.line, code: 'target_not_found', message: `цель конца ${t.role} не найдена`, id: h.id as string });
+          issues.add({ line: t.line, code: 'target_not_found', message: lmsg('write.load_target_not_found', { role: t.role }), id: h.id as string });
         }
       }
       // арендатор существует и включён
       const [acc] = await conn.unsafe(`select coalesce((data->>'enabled')::boolean, true) as enabled from ${S}.entity where id = $1::uuid and class = 'Account'`, [tenant]);
-      if (!acc || !acc.enabled) issues.add({ line: portion.length ? portion[0] + 1 : 0, code: 'tenant_denied', message: `арендатор ${tenant} не найден или отключён` });
+      if (!acc || !acc.enabled) issues.add({ line: portion.length ? portion[0] + 1 : 0, code: 'tenant_denied', message: lmsg('write.load_tenant_denied', { tenant }) });
       if (issues.any) issues.fail();
-      if (opts.verify && written.length) {
-        await verifyIds(conn as unknown as Sql, S, written, issues);
-        if (issues.any) issues.fail();
-      }
       // сигнал — функцией базы, как у триггеров: нагрузка по режиму сигналов установки (план 1.1)
       if (classesTouched.size) {
         const touched = [...classesTouched];
@@ -784,7 +757,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
 
   /** Порция не последняя (commitEvery): следующие порции загрузчик уже не проверит — нарушений может быть больше. */
   function laterUnchecked(portion: number[], to: Issues): void {
-    if (portion !== portions[portions.length - 1]) to.unchecked.add('следующие порции не проверялись');
+    if (portion !== portions[portions.length - 1]) to.unchecked.add(lmsg('write.load_later_portions'));
   }
 
   function isLastVersion(i: number): boolean {
@@ -804,10 +777,10 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
     laterUnchecked(portion, out);
     for (const i of portion) {
       const c = taken.get(p1[i]!.id);
-      if (c) out.add({ line: i + 1, code: c, message: c === 'exists' ? 'объект уже есть в базе' : 'объект с этим id жил раньше и удалён (existing: update воскресит)', id: p1[i]!.id, class: p1[i]!.cls.name });
+      if (c) out.add({ line: i + 1, code: c, message: lmsg(c === 'exists' ? 'write.load_exists' : 'write.load_deleted'), id: p1[i]!.id, class: p1[i]!.cls.name });
     }
     if (out.any) out.fail();
-    throw new LetopisError('exists', 'загрузка отменена: часть объектов уже есть в базе');
+    throw lerr('write.load_objects_exist');
   }
 
   /** Проверки строки и ссылок; null — строка не пишется (нарушение уже в отчёте). */
@@ -822,23 +795,23 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
     }
     // аккаунты — только в System; членство лежит в арендаторе, в которого вступают (как в триггерах)
     if (cls.name === 'Account' && tenant !== SYSTEM_ID) {
-      issues.add({ line: i + 1, code: 'tenant_denied', message: 'аккаунты лежат в арендаторе System', id: p1[i]!.id, class: cls.name });
+      issues.add({ line: i + 1, code: 'tenant_denied', message: lmsg('write.load_account_tenant'), id: p1[i]!.id, class: cls.name });
       return null;
     }
     if (cls.name === 'member' && sh.links.Tenant !== tenant) {
-      issues.add({ line: i + 1, code: 'invalid_data', message: 'конец Tenant членства — арендатор строки', id: p1[i]!.id, class: cls.name });
+      issues.add({ line: i + 1, code: 'invalid_data', message: lmsg('write.load_member_tenant'), id: p1[i]!.id, class: cls.name });
       return null;
     }
     const tags = raw.$tags;
     if (tags !== undefined && (!Array.isArray(tags) || !tags.every((x) => typeof x === 'string'))) {
-      issues.add({ line: i + 1, code: 'invalid_data', message: '$tags — список строк', id: p1[i]!.id, class: cls.name });
+      issues.add({ line: i + 1, code: 'invalid_data', message: lmsg('write.load_tags'), id: p1[i]!.id, class: cls.name });
       return null;
     }
     if (tags) sh.tags = tags as string[];
     const own = raw.$owner;
     if (own !== undefined && own !== null) {
       if (asAcc || typeof own !== 'string' || !UUID.test(own)) {
-        issues.add({ line: i + 1, code: 'invalid_data', message: asAcc ? 'load({ as }): $owner не задаётся — владелец по ownerDefault класса' : '$owner — id аккаунта', id: p1[i]!.id, class: cls.name });
+        issues.add({ line: i + 1, code: 'invalid_data', message: lmsg(asAcc ? 'write.load_as_owner' : 'write.load_owner_id'), id: p1[i]!.id, class: cls.name });
         return null;
       }
       sh.owner = own.toLowerCase();
@@ -852,7 +825,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
         if (acl && !targets.has(id)) targets.set(id, { line: i + 1, role });
         const t = inLoad.get(id);
         if (t) {
-          if (!t.alive || !accepts(reg, allowed, t.cls)) issues.add({ line: i + 1, code: 'target_not_found', message: `цель конца ${role} не найдена`, id: p1[i]!.id, class: cls.name });
+          if (!t.alive || !accepts(reg, allowed, t.cls)) issues.add({ line: i + 1, code: 'target_not_found', message: lmsg('write.load_target_not_found', { role }), id: p1[i]!.id, class: cls.name });
         } else if (!external.has(id)) {
           external.set(id, { line: i + 1, role, allowed });
         }
@@ -861,20 +834,73 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
     return sh;
   }
 
-  /** Пачка, подготовленная к записи: строки COPY, правки существующих объектов, строки для условий ACL. */
+  /** Строка класса с правилами, которые валидатор на TypeScript оставляет базе (`pattern`). */
+  type DbRow = { i: number; class: string; data: Raw };
+
+  function leftToDb(reg: Registry, cls: ClassInfo): boolean {
+    return leavesToDb((reg.find(cls.name) ?? cls).validator());
+  }
+
+  /**
+   * Правила, которые валидатор на TypeScript оставляет базе (`pattern`: шаблон арендатора процесс приложения не
+   * исполняет — ревью, ReDoS), — запросом к базе на пачку строк классов с ними и до записи: COPY идёт мимо триггеров.
+   * Нарушения — в отчёт с номером строки, как у проверки в коде.
+   *
+   * Цена — на каждую строку (в режиме истории — на каждую версию), поэтому (замер против 1.0.1 — засевка полигона была на 42 %
+   * медленнее, 40 % времени — здесь): одинаковые класс и данные проверяются один раз, строки классов читаются один
+   * раз на пачку, а полный разбор `validate_data` идёт только у строк, которых не пропустил общий `validator` класса.
+   * Правил `extra` в `validator` нет, но сюда доходят строки, прошедшие валидатор на TypeScript, — у него те же правила,
+   * кроме `pattern` (равенство — тест `validator-parity`); `pattern` в `validator` есть.
+   */
+  async function checkInDb(conn: Sql, list: DbRow[]): Promise<void> {
+    // порядок — по первой строке: первые ISSUES_LIMIT нарушений — те же строки, что без схлопывания
+    const uniq = new Map<string, { class: string; data: Raw; lines: number[] }>();
+    for (const r of [...list].sort((a, b) => a.i - b.i)) {
+      const key = `${r.class}\u0000${JSON.stringify(r.data)}`;
+      const u = uniq.get(key);
+      if (u) u.lines.push(r.i);
+      else uniq.set(key, { class: r.class, data: r.data, lines: [r.i] });
+    }
+    const all = [...uniq.values()];
+    const found: { line: number; raw: unknown }[] = [];
+    let capped = false;
+    for (let b = 0; b < all.length; b += batch) {
+      const part = all.slice(b, b + batch);
+      // materialized: без него планировщик возвращает class_row в цикл по строкам
+      const bad = await conn.unsafe(`with c as materialized (select n as name, r.validator, r.data->'resolved'->'rules' as rules,
+            r.data->'resolved'->'vars' as vars from unnest($3::text[]) n cross join lateral ${S}.class_row(n, $2::uuid) r)
+        select k, issues from (select (x.ord - 1)::int as k,
+            case when jsonb_path_match(x.v->'data', c.validator, c.vars, true) is true then '[]'::jsonb
+              else ${S}.validate_data(c.rules, c.validator, c.vars, x.v->'data') end as issues
+            from jsonb_array_elements($1::jsonb) with ordinality x(v, ord) join c on c.name = x.v->>'class') s
+        where issues <> '[]'::jsonb order by k limit ${ISSUES_LIMIT}`,
+      [part.map((u) => ({ class: u.class, data: u.data })) as never, tenant, [...new Set(part.map((u) => u.class))]]);
+      if (bad.length >= ISSUES_LIMIT) capped = true;
+      for (const r of bad) for (const line of part[r.k as number]!.lines) found.push({ line, raw: r.issues });
+    }
+    for (const f of found.sort((a, b) => a.line - b.line)) {
+      const { id, cls } = p1[f.line]!;
+      // нарушения базы — с ключом каталога: key и params наружу не идут
+      issues.add({ line: f.line + 1, code: 'invalid_data', message: lmsg('write.load_invalid_data', { cls: cls.name }), id, class: cls.name, issues: issuesFromDb(f.raw) });
+    }
+    if (capped) issues.unchecked.add(lmsg('write.load_db_check_limit', { limit: ISSUES_LIMIT }));
+  }
+
+  /** Пачка, подготовленная к записи: строки COPY, правки существующих объектов, строки для условий ACL и проверки базы. */
   type Prepared = {
     ent: string[];
     log: string[];
     updates: { id: string; data: Raw; links: Raw; tags: string[] | null; line: number }[];
     rowsAcl: { i: number; class: string; id: string; owner: string; tags: string[]; data: Raw; links: Raw }[];
+    inDb: DbRow[];
   };
 
   /** Пачка — подготовка и запись по очереди. */
   async function writeBatch(conn: Sql, reg: Registry, part: number[], inLoad: Map<string, { cls: string; alive: boolean }>,
-    external: Map<string, { line: number; role: string; allowed: string[] }>, ts: string, xid: string, touched: Set<string>, written: string[],
-    live: Map<string, string>, past: Map<string, { rev: number; hash: Buffer; at: string }>): Promise<void> {
-    const p = await prepareBatch(reg, part, inLoad, external, ts, xid, touched, written, live, past, 0);
-    if (p) await flushBatch(conn, p, ts, touched, written);
+    external: Map<string, { line: number; role: string; allowed: string[] }>, ts: string, xid: string, touched: Set<string>,
+    live: Map<string, string>, past: Map<string, { rev: number; at: string }>): Promise<void> {
+    const p = await prepareBatch(reg, part, inLoad, external, ts, xid, touched, live, past, 0);
+    if (p) await flushBatch(conn, p, ts, touched);
   }
 
   /**
@@ -884,17 +910,21 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
    * процесса); при ошибке подготовки запись в полёте доходит до конца, и откат идёт по готовому соединению.
    */
   async function pipeline(conn: Sql, reg: Registry, portion: number[], inLoad: Map<string, { cls: string; alive: boolean }>,
-    external: Map<string, { line: number; role: string; allowed: string[] }>, ts: string, xid: string, touched: Set<string>, written: string[],
-    live: Map<string, string>, past: Map<string, { rev: number; hash: Buffer; at: string }>): Promise<void> {
+    external: Map<string, { line: number; role: string; allowed: string[] }>, ts: string, xid: string, touched: Set<string>,
+    live: Map<string, string>, past: Map<string, { rev: number; at: string }>): Promise<void> {
     let flushing: Promise<void> | null = null;
     try {
       for (let b = 0; b < portion.length; b += batch) {
-        const p = await prepareBatch(reg, portion.slice(b, b + batch), inLoad, external, ts, xid, touched, written, live, past, 256);
+        const p = await prepareBatch(reg, portion.slice(b, b + batch), inLoad, external, ts, xid, touched, live, past, 256);
         const prev: Promise<void> | null = flushing;
         flushing = null;
         if (prev) await prev;
-        if (!p || issues.any) return;
-        flushing = flushBatch(conn, p, ts, touched, written);
+        if (!p || issues.any) {
+          // нарушение нашла проверка базы прошлой пачки, когда эта была уже готова: её строки база не проверила
+          if (p?.inDb.length) issues.unchecked.add(lmsg('write.load_db_rules_unchecked'));
+          return;
+        }
+        flushing = flushBatch(conn, p, ts, touched);
         flushing.catch(() => {});
       }
       const last: Promise<void> | null = flushing;
@@ -911,12 +941,14 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
    * каждые столько строк (конвейер первой заливки). Нарушения — null.
    */
   async function prepareBatch(reg: Registry, part: number[], inLoad: Map<string, { cls: string; alive: boolean }>,
-    external: Map<string, { line: number; role: string; allowed: string[] }>, ts: string, xid: string, touched: Set<string>, written: string[],
-    live: Map<string, string>, past: Map<string, { rev: number; hash: Buffer; at: string }>, yieldEvery: number): Promise<Prepared | null> {
+    external: Map<string, { line: number; role: string; allowed: string[] }>, ts: string, xid: string, touched: Set<string>,
+    live: Map<string, string>, past: Map<string, { rev: number; at: string }>, yieldEvery: number): Promise<Prepared | null> {
     const ent: string[] = [];
     const log: string[] = [];
     const updates: Prepared['updates'] = [];
     const rowsAcl: Prepared['rowsAcl'] = [];
+    const inDb: DbRow[] = [];
+    let dbLeft = false;
     let n = 0;
     for (const i of part) {
       if (yieldEvery && ++n % yieldEvery === 0) await tick();
@@ -926,13 +958,17 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
         continue;
       }
       const sh = check(reg, i, inLoad, external, true);
+      if (sh && leftToDb(reg, cls)) {
+        if (issues.any) dbLeft = true;
+        else inDb.push({ i, class: cls.name, data: sh.data });
+      }
       if (!sh || issues.any) continue;
       if (live.has(id)) {
-        // строка с тем же id, но другого класса (класс без ключа после reclass, повторный импорт по $ext): правка
+        // строка с тем же id, но другого класса (класс строки сменили мимо триггеров): правка
         // прошла бы мимо триггеров с данными, проверенными по чужой схеме, — exists (план 2.0, 7.2 №4)
         const was = live.get(id)!;
         if (was !== cls.name) {
-          issues.add({ line: i + 1, code: 'exists', message: `объект с этим id уже есть в классе ${was}: строка класса ${cls.name} его не правит`, id, class: cls.name });
+          issues.add({ line: i + 1, code: 'exists', message: lmsg('write.load_other_class', { was, cls: cls.name }), id, class: cls.name });
           continue;
         }
         updates.push({ id, data: sh.data, links: sh.links, tags: sh.tags ?? null, line: i + 1 });
@@ -949,24 +985,24 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       if (acl) rowsAcl.push({ i, class: cls.name, id, owner, tags, data: sh.data, links: sh.links });
       // общая голова строк entity и log — одной сборкой и одним экранированием
       const head = [id, rev, cls.name, cur.rev, tenant, owner, JSON.stringify(sh.links), JSON.stringify(sh.data), pgArray(tags), atv].map(esc).join('\t');
-      const ph = esc(hex(prev?.hash));
-      ent.push(`${head}\t${esc(atv)}\t${esc(author)}\t${esc(agent)}\tcreate\t\\N\t\\N\t${ph}\t\\N\n`);
-      if (cur.history !== false) log.push(`${head}\t${esc(author)}\t${esc(agent)}\tcreate\t\\N\t\\N\t${ph}\t${esc(xid)}\n`);
+      ent.push(`${head}\t${esc(atv)}\t${esc(author)}\t${esc(agent)}\tcreate\t\\N\t\\N\n`);
+      if (cur.history !== false) log.push(`${head}\t${esc(author)}\t${esc(agent)}\tcreate\t\\N\t${esc(xid)}\n`);
       report.loaded++;
       report.byClass[cls.name] = (report.byClass[cls.name] ?? 0) + 1;
       touched.add(cls.name);
-      written.push(id);
     }
     if (issues.any) {
-      if (aclRan) issues.unchecked.add('условия ACL следующих пачек не проверялись');
+      if (aclRan) issues.unchecked.add(lmsg('write.load_later_batches'));
+      if (dbLeft || inDb.length) issues.unchecked.add(lmsg('write.load_db_rules_unchecked'));
       return null;
     }
-    return { ent, log, updates, rowsAcl };
+    return { ent, log, updates, rowsAcl, inDb };
   }
 
   /** Запись подготовленной пачки: условия ACL ({ as }) — запросом на пачку, COPY в entity и log, правки существующих. */
-  async function flushBatch(conn: Sql, p: Prepared, ts: string, touched: Set<string>, written: string[]): Promise<void> {
-    const { ent, log, updates, rowsAcl } = p;
+  async function flushBatch(conn: Sql, p: Prepared, ts: string, touched: Set<string>): Promise<void> {
+    const { ent, log, updates, rowsAcl, inDb } = p;
+    if (inDb.length) await checkInDb(conn, inDb);
     if (acl) {
       aclRan = true;
       // условия ACL на строки — одним запросом на пачку: файл пользователя — не доверенные данные
@@ -974,7 +1010,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
           where not ${S}.acl_row_ok($2::jsonb, x->>'class', (x->>'id')::uuid, (x->>'owner')::uuid, $3::uuid,
             array(select jsonb_array_elements_text(x->'tags')), x->'data', x->'links')`,
         [rowsAcl as never, acl.write as never, tenant]);
-      for (const b of bad) issues.add({ line: (b.i as number) + 1, code: 'acl_denied', message: 'строку запрещает условие ACL', id: p1[b.i as number]!.id });
+      for (const b of bad) issues.add({ line: (b.i as number) + 1, code: 'acl_denied', message: lmsg('write.load_acl_row'), id: p1[b.i as number]!.id });
       if (updates.length) {
         // existing: 'update' — условие на прежние значения и на новые (как политика правки)
         const ids = updates.map((u) => u.id);
@@ -985,43 +1021,38 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
             where not ${S}.acl_row_ok($2::jsonb, e.class, e.id, e.owner, e.tenant, coalesce(u.tags, e.tags), u.data, u.links)`,
           [updates.map((u) => ({ id: u.id, data: u.data, links: u.links, tags: u.tags })) as never, acl.write as never]);
         const lineOfId = new Map(updates.map((u) => [u.id, u.line]));
-        for (const r of [...old, ...fresh]) issues.add({ line: lineOfId.get(r.id as string) ?? 0, code: 'acl_denied', message: 'правку строки запрещает условие ACL', id: r.id as string });
+        for (const r of [...old, ...fresh]) issues.add({ line: lineOfId.get(r.id as string) ?? 0, code: 'acl_denied', message: lmsg('write.load_acl_update'), id: r.id as string });
       }
       if (issues.any) return;
     }
-    // первая заливка: FREEZE — таблицы опустошены этой же транзакцией. Журнал — раньше строк: агрегатные поля новой
-    // цели триггер после COPY досчитывает в ту же версию — и в entity, и в уже записанную версию журнала (план 1.1, §2.4)
+    if (issues.any) return;
+    // первая заливка: FREEZE — таблицы опустошены этой же транзакцией
     await copyLines(conn, `copy ${S}.log (${LOG_COLS}) from stdin${ini?.freeze ? ' with (freeze)' : ''}`, log);
     await copyLines(conn, `copy ${S}.entity (${ENTITY_COLS}) from stdin${ini?.freeze ? ' with (freeze)' : ''}`, ent);
     if (updates.length) {
-      // новая версия из заблокированных значений — одним оператором; без изменений — без версии; агрегатные поля —
-      // прежние (agg_keep): их считает база
-      const res = await conn.unsafe(`with u as (select x.id, ${S}.agg_keep(e.class, e.tenant, e.data, x.data) as data, x.links, x.tags
-            from jsonb_to_recordset($1::jsonb) as x(id uuid, data jsonb, links jsonb, tags text[]) join ${S}.entity e on e.id = x.id),
+      // новая версия из заблокированных значений — одним оператором; без изменений — без версии
+      const res = await conn.unsafe(`with u as (select * from jsonb_to_recordset($1::jsonb) as x(id uuid, data jsonb, links jsonb, tags text[])),
           up as (
-            update ${S}.entity e set data = u.data, links = u.links, tags = coalesce(u.tags, e.tags), rev = e.rev + 1, prev_hash = e.hash,
+            update ${S}.entity e set data = u.data, links = u.links, tags = coalesce(u.tags, e.tags), rev = e.rev + 1,
               at = greatest($2::timestamptz, e.at + interval '1 microsecond'), author = $3::uuid, agent = $4::text, op = 'update',
-              reason = null, moved = null, cv = coalesce((${S}.class_row(e.class, e.tenant)).rev, e.cv)
+              reason = null, cv = coalesce((${S}.class_row(e.class, e.tenant)).rev, e.cv)
             from u where e.id = u.id and (e.data is distinct from u.data or e.links is distinct from u.links
               or e.tags is distinct from coalesce(u.tags, e.tags))
             returning e.*),
           lg as (
-            insert into ${S}.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash)
-            select id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash from up
+            insert into ${S}.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason)
+            select id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason from up
             where ${S}.history_on(up.class, up.tenant) order by up.id)
         select up.id, up.class from up`, [updates.map((u) => ({ id: u.id, data: u.data, links: u.links, tags: u.tags })), ts, author, agent]);
       report.updated += res.length;
       report.skipped += updates.length - res.length;
-      for (const r of res) {
-        touched.add(r.class as string);
-        written.push(r.id as string);
-      }
+      for (const r of res) touched.add(r.class as string);
     }
   }
 
-  /** Режим истории: версии волнами — после каждой волны база отдаёт хэши, они prev_hash следующей. */
+  /** Режим истории: версии в журнал — волнами по номеру (первые версии всех объектов, затем вторые…), вставками по 5000. */
   async function historyWrite(conn: Sql, reg: Registry, portion: number[], inLoad: Map<string, { cls: string; alive: boolean }>,
-    external: Map<string, { line: number; role: string; allowed: string[] }>, xid: string, touched: Set<string>, written: string[]): Promise<void> {
+    external: Map<string, { line: number; role: string; allowed: string[] }>, xid: string, touched: Set<string>): Promise<void> {
     const byId = new Map<string, number[]>();
     for (const i of portion) {
       const id = p1[i]!.id;
@@ -1033,7 +1064,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       for (let k = 0; k < l.length; k++) {
         const r = rows[l[k]];
         if (Number(r.$rev) !== k + 1 || typeof r.$at !== 'string') {
-          issues.add({ line: l[k] + 1, code: 'invalid_data', message: 'режим истории: версии с $rev подряд от 1 и $at — время версии', id: p1[l[k]]!.id });
+          issues.add({ line: l[k] + 1, code: 'invalid_data', message: lmsg('write.load_history_versions'), id: p1[l[k]]!.id });
         }
       }
     }
@@ -1042,15 +1073,26 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       const sh = check(reg, i, inLoad, external, k === l.length - 1);
       if (sh) shaped.set(i, sh);
     });
+    // правила, которые проверяет только база (pattern), — у всех версий, до записи
+    const inDb: DbRow[] = [];
+    for (const [i, sh] of shaped) if (leftToDb(reg, p1[i]!.cls)) inDb.push({ i, class: p1[i]!.cls.name, data: sh.data });
+    if (issues.any) {
+      if (inDb.length) issues.unchecked.add(lmsg('write.load_db_rules_unchecked'));
+      return;
+    }
+    await checkInDb(conn, inDb);
     if (issues.any) return;
     // без разворота в аргументы: на сотнях тысяч объектов он переполняет стек
     const waves = lists.reduce((m, l) => Math.max(m, l.length), 0);
-    const prevHash = new Map<string, Buffer | null>();
-    const lastPrev = new Map<string, Buffer | null>();
-    // волна — одна вставка с returning hash: хэши волны сразу становятся prev_hash следующей (мелкий
-    // COPY плюс отдельный запрос хэшей стоил по задержке TCP на волну)
+    const items: Record<string, unknown>[] = [];
+    const flush = async (): Promise<void> => {
+      if (!items.length) return;
+      await conn.unsafe(`insert into ${S}.log (${LOG_COLS})
+        select x.id, x.rev, x.class, x.cv, x.tenant, x.owner, x.links, x.data, x.tags, x.at, x.author, x.agent, x.op, null, x.tx::xid8
+        from jsonb_to_recordset($1::jsonb) as x(id uuid, rev int, class text, cv int, tenant uuid, owner uuid, tags text[], links jsonb,
+               data jsonb, at timestamptz, author uuid, agent text, op text, tx text)`, [items.splice(0) as never]);
+    };
     for (let w = 0; w < waves; w++) {
-      const items: Record<string, unknown>[] = [];
       for (const l of lists) {
         const i = l[w];
         if (i === undefined) continue;
@@ -1060,22 +1102,13 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
         const r = rows[i];
         const sh = shaped.get(i)!;
         const op = typeof r.$op === 'string' ? r.$op : w === 0 ? 'create' : 'update';
-        const ph = prevHash.get(id) ?? null;
-        if (w === l.length - 1) lastPrev.set(id, ph);
         items.push({ id, rev: w + 1, class: cls.name, cv: cur.rev, tenant, owner: sh.owner ?? tenant, tags: sh.tags ?? [], links: sh.links,
-          data: sh.data, at: r.$at, author: SYSTEM_ID, agent, op, ph: ph ? ph.toString('hex') : null, tx: xid });
+          data: sh.data, at: r.$at, author: SYSTEM_ID, agent, op, tx: xid });
         touched.add(cls.name);
-      }
-      for (let k = 0; k < items.length; k += 5000) {
-        const res = await conn.unsafe(`insert into ${S}.log (${LOG_COLS})
-          select x.id, x.rev, x.class, x.cv, x.tenant, x.owner, x.links, x.data, x.tags, x.at, x.author, x.agent, x.op, null, null,
-                 decode(x.ph, 'hex'), x.tx::xid8
-          from jsonb_to_recordset($1::jsonb) as x(id uuid, rev int, class text, cv int, tenant uuid, owner uuid, tags text[], links jsonb,
-                 data jsonb, at timestamptz, author uuid, agent text, op text, ph text, tx text)
-          returning id, hash`, [items.slice(k, k + 5000) as never]);
-        if (w < waves - 1) for (const h of res) prevHash.set(h.id as string, h.hash as Buffer);
+        if (items.length >= 5000) await flush();
       }
     }
+    await flush();
     // текущее состояние — последняя версия, если она не надгробие; created_at — время первой версии
     const ent: string[] = [];
     for (const l of lists) {
@@ -1087,11 +1120,9 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       const sh = shaped.get(last)!;
       const op = typeof r.$op === 'string' ? r.$op : l.length === 1 ? 'create' : 'update';
       ent.push([id, l.length, cls.name, cur.rev, tenant, sh.owner ?? tenant, JSON.stringify(sh.links), JSON.stringify(sh.data), pgArray(sh.tags ?? []), r.$at,
-        rows[l[0]].$at, SYSTEM_ID, agent, op, null, null, hex(cur.history === false ? null : lastPrev.get(id) ?? null), null].map(esc).join('\t') + '\n');
+        rows[l[0]].$at, SYSTEM_ID, agent, op, null, null].map(esc).join('\t') + '\n');
       report.loaded++;
       report.byClass[cls.name] = (report.byClass[cls.name] ?? 0) + 1;
-      // verify: true проверяет и строки режима истории (в 1.0.1 список был пуст — проверка не шла)
-      written.push(id);
     }
     await copyLines(conn, `copy ${S}.entity (${ENTITY_COLS}) from stdin${ini?.freeze ? ' with (freeze)' : ''}`, ent);
   }
@@ -1129,7 +1160,7 @@ async function catalogOf(conn: Sql, S: string) {
 
 /**
  * Первая заливка (план 1.1, §2.3): загрузки fn — одной транзакцией в пустую схему. Блокировка таблиц до
- * проверки; в схеме только строки системных классов и записи reset (иначе not_empty); они (с seq и tx
+ * проверки; в схеме только строки системных классов (иначе not_empty); они (с seq и tx
  * журнала) и определения ограничений, индексов и триггеров из каталога (с режимом включения tgenabled:
  * pg_get_triggerdef его не передаёт) сохраняются в памяти; внешний ключ secret.account снимается до TRUNCATE и
  * возвращается после первичного ключа entity; TRUNCATE; триггеры, ограничения и индексы
@@ -1140,7 +1171,7 @@ async function catalogOf(conn: Sql, S: string) {
  * откатывает всё: DDL в PostgreSQL транзакционен.
  */
 export async function initialSession<T>(env: LoadEnv, fn: (s: InitialSession) => Promise<T>, tune: InitialTuning = {}): Promise<T> {
-  if (!env.admin) throw new LetopisError('admin_required', 'загрузчику нужно администраторское подключение (connect({ allowBypassRls: true }) роли, которая может стать владельцем схемы)');
+  if (!env.admin) throw lerr('write.load_admin_required');
   const S = `"${env.schema.replace(/"/g, '""')}"`;
   const ident = (n: string) => `"${n.replace(/"/g, '""')}"`;
   const conn = await env.sql.reserve();
@@ -1152,11 +1183,11 @@ export async function initialSession<T>(env: LoadEnv, fn: (s: InitialSession) =>
     await q(`select set_config('TimeZone', 'UTC', true)`);
     // 1. блокировка — до проверки: строка, вставленная между проверкой и TRUNCATE, пропала бы молча
     await q(`lock table ${S}.entity, ${S}.log in access exclusive mode`);
-    // 2. пустая схема: кроме строк системных классов и записей reset — ничего
+    // 2. пустая схема: кроме строк системных классов — ничего
     const [busy] = await q(`select exists (select 1 from ${S}.entity where class <> all ($1::text[]))
-        or exists (select 1 from ${S}.log where class <> all ($2::text[])) as b`, [SYSTEM_CLASSES, [...SYSTEM_CLASSES, '#reset']]);
+        or exists (select 1 from ${S}.log where class <> all ($1::text[])) as b`, [SYSTEM_CLASSES]);
     if (busy.b) {
-      throw new LetopisError('not_empty', 'первая заливка — только в пустую схему: в entity и log, кроме строк системных классов (Class, Account, member, Resource, rule) и записей reset, ничего быть не должно');
+      throw lerr('write.load_not_empty');
     }
     // 3. системные строки и определения из каталога — в память процесса (так режим не повторяет 10-core.sql)
     const [sys] = await q(`select coalesce((select jsonb_agg(to_jsonb(e)) from ${S}.entity e), '[]') as ent,
@@ -1178,15 +1209,8 @@ export async function initialSession<T>(env: LoadEnv, fn: (s: InitialSession) =>
     await q(`insert into ${S}.entity (${cat.entityCols}) select ${cat.entityCols} from jsonb_populate_recordset(null::${S}.entity, $1::jsonb)`, [sys.ent]);
     await q(`insert into ${S}.log (${cat.logCols}) overriding system value select ${cat.logCols} from jsonb_populate_recordset(null::${S}.log, $1::jsonb)`, [sys.log]);
     const state: InitialState = { conn: conn as unknown as Sql, ids, pending: [], touched: new Map(), freeze: tune.freeze !== false };
-    const out = await fn({
-      sql: conn as unknown as Sql,
-      load: (input, opts = {}) => load({ ...env, session: state }, input, opts),
-      taken: (id) => state.ids.has(id.toLowerCase()),
-    });
-    // 6. агрегаты в базе (план 1.1, §2.4): триггеров нет — поле целей считает agg_fill, одним оператором на агрегат, и
-    // пишет его в ту же (последнюю) версию в entity и log: строки ещё никто не видел, хэши — генерируемые колонки
-    await q(`select ${S}.agg_fill()`);
-    // 7. ограничения, затем индексы; память и параллельные исполнители сборки — не меньше серверных
+    const out = await fn({ load: (input, opts = {}) => load({ ...env, session: state }, input, opts) });
+    // 6. ограничения, затем индексы; память и параллельные исполнители сборки — не меньше серверных
     await q(`select set_config('maintenance_work_mem', (greatest(pg_size_bytes(current_setting('maintenance_work_mem')), 268435456) / 1024)::bigint || 'kB', true),
       set_config('max_parallel_maintenance_workers', greatest(current_setting('max_parallel_maintenance_workers')::int,
         least(current_setting('max_parallel_workers')::int, 4))::text, true)`);
@@ -1195,13 +1219,13 @@ export async function initialSession<T>(env: LoadEnv, fn: (s: InitialSession) =>
     // ссылаются на них
     for (const f of cat.foreign) await q(`alter table ${f.tbl} add constraint ${ident(f.name)} ${f.def}`);
     for (const i of indexes) await q(i.def);
-    // 8. триггеры — с прежним режимом включения (ENABLE ALWAYS работает и при session_replication_role = replica)
+    // 7. триггеры — с прежним режимом включения (ENABLE ALWAYS работает и при session_replication_role = replica)
     for (const t of triggers) {
       await q(t.def);
       const mode = t.enabled === 'A' ? 'enable always' : t.enabled === 'R' ? 'enable replica' : t.enabled === 'D' ? 'disable' : null;
       if (mode) await q(`alter table ${t.tbl} ${mode} trigger ${ident(t.name)}`);
     }
-    // 10. отложенные проверки загрузок, сигнал, счётчик прав
+    // 8. отложенные проверки загрузок, сигнал, счётчик прав
     const issues = new Issues();
     for (const p of state.pending) {
       const ext = [...p.external.keys()].sort();
@@ -1212,20 +1236,17 @@ export async function initialSession<T>(env: LoadEnv, fn: (s: InitialSession) =>
           const ref = p.external.get(id)!;
           const f = found.get(id);
           if (!f || (f.tenant !== p.tenant && f.tenant !== SYSTEM_ID) || !accepts(p.reg, ref.allowed, f.class)) {
-            issues.add({ line: ref.line, code: 'target_not_found', message: `цель конца ${ref.role} не найдена`, id });
-          } else if (p.reg.find(f.class)?.derivedBy) {
-            issues.add({ line: ref.line, code: 'derived_class', message: `цель конца ${ref.role} — строка производного класса ${f.class}`, id });
+            issues.add({ line: ref.line, code: 'target_not_found', message: lmsg('write.load_target_not_found', { role: ref.role }), id });
           }
         }
       }
       if (p.owners.size) {
         const own = [...p.owners.keys()].sort();
         const found = new Set((await q(`select e.id from ${S}.entity e where e.id = any ($1::uuid[]) and e.class = 'Account'`, [own])).map((r) => r.id as string));
-        for (const id of own) if (!found.has(id)) issues.add({ line: p.owners.get(id)!, code: 'target_not_found', message: `владелец ${id} не найден`, id });
+        for (const id of own) if (!found.has(id)) issues.add({ line: p.owners.get(id)!, code: 'target_not_found', message: lmsg('write.load_owner_not_found', { id }), id });
       }
       const [acc] = await q(`select coalesce((data->>'enabled')::boolean, true) as enabled from ${S}.entity where id = $1::uuid and class = 'Account'`, [p.tenant]);
-      if (!acc || !acc.enabled) issues.add({ line: 0, code: 'tenant_denied', message: `арендатор ${p.tenant} не найден или отключён` });
-      if (p.verify?.length) await verifyIds(conn as unknown as Sql, S, p.verify, issues);
+      if (!acc || !acc.enabled) issues.add({ line: 0, code: 'tenant_denied', message: lmsg('write.load_tenant_denied', { tenant: p.tenant }) });
     }
     if (issues.any) issues.fail();
     const pairs = [...state.touched].flatMap(([t, cs]) => [...cs].map((c) => [c, t] as const));

@@ -1,12 +1,11 @@
 /**
  * engine-races — гонки на двух соединениях (план, §7.3.2, строки этапа 1; порядок §7.1:
  * A держит транзакцию, B ждёт блокировку — обвязка видит это в pg_stat_activity — затем A
- * фиксирует или откатывает).
+ * фиксирует или откатывает). №5 (смена класса и ссылка) снят в 2.0.0 вместе со сменой класса.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { engine, lt, waitForLock, SYSTEM_ID, type Engine, type Tenant } from './_engine.js';
-import { install } from '../src/up.js';
+import { engine, journalIssues, lt, waitForLock, type Engine, type Tenant } from './_engine.js';
 
 let e: Engine;
 let t: Tenant;
@@ -22,10 +21,6 @@ const CLASSES: Record<string, unknown>[] = [
     ends: { Staff: { class: 'Master', required: true, onDelete: 'cascade' } } },
   { name: 'Base', kind: 'hub', fields: { properties: { a: { type: 'string' }, b: { type: 'string' } } } },
   { name: 'Child', kind: 'hub', parent: 'Base' },
-  { name: 'Pet', kind: 'hub', abstract: true, fields: { properties: { name: { type: 'string' } } } },
-  { name: 'Cat', kind: 'hub', parent: 'Pet' },
-  { name: 'Dog', kind: 'hub', parent: 'Pet' },
-  { name: 'Holder', kind: 'hub', ends: { CatRef: { class: 'Cat' } } },
   { name: 'Folder', kind: 'hub', fields: { properties: { title: { type: 'string' } } },
     ends: { Parent: { class: 'Folder', onDelete: 'cascade' } } },
 ];
@@ -42,10 +37,7 @@ const tighten = (cls: string, required: string[]) =>
   `update ${S}.entity set data = ${S}.merge(data, '${JSON.stringify({ fields: { required } })}') where class = 'Class' and tenant = '${t.id}' and data->>'name' = '${cls}'`;
 const loosen = (cls: string) =>
   q(`update ${S}.entity set data = ${S}.merge(data, '{"fields": {"required": []}}') where class = 'Class' and tenant = $1 and data->>'name' = $2`, [t.id, cls]);
-const verifyOk = async () => {
-  const [{ v }] = await e.sql.unsafe(`select ${S}.verify() as v`);
-  assert.equal(v.ok, true, JSON.stringify(v.issues));
-};
+const journalOk = async () => assert.deepEqual(await journalIssues(e.sql, S), []);
 
 before(async () => {
   e = await engine(import.meta.filename);
@@ -156,21 +148,18 @@ test('№3б (/security-review после ревью №3): семейства, 
   await assert.rejects(A, lt('tightening_conflict'));
 });
 
-test('№3в (/security-review после ревью №3): строка вида LOCK, заведённая кредами 1.1 под именем блокировки семейства, её не отключает; накат помечает её удалённой', async () => {
-  // в 1.1 вид LOCK был открыт функциям кредов: пользователь заводил строку с ident = имя будущей блокировки семейства
-  const [{ id: planted }] = await e.asOwner((tx) => tx.unsafe(`insert into ${S}.secret (account, kind, ident)
-    values ($1::uuid, 'LOCK', $2) returning id`, [t.id, `${e.schema}:family:${t.id}:Fresh`]));
+test('№3в (/security-review после ревью №3): строка вида LOCK под именем блокировки семейства её не отключает', async () => {
+  // в 1.1 вид LOCK был открыт функциям кредов: пользователь заводил строку с ident = имя будущей блокировки семейства.
+  // Схему 1.x 2.0 не обновляет (план 2.0, 7.10 №5) — накат таких строк больше не чистит; блокировка ищет свою строку
+  // по id (lock_id имени), имя — в meta, поэтому подложенная строка ей не мешает
+  await e.asOwner((tx) => tx.unsafe(`insert into ${S}.secret (account, kind, ident)
+    values ($1::uuid, 'LOCK', $2)`, [t.id, `${e.schema}:family:${t.id}:Fresh`]));
   await e.defineClass(t, { name: 'Fresh', kind: 'hub', fields: { properties: { a: { type: 'string' }, b: { type: 'string' } } } });
   const B = await e.hold(t.token, (tx) => tx.unsafe(insSql, ['Fresh', { b: 'без a' }, {}] as never[]));
   const A = q(tighten('Fresh', ['a']));
   await waitForLock(e.sql);
   await B.finish(true);
   await assert.rejects(A, lt('tightening_conflict'));
-  await install(e.sql, { schema: e.schema, allowReset: true });
-  const [row] = await e.sql.unsafe(`select deleted_at from ${S}.secret where id = $1`, [planted]);
-  assert.ok(row.deleted_at, 'накат пометил чужую строку LOCK удалённой');
-  const [{ n }] = await e.sql.unsafe(`select count(*)::int as n from ${S}.secret where kind = 'LOCK' and account <> $1 and deleted_at is null`, [SYSTEM_ID]);
-  assert.equal(n, 0);
 });
 
 test('№4: два создания одного ключа — одно проходит, второе 23505', async () => {
@@ -179,23 +168,6 @@ test('№4: два создания одного ключа — одно про�
   await waitForLock(e.sql);
   await A.finish(true);
   await assert.rejects(B, lt('23505'));
-});
-
-test('№5: смена класса и ссылка ролью, которая принимает только старый класс', async () => {
-  // A первым: B ждёт и получает target_not_found
-  const c1 = await ins('Cat', { name: 'c1' });
-  const A1 = await e.hold(t.token, (tx) => tx.unsafe(`update ${S}.entity set class = 'Dog' where id = $1`, [c1.id]));
-  const B1 = q(insSql, ['Holder', {}, { CatRef: c1.id }]);
-  await waitForLock(e.sql);
-  await A1.finish(true);
-  await assert.rejects(B1, lt('target_not_found'));
-  // B первым: смена класса ждёт B (for update) и отклоняется
-  const c2 = await ins('Cat', { name: 'c2' });
-  const B2 = await e.hold(t.token, (tx) => tx.unsafe(insSql, ['Holder', {}, { CatRef: c2.id }] as never[]));
-  const A2 = q(`update ${S}.entity set class = 'Dog' where id = $1`, [c2.id]);
-  await waitForLock(e.sql);
-  await B2.finish(true);
-  await assert.rejects(A2, lt('reclass_denied'));
 });
 
 test('№6: удаление и создание объекта с тем же ключом', async () => {
@@ -210,7 +182,7 @@ test('№6: удаление и создание объекта с тем же �
   assert.equal(again.rev, 3);
   const log = await e.sql.unsafe(`select rev, op from ${S}.log where id = $1 order by rev`, [o.id]);
   assert.deepEqual(log.map((r) => `${r.rev}:${r.op}`), ['1:create', '2:delete', '3:create']);
-  await verifyOk();
+  await journalOk();
   // B первым: объект ещё существует — «уже существует»
   await assert.rejects(ins('Org', { name: 'R6' }), lt('23505'));
 });
@@ -227,7 +199,7 @@ test('№7: правки разных полей одной строки — о�
   assert.deepEqual(row.data, { name: 'R7', city: 'A', phone: 'B' });
   const log = await e.sql.unsafe(`select rev from ${S}.log where id = $1 order by rev`, [o.id]);
   assert.deepEqual(log.map((r) => r.rev), [1, 2, 3]);
-  await verifyOk();
+  await journalOk();
 });
 
 test('№8: встречные каскады — одна транзакция получает 40P01, повтор проходит', async () => {
@@ -257,7 +229,7 @@ test('№8: встречные каскады — одна транзакция 
   // повтор жертвы: строки уже удалены победителем — итог как при последовательном удалении
   assert.equal(await exists(x.id), false);
   assert.equal(await exists(y.id), false);
-  await verifyOk();
+  await journalOk();
 });
 
 test('№14: два upsert одного ключа — без 23505', async () => {
@@ -301,7 +273,7 @@ test('№16: удаление корня с каскадом и ссылка н�
   await B2.finish(true);
   await assert.rejects(A2, lt('target_not_found'));
   assert.equal(await dangling(), 0);
-  await verifyOk();
+  await journalOk();
 });
 
 test('хвост ревью доработок после 1.2.0: удаление класса и параллельная запись его строки или потомка — без строк и потомков без класса', async () => {

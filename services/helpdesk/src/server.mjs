@@ -26,7 +26,6 @@ import postgres from 'postgres';
 import { randomBytes } from 'node:crypto';
 import { Readable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
-import { isDeepStrictEqual } from 'node:util';
 import { up, connect, createTenant, syncModels, LetopisError, v5Id, inc, inList, lt, cursorOf } from 'letopis';
 import * as model from 'letopis/model';
 import { createMcpServer } from 'letopis/mcp';
@@ -97,50 +96,30 @@ const HOURS = { urgent: 2, high: 8, normal: 24, low: 72 }; // срок отве�
 // ---------- модель — классы каждой компании (src/models.mjs) ----------
 const MODELS = helpdeskModels(model, z);
 
-// ---------- правила доступа компании: кто (ACCOUNT) → что (READ/WRITE/DELETE/API) ----------
-// строки Resource и rule арендатора; к этому виду их приводит syncRules — при регистрации и при каждом запуске
-const RESOURCES = {
-  'role-owner:ACCOUNT': { category: 'ACCOUNT', pattern: { roles: '{owner}' } },
-  'role-agent:ACCOUNT': { category: 'ACCOUNT', pattern: { roles: '{agent}' } },
-  'role-client:ACCOUNT': { category: 'ACCOUNT', pattern: { roles: '{client}' } },
-  'role-integration:ACCOUNT': { category: 'ACCOUNT', pattern: { roles: '{integration}' } },
-  'not-owner:ACCOUNT': { category: 'ACCOUNT', pattern: { roles: '!{owner}' } },
-  'own-ticket:READ': { category: 'READ', pattern: { class: 'Ticket', owner: '$actor' } },
-  'own-ticket:WRITE': { category: 'WRITE', pattern: { class: 'Ticket', owner: '$actor' } },
-  'own-reply:READ': { category: 'READ', pattern: { class: 'Reply', data: { client: '$actor' } } },
-  'own-reply:WRITE': { category: 'WRITE', pattern: { class: 'Reply', data: { client: '$actor' } } },
-  'own-profile:READ': { category: 'READ', pattern: { class: 'Profile', owner: '$actor' } },
-  'profile:WRITE': { category: 'WRITE', pattern: { class: 'Profile' } },
-  'note:READ': { category: 'READ', pattern: { class: 'Note' } },
-  'note:WRITE': { category: 'WRITE', pattern: { class: 'Note' } },
-  'ticket:DELETE': { category: 'DELETE', pattern: { class: 'Ticket' } },
-  'desk:WRITE': { category: 'WRITE', pattern: { class: 'Desk' } },
-  'acl:WRITE': { category: 'WRITE', pattern: { class: '{rule,Resource,member}' } },
-  'acl:DELETE': { category: 'DELETE', pattern: { class: '{rule,Resource,member}' } },
-  'desk:API': { category: 'API', pattern: { endpoint: 'desk.*' } },
-  'desk-work:API': { category: 'API', pattern: { endpoint: 'desk.{queue,assistant}' } },
-};
-// createTenant уже дал «всем своим можно всё» (вес 10) — правила ниже сильнее (вес 50–60)
-const RULES = [
-  ['role-client:ACCOUNT', 'own-ticket:READ', 'allow', 50],
-  ['role-client:ACCOUNT', 'own-ticket:WRITE', 'allow', 50],
-  ['role-client:ACCOUNT', 'own-reply:READ', 'allow', 50],
-  ['role-client:ACCOUNT', 'own-reply:WRITE', 'allow', 50],
-  ['role-client:ACCOUNT', 'own-profile:READ', 'allow', 50],
-  ['role-client:ACCOUNT', 'profile:WRITE', 'deny', 50],
-  ['role-client:ACCOUNT', 'note:READ', 'deny', 50],
-  ['role-client:ACCOUNT', 'note:WRITE', 'deny', 50],
-  // ключ интеграции (форма на сайте) заводит заявки — внутренние заметки и профили ему закрыты (план 2.0, 7.6 №2)
-  ['role-integration:ACCOUNT', 'note:READ', 'deny', 50],
-  ['role-integration:ACCOUNT', 'note:WRITE', 'deny', 50],
-  ['role-integration:ACCOUNT', 'profile:WRITE', 'deny', 50],
-  ['not-owner:ACCOUNT', 'ticket:DELETE', 'deny', 50],
-  ['not-owner:ACCOUNT', 'desk:WRITE', 'deny', 50],
-  ['not-owner:ACCOUNT', 'acl:WRITE', 'deny', 60],
-  ['not-owner:ACCOUNT', 'acl:DELETE', 'deny', 60],
-  ['role-owner:ACCOUNT', 'desk:API', 'allow', 50],
-  ['role-agent:ACCOUNT', 'desk-work:API', 'allow', 50],
+// ---------- правила доступа компании — обёрткой db.acl (план 2.0, 7.9 №1–2) ----------
+// createTenant уже дал «всем своим можно всё» (вес 10) — правила ниже сильнее (вес 50, правила о правах — 60). Роли:
+// owner — руководитель, agent, client, integration — ключ формы на сайте. Под капотом — строки Resource и rule
+// арендатора с постоянными alias (role:client:ACCOUNT, class:Note:READ…): повтор syncRules ничего не меняет
+const OWN_TICKET = { class: 'Ticket', owner: '$actor' };
+const OWN_REPLY = { class: 'Reply', data: { client: '$actor' } };
+const STAFF_ONLY = ['agent', 'client', 'integration']; // все, кроме руководителя
+const ACL = [
+  ['grant', { role: 'client', read: [OWN_TICKET, OWN_REPLY, { class: 'Profile', owner: '$actor' }], write: [OWN_TICKET, OWN_REPLY] }],
+  // клиенту и ключу интеграции закрыты профили, внутренние заметки и счётчик заявок — номер выдаёт сервис (nextNumber;
+  // план 2.0, 7.6 №1–2, 7.9 №2)
+  ['deny', { role: 'client', read: 'Note', write: ['Profile', 'Note', 'Counter'] }],
+  ['deny', { role: 'integration', read: 'Note', write: ['Profile', 'Note', 'Counter'] }],
+  // удалять заявки, править компанию и правила — только руководитель
+  ...STAFF_ONLY.map((role) => ['deny', { role, delete: 'Ticket', write: 'Desk' }]),
+  ...STAFF_ONLY.map((role) => ['deny', { role, write: ['rule', 'Resource', 'member'], delete: ['rule', 'Resource', 'member'], weight: 60 }]),
+  ['grant', { role: 'owner', api: 'desk.*' }],
+  ['grant', { role: 'agent', api: 'desk.{queue,assistant}' }],
 ];
+// ресурсы прежних версий сервиса (правила строками Resource и rule до обёртки): удаление ресурса снимает и его правила
+const LEGACY_RESOURCES = ['role-owner:ACCOUNT', 'role-agent:ACCOUNT', 'role-client:ACCOUNT', 'role-integration:ACCOUNT',
+  'not-owner:ACCOUNT', 'own-ticket:READ', 'own-ticket:WRITE', 'own-reply:READ', 'own-reply:WRITE', 'own-profile:READ',
+  'profile:WRITE', 'note:READ', 'note:WRITE', 'ticket:DELETE', 'desk:WRITE', 'acl:WRITE', 'acl:DELETE', 'desk:API',
+  'desk-work:API'];
 
 /** id учётной записи, заведённой createTenant, выводится из логина (v5): так сервис находит её для кода на почту. */
 const accountOf = (login) => v5Id(SYSTEM_ID, 'Account', ['user:' + login]);
@@ -152,14 +131,10 @@ class HttpError extends Error { constructor(status, message, code) { super(messa
 
 export async function createApp() {
   const admin = postgres(ENV.admin, { max: 2, onnotice: () => {} });
-  const r = await up({ dsn: ENV.admin, schema: ENV.schema, upgrade: true, fresh: ENV.fresh, serviceKey: ENV.serviceKey, signals: ENV.signals, quiet: true });
+  // роль приложения заводит up({ login }): имя и пароль квотирует база, повтор обновляет пароль (план 2.0, 7.6 №7, 7.9 №4)
   const appUrl = new URL(ENV.app);
-  // роль приложения — имя и пароль квотируются, а не склеиваются в SQL: пароль с ' не ломает запуск (план 2.0, 7.6 №7)
-  const appUser = decodeURIComponent(appUrl.username);
-  const ident = (v) => `"${v.replace(/"/g, '""')}"`;
-  const [{ known }] = await admin`select exists (select 1 from pg_roles where rolname = ${appUser}) as known`;
-  if (!known) await admin.unsafe(`create role ${ident(appUser)} login password '${decodeURIComponent(appUrl.password).replace(/'/g, "''")}'`);
-  await admin.unsafe(`grant letopis_app to ${ident(appUser)}`);
+  const r = await up({ dsn: ENV.admin, schema: ENV.schema, upgrade: true, fresh: ENV.fresh, serviceKey: ENV.serviceKey, signals: ENV.signals, quiet: true,
+    login: { user: decodeURIComponent(appUrl.username), password: decodeURIComponent(appUrl.password) } });
   // один пул на всех: подключения пользователей (connect({ sql, token })) делят его соединения
   const pool = postgres(ENV.app, { max: 10, onnotice: () => {} });
   // журнал «под капотом»: запросы к базе, записанные версии и сигналы текущего действия
@@ -190,8 +165,8 @@ export async function createApp() {
 
   // ---------- модели и правила доступа компании: администраторское подключение в сессии её арендатора ----------
   /**
-   * Модели (src/models.mjs) — классы арендатора компании, правила доступа (RESOURCES, RULES) — его строки Resource и
-   * rule: их пишут syncModels и syncRules администраторского подключения (allowBypassRls), а не сессия пользователя.
+   * Модели (src/models.mjs) — классы арендатора компании, правила доступа (ACL) — его строки Resource и rule: их пишут
+   * syncModels и syncRules администраторского подключения (allowBypassRls), а не сессия пользователя.
    * Сессия — своя на одну запись: svc.auth.sessionFor(руководитель) и auth.switch в компанию; после записи она гаснет,
    * подключение закрывается — в веб-сессии оно не попадает. Зовётся при регистрации и при каждом запуске для всех
    * компаний: изменение моделей и правил после перезапуска доходит до всех (безопасное изменение модели — сразу,
@@ -212,29 +187,15 @@ export async function createApp() {
   }
 
   /**
-   * Правила доступа — как в коде, одной транзакцией. Ресурс ищется по alias, правило — по паре Group–Object (ключи
-   * классов): нет строки — создаётся; маска (category, pattern), решение (permission) или вес не те, что в RESOURCES и
-   * RULES, — приводятся к ним; совпадает — не трогается, и повторный запуск версий не пишет. Остальное в строке
-   * (enabled, description, теги) — прежнее; ресурсы с другими alias и правила вне RULES — дело компании, их не трогаем.
+   * Правила доступа — как в коде (ACL), одной транзакцией: db.acl.grant и db.acl.deny пишут ресурсы и правила целиком
+   * по постоянным alias, поэтому совпадающее не трогается и повторный запуск версий не пишет. Ресурсы прежних версий
+   * сервиса (LEGACY_RESOURCES) удаляются вместе со своими правилами; ресурсы с другими alias — дело компании.
    */
   async function syncRules(db) {
     const tr = await db.begin({ reason: 'правила доступа компании' });
     try {
-      const ids = {};
-      for (const [alias, res] of Object.entries(RESOURCES)) {
-        const found = await tr.Resource({ alias }).first();
-        ids[alias] = found ? found.id : (await tr.Resource().create({ alias, ...res }).rows())[0].id;
-        // маска — целиком (upsert): update слил бы новый pattern с прежним (вложенные объекты — рекурсивно), и
-        // убранное из кода условие осталось бы в строке
-        if (found && (found.data.category !== res.category || !isDeepStrictEqual(found.data.pattern, res.pattern))) {
-          await tr.Resource().tags(found.tags).upsert({ ...found.data, ...res }).rows();
-        }
-      }
-      for (const [g, o, permission, weight] of RULES) {
-        const found = await tr.rule({ Group: ids[g], Object: ids[o] }).first();
-        if (!found) await tr.rule().create({ permission, weight }).Group.set(ids[g]).Object.set(ids[o]).rows();
-        else if (found.data.permission !== permission || found.data.weight !== weight) await tr.rule(found.id).update({ permission, weight }).rows();
-      }
+      for (const alias of LEGACY_RESOURCES) await tr.Resource({ alias }).delete({ confirm: true }).rows();
+      for (const [verb, spec] of ACL) await tr.acl[verb](spec);
       await tr.commit();
     } catch (e) { await tr.rollback().catch(() => {}); throw e; }
   }
@@ -267,14 +228,26 @@ export async function createApp() {
     return t.user;
   }
 
+  /**
+   * Номер заявки выдаёт сервис от имени руководителя компании (svc.as): клиенту и ключу интеграции счётчик закрыт
+   * правилом (план 2.0, 7.9 №2), а их сессии заявки создают. Своя короткая транзакция: если заявка потом не
+   * создастся, номер пропадёт — пропуск в нумерации, а не повтор.
+   */
+  async function nextNumber(tenant) {
+    const boss = companies.get(tenant);
+    if (!boss) throw new HttpError(409, 'Компания не найдена');
+    const as = await svc.as(boss, { tenant });
+    const [counter] = await as.Counter({ name: 'tickets' }).update({ next: inc(1) }).rows();
+    return `HD-${counter.data.next}`;
+  }
+
   async function createTicket(db, { subject, body, priority = 'normal', clientName, channel, owner, ago }, lines, reason) {
     // свой ключ объекта, а не унаследованный: constructor, __proto__ не приоритеты (план 2.0, 7.6 №4)
     if (!Object.hasOwn(HOURS, priority)) throw new HttpError(422, 'Неизвестный приоритет');
+    const number = await nextNumber(db.tenant);
+    lines.push(`svc.as(руководитель).Counter({ name: 'tickets' }).update({ next: inc(1) }) → номер ${number} (счётчик клиенту закрыт)`);
     const tr = await db.begin({ reason });
     try {
-      const [counter] = await tr.Counter({ name: 'tickets' }).update({ next: inc(1) }).rows();
-      const number = `HD-${counter.data.next}`;
-      lines.push(`db.begin(); tr.Counter({ name: 'tickets' }).update({ next: inc(1) }) → номер ${number}`);
       const step = owner ? tr.Ticket().owner(owner) : tr.Ticket();
       const [t] = await step.create({ number, subject, body, priority, status: 'new', due: dueOf(priority, ago), clientName, assignee: '', assigneeName: '', channel }).rows();
       lines.push(`tr.Ticket()${owner ? '.owner(клиент)' : ''}.create({ number: '${number}', priority: '${priority}', … }); commit`);
@@ -488,6 +461,7 @@ export async function createApp() {
     }
     const t = await createTenant(admin, r.schema, { name: company, user: { name, login, password, ttl: `${WEB_TTL} seconds` } });
     await syncCompany(t.tenant, t.user);
+    companies.set(t.tenant, t.user); // руководитель — от его имени сервис выдаёт номера заявок (nextNumber)
     // имитация сбоя посреди регистрации — только сценарий (scenario.mjs) ставит эту переменную на одну регистрацию
     if (process.env.HELPDESK_FAIL_REGISTER === company) {
       delete process.env.HELPDESK_FAIL_REGISTER;
@@ -597,17 +571,20 @@ export async function createApp() {
     } catch {
       throw new HttpError(400, 'Неверный курсор after');
     }
+    // перечитывание с начала (обновление по событию) — limit: столько строк, сколько уже показано (от PAGE до 100),
+    // иначе подгруженные «Показать ещё» страницы сворачивались бы на каждом событии
+    const size = after ? PAGE : Math.min(Math.max(Number.parseInt(String(req.query.limit ?? ''), 10) || PAGE, PAGE), 100);
     const read = async (lines) => {
       let q = db.Ticket(staff ? { status: inList(['new', 'open', 'pending']) } : {}).sort('data.due');
       if (after) q = q.after(after);
-      lines.push(`db.Ticket(${staff ? "{ status: inList(['new','open','pending']) }" : ''}).sort('data.due')${after ? '.after(курсор)' : ''}.limit(${PAGE + 1})`);
+      lines.push(`db.Ticket(${staff ? "{ status: inList(['new','open','pending']) }" : ''}).sort('data.due')${after ? '.after(курсор)' : ''}.limit(${size + 1})`);
       if (!staff) lines.push('чужие обращения отсекает база: правило клиента { class: Ticket, owner: $actor }');
-      return q.limit(PAGE + 1).rows();
+      return q.limit(size + 1).rows();
     };
     // страницу «показать ещё» видно в панели «Под капотом»; первую страницу очередь перечитывает часто — без записи
     const rows = after ? await act(s, 'Следующая страница очереди', read) : await read([]);
-    const page = rows.slice(0, PAGE);
-    res.json({ rows: page.map(view), next: rows.length > PAGE ? JSON.stringify(cursorOf(page.at(-1), 'data.due')) : null });
+    const page = rows.slice(0, size);
+    res.json({ rows: page.map(view), next: rows.length > size ? JSON.stringify(cursorOf(page.at(-1), 'data.due')) : null });
   }));
 
   app.post('/api/tickets', auth, route(async (req, res) => {
@@ -762,9 +739,7 @@ export async function createApp() {
     await act(s, 'Удалить из компании', async (lines) => {
       await s.db.member(m.id).delete({ confirm: true, reason: 'удалён из компании' }).rows();
       lines.push('db.member(id).delete() — членства нет: следующий запрос этого человека получит tenant_denied');
-      const p = await s.db.Profile({ account }).first();
-      if (p) await s.db.Profile(p.id).anonymize(['name', 'login'], { reason: 'персональные данные стёрты' }).rows();
-      lines.push("db.Profile(id).anonymize(['name', 'login']) — имя и email затёрты новой версией");
+      lines.push('запись в справочнике (Profile) остаётся: по ней в заявках видно, кто их вёл; строки, которыми он владел в компании, база передала компании — их новые версии с owner = компания');
     });
     res.json({ ok: true });
   }));

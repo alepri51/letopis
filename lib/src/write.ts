@@ -1,7 +1,7 @@
 /**
- * Запись планами (план, §2.5, этап 4, п. 1–7, 10): глаголы create, update, upsert, delete, anonymize
- * и reclass — звенья цепочки; терминал исполняет весь план одной транзакцией. Этап 6: restore и
- * purge — над удалёнными объектами шага, rekey — новое значение ключа (функции базы).
+ * Запись планами (план, §2.5, этап 4, п. 1–7, 10): глаголы create, update, upsert и delete — звенья
+ * цепочки; терминал исполняет весь план одной транзакцией. Этап 6: restore — над удалёнными объектами
+ * шага (функция базы).
  *
  *   await db.Org(org).Staff().create({ name: 'Вася', phone: '+7' }).rows()      // концы из пути: { Org }
  *   await db.Customer(c).booking({ notes: 'x' }).update({ notes: 'y' }).rows()
@@ -17,10 +17,10 @@
  * строка видна, но править нельзя — acl_denied; строки уже нет — target_not_found; номер версии
  * разошёлся со { rev } — conflict.
  */
-import { LetopisError, ValidationError } from './errors.js';
+import { lerr, ValidationError, type LetopisError } from './errors.js';
 import { isOp } from './ops.js';
-import { aggregateFields, type ClassInfo, type Registry } from './registry.js';
-import { accepts, buildRead, nextNodeKey, resolveHop, stepClasses, toRow, type AggSpec, type BuiltQuery, type ReadMode, type Step } from './sql.js';
+import type { ClassInfo, Registry } from './registry.js';
+import { accepts, buildRead, nextNodeKey, precheckStep, resolveHop, stepClasses, toRow, type AggSpec, type BuiltQuery, type ReadMode, type Step } from './sql.js';
 import type { Tx } from './tx.js';
 import type { ChainMods, Row } from './types.js';
 import { idOf } from './uuid.js';
@@ -58,20 +58,16 @@ export const isInc = (v: unknown): v is IncMarker =>
 /** Глагол плана; reason — причина изменения этого глагола (план 1.1, §2.1). */
 export type PlanOp = (
   | { kind: 'create'; data: Record<string, unknown> }
-  | { kind: 'update'; data: Record<string, unknown>; rev?: number }
+  | { kind: 'update'; data: Record<string, unknown>; rev?: number; all?: true }
   | { kind: 'upsert'; data: Record<string, unknown> }
-  | { kind: 'delete'; confirm: boolean }
-  | { kind: 'anonymize'; fields: string[] }
-  | { kind: 'reclass'; cls: string; data?: Record<string, unknown> }
+  | { kind: 'delete'; confirm: boolean; all?: true }
   | { kind: 'restore' }
-  | { kind: 'purge'; confirm: boolean }
-  | { kind: 'rekey'; data: Record<string, unknown> }
 ) & { reason?: string };
 
 /** Причина изменения: строка до 1000 символов без NUL (её не принимает set_config). */
 export function checkReason(v: unknown, where: string): string {
   if (typeof v !== 'string' || v.length > 1000 || v.includes('\0')) {
-    throw new LetopisError('invalid_query', `${where}: reason — строка до 1000 символов`);
+    throw lerr('write.bad_reason', { where });
   }
   return v;
 }
@@ -89,9 +85,7 @@ export interface Slot {
 /** Строка ответа записи (результат upsert — $upsert, превью удаления — $action — поля Row). */
 export type WriteRow = Row;
 
-const fail = (code: string, msg: string, detail?: unknown): never => {
-  throw new LetopisError(code, msg, detail);
-};
+
 const asList = (v: string | string[]): string[] => (Array.isArray(v) ? v : [v]);
 const isPlain = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v) && !(v instanceof Date) && !isInc(v) && !isOp(v);
@@ -110,8 +104,8 @@ export interface IncSpec {
 export function splitPatch(patch: Record<string, unknown>): { rest: Record<string, unknown>; incs: IncSpec[] } {
   const incs: IncSpec[] = [];
   const noMarkers = (v: unknown, path: string[]): void => {
-    if (isInc(v)) fail('invalid_data', `inc() внутри массива (${path.join('.')}) не поддерживается`);
-    if (isOp(v)) fail('invalid_data', `оператор фильтра в данных (${path.join('.')}) — данные записываются значениями`);
+    if (isInc(v)) throw lerr('write.inc_in_array', { path: path.join('.') });
+    if (isOp(v)) throw lerr('write.op_in_data', { path: path.join('.') });
     if (Array.isArray(v)) v.forEach((x, i) => noMarkers(x, [...path, String(i)]));
     else if (isPlain(v)) for (const [k, x] of Object.entries(v)) noMarkers(x, [...path, k]);
   };
@@ -121,11 +115,11 @@ export function splitPatch(patch: Record<string, unknown>): { rest: Record<strin
       if (v === undefined) continue;
       const p = [...path, k];
       if (isInc(v)) {
-        if (!Number.isFinite(v.by)) fail('invalid_data', `inc(${v.by}) по пути ${p.join('.')}: величина — конечное число`);
-        if (v.start !== undefined && !Number.isFinite(v.start)) fail('invalid_data', `inc: start по пути ${p.join('.')} — конечное число`);
+        if (!Number.isFinite(v.by)) throw lerr('write.inc_by_not_finite', { by: v.by, path: p.join('.') });
+        if (v.start !== undefined && !Number.isFinite(v.start)) throw lerr('write.inc_start_not_finite', { path: p.join('.') });
         incs.push({ path: p, by: v.by, ...(v.start !== undefined ? { start: v.start } : {}) });
       } else if (isOp(v)) {
-        fail('invalid_data', `оператор фильтра в патче (${p.join('.')}) — update записывает значения`);
+        throw lerr('write.op_in_patch', { path: p.join('.') });
       } else if (Array.isArray(v)) {
         noMarkers(v, p);
         out[k] = v;
@@ -147,96 +141,99 @@ export function splitPatch(patch: Record<string, unknown>): { rest: Record<strin
 // Проверки до отправки (precheckPlan)
 // ---------------------------------------------------------------------------
 
-/** Данные create/upsert: объект без маркеров; ранняя проверка валидатором на TypeScript (full — объект целиком). */
-function checkFullData(cls: ClassInfo, data: unknown, verb: string, full = true): void {
-  if (!isPlain(data)) fail('invalid_data', `${verb}(): данные — объект`);
+/** Данные create/upsert: объект без маркеров; ранняя проверка валидатором на TypeScript. */
+function checkFullData(cls: ClassInfo, data: unknown, verb: string): void {
+  if (!isPlain(data)) throw lerr('write.data_not_object', { verb });
   const scan = (v: unknown, path: string[]): void => {
-    if (isInc(v)) fail('invalid_data', `inc() работает только в update(): ${verb}() по пути ${path.join('.')}`);
-    if (isOp(v)) fail('invalid_data', `оператор фильтра в данных ${verb}() (${path.join('.')}) — данные записываются значениями`);
+    if (isInc(v)) throw lerr('write.inc_outside_update', { verb, path: path.join('.') });
+    if (isOp(v)) throw lerr('write.op_in_verb_data', { verb, path: path.join('.') });
     if (Array.isArray(v)) v.forEach((x, i) => scan(x, [...path, String(i)]));
     else if (isPlain(v)) for (const [k, x] of Object.entries(v)) scan(x, [...path, k]);
   };
   scan(data, []);
-  // агрегатные поля считает база (план 1.1, §2.4): переданное значение — aggregate_field до отправки, а для ранней
-  // проверки поле — 0, как его поставит база
-  const obj = data as Record<string, unknown>;
-  const agg = aggregateFields(cls);
-  const given = agg.filter((f) => f in obj);
-  if (given.length) fail('aggregate_field', `поля ${given.join(', ')} класса ${cls.name} считает база (aggregate) — их не передают`);
   // описания системных классов проверяет только база (метасхема Class, class_admit)
-  if (!full || cls.name === 'Class' || cls.abstract) return;
-  const issues = cls.validator()(applyDefaults(cls.schema, agg.length ? { ...obj, ...Object.fromEntries(agg.map((f) => [f, 0])) } : obj));
+  if (cls.name === 'Class' || cls.abstract) return;
+  const issues = cls.validator()(applyDefaults(cls.schema, data as Record<string, unknown>));
   if (issues.length) throw new ValidationError(cls.name, issues);
 }
 
-/** Патч update не трогает агрегатные поля класса шага (план 1.1, §2.4): их считает база. */
-function checkAggregatePatch(cls: ClassInfo, patch: Record<string, unknown>): void {
-  const given = aggregateFields(cls).filter((f) => f in patch);
-  if (given.length) fail('aggregate_field', `поля ${given.join(', ')} класса ${cls.name} считает база (aggregate) — update их не меняет`);
+/** Фильтр шага сужает цели: id, список id, оператор, строка ответа, объект хотя бы с одним заданным полем. */
+const narrowingFilter = (f: unknown): boolean =>
+  f !== undefined && f !== null && (typeof f !== 'object' || Array.isArray(f) || isOp(f) || Object.values(f).some((v) => v !== undefined));
+
+/**
+ * Цели глагола шага i сужены (план 2.0, этап 4, п. 2; 7.10 №2): у него или у шага до него есть фильтр, id, tags()
+ * (пустой список подходит любой строке), owner() или limit(), либо до него был create() или upsert() — дальше путь
+ * идёт от записанных строк.
+ */
+function narrowed(steps: Step[], i: number): boolean {
+  for (let j = 0; j <= i; j++) {
+    const s = steps[j];
+    if (narrowingFilter(s.filter) || s.ownerFilter !== undefined || s.opMods?.limit !== undefined) return true;
+    if (s.tagsFilter !== undefined && s.tagsFilter !== null && !(Array.isArray(s.tagsFilter) && !s.tagsFilter.length)) return true;
+    if (j < i && (s.op?.kind === 'create' || s.op?.kind === 'upsert')) return true;
+  }
+  return false;
 }
 
-/** Всё, что проверяется без базы, — до отправки первого оператора (§2.5). */
-export function precheckPlan(reg: Registry, steps: Step[]): void {
+/**
+ * Всё, что проверяется без базы, — до отправки первого оператора (§2.5). Фильтры шагов и поля sort() и агрегатов
+ * (неизвестное поле — invalid_query, план 2.0, этап 3, п. 3) — precheckStep построителя; order и agg — модификатор и
+ * агрегат чтения за последним глаголом (терминал цепочки).
+ */
+export function precheckPlan(reg: Registry, steps: Step[], order?: string, agg?: AggSpec): void {
   let prevOp: PlanOp | undefined;
   for (let i = 0; i < steps.length; i++) {
     const s = steps[i];
     const op = s.op;
+    const tail = i === steps.length - 1;
     if (!op) {
+      precheckStep(reg, s, tail ? order : undefined, tail ? agg : undefined);
       prevOp = undefined;
       continue;
     }
     const verb = op.kind;
     if (op.reason !== undefined) checkReason(op.reason, `${verb}()`);
     const m = s.opMods ?? {};
-    if (m.asOf !== undefined) fail('invalid_query', `${verb}(): asOf описывает прошлое — записывать в него нельзя`);
-    // restore и purge сами ищут удалённые объекты шага
-    if (m.withDeleted && verb !== 'restore' && verb !== 'purge') fail('invalid_query', `${verb}(): withDeleted описывает удалённые — записывать в них нельзя`);
+    if (m.asOf !== undefined) throw lerr('write.as_of_write', { verb });
+    // restore сам ищет удалённые объекты шага
+    if (m.withDeleted && verb !== 'restore') throw lerr('write.with_deleted_write', { verb });
     switch (op.kind) {
       case 'create':
       case 'upsert':
-        if (s.self) fail('invalid_query', `${verb}() сразу после ${prevOp?.kind}() — между глаголами нужен шаг`);
-        if (s.pivotKey !== undefined) fail('invalid_query', `${verb}() на возврате к узлу — он ведёт к существующей сущности, используйте update()`);
+        if (s.self) throw lerr('write.verb_after_verb', { verb, prev: prevOp?.kind });
+        if (s.pivotKey !== undefined) throw lerr('write.create_on_pivot', { verb });
         if (s.filter !== undefined && typeof s.filter !== 'string') {
-          fail('invalid_query', `${verb}() не ищет: ${s.name}(id).${verb}(…) задаёт id, поиск — это update()`);
+          throw lerr('write.create_with_filter', { verb, step: s.name });
         }
-        if (op.kind === 'upsert' && !s.cls.key.length) fail('no_key', `upsert(): у класса ${s.cls.name} нет ключа — сравнивать не с чем, используйте create()`);
+        if (op.kind === 'upsert' && !s.cls.key.length) throw lerr('write.upsert_no_key', { cls: s.cls.name });
         checkFullData(s.cls, op.data, verb);
         if (s.tagsFilter !== undefined && typeof s.tagsFilter !== 'string' && !Array.isArray(s.tagsFilter)) {
-          fail('invalid_query', `.tags() перед ${verb}() — строка или список`);
+          throw lerr('write.bad_tags', { verb });
         }
         break;
       case 'update':
-        if (!isPlain(op.data)) fail('invalid_data', 'update(): патч — объект');
+        if (!isPlain(op.data)) throw lerr('write.patch_not_object');
         splitPatch(op.data);
-        checkAggregatePatch(s.cls, op.data);
-        if (op.rev !== undefined && (!Number.isInteger(op.rev) || op.rev < 1)) fail('invalid_query', 'update(patch, { rev }): rev — номер версии строки');
-        break;
-      case 'anonymize': {
-        if (!Array.isArray(op.fields) || !op.fields.length) fail('invalid_query', 'anonymize(поля): нужен список полей');
-        for (const f of op.fields) {
-      // поля нет в классе — так и сказано, а не «поле jsonb» (план 2.0, 7.5 №3)
-      if (!(f in ((s.cls.schema.properties ?? {}) as Record<string, unknown>))) fail('invalid_query', `anonymize(): поля ${f} нет в классе ${s.cls.name}`);
-          const t = reg.leafType(s.cls.name, [f]);
-          if (t !== 'text') fail('invalid_query', `anonymize() затирает только строковые поля; ${f} — ${t}`);
+        if (op.rev !== undefined && (!Number.isInteger(op.rev) || op.rev < 1)) throw lerr('write.bad_rev');
+        // строгий режим (план 2.0, этап 4, п. 2; 7.10 №2): правка без сужения целей — отказ до записи, все строки —
+        // { all: true }; data.id у шага без фильтра — тоже цель (updateOp)
+        if (!op.all && !(s.filter === undefined && typeof op.data.id === 'string') && !narrowed(steps, i)) {
+          throw lerr('write.no_filter', { call: 'update()', cls: s.cls.name });
         }
         break;
-      }
-      case 'reclass':
-        reg.resolve(op.cls);
-        if (op.data !== undefined) checkFullData(reg.resolve(op.cls), op.data, 'reclass');
-        break;
       case 'delete':
-      case 'restore':
-      case 'purge':
+        // превью (без confirm) ничего не удаляет — его не сужают
+        if (op.confirm && !op.all && !narrowed(steps, i)) throw lerr('write.no_filter', { call: 'delete({ confirm: true })', cls: s.cls.name });
         break;
-      case 'rekey':
-        if (!s.cls.key.length) fail('no_key', `rekey(): у класса ${s.cls.name} нет ключа — id выдаёт база, менять нечего`);
-        checkFullData(s.cls, op.data, 'rekey', false);
+      case 'restore':
         break;
     }
     for (const sl of s.slots ?? []) {
-      if (op.kind !== 'create' && op.kind !== 'update' && op.kind !== 'upsert') fail('invalid_query', `слот .${sl.role} после ${verb}() — слоты у create(), update() и upsert()`);
+      if (op.kind !== 'create' && op.kind !== 'update' && op.kind !== 'upsert') throw lerr('write.slot_bad_verb', { role: sl.role, verb });
     }
+    precheckStep(reg, s, s.opMods?.order);
+    if (tail && (order !== undefined || agg !== undefined)) precheckStep(reg, s, order, agg);
     prevOp = op;
   }
 }
@@ -273,7 +270,7 @@ const quoteId = (name: string): string => `"${name.replace(/"/g, '""')}"`;
 const rowJson = (a: string): string =>
   `jsonb_build_object('id', ${a}.id, 'rev', ${a}.rev, 'class', ${a}.class, 'tenant', ${a}.tenant, 'owner', ${a}.owner, `
   + `'links', ${a}.links, 'data', ${a}.data, 'tags', ${a}.tags, 'at', ${a}.at, 'author', ${a}.author, 'agent', ${a}.agent, `
-  + `'op', ${a}.op, 'reason', ${a}.reason, 'moved', ${a}.moved)`;
+  + `'op', ${a}.op, 'reason', ${a}.reason)`;
 
 async function query<T>(w: WriteCtx, text: string, params: unknown[]): Promise<T[]> {
   return (await w.q.unsafe(text, params as never[], { prepare: true })) as unknown as T[];
@@ -305,16 +302,17 @@ function rolesAccepting(reg: Registry, owner: ClassInfo, cls: string): string[] 
 export function slotRole(reg: Registry, owner: ClassInfo, name: string): string {
   if (owner.ends[name]) return name;
   const c = reg.find(name);
-  if (!c) fail('invalid_class', `класс или роль ${name} не найдены`);
+  if (!c) throw lerr('write.slot_unknown', { name });
   const roles = rolesAccepting(reg, owner, c!.name);
   if (roles.length === 1) return roles[0];
-  if (!roles.length) fail('invalid_query', `${name} — не конец класса ${owner.name} (концы: ${Object.keys(owner.ends).join(', ') || '—'})`);
-  return fail('invalid_query', `слот ${name} у класса ${owner.name} неоднозначен: роли ${roles.join(', ')} — назовите роль`);
+  if (!roles.length) throw lerr('write.slot_not_end', { name, cls: owner.name, ends: Object.keys(owner.ends).join(', ') || '—' });
+  throw lerr('write.slot_ambiguous', { name, cls: owner.name, roles: roles.join(', ') });
 }
 
 /** Неоднозначная роль конца из пути. */
-const ambiguous = (step: Step, target: ClassInfo, roles: string[]): never =>
-  fail('invalid_query', `конец класса ${target.name} для шага ${step.name} неоднозначен: роли ${roles.join(', ')} — назовите шаг ролью или задайте слот`);
+const ambiguous = (step: Step, target: ClassInfo, roles: string[]): never => {
+  throw lerr('write.end_ambiguous', { cls: target.name, step: step.name, roles: roles.join(', ') });
+};
 
 /**
  * Роль из нескольких кандидатов: роли, заданные слотами, не участвуют; из оставшихся — роль с именем
@@ -362,7 +360,7 @@ async function pathEnds(w: WriteCtx, steps: Step[], taken: Set<string>): Promise
       id = s.filter;
     } else {
       const rows = await readRows(w, steps.slice(0, k + 1).map(bare), { limit: 2 });
-      if (rows.length !== 1) fail('invalid_query', `шаг ${s.name} должен дать ровно одну сущность для конца ${tcls.name} (найдено ${rows.length})`);
+      if (rows.length !== 1) throw lerr('write.end_not_single', { step: s.name, cls: tcls.name, count: rows.length });
       id = rows[0].id;
       if (!roles) {
         roles = pickRole(s, tcls, rolesAccepting(w.reg, tcls, rows[0].class), taken, rows[0].class);
@@ -408,7 +406,7 @@ async function resolveSlots(w: WriteCtx, cls: ClassInfo, slots: Slot[] | undefin
     const end = cls.ends[sl.role];
     const ids = sl.op === 'unset' ? [] : await slotIds(w, sl.value);
     if (sl.op === 'set' && sl.value !== null && !end.many && ids.length !== 1) {
-      fail('invalid_query', `слот .${sl.role}.set(): конец одиночный, а значение дало ${ids.length} сущностей`);
+      throw lerr('write.slot_single_many', { role: sl.role, count: ids.length });
     }
     out.push({ role: sl.role, op: sl.op, value: sl.op === 'unset' || sl.value === null ? null : end.many ? ids : ids[0] });
   }
@@ -446,7 +444,8 @@ function existsError(w: WriteCtx, cls: ClassInfo, data: Record<string, unknown>,
       id = undefined;
     }
   }
-  return Object.assign(new LetopisError('exists', `объект класса ${cls.name} уже существует${id ? ` (id ${id})` : ''}`, { id: id ?? null }), { cause });
+  const detail = { id: id ?? null };
+  return id ? lerr('write.exists_id', { cls: cls.name, id }, { detail, cause }) : lerr('write.exists', { cls: cls.name }, { detail, cause });
 }
 
 const isPkConflict = (e: unknown): boolean => {
@@ -462,17 +461,12 @@ async function createOp(w: WriteCtx, steps: Step[], opStep: Step, upsert: boolea
   const links = applySlotsLocal(await pathEnds(w, steps, new Set(slots.map((x) => x.role))), slots);
   const given = typeof opStep.filter === 'string' ? opStep.filter : undefined;
   const owner = opStep.ownerFilter ?? w.owner ?? null;
-  // агрегатные поля (план 1.1, §2.4): в excluded их поставил триггер вставки (0) — замена данных идёт без них, и
-  // триггер правки возвращает прежние значения
-  const agg = aggregateFields(cls);
-  const conflict = upsert
-    ? ` on conflict (id) do update set data = excluded.data${agg.length ? ' - $7::text[]' : ''}, links = excluded.links, tags = excluded.tags`
-    : '';
+  const conflict = upsert ? ' on conflict (id) do update set data = excluded.data, links = excluded.links, tags = excluded.tags' : '';
   const text = `insert into ${S}.entity (id, class, links, data, tags, owner) values ($1::uuid, $2::text, $3::jsonb, $4::jsonb, $5::text[], $6::uuid)`
     + `${conflict} returning old.rev as old_rev, ${rowJson('new')} as row`;
   try {
     const res = await query<{ old_rev: number | null; row: Record<string, unknown> }>(w, text,
-      [given ?? null, cls.name, links, op.data, tagsValue(opStep), owner, ...(upsert && agg.length ? [agg] : [])]);
+      [given ?? null, cls.name, links, op.data, tagsValue(opStep), owner]);
     return res.map((r) => {
       const row = toRow(r.row) as WriteRow;
       if (upsert) row.$upsert = r.old_rev === null ? 'created' : r.old_rev === row.rev ? 'unchanged' : 'updated';
@@ -491,11 +485,17 @@ async function createOp(w: WriteCtx, steps: Step[], opStep: Step, upsert: boolea
 async function explainMissing(w: WriteCtx, missing: string[], rev?: number): Promise<never> {
   const S = quoteId(w.schema);
   const seen = await query<{ id: string; rev: number }>(w, `select id, rev from ${S}.entity where id = any ($1::uuid[])`, [missing]);
-  if (!seen.length) return fail('target_not_found', missing.length === 1 ? `цель ${missing[0]} не найдена` : `цели не найдены: ${missing.join(', ')}`, { ids: missing });
-  if (rev !== undefined && seen.some((r) => r.rev !== rev)) {
-    return fail('conflict', `строку ${seen[0].id} успели изменить: версия ${seen[0].rev}, а не ${rev} — перечитайте и повторите`, { id: seen[0].id, rev: seen[0].rev, expected: rev });
+  if (!seen.length) {
+    throw missing.length === 1
+      ? lerr('write.target_missing', { id: missing[0] }, { detail: { ids: missing } })
+      : lerr('write.targets_missing', { ids: missing.join(', ') }, { detail: { ids: missing } });
   }
-  return fail('acl_denied', `строки видны, но изменить их нельзя: ${seen.map((r) => r.id).join(', ')}`, { ids: seen.map((r) => r.id) });
+  if (rev !== undefined && seen.some((r) => r.rev !== rev)) {
+    const detail = { id: seen[0].id, rev: seen[0].rev, expected: rev };
+    throw lerr('write.rev_conflict', detail, { detail });
+  }
+  const ids = seen.map((r) => r.id);
+  throw lerr('write.rows_denied', { ids: ids.join(', ') }, { detail: { ids } });
 }
 
 /**
@@ -507,13 +507,13 @@ function inTargetOrder<T extends { id?: unknown }>(ids: string[], rows: T[]): T[
   return rows.sort((a, b) => (pos.get(a.id as string) ?? 0) - (pos.get(b.id as string) ?? 0));
 }
 
-/** Цели update/delete/anonymize/reclass: id из пути (limit и sort сужают); data.id — если у шага нет фильтра. */
+/** Цели update и delete: id из пути (limit и sort сужают); data.id — если у шага нет фильтра. */
 async function targetIds(w: WriteCtx, steps: Step[], opStep: Step, dataId?: string): Promise<string[]> {
   const path = steps.map(bare);
   if (opStep.filter === undefined && dataId !== undefined) path[path.length - 1] = { ...path[path.length - 1], filter: dataId };
   const ids = await readIds(w, path, opStep.opMods ?? {});
-  // без явного порядка — по id: глаголы по списку целей (reclass, rekey и др.) пишут журнал по очереди, и порядок
-  // записей не должен зависеть от плана чтения
+  // без явного порядка — по id: глаголы по списку целей пишут журнал по очереди, и порядок записей не должен
+  // зависеть от плана чтения
   return opStep.opMods?.order ? ids : [...ids].sort();
 }
 
@@ -525,8 +525,8 @@ async function updateOp(w: WriteCtx, steps: Step[], opStep: Step): Promise<Write
   const { id: dataId, ...data } = op.data;
   const ids = await targetIds(w, steps, opStep, useDataId ? (dataId as string) : undefined);
   if (op.rev !== undefined) {
-    if (ids.length > 1) fail('rev_ambiguous', `update(patch, { rev }): у шага ${opStep.name} ${ids.length} целей — проверить версию { rev } можно только у одной цели`);
-    if (!ids.length) fail('target_not_found', `update(patch, { rev }): у шага ${opStep.name} нет цели`);
+    if (ids.length > 1) throw lerr('write.rev_many_targets', { step: opStep.name, count: ids.length });
+    if (!ids.length) throw lerr('write.rev_no_target', { step: opStep.name });
   }
   if (!ids.length) return [];
   const { rest, incs } = splitPatch(useDataId ? data : op.data);
@@ -590,42 +590,12 @@ async function deleteOp(w: WriteCtx, steps: Step[], opStep: Step): Promise<Write
   return out;
 }
 
-async function anonymizeOp(w: WriteCtx, steps: Step[], opStep: Step): Promise<WriteRow[]> {
-  const op = opStep.op as { kind: 'anonymize'; fields: string[] };
-  const S = quoteId(w.schema);
-  const ids = await targetIds(w, steps, opStep);
-  if (!ids.length) return [];
-  const res = await query<{ row: Record<string, unknown> }>(w,
-    `update ${S}.entity e set data = e.data || coalesce((select jsonb_object_agg(f, '[erased]'::text) from unnest($2::text[]) f where e.data ? f), '{}'::jsonb), `
-    + `tags = (select array_agg(distinct t order by t) from unnest(e.tags || array['anonymized']) t) `
-    + `where e.id = any ($1::uuid[]) returning ${rowJson('new')} as row`, [ids, op.fields]);
-  if (res.length < ids.length) {
-    const got = new Set(res.map((r) => r.row.id as string));
-    await explainMissing(w, ids.filter((x) => !got.has(x)));
-  }
-  return inTargetOrder(ids, res.map((r) => toRow(r.row)));
-}
-
-async function reclassOp(w: WriteCtx, steps: Step[], opStep: Step): Promise<WriteRow[]> {
-  const op = opStep.op as { kind: 'reclass'; cls: string; data?: Record<string, unknown> };
-  const S = quoteId(w.schema);
-  const ids = await targetIds(w, steps, opStep);
-  if (!ids.length) return [];
-  const cls = w.reg.resolve(op.cls).name;
-  // у класса без ключа id сохраняется, у класса с ключом — новый id и перевод ссылок (reclass() в базе)
-  const moved = await query<{ id: string }>(w,
-    `select ${S}.reclass(x, $2::text, $3::jsonb) as id from unnest($1::uuid[]) with ordinality as u(x, i) order by u.i`, [ids, cls, op.data ?? null]);
-  const res = await query<{ row: Record<string, unknown> }>(w, `select ${rowJson('e')} as row from ${S}.entity e where e.id = any ($1::uuid[])`, [moved.map((m) => m.id)]);
-  // строки ответа — в порядке целей (moved — по порядку целей, план 2.0, 7.2 №2)
-  return inTargetOrder(moved.map((m) => m.id), res.map((r) => toRow(r.row)));
-}
-
-/** Удалённые объекты шага (restore, purge): живые цели без удалённых — not_deleted. */
+/** Удалённые объекты шага (restore): живые цели без удалённых — not_deleted. */
 async function deletedTargets(w: WriteCtx, steps: Step[], opStep: Step, verb: string): Promise<Row[]> {
   const rows = await readRows(w, steps.map(bare), { ...(opStep.opMods ?? {}), withDeleted: true });
   const dead = rows.filter((r) => r.$deleted);
-  if (!dead.length && rows.length) fail('not_deleted', `объект не удалён: ${verb}() — только для удалённых${verb === 'purge' ? ', сначала delete()' : ''}`, { ids: rows.map((r) => r.id) });
-  // без явного порядка — по id: restore и purge пишут журнал по очереди целей
+  if (!dead.length && rows.length) throw lerr('write.not_deleted', { verb }, { detail: { ids: rows.map((r) => r.id) } });
+  // без явного порядка — по id: restore пишет журнал по очереди целей
   return opStep.opMods?.order ? dead : [...dead].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 }
 
@@ -640,49 +610,6 @@ async function restoreOp(w: WriteCtx, steps: Step[], opStep: Step): Promise<Writ
   return inTargetOrder(ids, res.map((r) => toRow(r.row)));
 }
 
-/**
- * Стирание истории удалённых (этап 6, п. 3): без { confirm: true } — превью (надгробия и число
- * версий $versions), с ним — версии стёрты, на месте версии 1 — запись purge ($purged).
- */
-async function purgeOp(w: WriteCtx, steps: Step[], opStep: Step): Promise<WriteRow[]> {
-  const op = opStep.op as { kind: 'purge'; confirm: boolean };
-  const S = quoteId(w.schema);
-  const dead = await deletedTargets(w, steps, opStep, 'purge');
-  const out: WriteRow[] = [];
-  for (const row of dead) {
-    const [{ r }] = await query<{ r: { versions: number; purged: boolean } }>(w, `select ${S}.purge($1::uuid, $2::boolean) as r`, [row.id, op.confirm]);
-    out.push({ ...row, $versions: r.versions, ...(r.purged ? { $purged: true as const } : {}) });
-  }
-  return out;
-}
-
-/** Новое значение ключа (этап 6, п. 7): строка с новым id, ссылки переведены, журнал связывает id. */
-async function rekeyOp(w: WriteCtx, steps: Step[], opStep: Step): Promise<WriteRow[]> {
-  const op = opStep.op as { kind: 'rekey'; data: Record<string, unknown> };
-  const S = quoteId(w.schema);
-  const ids = await targetIds(w, steps, opStep);
-  if (!ids.length) return [];
-  // поля — в данные, роли концов — в концы
-  const data: Record<string, unknown> = {};
-  const links: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(op.data)) {
-    if (opStep.cls.ends[k]) links[k] = typeof v === 'object' && v !== null && !Array.isArray(v) ? (v as { id: string }).id : v;
-    else data[k] = v;
-  }
-  const moved: string[] = [];
-  for (const id of ids) {
-    try {
-      const [{ id: nid }] = await query<{ id: string }>(w, `select ${S}.rekey($1::uuid, $2::jsonb, $3::jsonb) as id`, [id, data, links]);
-      moved.push(nid);
-    } catch (e) {
-      if (isPkConflict(e)) throw Object.assign(new LetopisError('exists', `rekey(): объект класса ${opStep.cls.name} с таким ключом уже существует`, { id }), { cause: e });
-      throw e;
-    }
-  }
-  const res = await query<{ row: Record<string, unknown> }>(w, `select ${rowJson('e')} as row from ${S}.entity e where e.id = any ($1::uuid[])`, [moved]);
-  return inTargetOrder(moved, res.map((r) => toRow(r.row)));
-}
-
 async function opCall(w: WriteCtx, steps: Step[], opStep: Step): Promise<WriteRow[]> {
   await useReason(w, reasonFor(w, opStep));
   switch (opStep.op!.kind) {
@@ -690,11 +617,7 @@ async function opCall(w: WriteCtx, steps: Step[], opStep: Step): Promise<WriteRo
     case 'upsert': return createOp(w, steps, opStep, true);
     case 'update': return updateOp(w, steps, opStep);
     case 'delete': return deleteOp(w, steps, opStep);
-    case 'anonymize': return anonymizeOp(w, steps, opStep);
-    case 'reclass': return reclassOp(w, steps, opStep);
     case 'restore': return restoreOp(w, steps, opStep);
-    case 'purge': return purgeOp(w, steps, opStep);
-    case 'rekey': return rekeyOp(w, steps, opStep);
   }
 }
 
@@ -760,18 +683,17 @@ export async function execPlan(w: WriteCtx, steps: Step[], mods: ChainMods, mode
     } else {
       last = await opCall(w, [fromRows(prevOp!, start.map((r) => r.id)), ...seg.steps], opStep);
     }
-    // после удаления продолжение — от удалённых строк класса цели (замыкание каскада шире); после
-    // стирания истории продолжать не от чего
+    // после удаления продолжение — от удалённых строк класса цели (замыкание каскада шире)
     start = kind === 'delete' && (opStep.op as { confirm: boolean }).confirm
       ? last.filter((r) => stepClasses(w.reg, opStep).includes(r.class))
-      : kind === 'purge' ? [] : last;
+      : last;
     prevOp = opStep;
   }
   // причина глагола не переходит на следующие операторы транзакции
   await useReason(w, w.reason ?? '');
   const opStep = segments[segments.length - 1].steps.at(-1)!;
   const key = opStep.aliasKey ?? opStep.name;
-  if (tail.length || mode === 'versions' || mode === 'agg' || mode === 'diff' || mode === 'blame') {
+  if (tail.length || mode === 'versions' || mode === 'agg') {
     if (!start.length) return { kind: 'read', q: null, res: [] };
     const { q, res } = await readIn(w, [fromRows(opStep, start.map((r) => r.id)), ...tail], mods, mode, agg);
     return { kind: 'read', q, res };
@@ -837,15 +759,13 @@ export async function execBatch(w: WriteCtx, plans: Step[][]): Promise<WriteRow[
       }
       await useReason(w, why);
       const input = group.map((g) => ({ d: (g.s.op as { data: unknown }).data, t: tagsValue(g.s), o: g.s.ownerFilter ?? w.owner ?? null }));
-      // агрегатные поля — без них, как у одиночного upsert (план 1.1, §2.4)
-      const agg = aggregateFields(head.cls);
       const conflict = verb === 'upsert'
-        ? `on conflict (id) do update set data = excluded.data${agg.length ? ' - $3::text[]' : ''}, links = excluded.links, tags = excluded.tags`
+        ? 'on conflict (id) do update set data = excluded.data, links = excluded.links, tags = excluded.tags'
         : 'on conflict (id) do nothing';
       const res = await query<{ old_rev: number | null; row: Record<string, unknown> }>(w,
         `insert into ${S}.entity (class, data, tags, owner) select $1::text, x.d, x.t, x.o `
         + `from jsonb_to_recordset($2::jsonb) as x(d jsonb, t text[], o uuid) ${conflict} returning old.rev as old_rev, ${rowJson('new')} as row`,
-        [head.cls.name, input, ...(verb === 'upsert' && agg.length ? [agg] : [])]);
+        [head.cls.name, input]);
       const byId = new Map(res.map((r) => [r.row.id as string, r]));
       for (const g of group) {
         const r = byId.get(g.id);

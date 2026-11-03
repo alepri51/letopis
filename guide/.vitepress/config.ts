@@ -25,7 +25,7 @@ export default defineConfig({
   },
   themeConfig: {
     nav: [
-      { text: 'Начать', link: '/basics/what-is' },
+      { text: 'Начать', link: '/first/' },
       { text: 'Справочник API', link: '/reference/' },
       { text: 'Сервисы-примеры', link: '/services/' },
     ],
@@ -33,6 +33,7 @@ export default defineConfig({
       {
         text: 'Основы',
         items: [
+          { text: 'Первые 15 минут', link: '/first/' },
           { text: 'Старт с нуля', link: '/start/' },
           { text: '1. Что такое letopis', link: '/basics/what-is' },
           { text: '2. Установка и подключение', link: '/install/' },
@@ -45,12 +46,12 @@ export default defineConfig({
           { text: '9. Вход', link: '/auth/' },
           { text: '10. История и время', link: '/history/' },
           { text: '11. Подписка, кэш, сигналы', link: '/watch/' },
-          { text: '12. Агрегаты и проекторы', link: '/derived/' },
-          { text: '13. Массовая загрузка', link: '/load/' },
-          { text: '14. Эксплуатация', link: '/ops/' },
-          { text: '15. ИИ-агенты: MCP', link: '/mcp/' },
-          { text: '16. Ошибки', link: '/errors/' },
-          { text: '17. Все нюансы', link: '/nuances/' },
+          { text: '12. Массовая загрузка', link: '/load/' },
+          { text: '13. Эксплуатация', link: '/ops/' },
+          { text: '14. ИИ-агенты: MCP', link: '/mcp/' },
+          { text: '15. Ошибки', link: '/errors/' },
+          { text: '16. Все нюансы', link: '/nuances/' },
+          { text: 'Карта понятий', link: '/concepts/' },
           { text: 'Глоссарий', link: '/glossary/' },
           { text: 'Песочница', link: '/sandbox' },
         ],
@@ -64,7 +65,6 @@ export default defineConfig({
           { text: 'Вход: db.auth', link: '/reference/auth' },
           { text: 'Права: db.acl', link: '/reference/acl' },
           { text: 'Подписка и кэш', link: '/reference/watch' },
-          { text: 'Проекторы и агрегаты', link: '/reference/derived' },
           { text: 'Загрузка', link: '/reference/load' },
           { text: 'Установка и подключение', link: '/reference/setup' },
           { text: 'Модели: letopis/model', link: '/reference/model' },

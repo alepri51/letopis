@@ -132,7 +132,7 @@
       "result": null,
       "error": {
         "code": "not_empty",
-        "message": "letopis: not_empty: первая заливка — только в пустую схему: в entity и log, кроме строк системных классов (Class, Account, member, Resource, rule) и записей reset, ничего быть не должно",
+        "message": "letopis: not_empty: первая заливка — только в пустую схему: в entity и log, кроме строк системных классов (Class, Account, member, Resource, rule), ничего быть не должно",
         "detail": null,
         "expected": true
       },

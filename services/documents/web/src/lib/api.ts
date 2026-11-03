@@ -11,9 +11,9 @@ export const when = (iso: string) => new Date(iso).toLocaleString('ru-RU', { day
 export const rub = (n: number) => `${n.toLocaleString('ru-RU')} ₽`;
 
 export type Me = { name: string; role: string; firm: string };
-export type Party = { id: string; name: string; passport: string; phone: string; anonymized: boolean };
+export type Party = { id: string; name: string; passport: string; phone: string };
 export type Doc = {
   id: string; class: 'Draft' | 'Contract'; number: string; title: string; amount: number; body: string;
   status: string; signedBy: string; party: string; partyName: string; rev: number; at: string; archived: boolean;
 };
-export type Version = { id: string; rev: number; op: string; class: string; at: string; who: string; reason: string; data: Record<string, unknown> };
+export type Version = { id: string; rev: number; op: string; class: string; at: string; who: string; reason: string; agent: string; data: Record<string, unknown> };

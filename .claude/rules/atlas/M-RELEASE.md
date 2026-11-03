@@ -1,48 +1,47 @@
 ---
 paths:
-  - 'lib/scripts/{check-docs,check-package,check-semver,contract,gen-api-contract,prerelease,release-notes}.mjs'
+  - 'lib/scripts/{check-docs,check-package,check-semver,contract,gen-api-contract,gen-ops-tables,prerelease,release-notes,test-reporter}.mjs'
   - '.github/workflows/*.yml'
   - 'docs/api-contract.json'
-synced: f20b1cf
+synced: 447fae7
 ---
-# M-RELEASE — CI, тег, релиз, check-docs, check-package, контракт API (этапы 0, 8)
+# M-RELEASE — CI, тег, релиз, сверка документов, проверка пакета, контракт API
+
+Путь от коммита до npm — трасса `docs/atlas/F-RELEASE.md`.
 
 **Инварианты и грабли**
-- Контур: push dev → `ci.yml` (typecheck, check:docs с check:semver, check:package без живого прогона; у сайта — typecheck, ER, покрытие, нюансы; сборки сайта нет — он не разворачивается). Тестов в CI нет — решение владельца 01.11.2026: `npm test`, примеры со снимками, песочница, сценарии сервисов, быстрый долгий прогон (шаг `soak`, 15 минут, M-BENCH) и живой прогон пакета идут локально до выкатки одной командой `npm run prerelease` (`prerelease.mjs`) | merge в main → `tag.yml` (аннотированный тег `v` + version) | publish Release → `release.yml` (заметки, `check:semver --release`, npm, проверка из реестра). На каждое событие ровно одно действие; на PR и main тесты не гоняются — допуск даёт зелёный ci последнего push в dev. Трасса — `docs/atlas/F-RELEASE.md`.
-- Версия одна на трёх местах: `lib/package.json`, верхняя `## [x.y.z]` в `lib/CHANGELOG.md`, обе строки version в `lib/package-lock.json` — сверяет `check-docs.mjs:checkVersion`. Тег берётся из package.json; тег уже есть → `tag.yml` молча пропускает (забытый бамп = нет релиза).
-- Правила версий — README, «Версии и совместимость» (план 2.0): патч — только исправления без новой ревизии и новых отказов; минор — новое API и новая ревизия; мажор — удаление, переименование, новые отказы. `check-semver.mjs` строит контракт (`contract.mjs:buildContract`) и `DDL_REVISION` из текущего дерева и из тега прошлого выпуска (`git show`, `git ls-tree`) одним кодом и сравнивает: исчезли точка входа, экспорт, метод, код ошибки, появился охранник `removed`, сменились engines → мажор; появилось, выросла ревизия → минор; тексты ошибок → патч. Прошлый выпуск — наибольший тег `v*` меньше версии; тег текущей версии уже есть (версию ещё не подняли) — контракт обязан совпасть с ним (`--release` всегда берёт прошлый). Смену сигнатуры при том же имени скрипт не видит. Нужна полная история с тегами: в CI `fetch-depth: 0`, иначе выход 2.
-- Версия с дефисом уходит в npm под dist-tag `next` (`release.yml#«Publish to npm»`), без дефиса — `latest`. Выпуск — только по команде владельца.
+- Версия одна в трёх местах: `lib/package.json`, верхняя `## [x.y.z]` в `lib/CHANGELOG.md`, обе строки version в `lib/package-lock.json` (`check-docs.mjs:checkVersion`). `tag.yml` берёт тег из package.json; такой тег уже есть — шаг молча пропускается: забытый бамп = нет релиза.
+- `check-semver.mjs` строит контракт (`contract.mjs:buildContract`) и `DDL_REVISION` из текущего дерева и из тега прошлого выпуска (`git show`, `git ls-tree`) одним кодом. Смену сигнатуры при том же имени и коды, собранные из переменных, он не видит — такой шаг решает человек по README, «Версии и совместимость». Тег текущей версии уже есть — контракт обязан совпасть с ним (`--release` всегда берёт прошлый выпуск). Неполная история git — выход 2, поэтому в workflows `fetch-depth: 0`.
 - На событии release workflow берётся из коммита тега: правка `release.yml` действует только с новым тегом.
-- `docs/api-contract.json` руками не править: генерирует `gen-api-contract.mjs`: экспорты всех точек входа из `exports`; методы цепочки, корня и батча — поля `chain`, `db`, `batch` из массивов `types.ts`; снесённое API (`removed`) — вызовы охранника `removed('имя', 'замена')` с литералами во всех `src/*.ts` плюс опции из `REMOVED_OPTIONS` (`index.ts`), версия снятия — из текста охранника в `errors.ts`; коды ошибок (`codes`: `LT_NAMES`, `new LetopisError('…'`, `fail('…',`, `lt_fail('…'`, поля `code: '…'` — собранные из переменных не видны); тексты ошибок из `src/*.ts` и `sql/*.sql`; порядок — по кодовым единицам. Сборка — `contract.mjs:buildContract`: её же зовёт `check-semver.mjs` для тега. На Windows с `core.autocrlf=true` `--check` бывает ложно красным из-за CRLF.
-- `check-docs.mjs` ничего не правит, БД не нужна; 11 сверок: version; links (ссылки и упоминания `ИМЯ.md` из корневых `*.md`, `docs/*.md`, документов пакета `lib/*.md` и `lib/llms.txt`, трасс, карточек, хедеров бенча; CHANGELOG — нет, это история; якоря `#…` — по слагам GitHub); text (нет управляющих символов: байт NUL делает файл «двоичным» для grep); paths (пути от корня в обратных кавычках в `docs/checkpoint-*.md` существуют, маски и `<…>` пропускаются); test-list (раздел «Тесты» `lib/README.md` и «Tests» `lib/README.en.md`); revision (`99-revision.sql` == `DDL_REVISION`); bench (`node --check`); api-contract; semver (`check-semver.mjs`); reserved (раздел «Зарезервированные имена» / «Reserved names» и case-метки Proxy); structure (разделы `## N.` README подряд и все в оглавлении; английские версии повторяют русские уровнями заголовков, числом блоков кода и пометок `<!-- run -->`). Разделы README ищутся по заголовку, не по номеру. Упоминание несуществующего `ИМЯ.md` в любой карточке или трассе — красный CI.
-- Документация пакета — в `lib/`: `README.md` (руководство по задачам) и `README.en.md`, `AGENT-CHEATSHEET.md` и `.en.md`, `llms.txt`, `MIGRATION.md`, `CHANGELOG.md` — все в поле `files`. Примеры README, шпаргалки и корневого README исполняет тест `docs` (`lib/test/docs.test.ts`).
-- `check-package.mjs` — один скрипт для dev (тарбол из `npm pack`) и релиза (`--registry=<v>`): основная точка входа грузится без peer-зависимостей (Zod нужен только `letopis/model`), каждый экспорт из контракта импортируется, установленная команда `letopis --help` печатает справку (`npm exec --no -- letopis`; на Linux это симлинк из `node_modules/.bin`), состав тарбола == поле `files` (обязательно README.md, CHANGELOG.md, LICENSE, AGENT-CHEATSHEET.md, llms.txt), без `test`, `scripts`, `bench`, `docker`, `src` и файлов тестов; живой прогон (`live`: `up`, вход сервисом, `load`, запись и чтение в свежей схеме `v2.pkgcheck_…`, затем схема удаляется) — строка — `ENTITY_DSN` (по умолчанию порт 15433); обязателен при `LETOPIS_PKG_LIVE=1`/`--live` (CI, release.yml — там свой сервис `postgres:18`), без переменной — пропуск с предупреждением, если база не отвечает; `=0`/`--no-live` — выключен.
-- `--registry`: свежую версию `npm view` видит раньше, чем `npm install` (метаданные для установки) — установка повторяется при ETARGET/E404 до 20 раз через 15 с с `--prefer-online` (на 1.0.0 шаг `release.yml` упал ложно).
-- Тело релиза — секция CHANGELOG текущей версии (`release-notes.mjs:section`), не описание PR: на release-событии `GITHUB_TOKEN` не видит PR-API. Относительные ссылки секции скрипт переписывает в абсолютные на `lib/` в main — на странице PR и релиза относительная ссылка мертва. Метки «Источник: …» у правок ядра (тест, пример, сервис, ревью, soak, внедрение) он считает и дописывает строку метрики стабилизации (план 2.0: цель — две версии подряд без правок ядра, найденных примерами и сервисами).
+- Настоящий `NPM_TOKEN` — только в env шага `release.yml#«Publish to npm»`; у Install `NODE_AUTH_TOKEN` — заглушка: файл .npmrc от `registry-url` ссылается на переменную, setup-node её не выставляет, а скрипты установки зависимостей токен видеть не должны.
+- Шапки `release.yml` и `tag.yml` отстали от шагов: тело релиза — секция CHANGELOG версии (`release-notes.mjs:section`), а не описание PR (на release-событии `GITHUB_TOKEN` не видит PR-API); тестов в ci нет; `prepublishOnly` — typecheck, check:docs и build.
+- `check-docs.mjs` ничего не правит, БД не нужна. 14 сверок, имена как в выводе: version, links, text, paths, test-list, revision, bench, api-contract, ops, semver, reserved, structure, messages, literals; суть каждой — шапка файла и JSDoc функций `check*`. Разделы README ищутся по заголовку, не по номеру. `ops` и `messages` грузят TypeScript дочерним `node --import tsx`. `links` читает и карточки, и трассы атласа: упоминание несуществующего файла ИМЯ.md в них — красный CI.
+- Шаг `npm test` в `prerelease.mjs` — `scripts.test` из package.json (`testCommands`: скрипт другого вида — отказ) со вторым репортёром `test-reporter.mjs`. Под Windows процесс тест-файла изредка падает до первого теста (0xC0000409): так ведёт себя `node --test` с TCP-соединениями к 15433 даже без tsx и postgres.js — около 0,15 % запусков под нагрузкой; без сокетов — ни разу. В коде проекта не устраняется: если все отказы шага такие (`crashedFiles`), каждый файл перезапускается один раз, в итоге — «перезапущен: <файл>»; при красном тесте не перезапускается ничего.
+- Имя шага `prerelease.mjs` — ключ `--only` и `--skip` (сравнение целиком) и строки таблицы итогов: таблица копится по имени (`report`, `parseReport`), строки шагов вне прогона остаются с меткой своего прогона — минута UTC и коммит; два прогона одной минуты на одном коммите неразличимы.
 
 **Что ещё менять вместе**
-- Изменились экспорты, методы цепочки, коды или тексты ошибок — `cd lib && npm run api:contract` в том же коммите; изменение требует шага версии по README «Версии и совместимость» — поднять версию (первая правка цикла открывает запись `x.y.z-alpha.0` в CHANGELOG), иначе красный `check:semver`.
-- Меняется способ создавать ошибки (каталог сообщений плана 2.0, этап 3) — шаблоны `codesOf` в `contract.mjs`, иначе коды «исчезнут» и `check:semver` потребует мажор.
-- Новый тест-файл — строка в разделе «Тесты» `lib/README.md` и «Tests» `lib/README.en.md`; новый метод цепочки/корня — раздел «Зарезервированные имена» README (обе версии) и `types.ts` (`CHAIN_METHODS`, `DB_METHODS`, `BATCH_METHODS`).
-- Правка README или шпаргалки — та же правка в английской версии (структуру сверяет check-docs); изменили помеченный пример — тест `docs`, а обещанные в комментариях результаты — `*_EXPECT` в `docs.test.ts`.
-- Новая проверка или шаг workflow — шапка скрипта/workflow, `docs/atlas/F-RELEASE.md`, раздел «Процессы» в `AGENTS.md`.
-- Изменилось поле `files` или `exports` в package.json — `check-package.mjs` проверит; контракт перегенерировать.
+- Изменился контракт (`cd lib && npm run api:contract`) → новая запись CHANGELOG и версия с нужным шагом: после выпуска любое изменение контракта без новой версии — красный `check:semver` (предрелиз `x.y.z-alpha.0` годится — шаг считается без предрелизной части); справочник сайта — `cd guide && npx tsx scripts/gen-api.ts` (читает контракт; `--check` идёт в ci, задание `guide`).
+- Новый способ создавать ошибки → шаблоны `contract.mjs:codesOf`, иначе коды «исчезнут» и `check:semver` потребует мажор; каталог сообщений переехал → `source.list('src/messages', …)` в `buildContract`.
+- Новый метод цепочки, корня или батча → массив в `types.ts` и раздел «Зарезервированные имена» README (`checkReserved`: имя из массивов — в разделе, case-метка Proxy в `lib/src/chain.ts` и `lib/src/index.ts` — в массивах).
+- Новая сверка, шаг prerelease или шаг workflow → шапка скрипта или workflow.
+
+**Неимпортные связи**
+- `docs/api-contract.json` читают `check-package.mjs` (что импортировать), `check-docs.mjs:checkMessages` (у кода — запись каталога и якорь в README) и `guide/scripts/gen-api.ts`.
+- Итог шага `prerelease.mjs` (поле `sum` в `defaultSteps`) — регэксп по выводу: `ok  semver — …` у check-docs, `ℹ pass N` у раннера, строки критериев `| да |` у soak, `ok: N экспортов` у check-package, `✓` у сценариев. Меняешь вывод — правь `sum`.
+
+**Состояние и побочки**
+- `prerelease.mjs` пишет таблицу в `docs/checkpoint-*.md` (версия без предрелизной части; `--no-report` — не пишет), логи — во временный каталог. `check-package.mjs` ставит пакет во временный каталог; живой прогон — в свежей схеме `pkgcheck_…`, затем она удаляется.
 
 **Проверка**
-- `cd lib && npm run check:docs` — все сверки без БД.
-- `cd lib && npm run check:semver` — шаг версии против прошлого выпуска; тест `semver` (план 2.0, 7.8 №1) проверяет сам скрипт на деревьях-копиях (`--base-dir`, `--current-dir`).
-- `cd lib && npm run prerelease` — полная локальная проверка перед пушем и выпуском.
-- `cd lib && npm run check:package` — тарбол как в CI.
-- `cd lib && node scripts/release-notes.mjs` — тело будущего релиза.
-- Workflows тестами не покрыты.
+- `cd lib && npm run check:docs` (с `check:semver`) · `cd lib && npm run check:package` · `cd lib && node scripts/release-notes.mjs` — тело будущего релиза · всё перед выпуском — `cd lib && node scripts/prerelease.mjs "--skip=npm test"`. Workflows тестами не покрыты.
 
 **Точки входа**
-- `lib/scripts/check-docs.mjs:checkVersion` — версия, lock, LICENSE
-- `lib/scripts/check-docs.mjs:checkLinks` — мёртвые ссылки и якоря в документах
-- `lib/scripts/check-package.mjs` — проверка пакета (dev и реестр)
-- `lib/scripts/gen-api-contract.mjs` — контракт API, `--check`
-- `lib/scripts/contract.mjs:buildContract` — сборка контракта из дерева (файлы или тег)
-- `lib/scripts/check-semver.mjs` — шаг версии против прошлого выпуска
-- `lib/scripts/prerelease.mjs` — полная локальная проверка
-- `lib/scripts/release-notes.mjs:section` — секция CHANGELOG версии
-- `.github/workflows/release.yml#«Publish to npm»` — dist-tag `next` для предрелизов
+- `lib/scripts/check-docs.mjs:docFiles` — какие документы сверяются; `lib/scripts/gen-ops-tables.mjs` — таблицы операторов из `lib/src/ops.ts:operatorTable` (`--check` зовёт `checkOpsTables`)
+- `lib/scripts/contract.mjs:buildContract` — контракт дерева (файлы или тег)
+- `lib/scripts/check-semver.mjs:classify` — какой шаг версии требуют изменения
+- `lib/scripts/prerelease.mjs:defaultSteps` — шаги, имена и итоги; `:crashedFiles` — повтор упавшего файла
+- `lib/scripts/check-package.mjs:live` — живой прогон из установленного пакета
+- `.github/workflows/release.yml#«Publish to npm»` — dist-tag `next` для версий с дефисом
+
+**Не здесь**
+- долгий прогон `lib/bench/soak.mjs` → M-BENCH; штамп и ревизия движка в схеме → M-BOOTSTRAP.

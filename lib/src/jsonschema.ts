@@ -14,7 +14,7 @@
  *   группы и обратные ссылки отклоняются;
  * - имена полей верхнего уровня, начинающиеся с `$`, отклоняются (ими загрузчик помечает служебные ключи).
  */
-import { LetopisError } from './errors.js';
+import { lerr, lmsg, type LetopisError, type MsgKey, type Params } from './errors.js';
 
 type Json = null | boolean | number | string | Json[] | { [k: string]: Json };
 export type JsonSchema = { [k: string]: Json };
@@ -56,22 +56,22 @@ export function translatePattern(p: string, where = 'pattern'): string {
     const c = p[i];
     if (c === '\\') {
       const n = p[i + 1];
-      if (n === undefined) throw bad(where, p, 'обратная косая черта в конце шаблона');
+      if (n === undefined) throw bad(where, p, 'model.pattern_trailing_backslash');
       i++;
       if (n === 'd') out += inClass ? '0-9' : '[0-9]';
       else if (n === 'w') out += inClass ? 'A-Za-z0-9_' : '[A-Za-z0-9_]';
       else if (n === 's') out += inClass ? SPACE_CLASS : `[${SPACE_CLASS}]`;
       else if (n === 'D' || n === 'W' || n === 'S') {
-        if (inClass) throw bad(where, p, `\\${n} внутри набора [ ] не переводится`);
+        if (inClass) throw bad(where, p, 'model.pattern_escape_in_set', { escape: `\\${n}` });
         out += n === 'D' ? '[^0-9]' : n === 'W' ? '[^A-Za-z0-9_]' : `[^${SPACE_CLASS}]`;
-      } else if (n === 'b' || n === 'B') throw bad(where, p, `\\${n} в PostgreSQL значит другое`);
-      else if (n === 'p' || n === 'P') throw bad(where, p, '\\p{…} не поддерживается');
-      else if (n === 'k' || /[1-9]/.test(n)) throw bad(where, p, 'обратные ссылки не поддерживаются');
+      } else if (n === 'b' || n === 'B') throw bad(where, p, 'model.pattern_word_boundary', { escape: `\\${n}` });
+      else if (n === 'p' || n === 'P') throw bad(where, p, 'model.pattern_unicode_property');
+      else if (n === 'k' || /[1-9]/.test(n)) throw bad(where, p, 'model.pattern_backreference');
       else out += `\\${n}`;
       continue;
     }
     if (!inClass && c === '(' && p.startsWith('(?<', i) && p[i + 3] !== '=' && p[i + 3] !== '!') {
-      throw bad(where, p, 'именованные группы не поддерживаются');
+      throw bad(where, p, 'model.pattern_named_group');
     }
     if (c === '[' && !inClass) inClass = true;
     else if (c === ']' && inClass) inClass = false;
@@ -80,8 +80,9 @@ export function translatePattern(p: string, where = 'pattern'): string {
   return out;
 }
 
-function bad(where: string, p: string, why: string): LetopisError {
-  return new LetopisError('invalid_class', `${where}: шаблон ${p} несовместим с регулярными выражениями PostgreSQL (${why})`);
+/** Шаблон несовместим с PostgreSQL (`invalid_class`): ключ каталога называет причину; where и шаблон — параметры. */
+function bad(where: string, p: string, key: MsgKey, params?: Params): LetopisError {
+  return lerr(key, { where, pattern: p, ...params });
 }
 
 export interface NormalizeOptions {
@@ -93,23 +94,23 @@ export interface NormalizeOptions {
 
 /** Нормализует JSON Schema; бросает LetopisError('invalid_class') с названием поля и ключевого слова. */
 export function normalizeSchema(input: JsonSchema, opts: NormalizeOptions = {}): JsonSchema {
-  const where = opts.where ?? 'модель';
+  const where = opts.where ?? lmsg('model.schema_default_where');
   const defs = (input.$defs ?? input.definitions ?? {}) as Record<string, JsonSchema>;
 
   const resolve = (ref: string, seen: string[]): JsonSchema => {
     const m = /^#\/(?:\$defs|definitions)\/(.+)$/.exec(ref);
-    if (!m) throw new LetopisError('invalid_class', `${where}: ссылка ${ref} не поддерживается (только #/$defs/…)`);
+    if (!m) throw lerr('model.schema_ref_unsupported', { where, ref });
     const name = decodeURIComponent(m[1].replace(/~1/g, '/').replace(/~0/g, '~'));
-    if (seen.includes(name)) throw new LetopisError('invalid_class', `${where}: рекурсивная модель через ${[...seen, name].join(' → ')}`);
+    if (seen.includes(name)) throw lerr('model.schema_recursive', { where, cycle: [...seen, name].join(' → ') });
     const target = defs[name];
-    if (!target) throw new LetopisError('invalid_class', `${where}: определение ${name} не найдено`);
+    if (!target) throw lerr('model.schema_def_not_found', { where, name });
     return node(target, [...seen, name], name);
   };
 
   const node = (s: Json, seen: string[], path: string): JsonSchema => {
     if (s === true) return {};
     if (s === null || typeof s !== 'object' || Array.isArray(s)) {
-      throw new LetopisError('invalid_class', `${where}: описание узла ${path} — не объект`);
+      throw lerr('model.schema_node_not_object', { where, node: path });
     }
     if (typeof s.$ref === 'string') {
       const rest = Object.keys(s).filter((k) => k !== '$ref' && !DROPPED.has(k));
@@ -127,14 +128,14 @@ export function normalizeSchema(input: JsonSchema, opts: NormalizeOptions = {}):
       } else if (SUPPORTED.has(k)) {
         out[k] = v;
       } else if (VOCABULARY.has(k)) {
-        throw new LetopisError('invalid_class', `${where}: ключевое слово ${k} не поддерживается (узел ${path})`);
+        throw lerr('model.schema_keyword_unsupported', { where, keyword: k, node: path });
       } else {
         meta[k] = v; // пометки .meta() Zod и прочие свободные ключи
       }
     }
     if (Object.keys(meta).length) out['x-meta'] = { ...((out['x-meta'] as Record<string, Json>) ?? {}), ...meta };
     if (typeof out.format === 'string') {
-      if (!FORMATS.has(out.format)) throw new LetopisError('invalid_class', `${where}: format ${out.format} не поддерживается (узел ${path})`);
+      if (!FORMATS.has(out.format)) throw lerr('model.schema_format_unsupported', { where, format: out.format, node: path });
     }
     if (typeof out.pattern === 'string') out.pattern = translatePattern(out.pattern, `${where}: ${path}`);
     if (out.properties && typeof out.properties === 'object' && !Array.isArray(out.properties)) {
@@ -153,7 +154,7 @@ export function normalizeSchema(input: JsonSchema, opts: NormalizeOptions = {}):
   const out = node(input, [], '$');
   if (opts.topLevel && out.properties && typeof out.properties === 'object') {
     for (const k of Object.keys(out.properties)) {
-      if (k.startsWith('$')) throw new LetopisError('invalid_class', `${where}: имя поля ${k} начинается с $ — так загрузчик помечает служебные ключи`);
+      if (k.startsWith('$')) throw lerr('model.schema_field_dollar', { where, field: k });
     }
   }
   return out;

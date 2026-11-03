@@ -17,7 +17,8 @@
  * Значения всегда уходят параметрами, поэтому текст запроса зависит только от формы цепочки: его
  * кэширует план (chain.ts), а postgres.js готовит оператор один раз на соединение.
  */
-import { LetopisError } from './errors.js';
+import { lerr, lmsg, similar, type MsgKey, type Params as MsgParams } from './errors.js';
+import type { ClassDescription } from './model.js';
 import { isOp } from './ops.js';
 import type { ClassInfo, LeafType, Registry } from './registry.js';
 import { OP, type ChainMods, type Cursor, type Filter, type Op, type Path, type Row } from './types.js';
@@ -54,7 +55,7 @@ let nodeSeq = 0;
 /** Уникальная метка узла пути. */
 export const nextNodeKey = (): number => ++nodeSeq;
 
-export type ReadMode = 'paths' | 'rows' | 'ids' | 'count' | 'countPaths' | 'versions' | 'agg' | 'diff' | 'blame';
+export type ReadMode = 'paths' | 'rows' | 'ids' | 'count' | 'countPaths' | 'versions' | 'agg';
 
 export interface AggSpec {
   fn: 'sum' | 'avg' | 'min' | 'max' | 'countBy';
@@ -70,9 +71,40 @@ export interface BuiltQuery {
   aggLeaf?: LeafType;
 }
 
-const fail = (msg: string): never => {
-  throw new LetopisError('invalid_query', msg);
+/** Отказ построителя по ключу каталога — там, где нужно выражение: `x ?? refuse(ключ)`; в операторах — throw lerr(…). */
+const refuse = (key: MsgKey, params?: MsgParams): never => {
+  throw lerr(key, params);
 };
+
+/**
+ * Поля data строк системного класса Class — свойства метасхемы описания класса (class_metaschema() в 40-class.sql): строки
+ * Class проверяет она, а в описании самого класса Class только name. Ключи — свойства описания (ClassDescription) и
+ * служебные system и resolved: новое свойство описания без строки здесь — ошибка типов.
+ */
+const CLASS_ROW_FIELDS = Object.keys({
+  name: true, kind: true, parent: true, abstract: true, alias: true, system: true, fields: true, ends: true, key: true,
+  history: true, ownerDefault: true, cache: true, meta: true, resolved: true,
+} satisfies Record<keyof ClassDescription | 'system' | 'resolved', true>);
+
+/** Поля верхнего уровня data строк класса: он закрыт (class_resolve, 40-class.sql) — в нём только поля описания. */
+const dataFields = (c: ClassInfo): string[] =>
+  c.name === 'Class' ? CLASS_ROW_FIELDS : Object.keys((c.schema.properties ?? {}) as Record<string, unknown>);
+
+/**
+ * Поле фильтра, sort() или агрегата не описано ни в одном классе шага — такое условие ничего не найдёт: invalid_query с
+ * похожими именами (план 2.0, этап 3, п. 3; в 1.5 было предупреждение, 7.9 №6). Проверяется только верхний уровень:
+ * путь внутрь поля-объекта не сверяется. classes — класс шага и все классы, которые он матчит (потомки, если не exact(),
+ * у роли — её цели); ends — роли концов тоже годятся (фильтр).
+ */
+function checkField(classes: ClassInfo[], field: string, where: string, ends: boolean): void {
+  if (!classes.length) return;
+  if (classes.some((c) => dataFields(c).includes(field) || (ends && c.ends[field] !== undefined))) return;
+  const names = classes.flatMap((c) => [...dataFields(c), ...(ends ? Object.keys(c.ends) : [])]);
+  throw lerr('query.unknown_field', { where, field, cls: classes[0].name, similar: similar(field, names) });
+}
+
+/** Поле sort('data.<путь>') или агрегата: первый ключ пути. */
+const topField = (field: string): string => field.slice(5).split('.')[0];
 
 // ---------------------------------------------------------------------------
 // Классы шага и правила переходов
@@ -97,6 +129,24 @@ export function stepClasses(reg: Registry, step: Step): string[] {
   const base = step.role ? roleTargets(reg, step.role) : [step.cls.name];
   if (step.exact) return base;
   return uniq(base.flatMap((b) => (reg.has(b) ? reg.family(b).map((c) => c.name) : [b])));
+}
+
+/** Классы шага для типов листьев и сверки полей: класс шага первым, затем прочие классы, которые шаг матчит. */
+function typingOf(reg: Registry, step: Step, names = stepClasses(reg, step)): ClassInfo[] {
+  const infos = names.map((n) => reg.find(n)).filter((c): c is ClassInfo => !!c);
+  return [step.cls, ...infos.filter((c) => c !== step.cls)];
+}
+
+/**
+ * Отказы построителя, которым не нужны база и путь, — фильтр шага (в том числе неизвестное поле) и поле sort('data.…') или
+ * агрегата по классам шага: план записи проверяет их до первого оператора (write.ts:precheckPlan, §2.5), поэтому
+ * опечатка в фильтре цели не ломает db.begin(). Построитель при чтении проверяет то же самое ещё раз.
+ */
+export function precheckStep(reg: Registry, step: Step, order?: string, agg?: AggSpec): void {
+  const typing = typingOf(reg, step);
+  compileFilter(reg, typing, step.filter, new Params());
+  if (order?.startsWith('data.')) checkField(typing, topField(order), `sort('${order}')`, false);
+  if (agg?.field.startsWith('data.')) checkField(typing, topField(agg.field), `${agg.fn}('${agg.field}')`, false);
 }
 
 /** Принимает ли список классов конца класс cls (с учётом его предков). */
@@ -141,7 +191,7 @@ export function resolveHop(reg: Registry, prev: Step, next: Step): Hop {
   for (const dir of preferRev ? (['reverse', 'forward'] as const) : (['forward', 'reverse'] as const)) {
     if ((dir === 'forward' ? fwd : rev).length) return { dir, roles: null };
   }
-  throw new LetopisError('no_path', `нет перехода ${prev.name} → ${next.name}: ни один класс не ссылается на другой`);
+  throw lerr('query.no_path', { from: prev.name, to: next.name });
 }
 
 // ---------------------------------------------------------------------------
@@ -249,7 +299,7 @@ function compileOp(path: string[], leaf: LeafType, o: Op, p: Params): Frag {
       return compileOp(path, leaf, { [OP]: 'ne', args: [args[0]] } as Op, p);
     }
     default:
-      return fail(`неизвестный оператор ${String(o[OP])}`);
+      throw lerr('query.unknown_op', { op: String(o[OP]) });
   }
 }
 
@@ -274,7 +324,7 @@ function compileTags(v: unknown, p: Params): Frag {
       }
     }
   }
-  return fail('tags() принимает строку, список или has/hasAny/hasAll');
+  throw lerr('query.tags_arg');
 }
 
 interface CompiledFilter {
@@ -301,7 +351,7 @@ function compileFilter(reg: Registry, classes: ClassInfo[], filter: Filter | und
 
   // or(…): дизъюнкция под-фильтров — только перепроверка
   if (isOp(filter)) {
-    if (filter[OP] !== 'or') fail(`оператор ${String(filter[OP])} на уровне фильтра шага — допустим только or(…)`);
+    if (filter[OP] !== 'or') throw lerr('query.step_op', { op: String(filter[OP]) });
     const parts = (filter.args[0] as Filter[]).map((f) => {
       const sub = compileFilter(reg, classes, f, p);
       const frags = [...asFrags(sub, p)];
@@ -315,7 +365,7 @@ function compileFilter(reg: Registry, classes: ClassInfo[], filter: Filter | und
     return out;
   }
   if (Array.isArray(filter)) {
-    out.ids = filter.map((x) => idOfValue(x) ?? fail('список id: ожидались строки'));
+    out.ids = filter.map((x) => idOfValue(x) ?? refuse('query.id_list'));
     return out;
   }
 
@@ -348,8 +398,8 @@ function compileFilter(reg: Registry, classes: ClassInfo[], filter: Filter | und
     if (value === undefined) continue;
     if (key === 'id') {
       if (typeof value === 'string') out.ids = [value];
-      else if (Array.isArray(value)) out.ids = value.map((x) => idOfValue(x) ?? fail('filter.id: ожидались строки'));
-      else fail('filter.id принимает строку или список строк');
+      else if (Array.isArray(value)) out.ids = value.map((x) => idOfValue(x) ?? refuse('query.filter_id_list'));
+      else throw lerr('query.filter_id');
       continue;
     }
     if (isRole(key)) {
@@ -358,12 +408,14 @@ function compileFilter(reg: Registry, classes: ClassInfo[], filter: Filter | und
         out.frags.push((a) => `coalesce(${a}.links->${role}, 'null'::jsonb) in ('null'::jsonb, '[]'::jsonb)`);
         continue;
       }
-      const id = idOfValue(value) ?? fail(`конец ${key}: ожидался id, строка ответа или null`);
+      const id = idOfValue(value) ?? refuse('query.end_value', { role: key });
       out.ends.push(id);
       const ph = p.push(id);
       out.frags.push((a) => `${SCHEMA_MARK}.role_has(${a}.links, array[${role}], ${ph}::uuid)`);
       continue;
     }
+    // поле данных: не описано ни в одном классе шага — invalid_query с похожими (план 2.0, этап 3, п. 3)
+    checkField(classes, key, `${classes[0]?.name ?? ''}({ ${key} })`, true);
     if (isOp(value)) {
       out.frags.push(compileOp([key], leafOf(reg, classes, [key]), value, p));
       continue;
@@ -383,8 +435,12 @@ function compileFilter(reg: Registry, classes: ClassInfo[], filter: Filter | und
 function asFrags(cf: CompiledFilter, p: Params): Frag[] {
   const frags = [...cf.frags];
   if (cf.ids) {
-    const ph = p.push(cf.ids);
-    frags.push((a) => `${a}.id = any (${ph}::uuid[])`);
+    // один id — равенство, а не = any (массив): общий план подготовленного запроса для = any PostgreSQL считает на ~10
+    // элементов, и при неудачной выборке ANALYZE чтение по ключу навсегда оставалось на планах под каждый вызов —
+    // 0,5–0,8 мс планирования на чтение (замер против 1.0.1); общий план равенства стоит как план вызова и выбирается всегда
+    const one = cf.ids.length === 1;
+    const ph = p.push(one ? cf.ids[0] : cf.ids);
+    frags.push((a) => (one ? `${a}.id = ${ph}::uuid` : `${a}.id = any (${ph}::uuid[])`));
   }
   if (cf.eq) {
     const ph = p.push(cf.eq);
@@ -420,7 +476,7 @@ function sortSpec(order: string, leaf: (path: string[]) => LeafType): SortSpec {
     const t = leaf(path);
     return { expr: (a) => (CAST[t] ? `(${accessor(path)(a)})${CAST[t]}` : accessor(path)(a)), pcast: PCAST[t], field: order, type: t, nullable: true };
   }
-  return fail(`sort: поле 'at', 'rev', 'id' или 'data.<путь>', а не '${order}'`);
+  throw lerr('query.sort_field', { field: order });
 }
 
 /** Формы значений курсора — как у форматов uuid, date и date-time валидатора (validate.ts). */
@@ -477,9 +533,11 @@ function shown(v: unknown): string {
   return s.length > 60 ? `${s.slice(0, 59)}…` : s;
 }
 
-const CURSOR_EXPECT: Record<SortSpec['type'], string> = {
-  numeric: 'число', int: 'целое число', boolean: 'true/false', text: 'строка', uuid: 'uuid строкой',
-  timestamptz: 'время строкой вида 2026-10-07T10:00:00Z', date: 'дата строкой вида 2026-10-07', jsonb: 'строка, число, true/false',
+/** Какое значение курсора ждёт поле sort() по своему типу — запись каталога (параметр expect ошибки курсора). */
+const CURSOR_EXPECT: Record<SortSpec['type'], MsgKey> = {
+  numeric: 'query.cursor_expect_numeric', int: 'query.cursor_expect_int', boolean: 'query.cursor_expect_boolean',
+  text: 'query.cursor_expect_text', uuid: 'query.cursor_expect_uuid', timestamptz: 'query.cursor_expect_timestamptz',
+  date: 'query.cursor_expect_date', jsonb: 'query.cursor_expect_jsonb',
 };
 
 /**
@@ -489,14 +547,14 @@ const CURSOR_EXPECT: Record<SortSpec['type'], string> = {
  * Курсор того же типа с другого поля проверка не отличит.
  */
 function cursorParams(c: unknown, sort: SortSpec): { v: unknown; id: string } {
-  const how = `cursorOf(строка, '${sort.field}')`;
-  if (typeof c !== 'object' || c === null || (c as Partial<Cursor>).v === undefined) return fail(`after(cursor): курсор — объект { v, id } из ${how}`);
+  if (typeof c !== 'object' || c === null || (c as Partial<Cursor>).v === undefined) throw lerr('query.cursor_shape', { field: sort.field });
   const { v, id } = c as Cursor;
-  if (typeof id !== 'string' || !UUID_RE.test(id)) return fail(`after(cursor): id курсора — uuid строки, а не ${shown(id)}`);
+  if (typeof id !== 'string' || !UUID_RE.test(id)) throw lerr('query.cursor_id', { id: shown(id) });
   const value = v === null && sort.nullable ? null : cursorValue(v, sort.type);
   if (value === undefined) {
-    return fail(`after(cursor): значение курсора ${shown(v)} не подходит к sort('${sort.field}') — ожидалось: ${CURSOR_EXPECT[sort.type]}`
-      + `${sort.nullable ? ' или null' : ''}; курсор снят с другого поля? Нужен ${how}`);
+    // у поля данных подходит и курсор null — своя запись, а не склейка « или null»
+    throw lerr(sort.nullable ? 'query.cursor_value_nullable' : 'query.cursor_value',
+      { value: shown(v), field: sort.field, expect: lmsg(CURSOR_EXPECT[sort.type]) });
   }
   return { v: value, id };
 }
@@ -505,7 +563,7 @@ function cursorParams(c: unknown, sort: SortSpec): { v: unknown; id: string } {
 function cursorRev(c: Cursor): number | undefined {
   const rev = (c as { rev?: unknown }).rev;
   if (rev === undefined) return undefined;
-  if (!Number.isInteger(rev) || (rev as number) < 1) return fail(`after(cursor): rev курсора — номер версии (целое ≥ 1), а не ${shown(rev)}`);
+  if (!Number.isInteger(rev) || (rev as number) < 1) throw lerr('query.cursor_rev', { rev: shown(rev) });
   return rev as number;
 }
 
@@ -515,7 +573,7 @@ function cursorPath(c: Cursor, keys: string[]): string[] | undefined {
   if (path === undefined) return undefined;
   return keys.map((k) => {
     const id = typeof path === 'object' && path !== null ? (path as Record<string, unknown>)[k] : undefined;
-    if (typeof id !== 'string' || !UUID_RE.test(id)) return fail(`after(cursor): в курсоре пути нет id узла ${k} — нужен cursorOf(путь, поле) из paths() этой же цепочки`);
+    if (typeof id !== 'string' || !UUID_RE.test(id)) throw lerr('query.cursor_path', { key: k });
     return id;
   });
 }
@@ -542,7 +600,7 @@ export function cursorOf(row: Row | Path, field: string): Cursor {
     for (const k of f.slice(5).split('.')) v = (v as Record<string, unknown> | undefined)?.[k];
     return { v: (v ?? null) as Cursor['v'], id: row.id, ...rev };
   }
-  return fail(`cursorOf: поле 'at', 'rev', 'id' или 'data.<путь>', а не '${field}'`);
+  throw lerr('query.cursor_of_field', { field });
 }
 
 // ---------------------------------------------------------------------------
@@ -555,10 +613,10 @@ export function cursorOf(row: Row | Path, field: string): Cursor {
  */
 const SCHEMA_MARK = '\u0000S\u0000';
 
-const COLS = ['id', 'rev', 'class', 'tenant', 'owner', 'links', 'data', 'tags', 'at', 'author', 'agent', 'op', 'reason', 'moved'];
-/** Колонки журнала, выданные приложению: все, кроме changed (ревью №1 точки А плана 1.1, 10-core.sql). */
-const LOG_COLS = ['seq', 'tx', 'id', 'rev', 'class', 'cv', 'tenant', 'owner', 'links', 'data', 'tags', 'at', 'author', 'agent', 'op', 'reason',
-  'moved', 'prev_hash', 'hash'].map((c) => 'l.' + c).join(', ');
+const COLS = ['id', 'rev', 'class', 'tenant', 'owner', 'links', 'data', 'tags', 'at', 'author', 'agent', 'op', 'reason'];
+/** Колонки журнала (выданные приложению — 10-core.sql). */
+const LOG_COLS = ['seq', 'tx', 'id', 'rev', 'class', 'cv', 'tenant', 'owner', 'links', 'data', 'tags', 'at', 'author', 'agent', 'op', 'reason']
+  .map((c) => 'l.' + c).join(', ');
 const colsOf = (a: string): string => COLS.map((c) => `${a}.${c}`).join(', ');
 
 export interface BuildOptions {
@@ -571,7 +629,7 @@ export interface BuildOptions {
 
 export function buildRead(reg: Registry, schema: string, steps: Step[], mods: ChainMods, mode: ReadMode, agg?: AggSpec,
   opts: BuildOptions = {}): BuiltQuery {
-  if (!steps.length) fail('пустая цепочка');
+  if (!steps.length) throw lerr('query.empty_chain');
   const S = `"${schema.replace(/"/g, '""')}"`;
   const p = new Params();
   const cur = mods.asOf === undefined;
@@ -583,7 +641,7 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
   steps.forEach((s, i) => {
     if (s.pivotKey !== undefined) {
       const at = byNodeKey.get(s.pivotKey);
-      if (at === undefined) fail(`возврат к узлу ${s.name}: узла нет в этом пути`);
+      if (at === undefined) throw lerr('query.pivot_missing', { name: s.name });
       real[i] = at!;
     } else {
       real[i] = i;
@@ -601,8 +659,7 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
   for (let i = 0; i < steps.length; i++) {
     const step = steps[i];
     const names = stepClasses(reg, step);
-    const infos = names.map((n) => reg.find(n)).filter((c): c is ClassInfo => !!c);
-    const typing = [step.cls, ...infos.filter((c) => c !== step.cls)];
+    const typing = typingOf(reg, step, names);
 
     // возврат к узлу: только дофильтры
     if (step.pivotKey !== undefined) {
@@ -648,7 +705,7 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
       }
       // по классу: id-кандидаты классов шага, последняя версия — любого класса (как find_ids, план 2.0, 7.1 №1)
       return `(select v.id, v.rev from ${versionsAt(at, ids ? `l.id = any (${ids})` : `l.id in (select c.id from ${S}.log c where c.class = any (${clsPh}))`)} v `
-        + `where v.class = any (${clsPh}) and (v.op = 'delete') = ${isDead} and v.op not in ('purge', 'trim', 'reset')${dataCond('v')}${endsCond(`${S}.link_ids(v.links)`)})`;
+        + `where v.class = any (${clsPh}) and (v.op = 'delete') = ${isDead}${dataCond('v')}${endsCond(`${S}.link_ids(v.links)`)})`;
     };
     const entityPart = (src: string | undefined, depth = 'null::int', from = `${S}.entity x`) =>
       `select ${colsOf('x')}, ${depth} as depth from ${from} where ${where('x', src)}`;
@@ -667,7 +724,7 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
     const parts: string[] = [];
 
     if (i === 0) {
-      if (step.deepMax !== undefined) fail('deep() — на шаге перехода к тому же классу, а не на первом шаге');
+      if (step.deepMax !== undefined) throw lerr('query.deep_first_step');
       if (cur) {
         // условие id уже в conds — первичный ключ; вложение — поиск по индексу GIN
         parts.push(!cf.ids && (cf.eq || cf.ends.length) ? entityByIds(`select f.id from ${findIds(null, 'null', false)} f`) : entityPart(undefined));
@@ -688,14 +745,14 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
 
     if (step.deepMax !== undefined) {
       if (hop.dir !== 'reverse' || !stepClasses(reg, steps[a]).some((c) => names.includes(c))) {
-        fail(`deep() — только на переходе к тому же классу (дети любой глубины): ${steps[a].name} → ${step.name}`);
+        throw lerr('query.deep_hop', { from: steps[a].name, to: step.name });
       }
-      if (dead) fail('deep() и withDeleted() не сочетаются');
+      if (dead) throw lerr('query.deep_with_deleted');
       const maxPh = `${p.push(step.deepMax)}::int`;
       let deepSrc = `${S}.find_deep(${clsPh}, ${rolesPh}, ${srcArr}, ${maxPh}, ${atPh})`;
       if (opts.direct) {
         // тот же обход под RLS: невидимый узел обрывает поддерево политикой
-        const node = cur ? `${S}.entity` : `(select w.id, w.rev, w.links from ${versionsAt(atPh, `l.class = any (${clsPh})`)} w where w.op not in ('delete', 'purge', 'trim', 'reset'))`;
+        const node = cur ? `${S}.entity` : `(select w.id, w.rev, w.links from ${versionsAt(atPh, `l.class = any (${clsPh})`)} w where w.op <> 'delete')`;
         const hasSrc = (v: string, src: string) => (cur ? `${v}.ends @> array[${src}]` : `${S}.link_ids(${v}.links) @> array[${src}]`);
         const cls = (v: string) => (cur ? ` and ${v}.class = any (${clsPh})` : '');
         deepSrc = `(with recursive d(src, id, rev, depth, seen) as (`
@@ -725,7 +782,7 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
         }
         return `(select s.src, v.id, v.rev from ${versionsAt(at, `l.class = any (${clsPh})`)} v `
           + `cross join lateral unnest(${S}.link_ids(v.links)) t(x) join ${srcs} on s.src = t.x `
-          + `where (v.op = 'delete') = ${isDead} and v.op not in ('purge', 'trim', 'reset')${dataCond('v')}${endsCond(`${S}.link_ids(v.links)`)}${rolesCond('v', 's.src')})`;
+          + `where (v.op = 'delete') = ${isDead}${dataCond('v')}${endsCond(`${S}.link_ids(v.links)`)}${rolesCond('v', 's.src')})`;
       };
       ctes.push(`p${i}a as (select q.src, q.id, q.rev from ${hopCall(atPh, false)} q)`);
       // пары переходов — по одной на (источник, цель): объект, который ссылается на несколько объектов прошлого шага,
@@ -766,6 +823,7 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
   const single = tail.length === 0 && !steps.some((st) => st.pivotKey !== undefined);
   const ents = single ? `n${lastNode}` : `(select z0.* from n${lastNode} z0 where z0.id in (select h${lastNode}.id ${from}${whereOf(tail)}))`;
   const leaf = (path: string[]) => leafOf(reg, rowsNode(lastNode), path);
+  if (mods.order?.startsWith('data.')) checkField(rowsNode(lastNode), topField(mods.order), `sort('${mods.order}')`, false);
   const sort = mods.order ? sortSpec(mods.order, leaf) : undefined;
   const dir = mods.desc ? ' desc' : '';
   /** Порядок: поле sort, id строки и разделители равных (id прочих узлов пути). */
@@ -778,7 +836,7 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
    */
   const after = (a: string, ties: (c: Cursor) => { col: string; val: unknown; cast: string }[] = () => []) => {
     if (!mods.after) return undefined;
-    if (!sort) fail('after(cursor) требует sort(поле)');
+    if (!sort) throw lerr('query.after_without_sort');
     const c = cursorParams(mods.after, sort!);
     const t = ties(mods.after);
     const lt = mods.desc ? '<' : '>';
@@ -802,29 +860,7 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
   const pathKeys = [...others, ...keyed.filter((k) => k.node === lastNode)].map((k) => k.key);
   const limitOffset = () =>
     (mods.limit !== undefined ? ` limit ${p.push(mods.limit)}::bigint` : '') + (mods.offset !== undefined ? ` offset ${p.push(mods.offset)}::bigint` : '');
-  // versions({ follow: true }): отрезки истории объектов шага по переносам id (reclass, rekey) в обе стороны — версии
-  // id с номерами (lo, hi]. Надгробие переноса кончает отрезок, первая версия на новом id начинает: объект, заведённый
-  // на прежнем id после переноса, в историю не попадает (план 2.0, 7.1 №2). Тот же обход — history_segments в
-  // lib/sql/75-history.sql (diff и blame); здесь он в самом запросе, чтобы работал и на схеме до up() этой версии.
-  if (mode === 'versions' && mods.follow) {
-    // границы отрезка с версией r: строки переноса id — через парную строку по индексу log_moved (moved друг на друга),
-    // без прохода по версиям id
-    const bounds = (i: string, r: string) =>
-      `cross join lateral (select greatest(coalesce(max(x.rev) filter (where x.op = 'delete' and x.rev < ${r}), 0), `
-      + `coalesce(max(x.rev - 1) filter (where x.op <> 'delete' and x.rev <= ${r}), 0)) as lo, `
-      + `least(min(x.rev) filter (where x.op = 'delete' and x.rev >= ${r}), min(x.rev - 1) filter (where x.op <> 'delete' and x.rev > ${r})) as hi `
-      + `from ${S}.log m join ${S}.log x on x.moved = m.id and x.id = ${i} where m.moved = ${i}) b`;
-    ctes.push(`f(id, lo, hi, n) as (select z.id, b.lo, b.hi, 0 from ${ents} z ${bounds('z.id', 'z.rev')} `
-      + `union select g.id, b.lo, b.hi, g.n from f cross join lateral (`
-      + `select a.moved as id, (select t.rev from ${S}.log t where t.id = a.moved and t.op = 'delete' and t.moved = f.id `
-      + `order by abs(t.seq - a.seq) limit 1) as r, f.n - 1 as n from ${S}.log a `
-      + `where f.n <= 0 and a.id = f.id and a.rev = f.lo + 1 and a.moved is not null and a.op <> 'delete' `
-      + `union all select t.moved, (select a.rev from ${S}.log a where a.id = t.moved and a.op <> 'delete' and a.moved = f.id `
-      + `order by abs(a.seq - t.seq) limit 1), f.n + 1 from ${S}.log t `
-      + `where f.n >= 0 and t.id = f.id and t.rev = f.hi and t.op = 'delete' and t.moved is not null) g ${bounds('g.id', 'g.r')} `
-      + `where g.r is not null and abs(g.n) <= 1000)`);
-  }
-  const withClause = `with ${mode === 'versions' && mods.follow ? 'recursive ' : ''}${ctes.join(',\n')}\n`;
+  const withClause = `with ${ctes.join(',\n')}\n`;
 
   let text: string;
   let aggLeaf: LeafType | undefined;
@@ -852,36 +888,21 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
       break;
     case 'versions': {
       // с sort — по полю и направлению (последние версии первыми — sort('at', 'desc'), с limit — в самом запросе);
-      // без sort: с follow — по времени через все связанные id, без follow — по id и номеру версии
-      const order = sort ? `${sort.expr('v')}${dir}, v.id${dir}, v.rev${dir}` : mods.follow ? 'v.at, v.id, v.rev' : 'v.id, v.rev';
+      // без sort — по id и номеру версии
+      const order = sort ? `${sort.expr('v')}${dir}, v.id${dir}, v.rev${dir}` : 'v.id, v.rev';
       // курсор — поле sort, id и номер версии: версии одного объекта с равным полем не теряются (план 2.0, 7.1 №4)
       const cond = whereOf([after('v', (c) => {
         const rev = cursorRev(c);
         return rev === undefined ? [] : [{ col: 'v.rev', val: rev, cast: '::int' }];
       })]);
-      text = mods.follow
-        ? `${withClause}select to_jsonb(v) as row from (select ${colsOf('l')}, null::int as depth from (select distinct f.id, f.lo, f.hi from f) s `
-          + `cross join lateral (select ${colsOf('l')} from ${S}.log l where l.id = s.id and l.rev > s.lo and l.rev <= coalesce(s.hi, 2147483647)) l) v`
-          + `${cond} order by ${order}${limitOffset()}`
-        : `${withClause}select to_jsonb(v) as row from (select ${colsOf('l')}, null::int as depth from ${S}.log l `
-          + `where l.id in (select z.id from ${ents} z)) v${cond} order by ${order}${limitOffset()}`;
-      break;
-    }
-    case 'diff':
-    case 'blame': {
-      // план 1.1, §2.1: функции базы считают по журналу под RLS — по одному документу на объект шага
-      const h = mods.hist ?? {};
-      const num = (v: unknown) => (typeof v === 'number' ? `${p.push(v)}::int` : 'null');
-      const ts = (v: unknown) => (typeof v === 'string' ? `${p.push(v)}::text::timestamptz` : 'null');
-      const call = mode === 'diff'
-        ? `${S}.diff_versions(z.id, ${num(h.from)}, ${num(h.to)}, ${ts(h.from)}, ${ts(h.to)}, ${h.follow ? 'true' : 'false'})`
-        : `${S}.blame(z.id, ${ts(h.at)}, ${num(h.limit)})`;
-      text = `${withClause}select ${call} as row from (select distinct z.id from ${ents} z) z order by z.id`;
+      text = `${withClause}select to_jsonb(v) as row from (select ${colsOf('l')}, null::int as depth from ${S}.log l `
+        + `where l.id in (select z.id from ${ents} z)) v${cond} order by ${order}${limitOffset()}`;
       break;
     }
     case 'agg': {
-      if (!agg || !agg.field.startsWith('data.')) fail("агрегат по полю 'data.<путь>'");
+      if (!agg || !agg.field.startsWith('data.')) throw lerr('query.agg_field');
       const path = agg!.field.slice(5).split('.');
+      checkField(rowsNode(lastNode), path[0], `${agg!.fn}('${agg!.field}')`, false);
       const acc = accessor(path)('z');
       aggLeaf = leaf(path);
       if (agg!.fn === 'countBy') {
@@ -901,11 +922,10 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
 
 /** Строка из to_jsonb(узла): служебные поля в $deleted / $depth, пустые необязательные — без ключа. */
 export function toRow(raw: Record<string, unknown>): Row {
-  const { depth, agent, reason, moved, changed: _changed, ...rest } = raw;
+  const { depth, agent, reason, ...rest } = raw;
   const row = rest as unknown as Row;
   if (agent != null) row.agent = agent as string;
   if (reason != null) row.reason = reason as string;
-  if (moved != null) row.moved = moved as string;
   if (row.op === 'delete') row.$deleted = true;
   if (depth != null) row.$depth = depth as number;
   return row;

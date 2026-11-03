@@ -1,9 +1,12 @@
 /**
  * engine-attacks — атаки сырым SQL от прикладной роли (план, §7.3.1, строки этапа 1; план 1.1, §7.7 №31–35).
- * Каждая попытка проверяет конкретный исход: код ошибки, пустую выборку, ноль строк или находку verify();
- * №35 — агент через инструменты MCP (letopis/mcp); №36 — ревью безопасности №2 (смена parent, alias, derivedBy); №37 —
- * агент через MCP пишет классы прав, сессия системного администратора (О5); №38–46 — доработки после точки Б; №47 и
- * дальше — хвост ревью безопасности №3 (доработки после 1.2.0).
+ * Каждая попытка проверяет конкретный исход: код ошибки, пустую выборку или ноль строк;
+ * №35 — агент через инструменты MCP (letopis/mcp); №36 — ревью безопасности №2 (смена parent, alias); №37 —
+ * агент через MCP пишет классы прав, сессия системного администратора (О5); №40–46 — доработки после точки Б; №47 и
+ * дальше — хвост ревью безопасности №3 (доработки после 1.2.0). Атаки на производные классы и агрегаты в базе (№33, №34,
+ * №38, №39, №44, №50, №52, №53, №55, №57) сняты вместе с ними в 2.0.0, правка в обход триггеров, которую находила
+ * проверка целостности (№19), — вместе с хэшами версий и проверкой, смена класса без права DELETE (№42) — вместе со
+ * сменой класса; номера остальных прежние. №5 — смена класса: класс строки неизменен (план 2.0, редакция 2).
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -90,39 +93,17 @@ test('№4: сменить арендатора или владельца; вс�
   await assert.rejects(as(a, `insert into ${S}.entity (class, tenant, data) values ('Org', $1, '{"name": "x"}')`, [b.id]), lt('tenant_denied'));
 });
 
-test('№5: смена класса — без ключа проходит, с ключом — reclass(), роли ссылок проверяются', async () => {
+test('№5: смена класса — immutable_key у класса без ключа и с ключом, со ссылкой и без', async () => {
   const cat = await ins(a, 'Cat', { name: 'Мурка' });
-  const [dog] = await as(a, `update ${S}.entity set class = 'Dog' where id = $1 returning *`, [cat.id]);
-  assert.equal(dog.id, cat.id);
-  assert.equal(dog.op, 'reclass');
-  assert.equal(dog.rev, 2);
-  // роль CatRef принимает только Cat: обратно в Dog после ссылки нельзя
-  const [back] = await as(a, `update ${S}.entity set class = 'Cat' where id = $1 returning *`, [cat.id]);
-  const h = await ins(a, 'Holder', {}, { CatRef: back.id });
-  const err = await as(a, `update ${S}.entity set class = 'Dog' where id = $1`, [cat.id]).then(() => null, (x) => x);
-  assert.ok(err);
-  lt('reclass_denied')(err);
-  assert.deepEqual(JSON.parse(err.detail).rows.map((r: { id: string }) => r.id), [h.id]);
-  // класс с ключом: сырой update — отказ с подсказкой; reclass() — новый id, ссылки переведены
+  await assert.rejects(as(a, `update ${S}.entity set class = 'Dog' where id = $1`, [cat.id]), lt('immutable_key'));
+  // ссылка ролью, которая принимает только Cat, — та же ошибка: до проверки ролей дело не доходит
+  await ins(a, 'Holder', {}, { CatRef: cat.id });
+  await assert.rejects(as(a, `update ${S}.entity set class = 'Dog' where id = $1`, [cat.id]), lt('immutable_key'));
   const c1 = await ins(a, 'Coded', { code: 'X1' });
-  await assert.rejects(as(a, `update ${S}.entity set class = 'Coded2' where id = $1`, [c1.id]), lt('use_reclass'));
-  const use = await ins(a, 'Use', {}, { What: c1.id });
-  const [{ nid }] = await as(a, `select ${S}.reclass($1, 'Coded2') as nid`, [c1.id]);
-  assert.notEqual(nid, c1.id);
-  const [{ expected }] = await e.sql.unsafe(`select ${S}.v5_id($1::uuid, 'Coded2', array['X1']) as expected`, [a.id]);
-  assert.equal(nid, expected);
-  // Use: конец What входит в ключ — id связи тоже сменился, ссылка на новый id
-  const uses = await e.sql.unsafe(`select * from ${S}.entity where class = 'Use' and tenant = $1`, [a.id]);
-  assert.equal(uses.length, 1);
-  assert.equal(uses[0].links.What, nid);
-  assert.notEqual(uses[0].id, use.id);
-  const oldLog = await e.sql.unsafe(`select op, moved from ${S}.log where id = $1 order by rev`, [c1.id]);
-  // надгробие старого id — всегда вид delete; moved ведёт на новый id
-  assert.deepEqual(oldLog.at(-1), { op: 'delete', moved: nid });
-  const newLog = await e.sql.unsafe(`select op, moved from ${S}.log where id = $1 order by rev`, [nid]);
-  assert.deepEqual(newLog[0], { op: 'reclass', moved: c1.id });
-  const [{ v }] = await e.sql.unsafe(`select ${S}.verify() as v`);
-  assert.equal(v.ok, true, JSON.stringify(v.issues));
+  await ins(a, 'Use', {}, { What: c1.id });
+  await assert.rejects(as(a, `update ${S}.entity set class = 'Coded2' where id = $1`, [c1.id]), lt('immutable_key'));
+  const rows = await e.sql.unsafe(`select id, class, rev from ${S}.entity where id = any ($1::uuid[]) order by class`, [[cat.id, c1.id]]);
+  assert.deepEqual(rows.map((r) => [r.class, r.rev]), [['Cat', 1], ['Coded', 1]], 'строки и версии прежние');
 });
 
 test('№6: id не по ключу, id классу без ключа, второй объект с тем же ключом', async () => {
@@ -152,7 +133,6 @@ test('№10: версия «в прошлое» с явным временем',
   await assert.rejects(as(a, `update ${S}.entity set at = '2000-01-01' where id = $1`, [org.id]), lt('42501'));
   await assert.rejects(as(a, `insert into ${S}.entity (class, data, at) values ('Org', '{"name": "A10b"}', '2000-01-01')`), lt('42501'));
   await assert.rejects(as(a, `update ${S}.entity set rev = 1 where id = $1`, [org.id]), lt('42501'));
-  await assert.rejects(as(a, `update ${S}.entity set hash = null where id = $1`, [org.id]), lt('428C9'));
 });
 
 test('№11: каскад не задевает чужого арендатора — ссылки только внутри арендатора', async () => {
@@ -181,8 +161,7 @@ test('№14: чужой арендатор — пустая выборка, но
   assert.equal((await as(a, `select * from ${S}.entity where id = $1`, [theirs.id])).length, 0);
   assert.equal((await as(a, `update ${S}.entity set data = data where id = $1 returning id`, [theirs.id])).length, 0);
   assert.equal((await as(a, `delete from ${S}.entity where id = $1 returning id`, [theirs.id])).length, 0);
-  // журнал — по колонкам: select * приложению недоступен (колонка changed не выдана, ревью №1 точки А)
-  assert.equal((await as(a, `select id, rev from ${S}.log where id = $1`, [theirs.id])).length, 0);
+  assert.equal((await as(a, `select * from ${S}.log where id = $1`, [theirs.id])).length, 0);
   await assert.rejects(as(a, `insert into ${S}.entity (class, tenant, data) values ('Org', $1, '{"name": "x"}')`, [b.id]), lt('tenant_denied'));
 });
 
@@ -206,21 +185,6 @@ test('№18: параллельные правки разных полей од�
   const [row] = await e.sql.unsafe(`select data, rev from ${S}.entity where id = $1`, [org.id]);
   assert.deepEqual(row.data, { name: 'A18', city: 'Тверь', phone: '+7' });
   assert.equal(row.rev, 3);
-});
-
-test('№19: суперпользователь меняет строку в обход триггеров — verify находит', async () => {
-  const org = await ins(a, 'Org', { name: 'A19' });
-  await e.sql.begin(async (tx) => {
-    await tx.unsafe(`alter table ${S}.entity disable trigger user`);
-    await tx.unsafe(`update ${S}.entity set data = '{"name": "A19", "city": "подмена"}' where id = $1`, [org.id]);
-    for (const trg of ['entity_bi', 'entity_bu', 'entity_ai', 'entity_au', 'entity_bd', 'entity_bd_account', 'entity_ad', 'entity_total_ai', 'entity_total_au', 'entity_total_ad']) {
-      await tx.unsafe(`alter table ${S}.entity enable always trigger ${trg}`);
-    }
-  });
-  const [{ v }] = await e.sql.unsafe(`select ${S}.verify() as v`);
-  assert.equal(v.ok, false);
-  assert.ok(v.issues.some((i: { id: string }) => i.id === org.id), JSON.stringify(v.issues));
-  await e.asOwner((tx) => tx.unsafe(`delete from ${S}.entity where id = $1`, [org.id]));
 });
 
 test('№20–23: роль владельца, двойник во временной схеме, выключение защиты, COPY', async () => {
@@ -263,13 +227,10 @@ test('№25: триггерную функцию напрямую не вызв�
   await assert.rejects(as(a, `select ${S}.sys_update(gen_random_uuid(), '{}', '{}', null, 'update')`), lt('42501'));
 });
 
-test('№26: удаление и смена класса только в read committed', async () => {
+test('№26: удаление только в read committed', async () => {
   const cat = await ins(a, 'Cat', { name: 'RR' });
-  const c = await ins(a, 'Coded', { code: 'RR' });
   const rr = (text: string, params: unknown[] = []) => e.as(a.token, (tx) => tx.unsafe(text, params as never[]), { isolation: 'repeatable read' });
   await assert.rejects(rr(`delete from ${S}.entity where id = $1`, [cat.id]), lt('isolation_level'));
-  await assert.rejects(rr(`update ${S}.entity set class = 'Dog' where id = $1`, [cat.id]), lt('isolation_level'));
-  await assert.rejects(rr(`select ${S}.reclass($1, 'Coded2')`, [c.id]), lt('isolation_level'));
 });
 
 test('№27: find_*() напрямую — только id строк, которые пользователь и так видит', async () => {
@@ -456,7 +417,8 @@ test('№32 (план 1.1, этап 2): заливка канала поддел
     };
     const before = await db.Org().cache().rows();
     const sig = db.cache.stats().signals;
-    // сброс, класс данных, все сессии, чужой токен, мусор — каждый своей транзакцией (без склейки)
+    // бывшие служебные «*» и «session:*» (с 2.0.0 — нагрузка не по режиму), класс данных, чужой токен, мусор — каждый
+    // своей транзакцией (без склейки)
     const fakes = ['*', 'Org', 'session:*', `${'ab'.repeat(12)}@${'cd'.repeat(12)}`, 'не класс!'];
     const t0 = Date.now();
     for (let i = 0; i < 600; i++) await e.app.unsafe('select pg_notify($1, $2)', [e.schema, fakes[i % fakes.length]]);
@@ -478,40 +440,6 @@ test('№32 (план 1.1, этап 2): заливка канала поддел
   } finally {
     await db.close();
   }
-});
-
-test('№33 (план 1.1, этап 4): запись в производный класс и ссылка на него — derived_class; описание со ссылкой отклонено', async () => {
-  await e.defineDerived(a, { name: 'Rollup', kind: 'hub', key: ['k'], derivedBy: 'rollup', history: false,
-    fields: { properties: { k: { type: 'string' } }, required: ['k'] } });
-  const q = (sql: string, p: unknown[] = []) => e.as(a.token, (tx) => tx.unsafe(sql, p as never[]));
-  await assert.rejects(q(`insert into ${S}.entity (class, data) values ('Rollup', '{"k": "x"}')`), lt('derived_class'));
-  const [r] = await e.asOwner((tx) => tx.unsafe(`select ${S}.derived_apply('rollup', $1::text::jsonb) as r`,
-    [JSON.stringify([{ op: 'upsert', class: 'Rollup', tenant: a.id, row: { k: 'own' } }])]));
-  assert.equal(r.r.created, 1, 'проектор (роль владельца) пишет');
-  const [row] = await e.sql.unsafe(`select id from ${S}.entity where class = 'Rollup' and tenant = $1`, [a.id]);
-  await assert.rejects(q(`update ${S}.entity set data = '{"k": "own", "n": 1}' where id = $1`, [row.id]), lt('derived_class'));
-  await assert.rejects(q(`delete from ${S}.entity where id = $1`, [row.id]), lt('derived_class'));
-  await assert.rejects(q(`select ${S}.reclass($1::uuid, 'Org')`, [row.id]), lt('derived_class'));
-  await assert.rejects(e.defineClass(a, { name: 'RollupRef', kind: 'hub', fields: { properties: {} }, ends: { R: { class: 'Rollup' } } }), lt('derived_class'));
-  await assert.rejects(q(`select ${S}.rekey_class('Rollup', '["k"]'::jsonb)`), lt('derived_class'));
-  // другой проектор и другой арендатор — мимо
-  await assert.rejects(e.asOwner((tx) => tx.unsafe(`select ${S}.derived_apply('other', $1::text::jsonb)`,
-    [JSON.stringify([{ op: 'upsert', class: 'Rollup', tenant: a.id, row: { k: 'z' } }])])), lt('derived_class'));
-  await assert.rejects(e.asOwner((tx) => tx.unsafe(`select ${S}.derived_apply('rollup', $1::text::jsonb)`,
-    [JSON.stringify([{ op: 'upsert', class: 'Rollup', tenant: b.id, row: { k: 'z' } }])])), lt('invalid_class'));
-});
-
-test('№34 (план 1.1, этап 4): чекпоинт проектора через функции кредов — строк нет в ответах, изменить нельзя', async () => {
-  const [cp] = await e.asOwner((tx) => tx.unsafe(`select ${S}.projector_state('attack') as m`));
-  assert.deepEqual(cp.m, {});
-  const [{ id }] = await e.sql.unsafe(`select id from ${S}.secret where kind = 'PROJECTOR' and ident = 'attack'`);
-  const svc = (sql: string, p: unknown[] = []) => e.as(a.token, (tx) => tx.unsafe(sql, p as never[]));
-  assert.equal((await svc(`select ${S}.auth_revoke_credential($1::uuid) as ok`, [id]))[0].ok, false);
-  await assert.rejects(svc(`select ${S}.auth_set_flags($1::uuid, true, false)`, [id]), lt('acl_denied'));
-  const listed = await svc(`select * from ${S}.auth_credentials($1::uuid)`, [SYSTEM_ID]).catch(() => []);
-  assert.equal((listed as { kind: string }[]).filter((c) => c.kind === 'PROJECTOR').length, 0);
-  await assert.rejects(svc(`select * from ${S}.secret`), lt('42501'));
-  assert.equal((await e.sql.unsafe(`select count(*)::int as n from ${S}.secret where kind = 'PROJECTOR' and deleted_at is null`))[0].n, 1, 'чекпоинт цел');
 });
 
 test('№35 (план 1.1, этап 5): агент через MCP пишет без --write, удаляет без подтверждения человека — отказ', async () => {
@@ -599,7 +527,7 @@ test('№37 (ревью безопасности №2, О5): агент чере
   }
 });
 
-test('№36 (ревью безопасности №2): право WRITE на Class не меняет parent, alias и derivedBy без права READ, WRITE и DELETE на все строки; алиас — не имя другого класса', async () => {
+test('№36 (ревью безопасности №2): право WRITE на Class не меняет parent и alias без права READ, WRITE и DELETE на все строки; алиас — не имя другого класса', async () => {
   // Org читается только из Твери, Note — без DELETE, Master — без прав; описывать классы пользователю можно
   const { org, user } = await aclTenant();
   const { resource, rule, sysRes } = await import('./_access.js');
@@ -611,7 +539,6 @@ test('№36 (ревью безопасности №2): право WRITE на Cl
   const was = await revs();
   await assert.rejects(set('Org', { alias: 'Организация' }), lt('acl_denied'));
   await assert.rejects(set('Note', { parent: 'Org' }), lt('acl_denied'));
-  await assert.rejects(set('Note', { derivedBy: 'rollup' }), lt('acl_denied'));
   await assert.rejects(set('Master', { alias: 'Мастер' }), lt('acl_denied'));
   assert.deepEqual(await revs(), was, 'строки Class не изменились');
   assert.deepEqual((await as(user, `select id from ${S}.entity where class = 'Master'`)).length, 0);
@@ -620,65 +547,6 @@ test('№36 (ревью безопасности №2): право WRITE на Cl
   await assert.rejects(as(user, `insert into ${S}.entity (class, data) values ('Class', '{"name": "Memo", "kind": "hub", "alias": "Master"}')`), lt('invalid_class'));
   // правка, которая имён класса не меняет, прав на строки не требует
   assert.equal((await set('Note', { meta: { note: 'ok' } })).length, 1);
-});
-
-test('№38 (/security-review после точки Б): пользователь арендатора сам заводит производный класс и читает итоги по закрытым строкам — отказ; производный класс описывает только администратор', async () => {
-  const { sysadmin } = await import('./_access.js');
-  const { ADMIN_DSN } = await import('./_harness.js');
-  const { hub } = await import('../src/model.js');
-  const { syncModels } = await import('../src/sync.js');
-  const { z } = await import('zod');
-  const x = await e.tenant('x-derived');
-  const total = { kind: 'hub', key: ['k'], history: false, fields: { properties: { k: { type: 'string' }, n: { type: 'integer' } }, required: ['k'] } };
-  const derived = (n: number) => e.sql.unsafe(`select count(*)::int as n from ${S}.entity where class = 'Class' and tenant = $1 and data->'resolved' ? 'derivedBy'`, [x.id])
-    .then(([r]) => assert.equal(r.n, n));
-  // сессия приложения: свой производный класс — отказ, проектор такого арендатора участником не сделает
-  await assert.rejects(e.defineClass(x, { ...total, name: 'Spy', derivedBy: 'rollup' }), lt('acl_denied'));
-  await assert.rejects(e.defineClass(x, { ...total, name: 'Spy', derivedBy: 'rollup' }), /право letopis\.projector/);
-  await derived(0);
-  // администраторское подключение с сессией арендатора — заводит; потомок, правка и удаление из сессии приложения — отказ
-  await e.defineDerived(x, { ...total, name: 'Totals', derivedBy: 'rollup' });
-  await assert.rejects(e.defineClass(x, { kind: 'hub', name: 'TotalsKid', parent: 'Totals' }), lt('acl_denied'));
-  const q = (sql: string, p: unknown[] = []) => e.as(x.token, (tx) => tx.unsafe(sql, p as never[]));
-  await assert.rejects(q(`update ${S}.entity set data = data || '{"history": true}' where class = 'Class' and tenant = $1 and data->>'name' = 'Totals'`, [x.id]), lt('acl_denied'));
-  await assert.rejects(q(`update ${S}.entity set data = data - 'derivedBy' where class = 'Class' and tenant = $1 and data->>'name' = 'Totals'`, [x.id]), lt('acl_denied'));
-  await assert.rejects(q(`delete from ${S}.entity where class = 'Class' and tenant = $1 and data->>'name' = 'Totals'`, [x.id]), lt('acl_denied'));
-  await derived(1);
-  await e.asAdmin(x.token, (tx) => tx.unsafe(`delete from ${S}.entity where class = 'Class' and tenant = $1 and data->>'name' = 'Totals'`, [x.id]));
-  await derived(0);
-  // библиотека: syncModels на администраторском подключении с сессией арендатора — проходит, на подключении приложения — нет
-  const Model = hub('Synced', { k: z.string(), n: z.number().int() }, { key: ['k'], derivedBy: 'rollup', history: false });
-  const app = await connect({ dsn: appDsn(), schema: e.schema, token: x.token, max: 2 });
-  const adm = await connect({ dsn: ADMIN_DSN, schema: e.schema, token: x.token, allowBypassRls: true, max: 2 });
-  try {
-    await assert.rejects(syncModels(app, [Model], { apply: true }), lt('acl_denied'));
-    assert.deepEqual((await syncModels(adm, [Model], { apply: true })).created, ['Synced']);
-  } finally {
-    await app.close();
-    await adm.close();
-  }
-  await derived(1);
-  // системный администратор в System
-  const admin = await sysadmin(e, 'admin-derived');
-  await e.as(admin.token, (tx) => tx.unsafe(`insert into ${S}.entity (class, data) values ('Class', $1::jsonb)`, [{ ...total, name: 'SysTotals', derivedBy: 'rollup' } as never]));
-  assert.equal((await e.sql.unsafe(`select count(*)::int as n from ${S}.entity where class = 'Class' and tenant = $1 and data->>'name' = 'SysTotals'`, [SYSTEM_ID]))[0].n, 1);
-});
-
-test('№39 (доработки после точки Б): rekeyClass непроизводного предка не переносит строки производного потомка — derived_class', async () => {
-  await e.defineClass(a, { name: 'KeyBase', kind: 'hub', key: ['k'],
-    fields: { properties: { k: { type: 'string' }, v: { type: 'string' } }, required: ['k', 'v'] } });
-  await e.defineDerived(a, { name: 'KeyRoll', kind: 'hub', parent: 'KeyBase', derivedBy: 'keyroll', history: false });
-  const [r] = await e.asOwner((tx) => tx.unsafe(`select ${S}.derived_apply('keyroll', $1::text::jsonb) as r`,
-    [JSON.stringify([{ op: 'upsert', class: 'KeyRoll', tenant: a.id, row: { k: 'one', v: 'x' } }])]));
-  assert.equal(r.r.created, 1);
-  const rows = async () => (await e.sql.unsafe(`select id, rev from ${S}.entity where class = 'KeyRoll' and tenant = $1`, [a.id]))
-    .map((x) => `${x.id}:${x.rev}`);
-  const was = await rows();
-  await assert.rejects(as(a, `select ${S}.rekey_class('KeyBase', '["k", "v"]'::jsonb)`), lt('derived_class'));
-  await assert.rejects(as(a, `select ${S}.rekey_class('KeyBase', '["k", "v"]'::jsonb)`), /производный потомок KeyRoll/);
-  assert.deepEqual(await rows(), was, 'строки потомка на месте');
-  const [cls] = await e.sql.unsafe(`select data->'resolved'->'key' as key from ${S}.entity where class = 'Class' and tenant = $1 and data->>'name' = 'KeyBase'`, [a.id]);
-  assert.deepEqual(cls.key, ['k'], 'ключ предка прежний');
 });
 
 test('№40 (доработки после точки Б, остаток Н2): удалить класс с историей строк и создать заново под другим parent — отказ', async () => {
@@ -702,8 +570,8 @@ test('№40 (доработки после точки Б, остаток Н2): �
   assert.deepEqual(await classRow(), was, 'класс на месте');
   // класс, удалённый с историей раньше (до 1.2): надгробие строки Class хранит прежнее описание
   await e.asOwner(async (tx) => {
-    await tx.unsafe(`insert into ${S}.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, op, prev_hash, changed)
-      select id, rev + 1, class, cv, tenant, owner, links, data, tags, now(), author, 'delete', hash, '[]' from ${S}.entity where id = $1`, [was.id]);
+    await tx.unsafe(`insert into ${S}.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, op)
+      select id, rev + 1, class, cv, tenant, owner, links, data, tags, now(), author, 'delete' from ${S}.entity where id = $1`, [was.id]);
     await tx.unsafe(`delete from ${S}.entity where id = $1`, [was.id]);
   });
   const master = CLASSES.find((c) => c.name === 'Master')!;
@@ -736,8 +604,6 @@ test('№41 (доработки после точки Б): ужесточени�
   lt('acl_denied')(err);
   assert.match(err.message, /ужесточение класса Org: нужно право READ на все строки класса Org/);
   assert.ok(!/rows|others/.test(err.detail ?? ''), `ни строк, ни их числа: ${err.detail}`);
-  // смена ключа проверяет строки так же
-  await assert.rejects(as(user, `select ${S}.rekey_class('Org', '["name", "city"]'::jsonb)`), /смена ключа класса Org: нужно право READ на все строки класса Org/);
   // READ без условий — обычный отказ с перечнем, невидимых строк нет
   await rule(e, org, g, await resource(e, org, 'org41:READ', 'READ', { class: 'Org' }), 'allow', 10);
   const err2 = await tighten(1).then(() => null, (x) => x);
@@ -747,40 +613,7 @@ test('№41 (доработки после точки Б): ужесточени�
   assert.ok(d.rows.length >= 1 && d.rows.every((r: { class: string }) => r.class === 'Org'), 'строки перечислены — все видны');
 });
 
-test('№42 (доработки после точки Б): reclass без права DELETE на прежнюю строку — отказ; ссылки глубже первого уровня — только с WRITE; имя невидимого класса не в тексте', async () => {
-  const x = await e.tenant('x42');
-  const { resource, rule, sysRes } = await import('./_access.js');
-  const g = await sysRes(e, 'authenticated:ACCOUNT');
-  const q = (sql: string, p: unknown[] = []) => e.as(x.token, (tx) => tx.unsafe(sql, p as never[]));
-  for (const c of [
-    { name: 'NoDel', kind: 'hub', fields: { properties: { v: { type: 'string' } } } },
-    { name: 'Bin', kind: 'hub', fields: { properties: { v: { type: 'string' } } } },
-    { name: 'KA', kind: 'hub', key: ['code'], fields: { properties: { code: { type: 'string' } }, required: ['code'] } },
-    { name: 'KA2', kind: 'hub', key: ['code'], fields: { properties: { code: { type: 'string' } }, required: ['code'] } },
-    { name: 'KS', kind: 'hub', key: ['A', 'n'], fields: { properties: { n: { type: 'string' } }, required: ['n'] },
-      ends: { A: { class: ['KA', 'KA2'], required: true, onDelete: 'cascade' } } },
-    { name: 'KHidden', kind: 'hub', fields: { properties: {} }, ends: { S: { class: 'KS', onDelete: 'unset' } } },
-  ]) await e.defineClass(x, c);
-  const [nd] = await q(`insert into ${S}.entity (class, data) values ('NoDel', '{"v": "x"}') returning id`);
-  const [ka] = await q(`insert into ${S}.entity (class, data) values ('KA', '{"code": "r"}') returning id`);
-  const [ks] = await q(`insert into ${S}.entity (class, data, links) values ('KS', '{"n": "1"}', $1::jsonb) returning id`, [{ A: ka.id }]);
-  const [kh] = await q(`insert into ${S}.entity (class, data, links) values ('KHidden', '{}', $1::jsonb) returning id`, [{ S: ks.id }]);
-  // NoDel удалять нельзя, KHidden не видно и не правится
-  await rule(e, x.id, g, await resource(e, x.id, 'nodel:DELETE', 'DELETE', { class: 'NoDel' }), 'deny', 20);
-  await rule(e, x.id, g, await resource(e, x.id, 'hidden:READ', 'READ', { class: 'KHidden' }), 'deny', 20);
-  await rule(e, x.id, g, await resource(e, x.id, 'hidden:WRITE', 'WRITE', { class: 'KHidden' }), 'deny', 20);
-  await assert.rejects(q(`select ${S}.reclass($1::uuid, 'Bin')`, [nd.id]), /нет права DELETE на строку класса NoDel/);
-  await assert.rejects(q(`update ${S}.entity set class = 'Bin' where id = $1`, [nd.id]), /нет права DELETE на строку класса NoDel/);
-  assert.equal((await e.sql.unsafe(`select class from ${S}.entity where id = $1`, [nd.id]))[0].class, 'NoDel');
-  // KA → KA2: id меняется, KS (конец в ключе) переезжает, KHidden ссылается на KS — третий уровень
-  const err = await q(`select ${S}.reclass($1::uuid, 'KA2')`, [ka.id]).then(() => null, (x2) => x2);
-  lt('acl_denied')(err);
-  assert.ok(!err.message.includes('KHidden'), err.message);
-  const [h] = await e.sql.unsafe(`select links from ${S}.entity where id = $1`, [kh.id]);
-  assert.equal(h.links.S, ks.id, 'невидимая строка не переписана');
-});
-
-test('№43 (доработки после точки Б): политику хранения истории не задать одним правом WRITE на Class — maintain() не сотрёт чужой аудит', async () => {
+test('№43 (доработки после точки Б): журнал класса (history) не выключить одним правом WRITE на Class — чужой аудит не остановить', async () => {
   const { org, user } = await aclTenant();
   const { resource, rule, sysRes } = await import('./_access.js');
   const g = await sysRes(e, 'authenticated:ACCOUNT');
@@ -790,33 +623,16 @@ test('№43 (доработки после точки Б): политику хр
   const rev = async () => (await e.sql.unsafe(`select rev from ${S}.entity where class = 'Class' and tenant = $1 and data->>'name' = 'Note'`, [org]))[0].rev;
   const was = await rev();
   // Note пользователь читает и пишет, но не удаляет
-  await assert.rejects(setHistory({ all: '1 day' }), /меняет политику хранения истории: нужно право DELETE на все строки класса Note/);
+  await assert.rejects(setHistory(false), /включает или выключает журнал \(history\): нужно право DELETE на все строки класса Note/);
   await assert.rejects(setHistory(false), lt('acl_denied'));
   assert.equal(await rev(), was, 'описание не изменилось');
   await rule(e, org, g, await resource(e, org, 'note43:DELETE', 'DELETE', { class: 'Note' }), 'allow', 10);
-  assert.equal((await setHistory({ all: '1 day' })).length, 1, 'с правом DELETE — можно');
+  assert.equal((await setHistory(false)).length, 1, 'с правом DELETE — можно');
 });
 
-test('№44 (ревью безопасности №3, №3): перенос строки не переписывает ссылки строк производного класса — derived_class', async () => {
-  await e.defineClass(a, { name: 'Prod', kind: 'hub', key: ['code'], fields: { properties: { code: { type: 'string' } }, required: ['code'] } });
-  await e.defineClass(a, { name: 'Prod2', kind: 'hub', key: ['code'], fields: { properties: { code: { type: 'string' } }, required: ['code'] } });
-  await e.defineDerived(a, { name: 'ProdSum', kind: 'hub', key: ['P'], derivedBy: 'prodsum', history: false,
-    fields: { properties: { n: { type: 'integer' } } }, ends: { P: { class: ['Prod', 'Prod2'], required: true, onDelete: 'cascade' } } });
-  const [prod] = await as(a, `insert into ${S}.entity (class, data) values ('Prod', '{"code": "p1"}') returning id`);
-  await e.asOwner((tx) => tx.unsafe(`select ${S}.derived_apply('prodsum', $1::text::jsonb)`,
-    [JSON.stringify([{ op: 'upsert', class: 'ProdSum', tenant: a.id, row: { P: prod.id, n: 1 } }])]));
-  const sum = async () => (await e.sql.unsafe(`select links->>'P' as p from ${S}.entity where class = 'ProdSum' and tenant = $1`, [a.id]))[0]?.p;
-  assert.equal(await sum(), prod.id);
-  await assert.rejects(as(a, `select ${S}.reclass($1::uuid, 'Prod2')`, [prod.id]), lt('derived_class'));
-  assert.equal(await sum(), prod.id, 'строка производного класса не переписана');
-  assert.equal((await e.sql.unsafe(`select class from ${S}.entity where id = $1`, [prod.id]))[0].class, 'Prod');
-});
-
-test('№45 (ревью безопасности №3, №2): прикладная роль не занимает внутренние блокировки — запись семейства, ужесточение, обслуживание и проектор не встают', async () => {
+test('№45 (ревью безопасности №3, №2): прикладная роль не занимает внутренние блокировки — запись семейства, ужесточение и обслуживание не встают', async () => {
   const { ADMIN_DSN } = await import('./_harness.js');
   await e.defineClass(a, { name: 'Lk', kind: 'hub', fields: { properties: { v: { type: 'integer' } } } });
-  await e.defineDerived(a, { name: 'LkSum', kind: 'hub', key: ['k'], derivedBy: 'lk45', history: false,
-    fields: { properties: { k: { type: 'string' }, n: { type: 'integer' } }, required: ['k'] } });
   // блокировки — строки-замки, а не advisory: пока идёт запись семейства, в pg_locks нет ключа, который можно занять
   const writing = await e.hold(a.token, (tx) => tx.unsafe(`insert into ${S}.entity (class, data) values ('Lk', '{"v": 1}')`));
   const [{ n }] = await e.sql.unsafe(`select count(*)::int as n from pg_locks l join pg_database d on d.oid = l.database
@@ -828,16 +644,12 @@ test('№45 (ревью безопасности №3, №2): прикладна
   await assert.rejects(as(a, `select ${S}.lock_try($1)`, [`${e.schema}:maintain`]), lt('42501'));
   await assert.rejects(as(a, `select ${S}.lock_row($1)`, [`${e.schema}:maintain`]), lt('42501'));
   // прикладная роль держит advisory-блокировки с прежними ключами (hashtext открытых имён): семейство Lk арендатора a
-  // (19540), обслуживание (19541), проектор lk45 (19542)
+  // (19540), обслуживание (19541)
   const held = await e.hold(a.token, async (tx) => {
     await tx.unsafe(`select pg_advisory_xact_lock(19540, hashtext($1))`, [`${e.schema}:${a.id}:Lk`]);
     await tx.unsafe(`select pg_advisory_xact_lock(19541, hashtext($1))`, [e.schema]);
-    await tx.unsafe(`select pg_advisory_xact_lock(19542, hashtext($1))`, [`${e.schema}:lk45`]);
   });
   const adm = await connect({ dsn: ADMIN_DSN, schema: e.schema, allowBypassRls: true, max: 2 });
-  const p = adm.projector('lk45', { from: ['Lk'], into: ['LkSum'], version: 1, handle: (changes, out) => {
-    for (const c of changes) if (c.op === 'create') out.inc('LkSum', { k: 'all' }, { n: c.row.data.v as number }, { tenant: c.tenant });
-  } });
   try {
     const timed = (text: string, params: unknown[] = []) => e.as(a.token, async (tx) => {
       await tx.unsafe(`set local lock_timeout = '2s'`);
@@ -846,12 +658,8 @@ test('№45 (ревью безопасности №3, №2): прикладна
     await timed(`insert into ${S}.entity (class, data) values ('Lk', '{"v": 2}')`);
     await timed(`update ${S}.entity set data = ${S}.merge(data, '{"fields": {"required": ["v"]}}')
       where class = 'Class' and tenant = $1 and data->>'name' = 'Lk'`, [a.id]);
-    assert.equal((await adm.maintain({ batches: 1 })).skipped, false, 'обслуживание не встаёт');
-    assert.equal((await p.run({ once: true })).rebuilds, 1, 'проектор работает');
-    const [sum] = await e.sql.unsafe(`select (data->>'n')::int as n from ${S}.entity where class = 'LkSum' and tenant = $1`, [a.id]);
-    assert.equal(sum.n, 3);
+    assert.equal((await adm.maintain()).skipped, false, 'обслуживание не встаёт');
   } finally {
-    p.close();
     await adm.close();
     await held.finish(false);
   }
@@ -876,7 +684,7 @@ test('№46 (автоматическое ревью коммита 1bc6584): п
   assert.equal(n, 0, 'строк, нарушающих ужесточённое описание, нет');
 });
 
-test('№47 (ревью безопасности №3): отказ каскада, снятия конца и перевода ссылки производной строки называет класс ссылающейся строки, только если актор её видит', async () => {
+test('№47 (ревью безопасности №3): отказ каскада и снятия конца называет класс ссылающейся строки, только если актор её видит', async () => {
   const { org, user } = await aclTenant();
   const { resource, rule, sysRes } = await import('./_access.js');
   const g = await sysRes(e, 'authenticated:ACCOUNT');
@@ -902,26 +710,6 @@ test('№47 (ревью безопасности №3): отказ каскад�
   await rule(e, org, g, await resource(e, org, 'memo:READ', 'READ', { class: 'Memo' }), 'allow', 10);
   assert.match((await del(t1)).message, /нет права DELETE на класс Master в каскаде удаления/);
   assert.match((await del(t2)).message, /нет права WRITE на класс Memo: снятие конца при удалении/);
-
-  // перевод ссылок при reclass: на строку ссылается строка производного класса — её пишет проектор
-  const x = await e.tenant('x47');
-  for (const c of [
-    { name: 'KA47', kind: 'hub', key: ['code'], fields: { properties: { code: { type: 'string' } }, required: ['code'] } },
-    { name: 'KB47', kind: 'hub', key: ['code'], fields: { properties: { code: { type: 'string' } }, required: ['code'] } },
-  ]) await e.defineClass(x, c);
-  for (const name of ['Tail47', 'Seen47']) {
-    await e.defineDerived(x, { name, kind: 'hub', derivedBy: 'p47', history: false, fields: { properties: {} },
-      ends: { [`Ref${name}`]: { class: ['KA47', 'KB47'], onDelete: 'unset' } } });
-  }
-  await rule(e, x.id, g, await resource(e, x.id, 'tail47:READ', 'READ', { class: 'Tail47' }), 'deny', 20);
-  const [k1] = await as(x, `insert into ${S}.entity (class, data) values ('KA47', '{"code": "1"}') returning id`);
-  const [k2] = await as(x, `insert into ${S}.entity (class, data) values ('KA47', '{"code": "2"}') returning id`);
-  await ownerIns(x.id, 'Tail47', {}, { RefTail47: k1.id });
-  await ownerIns(x.id, 'Seen47', {}, { RefSeen47: k2.id });
-  const e3 = await fails(x, `select ${S}.reclass($1::uuid, 'KB47')`, [k1.id]);
-  lt('derived_class')(e3);
-  assert.ok(!e3.message.includes('Tail47'), e3.message);
-  assert.match((await fails(x, `select ${S}.reclass($1::uuid, 'KB47')`, [k2.id])).message, /производного класса Seen47/);
 });
 
 test('№48 (ревью безопасности №3): история одноимённого класса арендатора не мешает администратору создать и удалить класс System; строки класса System — мешают', async () => {
@@ -958,17 +746,16 @@ test('№49 (ревью безопасности №3): надгробие кл�
   /** Удаление класса с историей строк, как его допускала 1.1: надгробие строки Class и снятие строки от владельца. */
   const dropOld = (name: string) => e.asOwner(async (tx) => {
     const [c] = await tx.unsafe(`select id from ${S}.entity where class = 'Class' and tenant = $1 and data->>'name' = $2`, [x.id, name]);
-    await tx.unsafe(`insert into ${S}.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, op, prev_hash, changed)
-      select id, rev + 1, class, cv, tenant, owner, links, data, tags, now(), author, 'delete', hash, '[]' from ${S}.entity where id = $1`, [c.id]);
+    await tx.unsafe(`insert into ${S}.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, op)
+      select id, rev + 1, class, cv, tenant, owner, links, data, tags, now(), author, 'delete' from ${S}.entity where id = $1`, [c.id]);
     await tx.unsafe(`delete from ${S}.entity where id = $1`, [c.id]);
   });
-  // политика хранения: другая history подставила бы старые версии строк под другое прореживание
+  // history: заново класс создаётся только с прежней — как parent и alias
   const h = { name: 'H49', kind: 'hub', fields: { properties: {} } };
   await create(h);
   await q(`delete from ${S}.entity where id = $1`, [await ins('H49')]);
   await dropOld('H49');
   await assert.rejects(create({ ...h, history: false }), /журнал хранит историю строк класса H49/);
-  await assert.rejects(create({ ...h, history: { all: '1 day' } }), lt('invalid_class'));
   await create(h);
   // алиас предка: правила находят старые версии строк удалённого потомка и по алиасам его предков
   const base = { name: 'Base49', kind: 'hub', alias: 'База49', fields: { properties: {} } };
@@ -984,31 +771,9 @@ test('№49 (ревью безопасности №3): надгробие кл�
   await dropClass('Base49');
   await assert.rejects(create({ ...base, alias: 'Основа49' }), /журнал хранит историю строк класса Base49/);
   await create(base);
-  // история потомка стёрта: прежний Kid49 пересоздан, его удалённая строка стёрта purge(), класс удалён — алиас меняется
+  // историю строк не стереть (purge снят в 2.0.0): пересозданный Kid49 с историей строк не удаляется
   await create(kid);
-  await q(`select ${S}.purge($1::uuid, true)`, [k]);
-  await dropClass('Kid49');
-  await realias('Основа49');
-});
-
-test('№50 (ревью безопасности №3): непроизводного предка производного класса правит только администратор — описание потомка без права letopis.projector не меняется', async () => {
-  const x = await e.tenant('x50');
-  type Run = (sql: string, p: unknown[]) => Promise<unknown>;
-  const app: Run = (sql, p) => e.as(x.token, (tx) => tx.unsafe(sql, p as never[]));
-  const admin: Run = (sql, p) => e.asAdmin(x.token, (tx) => tx.unsafe(sql, p as never[]));
-  await e.defineClass(x, { name: 'Base50', kind: 'hub', fields: { properties: { v: { type: 'string' } } } });
-  await e.defineDerived(x, { name: 'Roll50', kind: 'hub', parent: 'Base50', derivedBy: 'roll50', history: false });
-  await e.defineClass(x, { name: 'Plain50', kind: 'hub', fields: { properties: { v: { type: 'string' } } } });
-  const widen = (run: Run, name: string) => run(`update ${S}.entity set data = ${S}.merge(data, $2::jsonb)
-    where class = 'Class' and tenant = $1 and data->>'name' = $3`, [x.id, { fields: { properties: { v: { type: 'string' }, w: { type: 'integer' } } } }, name]);
-  const rollHasW = async () => (await e.sql.unsafe(`select data->'resolved'->'schema'->'properties' ? 'w' as w from ${S}.entity
-    where class = 'Class' and tenant = $1 and data->>'name' = 'Roll50'`, [x.id]))[0].w as boolean;
-  await assert.rejects(widen(app, 'Base50'), lt('acl_denied'));
-  await assert.rejects(widen(app, 'Base50'), /предок производного класса Roll50/);
-  assert.equal(await rollHasW(), false, 'описание производного потомка прежнее');
-  await widen(admin, 'Base50');
-  assert.equal(await rollHasW(), true, 'администраторское подключение правит предка, потомок пересчитан');
-  await widen(app, 'Plain50');
+  await assert.rejects(dropClass('Kid49'), /есть история строк/);
 });
 
 test('№51 (ревью безопасности №3): конфликт смены parent называет роль и id ссылающейся строки, только если актор её видит; видимая — первой', async () => {
@@ -1043,37 +808,6 @@ test('№51 (ревью безопасности №3): конфликт сме�
   assert.match(problem(both), new RegExp(`роль SeeRole строки ${s2}`), 'видимая ссылающаяся строка — первой');
 });
 
-test('№52 (/security-review, ревью безопасности №3): агрегат над классом, которого ещё нет, не описывается — источник потом заведёт другой, и права описавшего на его строки уже не проверить', async () => {
-  const x = await e.tenant('x52', { bare: true });
-  const { resource, rule, sysRes } = await import('./_access.js');
-  const g = await sysRes(e, 'authenticated:ACCOUNT');
-  await rule(e, x.id, g, await resource(e, x.id, 'class52:WRITE', 'WRITE', { class: 'Class' }), 'allow', 10);
-  const purse = { name: 'Purse52', kind: 'hub', key: ['code'], fields: { properties: { code: { type: 'string' }, total: { type: 'integer' } }, required: ['code'] },
-    aggregate: { total: { sum: 'v', of: 'Coin52', via: 'Purse52' } } };
-  const coin = { name: 'Coin52', kind: 'link', fields: { properties: { v: { type: 'integer' } } },
-    ends: { Purse52: { class: 'Purse52', required: true, onDelete: 'cascade' } } };
-  // пользователь без права READ на будущий источник описывает агрегат заранее — отказ: проверять право ещё не на чем
-  await assert.rejects(e.defineClass(x, purse), /агрегат Purse52\.total: класса-источника Coin52 и его потомков у арендатора нет/);
-  // источник заводит тот, кто читает всё; агрегат над ним — только с правом READ на все его строки
-  await e.asAdmin(x.token, (tx) => tx.unsafe(`insert into ${S}.entity (class, data) values ('Class', $1::jsonb)`, [coin as never]));
-  await assert.rejects(e.defineClass(x, purse), /агрегат Purse52\.total: нужно право READ на все строки класса Coin52/);
-});
-
-test('№53 (автоматическое ревью коммита 5290be1): класс-источник не удаляется, пока его называет агрегат класса арендатора — иначе класс с этим именем заведёт потом другой, и право описавшего на его строки уже не проверить', async () => {
-  const x = await e.tenant('x53');
-  const q = (sql: string, p: unknown[] = []) => e.as(x.token, (tx) => tx.unsafe(sql, p as never[]));
-  await e.defineClass(x, { name: 'Coin53', kind: 'link', fields: { properties: { v: { type: 'integer' } } },
-    ends: { Purse53: { class: 'Purse53', required: true, onDelete: 'cascade' } } });
-  await e.defineClass(x, { name: 'Purse53', kind: 'hub', key: ['code'],
-    fields: { properties: { code: { type: 'string' }, total: { type: 'integer' } }, required: ['code'] },
-    aggregate: { total: { sum: 'v', of: 'Coin53', via: 'Purse53' } } });
-  const drop = (name: string) => q(`delete from ${S}.entity where class = 'Class' and tenant = $1 and data->>'name' = $2`, [x.id, name]);
-  await assert.rejects(drop('Coin53'), /класс Coin53 — источник агрегата Purse53\.total/);
-  // агрегат убран из описания цели — источник удаляется
-  await q(`update ${S}.entity set data = data - 'aggregate' where class = 'Class' and tenant = $1 and data->>'name' = 'Purse53'`, [x.id]);
-  await drop('Coin53');
-});
-
 test('№54 (хвост ревью доработок после 1.2.0): строки класса арендатора судятся по его классу — предки и алиас одноимённого класса System прав на них не дают', async () => {
   const { resource, rule, sysRes, sysadmin } = await import('./_access.js');
   const admin = await sysadmin(e, 'admin54');
@@ -1102,83 +836,23 @@ test('№54 (хвост ревью доработок после 1.2.0): стр�
     'алиас класса System Alias54 строк класса арендатора Alias54 не открывает');
 });
 
-test('№55 (хвост ревью доработок после 1.2.0): производный потомок одноимённого класса арендатора не мешает правке класса System без права letopis.projector', async () => {
-  const { account, member, resource, rule, session, sysadmin } = await import('./_access.js');
-  const admin = await sysadmin(e, 'admin55');
-  // автор правок System: пишет строки Class System, права letopis.* у него нет
-  const cw = await account(e, 'cw55');
-  await member(e, cw.id, SYSTEM_ID, ['classwriter55']);
-  const grp = await resource(e, SYSTEM_ID, 'cw55:ACCOUNT', 'ACCOUNT', { roles: '{classwriter55}' });
-  await rule(e, SYSTEM_ID, grp, await resource(e, SYSTEM_ID, 'cw55:WRITE', 'WRITE', { class: 'Class' }), 'allow', 10);
-  const cwTok = await session(e, cw.id, { tenant: SYSTEM_ID });
-  const x = await e.tenant('x55');
-  await e.defineClass(x, { name: 'Base55', kind: 'hub', fields: { properties: { v: { type: 'string' } } } });
-  await e.defineDerived(x, { name: 'Roll55', kind: 'hub', parent: 'Base55', derivedBy: 'roll55', history: false });
-  await e.as(admin.token, (tx) => tx.unsafe(`insert into ${S}.entity (class, data) values ('Class', $1::jsonb)`,
-    [{ name: 'Base55', kind: 'hub', fields: { properties: { v: { type: 'string' } } } }] as never[]));
-  const widen = (w: string) => e.as(cwTok, (tx) => tx.unsafe(`update ${S}.entity set data = ${S}.merge(data, $2::jsonb)
-    where class = 'Class' and tenant = $1 and data->>'name' = 'Base55'`, [SYSTEM_ID, { fields: { properties: { [w]: { type: 'integer' } } } }] as never[]));
-  // Roll55 наследует класс арендатора Base55, а не класс System
-  await widen('w1');
-  // производный потомок самого класса System — по-прежнему только администратор
-  await e.asAdmin(admin.token, (tx) => tx.unsafe(`insert into ${S}.entity (class, data) values ('Class', $1::jsonb)`,
-    [{ name: 'SysRoll55', kind: 'hub', parent: 'Base55', derivedBy: 'sysroll55', history: false }] as never[]));
-  await assert.rejects(widen('w2'), /предок производного класса SysRoll55/);
-});
-
 test('№56 (автоматическое ревью коммита 1734d21): привилегированный вход с ролью приложения (SET ROLE) — не администратор и не подключение в обход RLS', async () => {
   const x = await e.tenant('x56', { bare: true });
   const y = await e.tenant('y56');
-  for (const name of ['Box56', 'Bin56']) await e.defineClass(y, { name, kind: 'hub', fields: { properties: { n: { type: 'integer' } } } });
+  await e.defineClass(y, { name: 'Box56', kind: 'hub', fields: { properties: { n: { type: 'integer' } } } });
   const [r] = await e.as(y.token, (tx) => tx.unsafe(`insert into ${S}.entity (class, data) values ('Box56', '{"n": 1}') returning id`));
-  await e.as(y.token, (tx) => tx.unsafe(`update ${S}.entity set class = 'Bin56' where id = $1`, [r.id]));
   // суперпользователь входит и ставит роль приложения — так делает пул с одной привилегированной ролью входа
   const priv = (sql: string, p: unknown[] = []) => e.sql.begin(async (tx) => {
     await tx.unsafe('set local role letopis_app');
     await tx`select set_config('letopis.token', ${x.token}, true)`;
     return tx.unsafe(sql, p as never[]);
   });
-  // verify — право letopis.verify или администраторская роль: администратором делает действующая роль, а не роль входа
-  await assert.rejects(priv(`select ${S}.verify()`), lt('acl_denied'));
-  const leaving = await priv(`select l.id from ${S}.watch_leaving('0'::xid8, 0, array['Box56'], 1000) l`);
-  assert.deepEqual(leaving.map((v) => v.id), [], 'уход строки чужого арендатора подписке арендатора не отдаётся');
-  // без роли приложения тот же вход — администраторский: в обход RLS и с событиями ухода всех арендаторов
+  // maintain — право letopis.maintain или администраторская роль: администратором делает действующая роль, а не роль входа
+  await assert.rejects(priv(`select ${S}.maintain()`), lt('acl_denied'));
+  const events = await priv(`select l.id from ${S}.watch_read('0'::xid8, 0, array['Box56'], 1000) l`);
+  assert.deepEqual(events.map((v) => v.id), [], 'события чужого арендатора подписке арендатора не отдаются');
+  // без роли приложения тот же вход — администраторский: в обход RLS и с событиями всех арендаторов
   const [{ a }] = await e.sql.unsafe(`select ${S}.admin_role() as a`);
   assert.equal(a, true);
-  assert.deepEqual((await e.sql.unsafe(`select l.id from ${S}.watch_leaving('0'::xid8, 0, array['Box56'], 1000) l`)).map((v) => v.id), [r.id]);
-});
-
-test('№57 (хвост ревью доработок после 1.2.0, решение владельца): новый источник агрегата принимается, только если и описавший агрегат читает все его строки', async () => {
-  const { account, member, resource, rule, session, sysRes } = await import('./_access.js');
-  const x = await e.tenant('x57', { bare: true });
-  await rule(e, x.id, await sysRes(e, 'authenticated:ACCOUNT'), await resource(e, x.id, 'class57:WRITE', 'WRITE', { class: 'Class' }), 'allow', 10);
-  // владелец арендатора может всё; описавший агрегат читает Coin57 и его потомков, кроме Gold57
-  const own = await resource(e, x.id, 'owner57:ACCOUNT', 'ACCOUNT', { roles: '{owner}' });
-  for (const op of ['READ', 'WRITE', 'DELETE']) await rule(e, x.id, own, await resource(e, x.id, `all57:${op}`, op, { class: '*' }), 'allow', 10);
-  const d = await account(e, 'd57');
-  await member(e, d.id, x.id, ['agg57']);
-  const dg = await resource(e, x.id, 'agg57:ACCOUNT', 'ACCOUNT', { roles: '{agg57}' });
-  await rule(e, x.id, dg, await resource(e, x.id, 'coin57:READ', 'READ', { class: 'Coin57' }), 'allow', 10);
-  await rule(e, x.id, dg, await resource(e, x.id, 'gold57:READ', 'READ', { class: 'Gold57' }), 'deny', 20);
-  const dTok = await session(e, d.id, { tenant: x.id });
-  const run = (tok: string, sql: string, p: unknown[] = []) => e.as(tok, (tx) => tx.unsafe(sql, p as never[]));
-  const cls = (tok: string, desc: unknown) => run(tok, `insert into ${S}.entity (class, data) values ('Class', $1::jsonb)`, [desc]);
-  const edit = (name: string, patch: string) =>
-    run(x.token, `update ${S}.entity set data = ${patch} where class = 'Class' and tenant = $1 and data->>'name' = $2`, [x.id, name]);
-  const total = { sum: 'v', of: 'Coin57', via: 'Purse57' };
-  await cls(x.token, { name: 'Coin57', kind: 'hub', fields: { properties: { v: { type: 'integer' } } }, ends: { Purse57: { class: 'Purse57' } } });
-  // агрегат описывает d — он читает все строки Coin57
-  await cls(dTok, { name: 'Purse57', kind: 'hub', key: ['code'], fields: { properties: { code: { type: 'string' }, total: { type: 'integer' } }, required: ['code'] },
-    aggregate: { total } });
-  // потомок, которого d читает, становится источником; потомок, которого не читает, — отказ, хотя заводящий читает всё
-  await cls(x.token, { name: 'Silver57', kind: 'hub', parent: 'Coin57' });
-  await assert.rejects(cls(x.token, { name: 'Gold57', kind: 'hub', parent: 'Coin57' }), lt('acl_denied'));
-  await assert.rejects(cls(x.token, { name: 'Gold57', kind: 'hub', parent: 'Coin57' }), /Gold57 становится источником агрегата Purse57\.total, а описавший агрегат не читает/);
-  // перенос под источник сменой parent — так же
-  await cls(x.token, { name: 'Gold57', kind: 'hub', fields: { properties: { v: { type: 'integer' } } } });
-  await assert.rejects(edit('Gold57', `data || '{"parent": "Coin57"}'`), /описавший агрегат не читает/);
-  // агрегат заново описал владелец — он читает всё, и Gold57 становится источником
-  await edit('Purse57', `data - 'aggregate'`);
-  await edit('Purse57', `data || '${JSON.stringify({ aggregate: { total } })}'`);
-  await edit('Gold57', `data || '{"parent": "Coin57"}'`);
+  assert.deepEqual((await e.sql.unsafe(`select l.id from ${S}.watch_read('0'::xid8, 0, array['Box56'], 1000) l`)).map((v) => v.id), [r.id]);
 });

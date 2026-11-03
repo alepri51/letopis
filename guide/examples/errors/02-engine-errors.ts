@@ -11,12 +11,12 @@ export default example({
     'Целостность данных проверяет сама база — одинаково для библиотеки и для прямых SQL-запросов. Здесь запись идёт ' +
     'прямым SQL в сессии пользователя (db.transaction) — и база отвечает теми же кодами, что и цепочкам.',
   tables: [],
-  covers: ['error.undeclared_end', 'error.id_from_db', 'error.use_reclass', 'error.recreated_in_statement', 'error.isolation_level',
+  covers: ['error.undeclared_end', 'error.id_from_db', 'error.immutable_key','error.recreated_in_statement', 'error.isolation_level',
     'nuance.engine-checks-raw-sql', 'export.fromDbError'],
   steps: [
     {
-      title: 'undeclared_end — ссылка по роли, которой нет в классе',
-      text: 'Концы класса описаны в модели; чужую роль база не примет. Что делать: описать конец в модели или убрать ссылку.',
+      title: 'undeclared_end — конец с ролью, которой нет в классе',
+      text: 'Концы класса описаны в модели; чужую роль база не примет. Что делать: описать конец в модели или убрать его из данных.',
       run: async ({ db, schema }) => {
         d = await seedShop(db);
         return db.transaction((tx) => tx.unsafe(`insert into ${T(schema)} (class, data, links) values ('Customer', '{"name":"Х","email":"x@x.ru"}', jsonb_build_object('Stranger', $1::text))`, [d.romashka]));
@@ -30,10 +30,10 @@ export default example({
       expect: { error: 'id_from_db' },
     },
     {
-      title: 'use_reclass — сменить класс простым UPDATE',
-      text: 'Смена класса меняет id и ссылки — её делает функция `reclass`. Что делать: `db.Класс(id).reclass(\'Другой\', данные)`.',
+      title: 'immutable_key — сменить класс простым UPDATE',
+      text: 'Класс, ключ, id, арендатор и владелец строки неизменны — и для сырого SQL. Что делать: объект другого класса — новый объект: создать его, перевести на него концы других строк, удалить прежний.',
       run: async ({ db, schema }) => db.transaction((tx) => tx.unsafe(`update ${T(schema)} set class = 'Category' where id = $1`, [d.romashka])),
-      expect: { error: 'use_reclass' },
+      expect: { error: 'immutable_key' },
     },
     {
       title: 'recreated_in_statement — удалить и создать тот же id одним оператором',
@@ -44,7 +44,7 @@ export default example({
     },
     {
       title: 'isolation_level — удаление в транзакции REPEATABLE READ',
-      text: 'Каскады, смена класса и ключа требуют READ COMMITTED (так работает библиотека). Что делать: не менять уровень изоляции для таких операций.',
+      text: 'Удаление с каскадом требует READ COMMITTED (так работает библиотека). Что делать: не менять уровень изоляции для удаления.',
       run: async ({ admin, schema, up }) => {
         try {
           return await admin.begin('isolation level repeatable read', async (tx) => {

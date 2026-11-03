@@ -3,10 +3,14 @@
  * те же запросы, что шлёт интерфейс (React + shadcn/ui). Им же проверяется сервис в CI. Код выхода 1 — сбой.
  *
  *   ADMIN_DSN=… APP_DSN=… node scenario.mjs
+ *
+ * Простой сервиса дольше срока сессии — без ожидания: срок сессий createTenant управляющей истекает в базе отдельным
+ * подключением по ADMIN_DSN.
  */
+import postgres from 'postgres';
 import { createApp, SALONS } from './src/server.mjs';
 
-const { app, close } = await createApp();
+const { app, schema, close } = await createApp();
 const server = app.listen(0, '127.0.0.1');
 await new Promise((r) => server.once('listening', r));
 const base = `http://127.0.0.1:${server.address().port}`;
@@ -58,28 +62,35 @@ try {
   // объекта, поэтому сверяем последние две версии
   const tail = hist.slice(-2);
   check(tail.map((v) => v.op).join(',') === 'create,delete' && tail[1].reason === 'отмена клиентом', 'история: создание и отмена с причиной');
+  // время версии сервер отдаёт целиком, а местное показывает браузер: обрезка строки давала UTC без пометки пояса
+  check(hist.every((v) => String(v.at).length > 19 && !Number.isNaN(Date.parse(v.at))), `история: at — полный момент версии (${tail[1]?.at})`);
   await call(cookie, `/api/bookings/${mine.id}/restore`, {});
   const back = (await call(cookie, `/api/schedule?day=${day}`)).data;
-  // в отменённых дня может лежать перенесённая бронь прошлого прогона — сверяем свою
+  // в отменённых дня могут лежать брони прошлого прогона — сверяем свою
   check(back.bookings.some((b) => b.id === mine.id) && !back.cancelled.some((b) => b.id === mine.id), 'возврат брони');
 
-  // перенос: id брони — из ключа (мастер, время начала), поэтому перенос — rekey: новый id, у прежнего — надгробие
+  // перенос: id брони — из ключа (мастер, время начала), а ключ не меняется — перенос создаёт новую бронь на новом слоте
+  // и удаляет прежнюю одной транзакцией: новый id, у прежнего — надгробие с причиной «перенос брони»
   const moved = await call(cookie, `/api/bookings/${mine.id}/move`, { day, hour: 17, staff: slot.staff });
   const afterMove = (await call(cookie, `/api/schedule?day=${day}`)).data;
   const there = afterMove.bookings.find((b) => b.customer === 'Клиент сценария');
   check(moved.status === 200 && there?.hour === 17 && there.id === moved.data.id && there.id !== mine.id
-    && !afterMove.bookings.some((b) => b.id === mine.id) && !afterMove.cancelled.some((b) => b.id === mine.id), 'перенос на 17:00 — rekey: новый id, прежний слот свободен и не в отменённых');
+    && !afterMove.bookings.some((b) => b.id === mine.id) && !afterMove.cancelled.some((b) => b.id === mine.id), 'перенос на 17:00 — новая бронь с новым id, прежний слот свободен и не в отменённых');
   const hoodMove = (await call(cookie, '/api/trace')).data?.[0];
-  check(hoodMove?.title === 'Перенести бронь' && hoodMove.versions.some((v) => v.class === 'booking' && v.op === 'rekey' && v.label === '17:00')
-    && hoodMove.versions.some((v) => v.class === 'booking' && v.op === 'delete' && v.label === '15:00') && hoodMove.signals.includes('booking'),
-  'под капотом: перенос — версия rekey на 17:00 и надгробие 15:00, сигнал booking');
+  check(hoodMove?.title === 'Перенести бронь' && hoodMove.versions.some((v) => v.class === 'booking' && v.op === 'create' && v.label === '17:00' && v.reason === 'перенос брони')
+    && hoodMove.versions.some((v) => v.class === 'booking' && v.op === 'delete' && v.label === '15:00' && v.reason === 'перенос брони') && hoodMove.signals.includes('booking'),
+  'под капотом: перенос — create новой брони на 17:00 и delete прежней на 15:00 с причиной «перенос брони», сигнал booking');
   const taken = await call(cookie, `/api/bookings/${there.id}/move`, { day, hour: 16, staff: slot.staff });
   check(taken.status === 409 && /занят/.test(taken.data?.error ?? '') && (await call(cookie, `/api/schedule?day=${day}`)).data.bookings.some((b) => b.id === there.id && b.hour === 17),
     'перенос на занятый слот 16:00 — 409, бронь осталась на 17:00');
+  // история — версии одного id: у новой брони своя, у прежнего слота своя (её последняя версия — удаление переносом)
   const movedHist = (await call(cookie, `/api/bookings/${there.id}/history`)).data;
-  check(movedHist.some((v) => v.id === mine.id && v.op === 'create' && v.start === '15:00') && movedHist.some((v) => v.id === there.id && v.op === 'rekey' && v.start === '17:00')
-    && movedHist.some((v) => v.id === mine.id && v.op === 'delete' && v.reason === 'перенос брони'), 'история перенесённой брони — versions({ follow: true }): создание на 15:00, rekey на 17:00, надгробие прежнего id');
-  check((await call(cookie, `/api/bookings/${mine.id}/restore`, {})).status === 409, 'надгробие переноса не возвращается — 409 (иначе у клиента две брони)');
+  const oldHist = (await call(cookie, `/api/bookings/${mine.id}/history`)).data;
+  check(movedHist.length > 0 && movedHist.every((v) => v.id === there.id) && movedHist.at(-1).op === 'create' && movedHist.at(-1).start === '17:00' && movedHist.at(-1).reason === 'перенос брони'
+    && oldHist.every((v) => v.id === mine.id) && oldHist.at(-1)?.op === 'delete' && oldHist.at(-1).start === '15:00' && oldHist.at(-1).reason === 'перенос брони',
+  'история: у новой брони — создание на 17:00 с причиной «перенос брони», у прежнего слота своя — последняя версия: удаление с той же причиной');
+  const back409 = await call(cookie, `/api/bookings/${mine.id}/restore`, {});
+  check(back409.status === 409 && /перенесена/.test(back409.data?.error ?? ''), 'надгробие переноса не возвращается — 409 (иначе у клиента две брони)');
 
   // отчёт дня — report(): брони дня по мастерам
   const rep = (await call(cookie, `/api/report?day=${day}`)).data;
@@ -121,6 +132,18 @@ try {
   const unknown = await call(cookie, '/api/price/load', { text: `${cut.name}; 1\nМассаж спины; 3000` });
   check(unknown.status === 422 && /Массаж спины/.test(unknown.data?.error ?? '') && (await call(cookie, '/api/price')).data.find((x) => x.id === cut.id)?.price === want.get(cut.id),
     'неизвестная услуга в списке — 422, ничего не загружено');
+  // простой дольше срока сессии управляющей — без ожидания: срок её сессий createTenant (без methods; веб-сессия входа
+  // по паролю не трогается) истекает в базе. Прайс списком пишет загрузчик администраторского подключения от имени
+  // вошедшей (load({ as, tenant })) — сессия подключения ему не нужна (план 2.0, 7.6 №5)
+  const sql = postgres(process.env.ADMIN_DSN ?? 'postgres://postgres:guide@127.0.0.1:15440/letopis', { max: 1, onnotice: () => {} });
+  const S = `"${schema.replace(/"/g, '""')}"`;
+  const expired = await sql.unsafe(`update ${S}.secret set expires_at = clock_timestamp() - interval '1 second'
+    where kind = 'SESSION' and not (meta ? 'methods') and account = (select account from ${S}.secret where kind = 'PASSWORD' and ident = $1)`, [SALONS[0].user.login])
+    .finally(() => sql.end({ timeout: 2 }));
+  const later = new Map(before.map((x) => [x.id, want.get(x.id) + 100]));
+  const idle = await call(cookie, '/api/price/load', { text: before.map((x) => `${x.name}; ${later.get(x.id)}`).join('\n') });
+  check(idle.status === 200 && idle.data.loaded + idle.data.updated === before.length && (await call(cookie, '/api/price')).data.every((x) => x.price === later.get(x.id)),
+    `прайс списком после простоя (истекло сессий createTenant: ${expired.count}) — цены записаны${idle.status === 200 ? '' : `: ${idle.status} ${idle.data?.error}`}`);
 
   const other = await call('', '/api/login', SALONS[1].user);
   const otherDay = (await call(other.cookie, `/api/schedule?day=${day}`)).data;
@@ -128,6 +151,32 @@ try {
   const otherPrice = (await call(other.cookie, '/api/price')).data;
   const foreign = await call(other.cookie, '/api/price/load', { text: `${cut.name}; 1` });
   check(!otherPrice.some((x) => want.has(x.id)) && foreign.status === 422, 'другой салон — свой прайс: услуг «Локонов» в нём нет, загрузить им цену нельзя');
+
+  // выход закрывает поток событий своей сессии: подписка через фасад сервиса переживала выход — вкладка получала
+  // события прежнего салона, а с cookie новой сессии того же браузера показывала её данные под прежней шапкой
+  {
+    const { cookie: c2 } = await call('', '/api/login', SALONS[0].user);
+    const ctl = new AbortController();
+    const ended = new Promise((settle) => {
+      fetch(`${base}/api/events`, { headers: { cookie: c2 }, signal: ctl.signal }).then(async (r) => {
+        const reader = r.body.getReader();
+        let buf = '';
+        let out = false;
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) return settle('закрыт');
+          buf += new TextDecoder().decode(value);
+          if (!out && buf.includes('event: ready')) {
+            out = true;
+            await call(c2, '/api/logout', {});
+          }
+        }
+      }).catch(() => settle('ошибка'));
+    });
+    const outcome = await Promise.race([ended, new Promise((r) => setTimeout(() => r('открыт через 5 с'), 5000))]);
+    ctl.abort();
+    check(outcome === 'закрыт', `выход закрывает поток событий своей сессии (${outcome})`);
+  }
 
   // повторный прогон на тех же данных — убираем свои брони, цены — как до сценария
   await call(cookie, `/api/bookings/${there.id}/cancel`, {});

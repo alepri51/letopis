@@ -24,13 +24,15 @@ export function Registry({ me, tick, onChanged }: { me: Me; tick: number; onChan
       <Card>
         <CardHeader>
           <CardTitle>Реестр документов</CardTitle>
-          <CardDescription>Черновик подписывают — он становится договором (<code>reclass</code>); номер можно сменить (<code>rekey</code>). История проходит через обе смены.</CardDescription>
+          <CardDescription>Черновик подписывают — он становится договором. Класс входит в id, а класс и ключ строки неизменны, поэтому договор — новый объект: одна транзакция создаёт его и удаляет черновик. История договора собирает версии обоих.</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader><TableRow><TableHead>№</TableHead><TableHead>документ</TableHead><TableHead>вид</TableHead><TableHead>контрагент</TableHead><TableHead className="text-right">сумма</TableHead><TableHead>версия</TableHead><TableHead>изменён</TableHead></TableRow></TableHeader>
             <TableBody>{docs.map((d) => (
-              <TableRow key={d.id} className="cursor-pointer" data-doc={d.number} onClick={() => setOpen(d.id)}>
+              // строка в фокусе (tabIndex): карточка открывается и с клавиатуры, а после закрытия фокус возвращается на строку
+              <TableRow key={d.id} className="cursor-pointer outline-none focus-visible:bg-muted" data-doc={d.number} tabIndex={0}
+                onClick={() => setOpen(d.id)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(d.id); } }}>
                 <TableCell className="font-medium">{d.number}</TableCell>
                 <TableCell>{d.title}{d.archived && <Badge variant="outline" className="ml-2">архив</Badge>}</TableCell>
                 <TableCell>{d.class === 'Contract' ? <Badge>договор</Badge> : <Badge variant="secondary">{d.status === 'review' ? 'на согласовании' : 'черновик'}</Badge>}</TableCell>
@@ -52,7 +54,7 @@ function NewDraft({ parties, onDone }: { parties: Party[]; onDone: (id: string) 
   const items = parties.map((p) => ({ value: p.id, label: p.name }));
   return (
     <Card>
-      <CardHeader><CardTitle>Новый черновик</CardTitle><CardDescription>Номер — ключ документа: id выводится из него (v5), второй документ с тем же номером база не создаст.</CardDescription></CardHeader>
+      <CardHeader><CardTitle>Новый черновик</CardTitle><CardDescription>Номер — ключ документа: id выводится из класса и номера (v5), второй черновик с тем же номером база не создаст; номер договора сверяет сервис.</CardDescription></CardHeader>
       <CardContent>
         <form className="grid gap-3 md:grid-cols-2" onSubmit={async (e) => {
           e.preventDefault();

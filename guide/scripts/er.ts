@@ -1,7 +1,7 @@
 /**
  * ER-схемы сервисов-примеров — из реестра, а не руками. Для каждого сервиса — свежая схема на базе примеров
- * (ENTITY_DSN), его модель (services/<имя>/src/models.mjs; у салона — сид booking), описание из реестра
- * (`db.describe()`) и Mermaid erDiagram (kit/diagram.ts). Схема вставляется в страницу сервиса между метками
+ * (ENTITY_DSN), его модель (services/<имя>/src/models.mjs; у салона — сид booking), описания классов из реестра
+ * подключения (`db.registry.all()`) и Mermaid erDiagram (kit/diagram.ts). Схема вставляется в страницу сервиса между метками
  * `<!-- er:<имя> -->` и `<!-- /er -->`; временные схемы удаляются.
  *   cd guide && npx tsx scripts/er.ts        (--check — только сверить, код 1 при расхождении)
  */
@@ -46,7 +46,7 @@ try {
     try {
       if (t.models) await syncModels(db, (await t.models()) as never, { apply: true });
       await db.refresh();
-      const { $mermaid } = erDiagram(db.describe());
+      const { $mermaid } = erDiagram(db.registry.all());
       const file = join(ROOT, 'pages', 'services', `${t.service}.md`);
       const page = await readFile(file, 'utf8');
       const re = new RegExp(`(<!-- er:${t.service} -->)[\\s\\S]*?(<!-- /er -->)`);

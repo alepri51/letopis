@@ -48,7 +48,7 @@ begin
   if imp is not null and imp is distinct from s.account::text then
     -- имперсонация (этап 5, п. 3): право сервиса — по правилам System, в его собственном арендаторе
     if not pg_input_is_valid(imp, 'uuid') then
-      perform @SCHEMA@.lt_fail('acl_denied', 'letopis.account — не id аккаунта');
+      perform @SCHEMA@.lt_fail('sql-core.account_not_id');
     end if;
     scats := array(select jsonb_array_elements_text(coalesce(a.data->'categories', '[]'::jsonb)));
     stenant := tenant;
@@ -56,7 +56,7 @@ begin
       select jsonb_array_elements_text(coalesce(x.data->'roles', '[]'::jsonb)) from @SCHEMA@.entity x
       where x.id = @SCHEMA@.v5_id(stenant, 'member', array[s.account::text, stenant::text]) and x.class = 'member') end;
     if not coalesce((@SCHEMA@.acl_api_for(stenant, scats, sroles, 'auth.impersonate', true)->>'allow')::boolean, false) then
-      perform @SCHEMA@.lt_fail('acl_denied', 'нет права auth.impersonate');
+      perform @SCHEMA@.lt_fail('sql-core.no_impersonate_right');
     end if;
     select e.id, e.data into a from @SCHEMA@.entity e where e.id = imp::uuid and e.class = 'Account' and e.tenant = '@SYSTEM@'::uuid;
     -- от имени System, сервисов, системных администраторов и отключённых аккаунтов действовать нельзя
@@ -64,7 +64,7 @@ begin
        or coalesce(a.data->'categories' ?| array['System', 'Service'], false)
        or exists (select 1 from @SCHEMA@.entity x
                   where x.id = @SCHEMA@.v5_id('@SYSTEM@'::uuid, 'member', array[a.id::text, '@SYSTEM@']) and x.class = 'member') then
-      perform @SCHEMA@.lt_fail('acl_denied', 'действовать от имени этого аккаунта нельзя');
+      perform @SCHEMA@.lt_fail('sql-core.impersonation_denied');
     end if;
     service := s.account;
     agent := s.account::text;
@@ -73,7 +73,7 @@ begin
   end if;
   if want is not null then
     if not pg_input_is_valid(want, 'uuid') then
-      perform @SCHEMA@.lt_fail('tenant_denied', 'letopis.tenant — не id арендатора');
+      perform @SCHEMA@.lt_fail('sql-core.tenant_not_id');
     end if;
     tenant := want::uuid;
   end if;
@@ -86,7 +86,7 @@ begin
     select e.id into t from @SCHEMA@.entity e
     where e.id = tenant and e.class = 'Account' and e.tenant = '@SYSTEM@'::uuid and coalesce((e.data->>'enabled')::boolean, true);
     if m is null or t.id is null then
-      perform @SCHEMA@.lt_fail('tenant_denied', 'нет членства в арендаторе');
+      perform @SCHEMA@.lt_fail('sql-core.no_membership');
     end if;
     roles := array(select jsonb_array_elements_text(coalesce(m.data->'roles', '[]'::jsonb)));
   end if;
@@ -137,7 +137,8 @@ begin
     and coalesce((s.meta->>'enabled')::boolean, true)
     and coalesce((a.data->>'enabled')::boolean, true);
   if k.account is null then
-    raise exception using errcode = 'LT001', message = 'letopis: no_session: неверный ключ';
+    -- DETAIL не было и до каталога (raise без detail): p_detail => 'null' (15-errors.sql)
+    perform @SCHEMA@.lt_fail('sql-core.bad_api_key', p_detail => 'null');
   end if;
   return @SCHEMA@.new_session(k.account, interval '7 days', jsonb_build_object('methods', jsonb_build_array('APIKEY'), 'cred', k.id));
 end $$;

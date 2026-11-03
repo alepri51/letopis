@@ -1,15 +1,16 @@
 /**
- * chain-write — запись цепочками (план, этап 4; тест-план §7.6 №4.1–4.8, 4.13, 4.17, 4.19).
+ * chain-write — запись цепочками (план, этап 4; тест-план §7.6 №4.1–4.7, 4.13, 4.17, 4.19).
  * Эталон — планы записи 0.21 (plan, core, idgen, api-full, wave2): звенья плана, продолжение от
- * результата, fan-out, self-update, превью и удаление, откат плана целиком, слоты, хвост-чтение,
- * anonymize. Объявленное отличие: create занятого ключа — ошибка exists, замена — upsert.
+ * результата, fan-out, self-update, превью и удаление, откат плана целиком, слоты, хвост-чтение.
+ * Объявленное отличие: create занятого ключа — ошибка exists, замена — upsert. Смена класса (4.8) и обезличивание
+ * сняты в 2.0.0.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { engine, type Engine, type Tenant } from './_engine.js';
 import { appDsn } from './_harness.js';
 import { seedSalon, type Salon } from './_salon.js';
-import { connect, inc, idOf, type Db, type Row } from '../src/index.js';
+import { connect, inc, idOf, type Db, type LetopisError, type Row } from '../src/index.js';
 
 let e: Engine;
 let t: Tenant;
@@ -160,8 +161,8 @@ test('4.1 слоты: перевес конца при update; повтор сл
   const [a] = await db.Team(team.id).Member().create({ name: 'А' }).rows();
   const [b] = await db.Team(team.id).Member().create({ name: 'Б' }).rows();
   const [d] = await db.Member(a.id).duty().create({ day: 'ср' }).rows();
-  const [moved] = await db.duty(d.id).update({}).Backup.set(b.id).rows();
-  assert.equal(moved.links.Backup, b.id);
+  const [shifted] = await db.duty(d.id).update({}).Backup.set(b.id).rows();
+  assert.equal(shifted.links.Backup, b.id);
   const [cleared] = await db.duty(d.id).update({}).Backup.unset().rows();
   assert.equal(cleared.links.Backup, undefined);
   // имя роли — сама роль; класс, который не принимает ни одна роль, — ошибка
@@ -203,23 +204,6 @@ test('4.7 правка на полиморфном шаге: каждая стр
   await assert.rejects(db.Org(s.org).Person().update({ specialization: 'все' }).rows(), code('invalid_data'));
 });
 
-test('4.8 смена класса: без ключа id тот же; с ключом — новый id, ссылки переведены', async () => {
-  const [c] = await db.Org(s.org).Customer().create({ name: 'Стажёр', phone: '+7 77' }).rows();
-  // данные заменяются целиком: у мастера нет поля клиента preferred_contact
-  await assert.rejects(db.Customer(c.id).reclass('Staff').rows(), code('invalid_data'));
-  const [st] = await db.Customer(c.id).reclass('Staff', { name: 'Стажёр', phone: '+7 77' }).rows();
-  assert.equal(st.id, c.id);
-  assert.equal(st.class, 'Staff');
-  const [svc] = await db.Org(s.org).Service().create({ name: 'Массаж', duration: 30 }).rows();
-  const [pr] = await db.Org(s.org).Service(svc.id).price().create({ amounts: { RUB: 900 } }).rows();
-  const [prod] = await db.Service(svc.id).reclass('Product', { name: 'Массаж' }).rows();
-  assert.notEqual(prod.id, svc.id);
-  assert.equal(prod.id, db.idOf('Product', { Org: s.org, name: 'Массаж' }));
-  const price = await db.price(pr.id).first();
-  assert.equal(price, null, 'цена с ключом [Item, note] переехала на новый id');
-  assert.equal(await db.Product(prod.id).price().count(), 1);
-});
-
 test('4.17 приращение: маркер, а не данные; путь, старт, ошибки до отправки', async () => {
   const [w] = await db.Wallet().create({ number: 'W-inc', balance: 1000 }).rows();
   const [w2] = await db.Wallet(w.id).update({ balance: inc(-300) }).rows();
@@ -259,7 +243,9 @@ test('4.19 строгий режим { rev }: conflict, нет цели, нес�
   });
   assert.equal((await db.Wallet(w.id).first())!.data.balance, 90);
   await assert.rejects(db.Wallet({ number: 'нет' }).update({ balance: 1 }, { rev: 1 }).rows(), code('target_not_found'));
-  await assert.rejects(db.Wallet().update({ balance: 1 }, { rev: 1 }).rows(), code('rev_ambiguous'));
+  // без фильтра — no_filter (план 2.0, 7.10 №2); несколько целей с { all: true } — rev_ambiguous
+  await assert.rejects(db.Wallet().update({ balance: 1 }, { rev: 1 }).rows(), code('invalid_query'));
+  await assert.rejects(db.Wallet().update({ balance: 1 }, { rev: 1, all: true }).rows(), code('rev_ambiguous'));
   const [gone] = await db.Wallet().create({ number: 'W-gone' }).rows();
   await db.Wallet(gone.id).delete({ confirm: true }).rows();
   await assert.rejects(db.Wallet(gone.id).update({ balance: 1 }, { rev: 1 }).rows(), code('target_not_found'));
@@ -279,17 +265,6 @@ test('4.13 upsert: created, updated, unchanged; класс без ключа —
   const [d] = await db.Team().upsert({ name: 'Омега' }).rows();
   assert.equal(d.data.city, undefined);
   await assert.rejects(db.Org(s.org).Customer().upsert({ name: 'X', phone: '1' }).rows(), code('no_key'));
-});
-
-test('4.1 anonymize: строковые поля затираются, тег anonymized, история сохраняется', async () => {
-  const [c] = await db.Org(s.org).Customer().create({ name: 'Иван', phone: '+7 123', notes: 'VIP' }).rows();
-  const [a] = await db.Customer(c.id).anonymize(['name', 'notes']).rows();
-  assert.equal(a.data.name, '[erased]');
-  assert.equal(a.data.notes, '[erased]');
-  assert.equal(a.data.phone, '+7 123');
-  assert.ok(a.tags.includes('anonymized'));
-  assert.equal((await db.Customer(c.id).versions()).length, 2);
-  await assert.rejects(db.Org(s.org).anonymize(['active']).rows(), code('invalid_query'));
 });
 
 test('цели записи сужаются limit и sort; data.id — цель без фильтра шага', async () => {
@@ -318,4 +293,75 @@ test('ошибки построения записи: create с фильтром
 test('idOf из библиотеки совпадает с id созданного объекта класса с ключом', async () => {
   const [m] = await db.Team({ name: 'Альфа' }).Member().create({ name: 'Петя' }).rows();
   assert.equal(m.id, idOf({ name: 'Member', key: ['Team', 'name'], ends: ['Team'] }, { Team: m.links.Team as string, name: 'Петя' }, { tenant: db.tenant! }));
+});
+
+test('план 2.0, 7.10 №2: update() и delete({ confirm: true }) без фильтра — invalid_query до записи; с { all: true }, фильтром, id, tags(), owner() или limit() — проходят (цепочка, батч, db.begin())', async () => {
+  await e.defineClass(t, { name: 'Lamp', kind: 'hub', key: ['n'],
+    fields: { properties: { n: { type: 'string' }, on: { type: 'boolean' } }, required: ['n'] } });
+  await db.refresh();
+  for (const n of ['a', 'b', 'c']) await db.Lamp().create({ n, on: false }).rows();
+  await db.Lamp().tags(['red']).create({ n: 'd', on: false }).rows();
+  const noFilter = (call: string) => (x: LetopisError) => {
+    assert.equal(x.code, 'invalid_query', x.message);
+    assert.equal(x.key, 'write.no_filter');
+    assert.equal(x.message, `letopis: invalid_query: ${call} без фильтра (Lamp): ни у одного шага нет фильтра, id или limit() — правка прошла бы по всем строкам`);
+    return true;
+  };
+  const on = async () => (await db.Lamp({ on: true }).rows()).map((r) => r.data.n).sort();
+
+  // цепочка: шаг без фильтра, пустой фильтр, sort() и превью не сужают — отказ до записи
+  await assert.rejects(db.Lamp().update({ on: true }).rows(), noFilter('update()'));
+  await assert.rejects(db.Lamp({}).update({ on: true }).rows(), noFilter('update()'));
+  await assert.rejects(db.Lamp().sort('data.n').update({ on: true }).rows(), noFilter('update()'));
+  await assert.rejects(db.Lamp().tags([]).update({ on: true }).rows(), noFilter('update()'));
+  await assert.rejects(db.Lamp().delete({ confirm: true }).rows(), noFilter('delete({ confirm: true })'));
+  await assert.rejects(db.Lamp().delete({ confirm: true, reason: 'чистка' }).rows(), noFilter('delete({ confirm: true })'));
+  assert.deepEqual(await on(), []);
+  assert.equal(await db.Lamp().count(), 4, 'ничего не удалено');
+  // превью удаления ничего не удаляет — без фильтра можно
+  assert.equal((await db.Lamp().delete().rows()).length, 4);
+
+  // сужают: фильтр, id, data.id, entity(строка), tags(), limit(), owner(), create() раньше в цепочке
+  const [a] = await db.Lamp({ n: 'a' }).update({ on: true }).rows();
+  assert.equal(a.data.n, 'a');
+  await db.Lamp(db.idOf('Lamp', { n: 'b' })).update({ on: true }).rows();
+  await db.Lamp().update({ id: db.idOf('Lamp', { n: 'c' }), on: true }).rows();
+  assert.deepEqual(await on(), ['a', 'b', 'c']);
+  await db.entity(a).update({ on: false }).rows();
+  await db.Lamp().tags('red').update({ on: true }).rows();
+  assert.deepEqual(await on(), ['b', 'c', 'd']);
+  assert.equal((await db.Lamp().sort('data.n').limit(1).update({ on: true }).rows())[0].data.n, 'a');
+  assert.equal((await db.Lamp().owner(a.owner).update({ on: false }).rows()).length, 4);
+  assert.deepEqual(await db.Team().create({ name: 'Без участников' }).Member().update({ level: 1 }).rows(), []);
+  // все строки — { all: true }
+  assert.equal((await db.Lamp().update({ on: true }, { all: true }).rows()).length, 4);
+
+  // батч: отказ run() до записи, план с { all: true } проходит
+  const b = db.batch('lamps');
+  b.Lamp({ n: 'a' }).update({ on: false });
+  b.Lamp().update({ on: false });
+  await assert.rejects(b.run(), noFilter('update()'));
+  assert.deepEqual(await on(), ['a', 'b', 'c', 'd'], 'батч не записал ни одного плана');
+  b.Lamp().delete({ confirm: true });
+  await assert.rejects(b.run(), noFilter('delete({ confirm: true })'));
+  b.Lamp({ n: 'a' }).update({ on: false });
+  b.Lamp().update({ on: false }, { all: true });
+  assert.deepEqual((await b.run()).map((rows) => rows.length), [1, 4]);
+  assert.deepEqual(await on(), []);
+
+  // db.begin(): отказ до первого оператора транзакцию не ломает
+  const tr = await db.begin();
+  try {
+    await assert.rejects(tr.Lamp().update({ on: true }).rows(), noFilter('update()'));
+    await assert.rejects(tr.Lamp().delete({ confirm: true }).rows(), noFilter('delete({ confirm: true })'));
+    assert.equal((await tr.Lamp({ n: 'a' }).update({ on: true }).rows()).length, 1);
+    assert.equal((await tr.Lamp().delete({ confirm: true, all: true }).rows()).length, 4);
+    assert.equal(await tr.Lamp().count(), 0);
+  } finally {
+    await tr.rollback();
+  }
+  assert.equal(await db.Lamp().count(), 4, 'откат вернул все строки');
+  assert.equal((await db.Lamp([db.idOf('Lamp', { n: 'a' }), db.idOf('Lamp', { n: 'b' })]).delete({ confirm: true }).rows()).length, 2);
+  assert.equal((await db.Lamp().delete({ confirm: true, all: true }).rows()).length, 2);
+  assert.equal(await db.Lamp().count(), 0);
 });

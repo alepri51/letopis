@@ -2,9 +2,18 @@
  * Предметная логика салона поверх цепочек letopis (по мотивам lib/test/scenario-real-life.test.ts).
  * База гарантирует уникальность брони мастера на время начала (ключ [Staff, start_datetime]);
  * пересечения и порядок броней одного мастера сервис сериализует блокировкой db.begin() + lock().
- * Перенос брони — rekey (время в ключе — новый id); прайс — класс price сида: правка — upsert, список — db.load().
+ * Перенос брони — новая бронь на новом слоте и удаление прежней одной транзакцией: время начала в ключе, а ключ правкой
+ * не меняется. Прайс — класс price сида: правка — upsert, список — db.load().
  */
 import { LetopisError, gte, lt } from 'letopis';
+
+/** Причина переноса: у новой брони — версия создания с ней, у прежней — версия удаления (надгробие переноса). */
+export const MOVE_REASON = 'перенос брони';
+
+/** Отказ сервиса с HTTP-статусом — не код библиотеки. */
+export class ServiceError extends Error {
+  constructor(status, message) { super(message); this.status = status; }
+}
 
 /** Часы работы салона (UTC — для простоты примера). */
 export const HOURS = [10, 11, 12, 13, 14, 15, 16, 17, 18];
@@ -70,22 +79,23 @@ export async function cancel(db, bookingId, trace = []) {
 }
 
 /**
- * Вернуть отменённую бронь. Надгробие переноса (moved — бронь живёт под новым id) не возвращается: restore оживил бы
- * прежний слот, и у клиента стало бы две брони.
+ * Вернуть отменённую бронь. Прежний слот переноса не возвращается: его удалила транзакция переноса (причина версии
+ * удаления — MOVE_REASON), бронь живёт на новом слоте, и restore дал бы клиенту две брони.
  */
 export async function restore(db, bookingId, trace = []) {
   const [was] = await db.booking(bookingId).withDeleted().rows();
-  if (was?.$deleted && was.moved) throw new LetopisError('moved', 'бронь не отменена, а перенесена — она в расписании под новым id');
+  if (was?.$deleted && was.reason === MOVE_REASON) throw new ServiceError(409, 'бронь не отменена, а перенесена — она в расписании на новом слоте');
   trace.push(`db.booking(id).restore()`);
   return db.booking(bookingId).restore().rows();
 }
 
 /**
- * Перенести бронь на другой час (или к другому мастеру). id брони — из ключа [Staff, start_datetime], поэтому перенос —
- * rekey: новый id, концы (клиент, услуга, место…) переходят, у прежнего id — надгробие с moved → новый id. rekey
- * сливает и не-ключевые поля, как update: конец брони сдвигается тем же вызовом, длительность — прежняя.
- * Как в book(): одна транзакция под блокировкой мастера (при переносе к другому — обоих, в порядке id: встречные
- * переносы не заблокируют друг друга), занятый слот — exists.
+ * Перенести бронь на другой час (или к другому мастеру). id брони — из ключа [Staff, start_datetime], а ключ правкой не
+ * меняется (immutable_key). Поэтому перенос — новая бронь на новом слоте с теми же концами (клиент, услуга, место,
+ * расписание) и удаление прежней, одной транзакцией с причиной MOVE_REASON. У новой брони — новый id и своя история; у
+ * прежнего слота остаётся надгробие — версия удаления с той же причиной, это не отмена. Конец брони сдвигается вместе с
+ * началом, длительность — прежняя. Как в book(): под блокировкой мастера (при переносе к другому — обоих, в порядке id:
+ * встречные переносы не заблокируют друг друга), занятый слот — exists.
  */
 export async function move(db, bookingId, { day, hour, staffId }, trace = []) {
   const cur = await db.booking(bookingId).first();
@@ -95,14 +105,23 @@ export async function move(db, bookingId, { day, hour, staffId }, trace = []) {
   const start = iso(day || String(cur.data.start_datetime).slice(0, 10), hour);
   if (to === from && start === cur.data.start_datetime) throw new LetopisError('invalid_data', 'бронь уже на этом слоте');
   const end = new Date(Date.parse(start) + Date.parse(cur.data.end_datetime) - Date.parse(cur.data.start_datetime)).toISOString();
-  const tr = await db.begin({ reason: 'перенос брони' });
+  const tr = await db.begin({ reason: MOVE_REASON });
   try {
-    trace.push(`db.begin({ reason: 'перенос брони' }); tr.lock('visits', мастер)${to === from ? '' : ' — обоих, в порядке id'}`);
+    trace.push(`db.begin({ reason: '${MOVE_REASON}' }); tr.lock('visits', мастер)${to === from ? '' : ' — обоих, в порядке id'}`);
     for (const id of [...new Set([from, to])].sort()) await tr.lock('visits', id);
+    // бронь — заново, с блокировкой строки до commit: пока ждали замок, её могли отменить или перенести из другой вкладки
+    const live = await tr.booking(cur.id).forUpdate().first();
+    if (!live) throw new LetopisError('not_found', 'брони нет — её отменили или уже перенесли');
     const busy = await tr.Staff(to).booking({ start_datetime: start }).count();
     if (busy) throw new LetopisError('exists', `слот ${hour}:00 у мастера уже занят`);
-    trace.push(`tr.booking(id).rekey({ ${to === from ? '' : 'Staff: мастер, '}start_datetime, end_datetime }) — новый id из ключа, у прежнего — надгробие с moved`);
-    const [row] = await tr.booking(cur.id).rekey({ ...(to === from ? {} : { Staff: to }), start_datetime: start, end_datetime: end }).rows();
+    trace.push(`tr.Staff(${to === from ? 'мастер' : 'другой мастер'}).booking().create({ start_datetime, end_datetime })…Item.set(услуга).Customer.set(клиент) — новая бронь: id из нового ключа`);
+    let plan = tr.Staff(to).booking()
+      .create({ start_datetime: start, end_datetime: end, ...(live.data.notes === undefined ? {} : { notes: live.data.notes }) })
+      .Location.set(live.links.Location).Schedule.set(live.links.Schedule).Item.set(live.links.Item);
+    if (live.links.Customer) plan = plan.Customer.set(live.links.Customer);
+    const [row] = await plan.rows();
+    trace.push(`tr.booking(прежняя).delete({ confirm: true }) — прежний слот освобождён: надгробие с причиной «${MOVE_REASON}»`);
+    await tr.booking(live.id).delete({ confirm: true }).rows();
     await tr.commit();
     trace.push('tr.commit()');
     return row;
@@ -114,12 +133,12 @@ export async function move(db, bookingId, { day, hour, staffId }, trace = []) {
 }
 
 /**
- * История брони: все версии и что менялось между ними. follow идёт по moved через перенос (rekey меняет id) к прежним
- * и новым id; id — из ключа, поэтому у слота одна история: бронь на месте отменённой продолжает её версии.
+ * История брони: все версии этого id и что менялось между ними. id — из ключа, поэтому у слота одна история: бронь на
+ * месте отменённой или перенесённой продолжает её версии. Перенос — другой слот, другой id и своя история.
  */
 export async function history(db, bookingId, trace = []) {
-  trace.push('db.booking(id).withDeleted().versions({ follow: true }) — и через перенос: rekey меняет id');
-  return db.booking(bookingId).withDeleted().versions({ follow: true });
+  trace.push('db.booking(id).withDeleted().versions() — версии этой брони (этого id)');
+  return db.booking(bookingId).withDeleted().versions();
 }
 
 /** Вариант цены в ключе price [Item, note]; у сида он же по умолчанию — одна цена услуги на салон. */

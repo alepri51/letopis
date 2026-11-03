@@ -4,11 +4,11 @@ import { seedShop, type ShopData } from '../../kit/shop.ts';
 let d: ShopData;
 
 export default example({
-  title: 'Удаление: предпросмотр, каскад, запрет, снятие ссылки',
+  title: 'Удаление: предпросмотр, каскад, запрет, очистка конца',
   summary:
     'delete() без подтверждения — только предпросмотр: что удалится и как. С { confirm: true } удаляются цели, а что ' +
-    'делать со ссылками на них, решает действие при удалении у конца: cascade — удалить вместе, ' +
-    'restrict — запретить, unset — снять ссылку.',
+    'делать с концами, ведущими на них, решает действие при удалении у конца: cascade — удалить вместе, ' +
+    'restrict — запретить, unset — очистить конец.',
   tables: ['entity', 'log'],
   covers: ['chain.delete', 'error.delete_restricted', 'nuance.cascade-unset-restrict'],
   steps: [
@@ -46,10 +46,10 @@ export default example({
       expect: { error: 'delete_restricted' },
     },
     {
-      title: 'Удалить категорию — ссылки снимутся',
+      title: 'Удалить категорию — концы очистятся',
       text:
         'У товаров конец `Category` с действием при удалении `unset`. Удаляем «Посуду»: категория ушла, ' +
-        'а у Чайника и Кружки ссылка на неё снята (подсвечено) — это новая версия каждого товара.',
+        'а из конца `Category` у Чайника и Кружки она убрана (подсвечено) — это новая версия каждого товара.',
       run: async ({ db }) => db.Category(d.dishes).delete({ confirm: true }).rows(),
     },
   ],

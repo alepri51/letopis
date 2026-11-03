@@ -84,7 +84,7 @@ export default example({
     },
     {
       title: 'Внешняя учётная запись и вход по ней',
-      text: 'Telegram, Google, корпоративный вход (SSO): их токен проверяет сервис, а база хранит привязку к учётной записи. `lookup` — вход по этой привязке.',
+      text: 'Telegram, Google, корпоративный вход (SSO): их токен проверяет сервис, а база хранит привязку к аккаунту. `lookup` — вход по этой привязке.',
       run: async ({ svc, up }) => {
         await svc.auth.link({ account: up.tenant!.user!, kind: 'TELEGRAM', identifier: '100500', confirmed: true });
         return { 'вход через Telegram': !!(await svc.auth.lookup({ kind: 'TELEGRAM', identifier: '100500' })) };

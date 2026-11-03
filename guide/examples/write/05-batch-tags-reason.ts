@@ -9,7 +9,7 @@ export default example({
   summary:
     'Батч копит планы записи и выполняет их одной транзакцией. Теги и владелец задаются перед глаголом. Причина ' +
     'изменения (reason) попадает в журнал рядом с автором и временем.',
-  covers: ['db.batch', 'batch.size', 'batch.discard', 'chain.tags', 'chain.owner', 'nuance.reason-in-log', 'nuance.batch-own-queue', 'nuance.mods-after-verb', 'nuance.tags-op-update', 'nuance.hasall-empty'],
+  covers: ['db.batch', 'batch.run', 'batch.size', 'batch.discard','chain.tags', 'chain.owner', 'nuance.reason-in-log', 'nuance.batch-own-queue', 'nuance.mods-after-verb', 'nuance.tags-op-update', 'nuance.hasall-empty'],
   steps: [
     {
       title: 'Магазин',

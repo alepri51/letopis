@@ -11,7 +11,7 @@
  */
 import { createHmac, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
-import { LetopisError, removed } from './errors.js';
+import { lerr } from './errors.js';
 import type { Executor } from './tx.js';
 
 const scryptAsync = promisify(scrypt) as (password: string, salt: Buffer, keylen: number,
@@ -20,7 +20,7 @@ const scryptAsync = promisify(scrypt) as (password: string, salt: Buffer, keylen
 const SCRYPT = { N: 32768, r: 8, p: 1, maxmem: 64 * 1024 * 1024 };
 const KEYLEN = 32;
 
-/** Хэш пароля scrypt: `scrypt$N$r$p$соль$хэш` (формат 0.21). */
+/** Хэш пароля scrypt: `scrypt$N$r$p$соль$хэш`. */
 export async function hashPassword(password: string): Promise<string> {
   const salt = randomBytes(16);
   const hash = await scryptAsync(password, salt, KEYLEN, SCRYPT);
@@ -37,7 +37,7 @@ export async function verifyHash(password: string, stored: string): Promise<bool
   // пароль» (false). Текст Node.js в сообщение не идёт: он зависит от сборки OpenSSL
   const got = await scryptAsync(password, Buffer.from(saltB64, 'base64'), want.length,
     { N: Number(N), r: Number(r), p: Number(p), maxmem: SCRYPT.maxmem }).catch(() => {
-    throw new LetopisError('invalid_data', `хэш пароля: параметры scrypt N=${N}, r=${r}, p=${p} недопустимы или требуют больше 64 МБ памяти`);
+    throw lerr('access.bad_scrypt_params', { N, r, p });
   });
   return got.length === want.length && timingSafeEqual(got, want);
 }
@@ -70,7 +70,7 @@ export function base32Decode(s: string): Buffer {
   const out: number[] = [];
   for (const ch of s.replace(/=+$/, '').toUpperCase()) {
     const idx = B32.indexOf(ch);
-    if (idx < 0) throw new LetopisError('invalid_data', 'секрет TOTP — не base32');
+    if (idx < 0) throw lerr('access.bad_totp_secret');
     value = (value << 5) | idx;
     bits += 5;
     if (bits >= 8) {
@@ -211,7 +211,7 @@ export interface AuthApi {
   /** Арендаторы, доступные аккаунту сессии: собственный (`owner`) и по членству. */
   tenants(): Promise<{ tenant: string; roles: string[] }[]>;
   /**
-   * Удалить аккаунт (этап 6; accounts.purge 0.21): системный администратор или владелец его
+   * Удалить аккаунт: системный администратор или владелец его
    * арендатора; себя и последнего владельца арендатора — нельзя. Данные арендатора стираются,
    * владение строками в чужих арендаторах переходит им, сессии гаснут, креды удаляются. Владелец стирает
    * и арендатора, в котором работает: его сессия возвращается в личный арендатор.
@@ -221,16 +221,6 @@ export interface AuthApi {
 
 /** Фасад db.auth. onSwitch — подключение перечитывает арендатора, реестр и пропуска прав. */
 export function makeAuth(S: string, exec: Executor, onSwitch: () => Promise<void>, canSwitch: boolean): AuthApi {
-  const api = makeAuthCore(S, exec, onSwitch, canSwitch);
-  return new Proxy(api, {
-    get(t, p, r) {
-      if (p === 'sessions') throw removed('db.auth.sessions(store)', 'сессии хранятся в базе: sessionFor, refresh, revoke, revokeAll');
-      return Reflect.get(t, p, r);
-    },
-  });
-}
-
-function makeAuthCore(S: string, exec: Executor, onSwitch: () => Promise<void>, canSwitch: boolean): AuthApi {
   const one = async <T>(text: string, params: unknown[] = []): Promise<T> => {
     const rows = await exec.run((q) => q.unsafe(text, params as never[]));
     return rows[0] as T;
@@ -333,7 +323,7 @@ function makeAuthCore(S: string, exec: Executor, onSwitch: () => Promise<void>, 
       return (await one<{ n: number }>(`select ${S}.auth_logout_all($1::uuid) as n`, [account === undefined ? null : accId(account)])).n;
     },
     async switch(tenant) {
-      if (!canSwitch) throw new LetopisError('invalid_query', 'auth.switch() — от корня подключения: при имперсонации арендатора задаёт db.as(…, { tenant })');
+      if (!canSwitch) throw lerr('access.switch_not_root');
       await one(`select ${S}.auth_switch($1::uuid)`, [tenant]);
       await onSwitch();
     },

@@ -36,8 +36,9 @@ export function Security({ me, onMe, onChanged }: { me: Me; onMe: (me: Me | null
               e.preventDefault();
               try {
                 await api('/api/security/totp/disable', { code: offCode });
-                // гашение креда TOTP закрывает и сессии, открытые с этим фактором, — в том числе эту
-                toast.success('Второй фактор отключён. Сессии, открытые с ним, закрыты — войдите снова, уже без кода из приложения');
+                // гашение креда, который не ключ, закрывает все сессии аккаунта, кроме сессии вызывающего — сервиса;
+                // в том числе эту (lib/sql/80-auth.sql: auth_revoke_credential)
+                toast.success('Второй фактор отключён. Все сессии аккаунта закрыты — войдите снова, уже без кода из приложения');
                 setOffCode(''); onMe(null);
               } catch (err) { toast.error((err as Error).message); onChanged(); }
             }}>

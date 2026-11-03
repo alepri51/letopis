@@ -10,7 +10,7 @@
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { engine, waitForLock, type Engine, type Tenant } from './_engine.js';
+import { engine, journalIssues, waitForLock, type Engine, type Tenant } from './_engine.js';
 import { appDsn } from './_harness.js';
 import { connect, type Db, type Row, type Chain } from '../src/index.js';
 
@@ -433,7 +433,6 @@ test('С16. Конец дня: отчёты и сквозные инвариан
   // хранит и жизнь педикюра Оли, и надгробие, и бронь Нади
   assert.ok((await db.запись(S.зАни.id).versions()).length >= 2);
   assert.ok((await db.запись(S.зНади.id).versions()).length >= 3);
-  // (г) журнал и цепочки хэшей сходятся
-  const [{ v }] = await e.sql.unsafe(`select ${e.S}.verify() as v`);
-  assert.equal(v.ok, true, JSON.stringify(v.issues));
+  // (г) журнал цел: номера версий подряд, строки — последние версии
+  assert.deepEqual(await journalIssues(e.sql, e.S), []);
 });

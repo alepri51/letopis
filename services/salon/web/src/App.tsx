@@ -15,7 +15,7 @@ import { Navbar1 } from '@/components/navbar1';
 import { Stats8 } from '@/components/stats8';
 // панель «Под капотом» — общая для четырёх сервисов-примеров (services/shared/web)
 import { UnderHood, type Trace } from '@shared/UnderHood';
-import { api, today, type Booking, type Me, type Schedule, type Staff, type Version } from '@/lib/api';
+import { api, clock, today, type Booking, type Me, type Schedule, type Staff, type Version } from '@/lib/api';
 // экраны «Прайс» и «Отчёт дня»
 import { Price } from '@/pages/Price';
 import { Report } from '@/pages/Report';
@@ -70,7 +70,20 @@ function Salon({ me }: { me: Me; onLogout?: () => void }) {
     const es = new EventSource('/api/events');
     es.addEventListener('ready', () => setLive(true));
     es.addEventListener('changed', () => { reload(); setTick((t) => t + 1); });
-    return () => es.close();
+    // поток закрылся — сервер закрывает его вместе с веб-сессией (выход, в том числе в другой вкладке): вошёл другой или
+    // никто — страница заново, иначе данные новой сессии того же браузера оказались бы под прежней шапкой
+    es.onerror = () => {
+      setLive(false);
+      api<Me | null>('/api/me').then((m) => { if (m?.salon !== me.salon || m?.name !== me.name) location.reload(); }, () => {});
+    };
+    // уход со страницы (переход на /logout) — поток закрыть сразу: иначе сервер, закрывая его вместе с сессией, будил бы
+    // onerror, и перезагрузка перебивала бы начатый переход
+    const leave = () => es.close();
+    addEventListener('beforeunload', leave);
+    return () => {
+      removeEventListener('beforeunload', leave);
+      es.close();
+    };
   }, [reload]);
 
   const run = async (fn: () => Promise<unknown>, ok?: string) => {
@@ -178,7 +191,7 @@ function Salon({ me }: { me: Me; onLogout?: () => void }) {
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>История брони</DialogTitle>
-            <DialogDescription>Все версии из журнала letopis: что, когда и почему. Перенос меняет id брони — история идёт через смену id (<code>versions({'{'} follow: true {'}'})</code>).</DialogDescription>
+            <DialogDescription>Все версии этой брони из журнала letopis: что, когда и почему. Перенос — новая бронь на новом слоте (новый id: время начала в ключе) и удаление прежней одной транзакцией: у прежнего слота своя история — с версией удаления «перенос брони».</DialogDescription>
           </DialogHeader>
           <Table>
             <TableHeader><TableRow><TableHead>id</TableHead><TableHead>rev</TableHead><TableHead>действие</TableHead><TableHead>мастер, начало</TableHead><TableHead>причина</TableHead><TableHead>когда</TableHead></TableRow></TableHeader>
@@ -189,7 +202,7 @@ function Salon({ me }: { me: Me; onLogout?: () => void }) {
                 <TableCell><Badge variant="outline">{v.op}</Badge></TableCell>
                 <TableCell>{v.staff} {v.start}</TableCell>
                 <TableCell>{v.reason}</TableCell>
-                <TableCell>{v.at}</TableCell>
+                <TableCell>{clock(v.at)}</TableCell>
               </TableRow>
             ))}</TableBody>
           </Table>
@@ -240,8 +253,8 @@ function BookDialog({ slot, day, services, onClose, onDone }: {
 }
 
 /**
- * Перенос брони: мастер и свободный час того же дня. id брони — из ключа (мастер, время начала), поэтому сервер
- * переносит её rekey — новый id, история идёт через смену id. Слот заняли раньше — 409.
+ * Перенос брони: мастер и свободный час того же дня. id брони — из ключа (мастер, время начала), а ключ не меняется:
+ * сервер создаёт новую бронь на новом слоте и удаляет прежнюю одной транзакцией — новый id. Слот заняли раньше — 409.
  * Диалог создаётся заново на каждую бронь (key): выбор — тот же мастер и его первый свободный час; перечитанное
  * расписание выбор не сбрасывает.
  */
@@ -270,7 +283,7 @@ function MoveDialog({ booking, data, onClose, onDone }: {
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Перенос брони: {booking?.customer}, {booking?.hour}:00</DialogTitle>
-          <DialogDescription>Время начала — в ключе брони: перенос даёт ей новый id (<code>rekey</code>), история идёт через смену id. Под блокировкой мастера, как запись.</DialogDescription>
+          <DialogDescription>Время начала — в ключе брони, а ключ не меняется: перенос создаёт новую бронь (<code>create</code>, новый id) и удаляет прежнюю (<code>delete</code>) одной транзакцией, под блокировкой мастера, как запись.</DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="grid gap-4">
           <div className="grid gap-2"><Label htmlFor="move-staff">Мастер</Label>

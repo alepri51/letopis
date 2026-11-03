@@ -1,7 +1,7 @@
 /**
  * write-contract — обещания README о записи, которые нашло ревью плана 2.0 (тест-план §7.2): повтор ключа в батче,
- * порядок строк ответа reclass, restore и rekey, цепочка с глаголом в значении слота, правка загрузчиком строки другого
- * класса, ответ из кэша.
+ * порядок строк ответа restore (смена класса и ключа снята в 2.0.0), цепочка с глаголом в значении слота, правка загрузчиком
+ * строки другого класса, ответ из кэша.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -27,7 +27,6 @@ before(async () => {
     { name: 'Ord', kind: 'hub', fields: N },
     { name: 'Ord2', kind: 'hub', fields: N },
     { name: 'Res', kind: 'hub', fields: N },
-    { name: 'Rk', kind: 'hub', key: ['code', 'tag'], fields: { properties: { code: { type: 'string' }, tag: { type: 'string' }, n: { type: 'integer' } }, required: ['code', 'tag'] } },
     { name: 'Cat', kind: 'hub', fields: N, ends: { Parent: { class: 'Cat' } } },
     { name: 'Prod', kind: 'hub', fields: N, ends: { Cat: { class: 'Cat', many: true } } },
     { name: 'Pr', kind: 'hub', fields: { properties: { price: { type: 'integer' } } } },
@@ -48,19 +47,11 @@ test('план 2.0, 7.2 №1: два create одного ключа в батч�
   assert.equal(await db.Wal().count(), 0, 'ни одной строки: батч — одна транзакция');
 });
 
-test('план 2.0, 7.2 №2: строки ответа reclass, restore и rekey — в порядке целей (sort до глагола)', async () => {
-  for (const n of [3, 1, 2]) await db.Ord().create({ n }).rows();
-  const re = await db.Ord().sort('data.n', 'desc').reclass('Ord2').rows();
-  assert.deepEqual(re.map((r) => r.data.n), [3, 2, 1], 'reclass');
-
+test('план 2.0, 7.2 №2: строки ответа restore — в порядке целей (sort до глагола)', async () => {
   for (const n of [3, 1, 2]) await db.Res().create({ n }).rows();
   await db.Res().delete({ confirm: true }).rows();
   const back = await db.Res().sort('data.n', 'desc').restore().rows();
   assert.deepEqual(back.map((r) => r.data.n), [3, 2, 1], 'restore');
-
-  for (const n of [3, 1, 2]) await db.Rk().create({ code: 'c', tag: `t${n}`, n }).rows();
-  const moved = await db.Rk().sort('data.n', 'desc').rekey({ code: 'x' }).rows();
-  assert.deepEqual(moved.map((r) => r.data.n), [3, 2, 1], 'rekey');
 });
 
 test('план 2.0, 7.2 №3: цепочка с глаголом и читающим хвостом в значении слота работает; модификатор после её глагола — invalid_query', async () => {
@@ -76,7 +67,8 @@ test('план 2.0, 7.2 №4: load({ existing: update }) не пишет в ст
   try {
     await adm.load([{ $class: 'Ord', $ext: 'E-7.2.4', n: 1, name: 'импорт 7.2.4' }]);
     const [o] = await db.Ord({ name: 'импорт 7.2.4' }).rows();
-    await db.Ord(o.id).reclass('Ord2').rows(); // класс без ключа: id тот же
+    // смены класса в API нет (класс строки неизменен): строку в другой класс переводит владелец мимо триггеров, id тот же
+    await e.asOwner((tx) => tx.unsafe(`update ${e.S}.entity set class = 'Ord2' where id = $1`, [o.id]));
     // повторный импорт той же строки: id по $ext тот же, а объект уже в Ord2
     const err = await adm.load([{ $class: 'Ord', $ext: 'E-7.2.4', n: 2, name: 'повтор импорта' }], { existing: 'update' })
       .then(() => assert.fail('загрузка прошла'), (x: unknown) => x as { detail?: { rows?: { line: number; code: string; message: string }[] } });
@@ -84,7 +76,7 @@ test('план 2.0, 7.2 №4: load({ existing: update }) не пишет в ст
     assert.deepEqual(rows.map((r) => [r.line, r.code]), [[1, 'exists']], JSON.stringify(rows));
     assert.match(rows[0].message, /в классе Ord2/);
     const cur = await db.Ord2(o.id).first();
-    assert.deepEqual([cur?.class, cur?.rev, cur?.data.n, cur?.data.name], ['Ord2', 2, 1, 'импорт 7.2.4'], 'строка Ord2 не тронута');
+    assert.deepEqual([cur?.class, cur?.rev, cur?.data.n, cur?.data.name], ['Ord2', 1, 1, 'импорт 7.2.4'], 'строка Ord2 не тронута');
     const same = await adm.load([{ $class: 'Ord2', $ext: 'E-7.2.4b', n: 5, name: 'свой класс' }], { existing: 'update' });
     assert.equal(same.loaded, 1, 'строка своего класса загружается как прежде');
   } finally {

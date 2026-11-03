@@ -5,13 +5,14 @@
  * Ключ — текст запроса, параметры и тот, кто спрашивает (токен, актор, арендатор): под RLS один
  * запрос разным пользователям отдаёт разные строки. Сброс:
  *   - свои записи — сразу после фиксации, по классам из letopis.changed (туда попадают и классы
- *     каскада, unset, смены класса и ключа); запись через db.sql — весь кэш;
+ *     каскада и unset); запись через db.sql — весь кэш;
  *   - чужие записи — по сигналу базы (нагрузка по режиму установки, signals.ts): класс в арендаторе
  *     сигнала (ответ помнит токен арендатора запроса; сигнал System и процесс без ключа — во всех), в режиме
- *     opaque без ключа — весь кэш; классы прав и схемы (rule, Resource, member, Account, Class) и «*» —
- *     весь кэш; `session:<16 hex>` — ответы погашенной сессии, `session:*` — все;
+ *     opaque без ключа — весь кэш; классы прав и схемы (rule, Resource, member, Account, Class) — весь кэш;
+ *     `session:<16 hex>` — ответы погашенной сессии;
  *   - гонка запроса и сигнала: счётчики сигналов по классам, парам «класс, арендатор» и сессиям
- *     снимаются до запроса, ответ кладётся, только если они не изменились;
+ *     снимаются до запроса, ответ кладётся, только если они не изменились; счётчик сессии заводит сам
+ *     снимок — гашение сессии, которая через кэш не читала, следа в картах не оставляет;
  *   - (пере)подключение слушателя сигналов — весь кэш: сигналы за время обрыва потеряны; без слушателя
  *     кэш выключен (с ttlOnly — работает только по сроку);
  *   - срок (по умолчанию 60 с) — предохранитель; ответы истёкшей сессии не используются.
@@ -115,12 +116,31 @@ export class ResultCache {
   /** Снимок счётчиков классов, пар с арендатором запроса (id) и сессии — до запроса. */
   token(classes: readonly string[], session: string, tenantId?: string | null): CacheToken {
     const tenant = this.allTenants ? null : this.sig.tenantToken(tenantId);
+    // счётчик сессии — до снимка epoch: переполнение карты сдвигает epoch
+    const sessionCount = this.watchSession(session);
     return {
       epoch: this.epoch,
       classes: classes.map((c) => [c, this.classEpoch.get(c) ?? 0, this.pairCount(c, tenant)]),
-      session: this.sessionEpoch.get(session) ?? 0,
+      session: sessionCount,
       tenant,
     };
+  }
+
+  /**
+   * Счётчик сессии заводит снимок запроса (token), а сигнал о гашении меняет только заведённые: снимок в полёте бывает
+   * лишь у сессии, которая читала через этот кэш. Гасят же в основном чужие сессии — вход и выход пользователей
+   * сервиса, — и счётчик на каждый тег копил бы карту до предела EPOCH_MAX (долгий прогон: вход и выход раз в секунду —
+   * 0,7–0,9 МБ/ч на подключение). Заведённый счётчик не удаляется: иначе снимок, взятый до гашения, сошёлся бы с нулём.
+   */
+  private watchSession(tag: string): number {
+    const n = this.sessionEpoch.get(tag);
+    if (n !== undefined) return n;
+    if (this.sessionEpoch.size >= EPOCH_MAX) {
+      this.sessionEpoch.clear();
+      this.epoch++;
+    }
+    this.sessionEpoch.set(tag, 0);
+    return 0;
   }
 
   private pairCount(cls: string, tenant: string | null): number {
@@ -173,9 +193,10 @@ export class ResultCache {
     for (const [key, e] of this.map) if ((e.tenant === null || e.tenant === tenant) && e.classes.includes(cls)) this.map.delete(key);
   }
 
-  /** Сбросить ответы сессии (тег — начало sha256 токена). */
+  /** Сбросить ответы сессии (тег — начало sha256 токена); счётчик — только у заведённой снимком (watchSession). */
   invalidateSession(tag: string): void {
-    this.bump(this.sessionEpoch, tag);
+    const n = this.sessionEpoch.get(tag);
+    if (n !== undefined) this.sessionEpoch.set(tag, n + 1);
     for (const [k, e] of this.map) if (e.session === tag) this.map.delete(k);
   }
 
@@ -209,7 +230,7 @@ export class ResultCache {
         // класса нет в реестрах процесса — и ответов с ним нет
         return;
       default:
-        // *, session:*, opaque без ключа, нагрузка не по режиму
+        // переподключение слушателя, opaque без ключа, нагрузка не по режиму
         return this.clear();
     }
   }

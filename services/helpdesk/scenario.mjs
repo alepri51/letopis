@@ -5,14 +5,18 @@
  * Схема своя и каждый раз с нуля (helpdesk_scenario): сценарий включает агенту TOTP, повтор на старой схеме
  * упёрся бы во второй фактор.
  */
-import { totpCode } from 'letopis';
+import { totpCode, connect, v5Id } from 'letopis';
+import postgres from 'postgres';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 
 process.env.SCHEMA ??= 'helpdesk_scenario';
 process.env.FRESH ??= '1';
+// по умолчанию — база стенда, как у сервера (src/server.mjs): прямые подключения сценария ниже берут те же строки
+process.env.ADMIN_DSN ??= 'postgres://postgres:guide@127.0.0.1:15440/letopis';
+process.env.APP_DSN ??= 'postgres://helpdesk_app:helpdesk-app-secret@127.0.0.1:15440/letopis';
 const { createApp, DEMO } = await import('./src/server.mjs');
 
-const { app, close } = await createApp();
+const { app, schema, close } = await createApp();
 const server = app.listen(0, '127.0.0.1');
 await new Promise((r) => server.once('listening', r));
 const base = `http://127.0.0.1:${server.address().port}`;
@@ -99,6 +103,10 @@ try {
   const q2 = q1.next ? (await call(agent, `/api/tickets?after=${encodeURIComponent(q1.next)}`)).data : { rows: [] };
   const queue = [...q1.rows, ...q2.rows];
   check(q1.next && queue.length > PAGE_OF(q1) && queue.every((x, i) => i === 0 || queue[i - 1].due <= x.due), 'агент видит очередь компании по сроку, вторая страница — по курсору');
+  // обновление по событию перечитывает столько строк, сколько показано (limit), а не сворачивает список до первой страницы
+  const reread = (await call(agent, `/api/tickets?limit=${queue.length}`)).data;
+  check(reread.rows.length === queue.length && reread.rows.every((x, i) => x.number === queue[i].number),
+    `перечитывание очереди с limit=${queue.length} — те же заявки, что на двух страницах (${reread.rows.length})`);
   check(queue.some((x) => x.client !== DEMO.client.name), 'в очереди агента — обращения разных клиентов');
   await call(agent, `/api/tickets/${t.id}/assign`, {});
   await call(agent, `/api/tickets/${t.id}/reply`, { text: 'Отправили счёт повторно', internal: false });
@@ -158,6 +166,25 @@ try {
   const clientTools = (await asClient.listTools()).tools.map((x) => x.name);
   check(clientTools.includes('letopis_query') && !clientTools.includes('letopis_write'), `клиент через MCP — только чтение: ${clientTools.join(', ')}`);
   await asClient.close();
+  // и в самой базе клиент не пишет в счётчик заявок: запрет правилом обёртки db.acl, номер выдаёт сервис (план 2.0, 7.9 №2)
+  {
+    const SYS = '2eba6d0a-1edd-4bb6-a85a-a703dab49035';
+    const pg = postgres(process.env.ADMIN_DSN, { max: 1, onnotice: () => {} });
+    const [{ tok }] = await pg.unsafe(`select "${schema}".new_session($1::uuid, interval '5 minutes', jsonb_build_object('tenant', $2::text)) as tok`,
+      [v5Id(SYS, 'Account', ['user:' + DEMO.client.login]), v5Id(SYS, 'Account', ['tenant:Север'])]);
+    await pg.end();
+    const direct = await connect({ dsn: process.env.APP_DSN, schema, token: tok, listen: false });
+    try {
+      const spoil = await direct.Counter({ name: 'tickets' }).update({ next: 0 }).rows().then(() => 'записано', (e) => e.code);
+      check(spoil === 'acl_denied', 'клиент не пишет в счётчик заявок и напрямую в базе — запрет правилом db.acl (план 2.0, 7.9 №2)', spoil);
+      const own = await direct.Ticket().rows();
+      check(own.length > 0 && own.every((x) => x.owner === v5Id(SYS, 'Account', ['user:' + DEMO.client.login])),
+        'клиент напрямую в базе видит только свои заявки — условие owner: $actor правила db.acl', own.length);
+    } finally {
+      await direct.auth.revoke().catch(() => {});
+      await direct.close();
+    }
+  }
   const viaSession = new Client({ name: 'сценарий-сессия', version: '1.0.0' });
   await viaSession.connect(new StreamableHTTPClientTransport(new URL(`${base}${ses.url}`), { requestInit: { headers: { authorization: `Bearer ${ses.token}` } } }));
   const bySession = (await viaSession.callTool({ name: 'letopis_query', arguments: { class: 'Ticket', filter: { number: t.number } } })).structuredContent?.data?.rows?.[0];

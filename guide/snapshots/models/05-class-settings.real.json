@@ -11,11 +11,11 @@
       "password": "Ромашка-2026!"
     },
     "up": {
-      "serviceKey": "lts_b93c228dfceba4efcdd88e4b85ba521700784c1258a03fb1bc4604ca5b1fda80",
+      "serviceKey": "lts_422ed0d0067ddf226add0aa18610e0f5493a15dbc4ac0480554171ebc9ea1044",
       "tenant": {
         "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
         "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "effefdc99c5f944e2efbf4d13a10ef7c0665b6c104ffee547f4a3007da2a8479",
+        "token": "d197b7e05ee35cfb805bd1631300819780b882cc51adeb416ee00dad20f37c3f",
         "created": true
       }
     }
@@ -51,7 +51,7 @@
       "error": null,
       "entity": [
         {
-          "id": "ee39dc1f-9207-566c-b9c9-4209481ac31b",
+          "id": "c1623ee3-4739-5b89-82fd-ea94b51f8c5e",
           "class": "Ping",
           "rev": 2,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -63,9 +63,9 @@
           "tags": [],
           "op": "update",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3bc4fb60-f245-5868-b493-d7b08beaad4a",
+          "agent": "6c6cb5ec-d0dd-5992-bf6e-30404818b361",
           "reason": null,
-          "at": "2026-10-31 21:23:53.500762+00"
+          "at": "2026-11-03 03:54:26.325917+00"
         }
       ],
       "removed": [],
@@ -83,7 +83,7 @@
       "error": null,
       "entity": [
         {
-          "id": "f12b282f-b093-5eab-9cca-559752dfb454",
+          "id": "30894d53-072f-5af1-94bd-cfe04fabd9e8",
           "class": "Draft",
           "rev": 1,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -95,12 +95,12 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3bc4fb60-f245-5868-b493-d7b08beaad4a",
+          "agent": "6c6cb5ec-d0dd-5992-bf6e-30404818b361",
           "reason": null,
-          "at": "2026-10-31 21:23:53.533427+00"
+          "at": "2026-11-03 03:54:26.346556+00"
         },
         {
-          "id": "e0ba53b1-adbc-51f9-bbef-21965f0bdbf7",
+          "id": "3192d000-6f5a-583d-8c70-999d3ff7489b",
           "class": "Product",
           "rev": 1,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -112,12 +112,12 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3bc4fb60-f245-5868-b493-d7b08beaad4a",
+          "agent": "6c6cb5ec-d0dd-5992-bf6e-30404818b361",
           "reason": null,
-          "at": "2026-10-31 21:23:53.545303+00"
+          "at": "2026-11-03 03:54:26.356921+00"
         },
         {
-          "id": "ee39dc1f-9207-566c-b9c9-4209481ac31b",
+          "id": "c1623ee3-4739-5b89-82fd-ea94b51f8c5e",
           "class": "Ping",
           "rev": 2,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -129,16 +129,16 @@
           "tags": [],
           "op": "update",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3bc4fb60-f245-5868-b493-d7b08beaad4a",
+          "agent": "6c6cb5ec-d0dd-5992-bf6e-30404818b361",
           "reason": null,
-          "at": "2026-10-31 21:23:53.500762+00"
+          "at": "2026-11-03 03:54:26.325917+00"
         }
       ],
       "removed": [],
       "log": [
         {
           "seq": "37",
-          "id": "f12b282f-b093-5eab-9cca-559752dfb454",
+          "id": "30894d53-072f-5af1-94bd-cfe04fabd9e8",
           "rev": 1,
           "class": "Draft",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -149,14 +149,14 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3bc4fb60-f245-5868-b493-d7b08beaad4a",
+          "agent": "6c6cb5ec-d0dd-5992-bf6e-30404818b361",
           "reason": null,
-          "at": "2026-10-31 21:23:53.533427+00",
-          "tx": "2611797"
+          "at": "2026-11-03 03:54:26.346556+00",
+          "tx": "3755149"
         },
         {
           "seq": "38",
-          "id": "e0ba53b1-adbc-51f9-bbef-21965f0bdbf7",
+          "id": "3192d000-6f5a-583d-8c70-999d3ff7489b",
           "rev": 1,
           "class": "Product",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -167,10 +167,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3bc4fb60-f245-5868-b493-d7b08beaad4a",
+          "agent": "6c6cb5ec-d0dd-5992-bf6e-30404818b361",
           "reason": null,
-          "at": "2026-10-31 21:23:53.545303+00",
-          "tx": "2611799"
+          "at": "2026-11-03 03:54:26.356921+00",
+          "tx": "3755151"
         }
       ],
       "secret": [],
@@ -181,21 +181,30 @@
     },
     {
       "result": {
-        "productMeta": {
-          "icon": "mdi:package-variant",
-          "order": 1,
-          "title": "Товар"
+        "Ping": {
+          "history": false,
+          "ownerDefault": "tenant",
+          "meta": {}
         },
-        "text": [
-          "## Draft",
-          "## Ping",
-          "## Product — Товар"
-        ]
+        "Draft": {
+          "history": true,
+          "ownerDefault": "actor",
+          "meta": {}
+        },
+        "Product": {
+          "history": true,
+          "ownerDefault": "tenant",
+          "meta": {
+            "icon": "mdi:package-variant",
+            "order": 1,
+            "title": "Товар"
+          }
+        }
       },
       "error": null,
       "entity": [
         {
-          "id": "f12b282f-b093-5eab-9cca-559752dfb454",
+          "id": "30894d53-072f-5af1-94bd-cfe04fabd9e8",
           "class": "Draft",
           "rev": 1,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -207,12 +216,12 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3bc4fb60-f245-5868-b493-d7b08beaad4a",
+          "agent": "6c6cb5ec-d0dd-5992-bf6e-30404818b361",
           "reason": null,
-          "at": "2026-10-31 21:23:53.533427+00"
+          "at": "2026-11-03 03:54:26.346556+00"
         },
         {
-          "id": "e0ba53b1-adbc-51f9-bbef-21965f0bdbf7",
+          "id": "3192d000-6f5a-583d-8c70-999d3ff7489b",
           "class": "Product",
           "rev": 1,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -224,12 +233,12 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3bc4fb60-f245-5868-b493-d7b08beaad4a",
+          "agent": "6c6cb5ec-d0dd-5992-bf6e-30404818b361",
           "reason": null,
-          "at": "2026-10-31 21:23:53.545303+00"
+          "at": "2026-11-03 03:54:26.356921+00"
         },
         {
-          "id": "ee39dc1f-9207-566c-b9c9-4209481ac31b",
+          "id": "c1623ee3-4739-5b89-82fd-ea94b51f8c5e",
           "class": "Ping",
           "rev": 2,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -241,16 +250,16 @@
           "tags": [],
           "op": "update",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3bc4fb60-f245-5868-b493-d7b08beaad4a",
+          "agent": "6c6cb5ec-d0dd-5992-bf6e-30404818b361",
           "reason": null,
-          "at": "2026-10-31 21:23:53.500762+00"
+          "at": "2026-11-03 03:54:26.325917+00"
         }
       ],
       "removed": [],
       "log": [
         {
           "seq": "37",
-          "id": "f12b282f-b093-5eab-9cca-559752dfb454",
+          "id": "30894d53-072f-5af1-94bd-cfe04fabd9e8",
           "rev": 1,
           "class": "Draft",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -261,14 +270,14 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3bc4fb60-f245-5868-b493-d7b08beaad4a",
+          "agent": "6c6cb5ec-d0dd-5992-bf6e-30404818b361",
           "reason": null,
-          "at": "2026-10-31 21:23:53.533427+00",
-          "tx": "2611797"
+          "at": "2026-11-03 03:54:26.346556+00",
+          "tx": "3755149"
         },
         {
           "seq": "38",
-          "id": "e0ba53b1-adbc-51f9-bbef-21965f0bdbf7",
+          "id": "3192d000-6f5a-583d-8c70-999d3ff7489b",
           "rev": 1,
           "class": "Product",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -279,10 +288,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3bc4fb60-f245-5868-b493-d7b08beaad4a",
+          "agent": "6c6cb5ec-d0dd-5992-bf6e-30404818b361",
           "reason": null,
-          "at": "2026-10-31 21:23:53.545303+00",
-          "tx": "2611799"
+          "at": "2026-11-03 03:54:26.356921+00",
+          "tx": "3755151"
         }
       ],
       "secret": [],

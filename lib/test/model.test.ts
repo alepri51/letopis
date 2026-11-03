@@ -4,8 +4,9 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { z } from 'zod';
-import { engine, type Engine, type Tenant } from './_engine.js';
+import { engine, lt, type Engine, type Tenant } from './_engine.js';
 import { hub, link, one, many, normalizeSchema, translatePattern, type Infer, type InferLinks, type JsonSchema } from '../src/model.js';
+import { compileValidator } from '../src/validate.js';
 
 let e: Engine;
 let t: Tenant;
@@ -26,7 +27,7 @@ const booking = link('booking', {
   onDelete: { Customer: 'unset' },
   fields: z.object({ start: z.iso.datetime({ precision: 3 }), notes: z.string().refine((s) => s.length < 500).optional() }),
   key: ['Staff', 'start'],
-  history: { all: '1 day', daily: '1 month' },
+  history: false,
 });
 const Short = hub('Short', { title: z.string(), n: z.number().int() }, { key: ['title'], meta: { order: 1 } });
 const MODELS = [Org, Person, Staff, Element, Service, Product, Complex, Customer, booking, Short];
@@ -142,4 +143,39 @@ test('шаблоны: перевод одинаково понимают JavaScr
     }
   }
   for (const p of ['\\bword', '\\p{L}+', '(?<n>x)', '(a)\\1']) assert.throws(() => translatePattern(p), /несовместим/);
+});
+
+test('ревью: шаблон с катастрофическим перебором не вешает процесс — проверка pattern в базе', async () => {
+  // шаблон задаёт арендатор: ^(a+)+$ на 40 «a» и «!» — около 2^40 возвратов у движка V8, процесс висел бы часами
+  const evil = 'a'.repeat(40) + '!';
+  await e.defineClass(t, { name: 'Redos', kind: 'hub', fields: { properties: {
+    code: { type: 'string', pattern: '^(a+)+$' },
+    // ветка oneOf с шаблоном: без него ветки не решить — oneOf проверяет база (иначе ложное нарушение на evil)
+    pick: { oneOf: [{ type: 'string', pattern: '^(a+)+$' }, { type: 'string' }] },
+    n: { type: 'integer' } } } });
+  const [cls] = await e.sql.unsafe(`select data->'resolved'->'schema' as s from ${e.S}.entity where class = 'Class' and tenant = $1 and data->>'name' = 'Redos'`, [t.id]);
+  const v = compileValidator(cls.s as JsonSchema);
+  assert.deepEqual(v({ code: evil, pick: evil }), []);
+  // прочие правила валидатор проверяет как прежде
+  assert.deepEqual(v({ code: evil, n: 'x' }).map((i) => [i.path, i.keyword]), [[['n'], 'type']]);
+  // база проверяет шаблон сама (like_regex — без перебора с возвратами): нарушение pattern — invalid_data
+  const insert = (data: object) => e.as(t.token, (tx) => tx.unsafe(`insert into ${e.S}.entity (class, data) values ('Redos', $1::jsonb) returning data`, [data as never]));
+  await assert.rejects(insert({ code: evil }), (err: Error & { detail?: string }) =>
+    lt('invalid_data')(err) && /"keyword": ?"pattern"/.test(String(err.detail ?? err.message)));
+  await assert.rejects(insert({ pick: 'aaaa' }), lt('invalid_data')); // подходят обе ветки oneOf
+  const [row] = await insert({ code: 'a'.repeat(40), pick: evil });
+  assert.equal(row.data.pick, evil);
+});
+
+test('ревью: format email длиннее 254 символов (предел адреса) — нарушение без шаблона, подобранная строка не перебирается', () => {
+  const v = compileValidator({ type: 'object', properties: { email: { type: 'string', format: 'email' } } } as JsonSchema);
+  const max = 'a'.repeat(64) + '@' + 'b'.repeat(186) + '.ru';
+  assert.equal(max.length, 254);
+  assert.deepEqual(v({ email: max }), []);
+  assert.deepEqual(v({ email: 'a' + max }).map((i) => [i.path, i.keyword]), [[['email'], 'format']]);
+  // много точек в домене и @ в конце: шаблону email — квадратичный перебор (на мегабайте — минуты)
+  const evil = 'a@' + 'a.'.repeat(500_000) + '@';
+  const t0 = performance.now();
+  assert.deepEqual(v({ email: evil }).map((i) => i.keyword), ['format']);
+  assert.ok(performance.now() - t0 < 2000, 'без перебора');
 });

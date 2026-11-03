@@ -1,48 +1,48 @@
 #!/usr/bin/env node
 /**
- * CLI letopis (план, этап 2, п. 7; этап 4, п. 11; этап 6, п. 4, 8, 12): `letopis sync`, `types`, `load`,
- * `verify`, `maintain`, `describe`; этап 7 — `import` (из 0.21).
+ * CLI letopis (план, этап 2, п. 7; этап 4, п. 11; этап 6, п. 8): `letopis sync`, `types`, `load`, `maintain`; план 1.1,
+ * §2.5 — `mcp`; план 2.0, этап 3, п. 8 — `sync --check`.
  *
- *   letopis sync <модуль моделей> --dsn … --schema v2.x (--token … | --api-key …) [--apply]
- *   letopis types --dsn … --schema v2.x (--token … | --api-key …) [--out types.d.ts]
+ *   letopis sync <модуль моделей> --dsn … --schema v2.x (--token … | --api-key …) [--apply | --check]
+ *     --check — сухой прогон с кодом 1, если он нашёл изменения (создать или изменить); вместе с --apply — USAGE, код 2
+ *   letopis types --dsn … --schema v2.x (--token … | --api-key …) [--out types.d.ts] [--system]
+ *     --system — и классы арендатора System (системные, сиды пакета), без него — только классы арендатора сессии
  *   letopis load <файлы NDJSON…> --dsn … --schema v2.x (--token … | --api-key …) [--class C]
- *     [--duplicates error|first|last] [--existing error|skip|update] [--commit-every N] [--verify] [--initial]
- *   letopis verify --dsn … --schema v2.x [--token … | --api-key …] [--data]   — код 1 при находках
- *   letopis maintain --dsn … --schema v2.x [--token … | --api-key …] [--batches N]
- *   letopis describe --dsn … --schema v2.x (--token … | --api-key …) [--format json|text] [--out файл]
- *   letopis import --from <строка 0.21> --from-schema v1.x --dsn … --schema v2.x [--tenant <имя>] [--keyless C]…
- *     [--rename Старое=Новое]… [--update] [--commit-every N] [--partition p] [--initial]   — код 1, если verify нашёл расхождения
- *   --initial — первая заливка (план 1.1, §2.3): пустая схема, одна транзакция, индексы и триггеры — после загрузки
+ *     [--duplicates error|first|last] [--existing error|skip|update] [--commit-every N] [--initial]
+ *     --initial — первая заливка (план 1.1, §2.3): пустая схема, одна транзакция, индексы и триггеры — после загрузки
+ *   letopis maintain --dsn … --schema v2.x [--token … | --api-key …]
  *   letopis mcp --dsn … --schema v2.x --token … [--write]   — сервер MCP по stdio (план 1.1, §2.5); dsn, schema и
  *     token — ещё из LETOPIS_DSN, LETOPIS_SCHEMA, LETOPIS_TOKEN; только токен пользователя: --api-key — отказ
+ *   справка — USAGE (её же читает справочник сайта, guide/scripts/gen-api.ts)
  */
 import { parseArgs } from 'node:util';
 import { readFile, writeFile } from 'node:fs/promises';
 import { realpathSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
-import { connect, describeText } from './index.js';
+import { connect } from './index.js';
 import { syncModels, generateTypes } from './sync.js';
-import { import021 } from './import.js';
 import type { AnyModel } from './model.js';
-import { LetopisError } from './errors.js';
+import { lerr, lmsg } from './errors.js';
 
-const USAGE = `letopis sync <модуль> --dsn <строка> --schema <v2.имя> (--token <токен> | --api-key <ключ>) [--apply]
-letopis types --dsn <строка> --schema <v2.имя> (--token <токен> | --api-key <ключ>) [--out <файл>]
+const USAGE = `letopis sync <модуль> --dsn <строка> --schema <v2.имя> (--token <токен> | --api-key <ключ>) [--apply | --check]
+letopis types --dsn <строка> --schema <v2.имя> (--token <токен> | --api-key <ключ>) [--out <файл>] [--system]
 letopis load <файлы…> --dsn <строка> --schema <v2.имя> (--token <токен> | --api-key <ключ>) [--class <Класс>]
-  [--duplicates error|first|last] [--existing error|skip|update] [--commit-every <N>] [--verify] [--initial]
-letopis verify --dsn <строка> --schema <v2.имя> [--token <токен> | --api-key <ключ>] [--data]
-letopis maintain --dsn <строка> --schema <v2.имя> [--token <токен> | --api-key <ключ>] [--batches <N>]
-letopis describe --dsn <строка> --schema <v2.имя> (--token <токен> | --api-key <ключ>) [--format json|text] [--out <файл>]
-letopis import --from <строка 0.21> --from-schema <v1.имя> --dsn <строка> --schema <v2.имя> [--tenant <имя>] [--keyless <Класс>]…
-  [--rename <Старое>=<Новое>]… [--update] [--commit-every <N>] [--partition <имя>] [--initial]
+  [--duplicates error|first|last] [--existing error|skip|update] [--commit-every <N>] [--initial]
+letopis maintain --dsn <строка> --schema <v2.имя> [--token <токен> | --api-key <ключ>]
 letopis mcp --dsn <строка> --schema <v2.имя> --token <токен пользователя> [--write]
   (или LETOPIS_DSN, LETOPIS_SCHEMA, LETOPIS_TOKEN; ключ сервиса --api-key не принимается)`;
 
 /** Команды CLI: остальное — USAGE с кодом 2 ещё до подключения. */
-const COMMANDS = new Set(['sync', 'types', 'load', 'verify', 'maintain', 'describe', 'import', 'mcp']);
+const COMMANDS = new Set(['sync', 'types', 'load', 'maintain', 'mcp']);
 
 const isModel = (v: unknown): v is AnyModel => typeof v === 'object' && v !== null && typeof (v as AnyModel).describe === 'function' && typeof (v as AnyModel).name === 'string';
+
+/** Модели из модуля (letopis sync): экспорты-модели и массивы моделей, без повторов. */
+async function loadModels(path: string): Promise<AnyModel[]> {
+  const mod = await import(pathToFileURL(resolve(path)).href) as Record<string, unknown>;
+  return [...new Set(Object.values(mod).flatMap((v) => (Array.isArray(v) ? v : [v])).filter(isModel))];
+}
 
 export async function main(argv: string[]): Promise<number> {
   const { values, positionals } = parseArgs({
@@ -52,11 +52,7 @@ export async function main(argv: string[]): Promise<number> {
       dsn: { type: 'string' }, schema: { type: 'string' }, token: { type: 'string' }, 'api-key': { type: 'string' },
       apply: { type: 'boolean' }, out: { type: 'string' }, help: { type: 'boolean' },
       class: { type: 'string' }, duplicates: { type: 'string' }, existing: { type: 'string' }, 'commit-every': { type: 'string' },
-      verify: { type: 'boolean' }, trust: { type: 'boolean' }, data: { type: 'boolean' }, batches: { type: 'string' },
-      format: { type: 'string' },
-      from: { type: 'string' }, 'from-schema': { type: 'string' }, tenant: { type: 'string' }, partition: { type: 'string' },
-      keyless: { type: 'string', multiple: true }, rename: { type: 'string', multiple: true }, update: { type: 'boolean' },
-      initial: { type: 'boolean' }, write: { type: 'boolean' },
+      initial: { type: 'boolean' }, write: { type: 'boolean' }, system: { type: 'boolean' }, check: { type: 'boolean' },
     },
   });
   const [cmd, arg] = positionals;
@@ -71,50 +67,33 @@ export async function main(argv: string[]): Promise<number> {
     console.log(USAGE);
     return 0;
   }
-  if (!cmd || !COMMANDS.has(cmd) || !values.dsn || !values.schema) {
+  // --check — сухой прогон: вместе с --apply смысла нет
+  if (!cmd || !COMMANDS.has(cmd) || !values.dsn || !values.schema || (cmd === 'sync' && values.check && values.apply)) {
     console.log(USAGE);
     return cmd ? 2 : 0;
-  }
-  if (cmd === 'import') {
-    // импорт сам открывает администраторские подключения к 0.21 и к 1.0 (загрузчик, функции владельца)
-    if (!values.from || !values['from-schema']) { console.log(USAGE); return 2; }
-    const rename: Record<string, string> = {};
-    for (const x of values.rename ?? []) {
-      const [from, to] = x.split('=');
-      if (!from || !to) { console.log(USAGE); return 2; }
-      rename[from] = to;
-    }
-    const r = await import021({
-      from: values.from, fromSchema: values['from-schema'], dsn: values.dsn, schema: values.schema, tenant: values.tenant,
-      partition: values.partition, keyless: values.keyless, rename, update: values.update,
-      commitEvery: values['commit-every'] ? Number(values['commit-every']) : undefined, initial: values.initial,
-    });
-    console.log(JSON.stringify(r, null, 2));
-    return r.verify.ok ? 0 : 1;
   }
   if (cmd === 'mcp') return mcp(values);
   // загрузчику нужно администраторское подключение (§2.6, п. 1)
   const db = await connect({ dsn: values.dsn, schema: values.schema, token: values.token, apiKey: values['api-key'], max: 2,
-    // verify и maintain работают и на администраторском подключении без сессии; производные классы (derivedBy)
-    // синхронизирует администраторское подключение с сессией арендатора
-    ...(cmd === 'load' || cmd === 'verify' || cmd === 'maintain' || cmd === 'sync' ? { allowBypassRls: true } : {}) });
+    // maintain работает и на администраторском подключении без сессии; классы со строками синхронизирует
+    // администраторское подключение с сессией арендатора
+    ...(cmd === 'load' || cmd === 'maintain' || cmd === 'sync' ? { allowBypassRls: true } : {}) });
   try {
     if (cmd === 'sync') {
       if (!arg) { console.log(USAGE); return 2; }
-      const mod = await import(pathToFileURL(resolve(arg)).href);
-      const models = [...new Set(Object.values(mod).flatMap((v) => (Array.isArray(v) ? v : [v])).filter(isModel))];
-      const r = await syncModels(db, models, { apply: values.apply });
-      console.log(`${r.applied ? 'применено' : 'сухой прогон'}: создать ${r.created.length}, изменить ${r.updated.length}, без изменений ${r.unchanged.length}, системных ${r.skipped.length}`);
-      for (const [k, list] of [['создать', r.created], ['изменить', r.updated], ['системные (меняет установка)', r.skipped]] as const) {
-        if (list.length) console.log(`  ${k}: ${list.join(', ')}`);
+      const r = await syncModels(db, await loadModels(arg), { apply: values.apply });
+      const counts = { created: r.created.length, updated: r.updated.length, unchanged: r.unchanged.length, skipped: r.skipped.length };
+      console.log(lmsg(r.applied ? 'model.cli_sync_applied' : 'model.cli_sync_dry_run', counts));
+      for (const [key, list] of [['model.cli_sync_list_create', r.created], ['model.cli_sync_list_update', r.updated], ['model.cli_sync_list_system', r.skipped]] as const) {
+        if (list.length) console.log(`  ${lmsg(key, { names: list.join(', ') })}`);
       }
-      for (const l of r.lost) console.log(`  правило ${l.kind} в ${l.path} проверяется только в библиотеке — в базе его нет`);
-      return 0;
+      for (const l of r.lost) console.log(`  ${lmsg('model.cli_sync_lost', { kind: l.kind, path: l.path })}`);
+      // --check (план 2.0, этап 3, п. 8): модели расходятся с базой — код 1, например для шага CI перед --apply
+      return values.check && (r.created.length || r.updated.length) ? 1 : 0;
     }
     if (cmd === 'load') {
       const files = positionals.slice(1);
       if (!files.length) { console.log(USAGE); return 2; }
-      if (values.trust) throw new LetopisError('removed', '--trust снят в 1.0.0 — запрос по целям вне загрузки стоит 0,1–1,3 % её времени');
       // несколько файлов — одна загрузка и одна транзакция; в файле — объект на строку
       const rows: Record<string, unknown>[] = [];
       for (const f of files) {
@@ -125,37 +104,23 @@ export async function main(argv: string[]): Promise<number> {
         duplicates: values.duplicates as 'error' | 'first' | 'last' | undefined,
         existing: values.existing as 'error' | 'skip' | 'update' | undefined,
         commitEvery: values['commit-every'] ? Number(values['commit-every']) : undefined,
-        verify: values.verify,
         initial: values.initial,
       });
       console.log(JSON.stringify(r));
       return 0;
     }
-    if (cmd === 'verify') {
-      const r = await db.verify({ data: values.data });
-      console.log(JSON.stringify(r, null, 2));
-      return r.ok ? 0 : 1;
-    }
     if (cmd === 'maintain') {
-      const r = await db.maintain({ batches: values.batches ? Number(values.batches) : undefined });
+      const r = await db.maintain();
       console.log(JSON.stringify(r));
       return 0;
     }
-    if (cmd === 'describe' || cmd === 'types') {
-      // обе команды читают реестр сессии: без действующей сессии (токен истёк, погашен, неверен или не задан) он пуст,
-      // и команда выдала бы пустой результат с кодом 0, а с --out затёрла бы им файл. acl.check ничего не пишет, а без
-      // сессии отказывает no_session — тогда выход с кодом 1, файл не тронут
-      await db.acl.check('letopis.cli');
-    }
-    if (cmd === 'describe') {
-      const d = db.describe();
-      const text = values.format === 'text' ? describeText(d) : JSON.stringify(d, null, 2);
-      if (values.out) await writeFile(values.out, text);
-      else console.log(text);
-      return 0;
-    }
     if (cmd === 'types') {
-      const text = generateTypes(db.registry);
+      // реестр сессии без действующей сессии (токен истёк, погашен, неверен или не задан) пуст, и команда выдала бы
+      // пустой результат с кодом 0, а с --out затёрла бы им файл. acl.check ничего не пишет, а без сессии отказывает
+      // no_session — тогда выход с кодом 1, файл не тронут
+      await db.acl.check('letopis.cli');
+      // --system — и классы арендатора System: системные и классы сидов пакета (например, booking)
+      const text = generateTypes(db.registry, { includeSystem: values.system === true });
       if (values.out) await writeFile(values.out, text);
       else console.log(text);
       return 0;
@@ -175,11 +140,11 @@ export async function main(argv: string[]): Promise<number> {
  */
 async function mcp(v: { dsn?: string; schema?: string; token?: string; 'api-key'?: string; write?: boolean }): Promise<number> {
   if (v['api-key'] !== undefined) {
-    console.error('letopis: user_session_required: letopis mcp принимает только токен сессии пользователя (--token или LETOPIS_TOKEN): ключ сервиса даёт все права auth.* и не должен лежать на машине агента');
+    console.error(lerr('model.mcp_api_key_refused').message);
     return 2;
   }
   if (!v.token) {
-    console.error('letopis: user_session_required: letopis mcp — нужен токен сессии пользователя: --token или LETOPIS_TOKEN');
+    console.error(lerr('model.mcp_token_required').message);
     return 2;
   }
   const { createMcpServer } = await import('./mcp.js');

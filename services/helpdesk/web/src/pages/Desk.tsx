@@ -38,8 +38,20 @@ export function Desk({ me, onMe }: { me: Me; onMe: (me: Me | null) => void }) {
     const es = new EventSource('/api/events');
     es.addEventListener('ready', () => setLive(true));
     es.addEventListener('changed', () => setTick((t) => t + 1));
-    es.onerror = () => setLive(false);
-    return () => es.close();
+    // поток закрылся — сервер закрывает его вместе с веб-сессией (выход, в том числе в другой вкладке): вошёл другой или
+    // никто — страница заново, иначе данные новой сессии того же браузера оказались бы под прежней шапкой
+    es.onerror = () => {
+      setLive(false);
+      api<Me | null>('/api/me').then((m) => { if (m?.login !== me.login || m?.tenant !== me.tenant) location.reload(); }, () => {});
+    };
+    // уход со страницы (переход на /logout) — поток закрыть сразу: иначе сервер, закрывая его вместе с сессией, будил бы
+    // onerror, и перезагрузка перебивала бы начатый переход
+    const leave = () => es.close();
+    addEventListener('beforeunload', leave);
+    return () => {
+      removeEventListener('beforeunload', leave);
+      es.close();
+    };
   }, [me.tenant]);
   useEffect(() => { refresh(); }, [refresh, route, tick]);
   // смена компании: auth.switch() — та же учётная запись, другой арендатор

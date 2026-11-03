@@ -6,7 +6,7 @@
  * разделитель — запятая с пробелом. Совпадение закрепляет общий файл векторов lib/test/vectors/v5.json.
  */
 import { hash } from 'node:crypto';
-import { LetopisError } from './errors.js';
+import { lerr } from './errors.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -15,7 +15,7 @@ const NS = new Map<string, Buffer>();
 function nsBytes(ns: string): Buffer {
   let b = NS.get(ns);
   if (!b) {
-    if (!UUID.test(ns)) throw new LetopisError('invalid_data', `пространство имён v5 — не uuid: ${ns}`);
+    if (!UUID.test(ns)) throw lerr('model.v5_namespace_not_uuid', { ns });
     b = Buffer.from(ns.replace(/-/g, ''), 'hex');
     if (NS.size >= 10_000) NS.clear();
     NS.set(ns, b);
@@ -56,16 +56,16 @@ export interface KeyedClass {
  */
 export function idOf(cls: KeyedClass, key: Readonly<Record<string, unknown>>, opts: { tenant: string }): string {
   if (!cls.key.length) {
-    throw new LetopisError('no_key', `у класса ${cls.name} нет ключа: id выдаёт база при создании`);
+    throw lerr('model.class_no_key', { cls: cls.name });
   }
   const ends = new Set(cls.ends ?? []);
   const values = cls.key.map((k) => {
     const v = key[k];
     if (typeof v !== 'string') {
-      throw new LetopisError('invalid_data', `idOf(${cls.name}): часть ключа ${k} должна быть строкой`, { key: cls.key });
+      throw lerr('model.key_part_not_string', { cls: cls.name, part: k }, { detail: { key: cls.key } });
     }
     if (ends.has(k)) {
-      if (!UUID.test(v)) throw new LetopisError('invalid_data', `idOf(${cls.name}): конец ${k} — не uuid`);
+      if (!UUID.test(v)) throw lerr('model.key_end_not_uuid', { cls: cls.name, end: k });
       return v.toLowerCase();
     }
     return v;

@@ -1,4 +1,4 @@
-# F-ACCESS — Контекст, права ACL и RLS (letopis 1.0, этап 5)
+# F-ACCESS — Контекст, права ACL и RLS
 Процессы: [N] Node-процесс приложения · [P] PostgreSQL
 Триггер: `svc = await connect({ apiKey })` → `u = await svc.as(account, { tenant })` → `u.Booking().rows()` · `.create({…}).rows()` · сырой SQL под той же сессией.
 
@@ -14,10 +14,10 @@
 ## Строки
 6. [P] `lib/sql/50-acl.sql:entity_select` — свой арендатор и (`Class` или `acl_ok(acl_all, acl_plan)`), строки `Class` System, свой `Account`, свои `member`; insert/update/delete — свой арендатор и `acl_ok` с планом `WRITE`/`DELETE` (update — на прежние и новые значения); `log_select` — условие чтения для журнала.
 7. [P] `lib/sql/70-read.sql:find_ids` — то же условие `row_visible(…, acl_actor('READ'))` без RLS; `delete_preview`, `visible_detail` — так же.
-8. [P] `lib/sql/60-write.sql:targets_bad` — цели концов видны актору (кроме `Account`); `trg_entity_ad` — `DELETE` на каждую строку каскада, `WRITE` на снятие конца; `reclass` — видимость и `WRITE` на старую, новую и ссылающиеся строки.
+8. [P] `lib/sql/60-write.sql:targets_bad` — цели концов видны актору (кроме `Account`; у роли сеанса без RLS — суперпользователь, `BYPASSRLS`, член владельца — видимость не проверяется, роль — `session_role()`); `trg_entity_ad` — `DELETE` на каждую строку каскада, `WRITE` на снятие конца.
 9. [N] `lib/src/errors.ts:fromDbError` — нарушение условия на новых значениях (`ExecWithCheckOptions`, 42501) → `acl_denied`.
 10. [N] `lib/src/load.ts:load` с `{ as }` — мимо RLS, поэтому сам: `acl_subject` (арендатор, планы READ/WRITE), условия на новые (в `update` — и прежние) значения запросом на пачку (`acl_row_ok`), видимость целей — запросом в конце (`row_visible`); при любой загрузке строк прав — `acl_bump()`.
-11. [P] `lib/sql/90-time.sql:signal_key` (план 1.1, этап 2) — ключ сигналов только сессии с правом `letopis.signals` по правилам System (системный сид выдаёт его группе `service:ACCOUNT`) или администраторскому подключению (`letopis_allowed`), иначе `acl_denied`; отдаёт HMAC ключа строки KEY по `'letopis:signals'`, а не сам ключ (им подписаны пропуска прав). Процесс без ключа сбрасывает кэш грубее (F-WATCH).
+11. [P] `lib/sql/90-time.sql:signal_key` — ключ сигналов только сессии с правом `letopis.signals` по правилам System (системный сид выдаёт его группе `service:ACCOUNT`) или администраторскому подключению (`letopis_allowed`), иначе `acl_denied`; отдаёт HMAC ключа строки KEY по `'letopis:signals'`, а не сам ключ (им подписаны пропуска прав). Процесс без ключа сбрасывает кэш грубее (F-WATCH).
 
 Сбои: `no_session`, `acl_denied`, `tenant_denied`, `target_not_found` (невидимая цель).
 Состояние: пропуска — в памяти процесса (60 с, сброс по сигналу классов прав); счётчик, ключ подписи (из него же выводится ключ сигналов) и режим сигналов — строка `secret` с id System.

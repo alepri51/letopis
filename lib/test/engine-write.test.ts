@@ -1,10 +1,12 @@
 /**
- * engine-write — конвейер записи сырым SQL (план, §2.5, этап 1, п. 7–8; тест-план §7.3.3).
+ * engine-write — конвейер записи сырым SQL (план, §2.5, этап 1, п. 7–8; тест-план §7.3.3); строка entity — последняя
+ * версия журнала (§7.3.7 №7), страж тела link_ids (из снятого в 2.0.0 теста hash) и неизменный класс строки (план 2.0,
+ * редакция 2).
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import postgres from 'postgres';
-import { engine, lt, waitForLock, type Engine, type Tenant } from './_engine.js';
+import { engine, journalIssues, lt, waitForLock, type Engine, type Tenant } from './_engine.js';
 import { appDsn } from './_harness.js';
 import { deepMerge } from './oracle/merge.js';
 
@@ -62,7 +64,7 @@ test('7.3.3 №1: создание объекта с ключом — id v5, р�
   const log = await logOf(org.id);
   assert.equal(log.length, 1);
   assert.equal(log[0].op, 'create');
-  assert.deepEqual(log[0].hash, org.hash);
+  assert.deepEqual([log[0].rev, log[0].data], [org.rev, org.data]);
 });
 
 test('7.3.3 №2: класс без ключа — два разных id версии 5', async () => {
@@ -195,25 +197,22 @@ test('7.3.3 №10: сырое удаление связанных строк о�
   }
 });
 
-test('7.3.3 №11: воскрешение — тот же id, ревизия продолжается, цепочка цела', async () => {
+test('7.3.3 №11: воскрешение — тот же id, ревизия продолжается, журнал цел', async () => {
   const org = await ins('Org', { name: 'Phoenix' });
   await q(`delete from ${S}.entity where id = $1`, [org.id]);
   const again = await ins('Org', { name: 'Phoenix' });
   assert.equal(again.id, org.id);
   assert.equal(again.rev, 3);
   const log = await logOf(org.id);
-  assert.deepEqual(log.map((r) => r.op), ['create', 'delete', 'create']);
-  assert.deepEqual(log[2].prev_hash, log[1].hash);
-  const [{ v }] = await e.sql.unsafe(`select ${S}.verify() as v`);
-  assert.equal(v.ok, true, JSON.stringify(v.issues));
+  assert.deepEqual(log.map((r) => [r.rev, r.op]), [[1, 'create'], [2, 'delete'], [3, 'create']]);
+  assert.deepEqual(await journalIssues(e.sql, S), []);
 });
 
-test('7.3.3 №12: history: false — журнала нет, verify класс пропускает', async () => {
+test('7.3.3 №12: history: false — журнала нет', async () => {
   const p = await ins('Ping', { n: 1 });
   await q(`update ${S}.entity set data = '{"n": 2}' where id = $1`, [p.id]);
   assert.equal((await logOf(p.id)).length, 0);
-  const [{ v }] = await e.sql.unsafe(`select ${S}.verify() as v`);
-  assert.equal(v.ok, true, JSON.stringify(v.issues));
+  assert.deepEqual(await journalIssues(e.sql, S), []);
 });
 
 test('7.3.3 №13: сигнал — по одному на класс после фиксации, до фиксации ничего', async () => {
@@ -265,8 +264,7 @@ test('7.3.3 №16: удаление и создание одного id одни
     return tx.unsafe(`insert into ${S}.entity (class, data) values ('Org', '{"name": "R16"}') returning rev`);
   });
   assert.equal(rows[0].rev, 3);
-  const [{ v }] = await e.sql.unsafe(`select ${S}.verify() as v`);
-  assert.equal(v.ok, true, JSON.stringify(v.issues));
+  assert.deepEqual(await journalIssues(e.sql, S), []);
 });
 
 test('7.3.3 №17: приращение inc', async () => {
@@ -299,6 +297,22 @@ test('7.3.3 №17: приращение inc', async () => {
   assert.equal(d.data.balance, 400);
 });
 
+test('план 2.0, редакция 2: смена класса правкой — immutable_key у строки без ключа, с ключом и строки Class; строка и журнал прежние', async () => {
+  const note = await ins('Note', { text: 'n' });
+  const org = await ins('Org', { name: 'Fixed' });
+  const [cls] = await q(`select id from ${S}.entity where class = 'Class' and data->>'name' = 'Note'`);
+  const cases: [string, string, string][] = [[note.id, 'Folder', 'Note'], [org.id, 'Wallet', 'Org'], [cls.id, 'Note', 'Class']];
+  for (const [id, to, from] of cases) {
+    await assert.rejects(q(`update ${S}.entity set class = $2 where id = $1`, [id, to]), (err: Error) =>
+      lt('immutable_key')(err) && new RegExp(`класс строки ${from} неизменен`).test(err.message));
+  }
+  // вместе с данными — та же ошибка: строка и журнал прежние
+  await assert.rejects(q(`update ${S}.entity set class = 'Folder', data = '{"title": "x"}' where id = $1`, [note.id]), lt('immutable_key'));
+  const [row] = await q(`select class, rev from ${S}.entity where id = $1`, [note.id]);
+  assert.deepEqual([row.class, row.rev], ['Note', 1]);
+  assert.deepEqual((await logOf(note.id)).map((r) => [r.rev, r.class, r.op]), [[1, 'Note', 'create']]);
+});
+
 test('решение 9: отложенный сигнал — NOTIFY нет, классы (и каскада) копятся в letopis.changed', async () => {
   const org = await ins('Org', { name: 'Deferred' });
   await ins('Master', { name: 'm' }, { Org: org.id });
@@ -316,4 +330,33 @@ test('решение 9: отложенный сигнал — NOTIFY нет, к�
   await new Promise((r) => setTimeout(r, 200));
   assert.deepEqual(got, [], 'в транзакции с отложенным сигналом NOTIFY не отправлен');
   await listener.end({ timeout: 1 });
+});
+
+test('7.3.7 №7: строка entity совпадает с последней версией журнала', async () => {
+  const rows = await e.sql.unsafe(`select e.id from ${S}.entity e
+    join lateral (select * from ${S}.log l where l.id = e.id order by l.rev desc limit 1) l on true
+    where (e.rev, e.class, e.tenant, e.owner, e.links, e.data, e.tags, e.at, e.author, e.agent, e.op, e.reason)
+      is distinct from (l.rev, l.class, l.tenant, l.owner, l.links, l.data, l.tags, l.at, l.author, l.agent, l.op, l.reason)`);
+  assert.deepEqual([...rows], []);
+});
+
+test('доработки после 1.2.0: link_ids — побайтно как эталонное тело на краевых и случайных концах (страж правок тела)', async () => {
+  await e.asOwner((tx) => tx.unsafe(`create or replace function ${S}.link_ids_ref(links jsonb) returns uuid[] language sql immutable return (
+    select coalesce(array_agg(distinct (v #>> '{}')::uuid order by (v #>> '{}')::uuid), '{}'::uuid[])
+    from jsonb_path_query(coalesce(links, '{}'::jsonb), 'lax $.*[*]') as v)`));
+  try {
+    const [r] = await e.asOwner((tx) => tx.unsafe(`with c(links) as (
+        select null::jsonb union all select '{}'::jsonb union all select '{"A": []}'::jsonb
+        union all select jsonb_build_object('A', '00000000-0000-0000-0000-000000000001')
+        union all select jsonb_build_object('A', jsonb_build_array('00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001'),
+                                            'B', '00000000-0000-0000-0000-000000000002')
+        union all select jsonb_build_object('R' || (g % 3), case when g % 2 = 0 then to_jsonb(gen_random_uuid()::text)
+                                                              else jsonb_build_array(gen_random_uuid(), gen_random_uuid()) end,
+                                            'S', case when g % 5 = 0 then jsonb_build_array() else to_jsonb(gen_random_uuid()::text) end)
+        from generate_series(1, 5000) g)
+      select count(*)::int as n, count(*) filter (where ${S}.link_ids(links) is distinct from ${S}.link_ids_ref(links))::int as bad from c`));
+    assert.equal(r.bad, 0, `расхождений нет из ${r.n}`);
+  } finally {
+    await e.asOwner((tx) => tx.unsafe(`drop function ${S}.link_ids_ref(jsonb)`));
+  }
 });

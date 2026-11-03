@@ -41,7 +41,8 @@ return to_jsonb(s)::text;
 -- Перевод шаблона JavaScript в регулярное выражение PostgreSQL (этап 1, п. 5): разбор по символам,
 -- как translatePattern в lib/src/jsonschema.ts. \d \w \s и их отрицания — явными наборами (внутри
 -- [ ] — без скобок), экранированная обратная косая черта остаётся собой; \b, \p{…}, именованные
--- группы и обратные ссылки отклоняются.
+-- группы и обратные ссылки отклоняются. Отказы здесь и в jp_compile — lt_fail(…, p_detail => 'null'): DETAIL у них
+-- не было и до каталога (raise без detail), у ошибки библиотеки detail нет (15-errors.sql).
 create or replace function @SCHEMA@.jp_pattern(p text) returns text
 language plpgsql immutable strict
 as $$
@@ -52,7 +53,6 @@ declare
   n text;
   in_class boolean := false;
   sp constant text := ' \t\n\r\f\v';
-  why text;
 begin
   while i <= length(p) loop
     c := substr(p, i, 1);
@@ -60,7 +60,7 @@ begin
       n := substr(p, i + 1, 1);
       i := i + 2;
       if n = '' then
-        why := 'обратная косая черта в конце шаблона';
+        perform @SCHEMA@.lt_fail('sql-core.pattern_trailing_backslash', jsonb_build_object('pattern', p), p_detail => 'null');
       elsif n = 'd' then
         res := res || case when in_class then '0-9' else '[0-9]' end;
       elsif n = 'w' then
@@ -69,26 +69,23 @@ begin
         res := res || case when in_class then sp else '[' || sp || ']' end;
       elsif n in ('D', 'W', 'S') then
         if in_class then
-          why := '\' || n || ' внутри набора [ ] не переводится';
+          perform @SCHEMA@.lt_fail('sql-core.pattern_escape_in_set', jsonb_build_object('pattern', p, 'escape', '\' || n), p_detail => 'null');
         else
           res := res || case n when 'D' then '[^0-9]' when 'W' then '[^A-Za-z0-9_]' else '[^' || sp || ']' end;
         end if;
       elsif n in ('b', 'B') then
-        why := '\' || n || ' в PostgreSQL значит другое';
+        perform @SCHEMA@.lt_fail('sql-core.pattern_word_boundary', jsonb_build_object('pattern', p, 'escape', '\' || n), p_detail => 'null');
       elsif n in ('p', 'P') then
-        why := '\p{…} не поддерживается';
+        perform @SCHEMA@.lt_fail('sql-core.pattern_unicode_property', jsonb_build_object('pattern', p), p_detail => 'null');
       elsif n = 'k' or n ~ '[1-9]' then
-        why := 'обратные ссылки не поддерживаются';
+        perform @SCHEMA@.lt_fail('sql-core.pattern_backreference', jsonb_build_object('pattern', p), p_detail => 'null');
       else
         res := res || c || n;
-      end if;
-      if why is not null then
-        raise exception using errcode = 'LT010', message = 'letopis: invalid_class: шаблон ' || p || ' несовместим с регулярными выражениями PostgreSQL (' || why || ')';
       end if;
       continue;
     end if;
     if not in_class and substr(p, i, 3) = '(?<' and substr(p, i + 3, 1) not in ('=', '!') then
-      raise exception using errcode = 'LT010', message = 'letopis: invalid_class: шаблон ' || p || ' несовместим с регулярными выражениями PostgreSQL (именованные группы не поддерживаются)';
+      perform @SCHEMA@.lt_fail('sql-core.pattern_named_group', jsonb_build_object('pattern', p), p_detail => 'null');
     end if;
     if c = '[' and not in_class then
       in_class := true;
@@ -153,11 +150,11 @@ begin
     rules := r; return;
   end if;
   if jsonb_typeof(p_schema) <> 'object' then
-    raise exception using errcode = 'LT010', message = format('letopis: invalid_class: описание узла %s — не объект', p_disp);
+    perform @SCHEMA@.lt_fail('sql-core.schema_node_not_object', jsonb_build_object('node', p_disp::text), p_detail => 'null');
   end if;
   for k in select jsonb_object_keys(p_schema) loop
     if not (k = any (allowed) or k like 'x-%') then
-      raise exception using errcode = 'LT010', message = format('letopis: invalid_class: ключевое слово %s не поддерживается (узел %s)', k, p_disp);
+      perform @SCHEMA@.lt_fail('sql-core.keyword_unsupported', jsonb_build_object('keyword', k, 'node', p_disp::text), p_detail => 'null');
     end if;
   end loop;
 
@@ -170,7 +167,7 @@ begin
       tcond := @SCHEMA@.jp_type_cond(p_schema->>'type');
     end if;
     if tcond is null then
-      raise exception using errcode = 'LT010', message = format('letopis: invalid_class: неизвестный тип в узле %s', p_disp);
+      perform @SCHEMA@.lt_fail('sql-core.unknown_type', jsonb_build_object('node', p_disp::text), p_detail => 'null');
     end if;
     r := r || jsonb_build_object('path', p_disp, 'keyword', 'type', 'path_expr', p_path, 'cond', tcond, 'vars', '{}'::jsonb);
   end if;
@@ -181,7 +178,7 @@ begin
     for v in select x from jsonb_array_elements(coalesce(p_schema->'enum', jsonb_build_array(p_schema->'const'))) x loop
       if jsonb_typeof(v) in ('object', 'array') then
         if p_in_any then
-          raise exception using errcode = 'LT010', message = format('letopis: invalid_class: перечисление объектов внутри anyOf не поддерживается (узел %s)', p_disp);
+          perform @SCHEMA@.lt_fail('sql-core.enum_objects_in_any_of', jsonb_build_object('node', p_disp::text), p_detail => 'null');
         end if;
         r := r || jsonb_build_object('path', p_disp, 'keyword', case when p_schema ? 'enum' then 'enum' else 'const' end,
           'path_expr', p_path, 'cond', 'true', 'vars', '{}'::jsonb, 'extra', jsonb_build_object('kind', 'enum', 'values', coalesce(p_schema->'enum', jsonb_build_array(p_schema->'const'))));
@@ -227,11 +224,11 @@ begin
         when 'email' then '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$'
         else null end) || ')');
     if t not in ('uuid', 'date', 'date-time', 'email') then
-      raise exception using errcode = 'LT010', message = format('letopis: invalid_class: format %s не поддерживается (узел %s)', t, p_disp);
+      perform @SCHEMA@.lt_fail('sql-core.format_unsupported', jsonb_build_object('format', t, 'node', p_disp::text), p_detail => 'null');
     end if;
     if t in ('date', 'date-time') then
       if p_in_any then
-        raise exception using errcode = 'LT010', message = format('letopis: invalid_class: format %s внутри anyOf не поддерживается (узел %s)', t, p_disp);
+        perform @SCHEMA@.lt_fail('sql-core.format_in_any_of', jsonb_build_object('format', t, 'node', p_disp::text), p_detail => 'null');
       end if;
       r := r || jsonb_build_object('path', p_disp, 'keyword', 'format', 'path_expr', p_path, 'cond', 'true', 'vars', '{}'::jsonb,
         'extra', jsonb_build_object('kind', 'date', 'type', case t when 'date' then 'date' else 'timestamptz' end,
@@ -241,7 +238,7 @@ begin
   end if;
   if p_schema ? 'minLength' or p_schema ? 'maxLength' then
     if p_in_any then
-      raise exception using errcode = 'LT010', message = format('letopis: invalid_class: длина строки внутри anyOf не поддерживается (узел %s)', p_disp);
+      perform @SCHEMA@.lt_fail('sql-core.string_length_in_any_of', jsonb_build_object('node', p_disp::text), p_detail => 'null');
     end if;
     r := r || jsonb_build_object('path', p_disp, 'keyword', case when p_schema ? 'minLength' then 'minLength' else 'maxLength' end,
       'path_expr', p_path, 'cond', 'true', 'vars', '{}'::jsonb,
@@ -258,7 +255,7 @@ begin
   end loop;
   if coalesce((p_schema->>'uniqueItems')::boolean, false) then
     if p_in_any then
-      raise exception using errcode = 'LT010', message = format('letopis: invalid_class: uniqueItems внутри anyOf не поддерживается (узел %s)', p_disp);
+      perform @SCHEMA@.lt_fail('sql-core.unique_items_in_any_of', jsonb_build_object('node', p_disp::text), p_detail => 'null');
     end if;
     r := r || jsonb_build_object('path', p_disp, 'keyword', 'uniqueItems', 'path_expr', p_path, 'cond', 'true', 'vars', '{}'::jsonb,
       'extra', jsonb_build_object('kind', 'unique'));
@@ -277,7 +274,7 @@ begin
   end if;
   if p_schema ? 'minProperties' or p_schema ? 'maxProperties' then
     if p_in_any then
-      raise exception using errcode = 'LT010', message = format('letopis: invalid_class: minProperties внутри anyOf не поддерживается (узел %s)', p_disp);
+      perform @SCHEMA@.lt_fail('sql-core.min_properties_in_any_of', jsonb_build_object('node', p_disp::text), p_detail => 'null');
     end if;
     r := r || jsonb_build_object('path', p_disp, 'keyword', case when p_schema ? 'minProperties' then 'minProperties' else 'maxProperties' end,
       'path_expr', p_path, 'cond', 'true', 'vars', '{}'::jsonb,
@@ -356,6 +353,8 @@ end $$;
 
 -- Проверка данных: общий вызов jsonb_path_match; при отказе — список нарушений по правилам.
 -- Результат сравнивается через is true: ошибка внутри выражения даёт NULL, а не «да» (этап 1, п. 5).
+-- Нарушение — { path, keyword, message, key, params }: message — русский текст по ключу каталога, рядом его key и
+-- params; библиотека убирает key и params (fromDbError, загрузчик).
 create or replace function @SCHEMA@.validate_data(p_rules jsonb, p_validator jsonpath, p_vars jsonb, p_data jsonb) returns jsonb
 language plpgsql stable
 as $$
@@ -364,6 +363,7 @@ declare
   bad jsonb := '[]'::jsonb;
   ok boolean;
   x jsonb;
+  p jsonb;
 begin
   ok := jsonb_path_match(p_data, p_validator, p_vars, true) is true;
   if ok and not exists (select 1 from jsonb_array_elements(p_rules) r where r ? 'extra') then
@@ -375,36 +375,44 @@ begin
         if (e->'extra'->>'kind') = 'length' and jsonb_typeof(x) = 'string' then
           if char_length(x #>> '{}') < coalesce((e->'extra'->>'min')::int, 0)
              or char_length(x #>> '{}') > coalesce((e->'extra'->>'max')::int, 2147483647) then
-            bad := bad || jsonb_build_object('path', e->'path', 'keyword', e->>'keyword', 'message', 'длина строки вне границ');
+            bad := bad || jsonb_build_object('path', e->'path', 'keyword', e->>'keyword', 'message', @SCHEMA@.lt_text('sql-core.issue_string_length'),
+              'key', 'sql-core.issue_string_length', 'params', '{}'::jsonb);
           end if;
         elsif (e->'extra'->>'kind') = 'unique' and jsonb_typeof(x) = 'array' then
           if (select count(*) from jsonb_array_elements(x)) <> (select count(distinct y) from jsonb_array_elements(x) y) then
-            bad := bad || jsonb_build_object('path', e->'path', 'keyword', 'uniqueItems', 'message', 'элементы повторяются');
+            bad := bad || jsonb_build_object('path', e->'path', 'keyword', 'uniqueItems', 'message', @SCHEMA@.lt_text('sql-core.issue_unique_items'),
+              'key', 'sql-core.issue_unique_items', 'params', '{}'::jsonb);
           end if;
         elsif (e->'extra'->>'kind') = 'date' and jsonb_typeof(x) = 'string' then
           -- смысл проверяется только у строки правильной формы: форму проверяет правило format
           if (x #>> '{}') ~ (e->'extra'->>'re') and not pg_input_is_valid(x #>> '{}', e->'extra'->>'type') then
-            bad := bad || jsonb_build_object('path', e->'path', 'keyword', 'format', 'message', 'такой даты не бывает');
+            bad := bad || jsonb_build_object('path', e->'path', 'keyword', 'format', 'message', @SCHEMA@.lt_text('sql-core.issue_date'),
+              'key', 'sql-core.issue_date', 'params', '{}'::jsonb);
           end if;
         elsif (e->'extra'->>'kind') = 'props' and jsonb_typeof(x) = 'object' then
           if (select count(*) from jsonb_object_keys(x)) < coalesce((e->'extra'->>'min')::int, 0)
              or (select count(*) from jsonb_object_keys(x)) > coalesce((e->'extra'->>'max')::int, 2147483647) then
-            bad := bad || jsonb_build_object('path', e->'path', 'keyword', e->>'keyword', 'message', 'число ключей вне границ');
+            bad := bad || jsonb_build_object('path', e->'path', 'keyword', e->>'keyword', 'message', @SCHEMA@.lt_text('sql-core.issue_property_count'),
+              'key', 'sql-core.issue_property_count', 'params', '{}'::jsonb);
           end if;
         elsif (e->'extra'->>'kind') = 'enum' then
           if not exists (select 1 from jsonb_array_elements(e->'extra'->'values') y where y = x) then
-            bad := bad || jsonb_build_object('path', e->'path', 'keyword', e->>'keyword', 'message', 'значение не из перечисления');
+            bad := bad || jsonb_build_object('path', e->'path', 'keyword', e->>'keyword', 'message', @SCHEMA@.lt_text('sql-core.issue_enum'),
+              'key', 'sql-core.issue_enum', 'params', '{}'::jsonb);
           end if;
         end if;
       end loop;
     elsif not ok then
       if jsonb_path_match(p_data, ('strict !exists(' || (e->>'path_expr') || ' ? (!(' || (e->>'cond') || ')))')::jsonpath, e->'vars', true) is not true then
-        bad := bad || jsonb_build_object('path', e->'path', 'keyword', e->>'keyword', 'message', 'нарушено правило ' || (e->>'keyword'));
+        p := jsonb_build_object('keyword', e->>'keyword');
+        bad := bad || jsonb_build_object('path', e->'path', 'keyword', e->>'keyword', 'message', @SCHEMA@.lt_text('sql-core.issue_rule', p),
+          'key', 'sql-core.issue_rule', 'params', p);
       end if;
     end if;
   end loop;
   if not ok and bad = '[]'::jsonb then
-    bad := jsonb_build_array(jsonb_build_object('path', '[]'::jsonb, 'keyword', 'schema', 'message', 'данные не проходят описание'));
+    bad := jsonb_build_array(jsonb_build_object('path', '[]'::jsonb, 'keyword', 'schema', 'message', @SCHEMA@.lt_text('sql-core.issue_schema'),
+      'key', 'sql-core.issue_schema', 'params', '{}'::jsonb));
   end if;
   return bad;
 end $$;

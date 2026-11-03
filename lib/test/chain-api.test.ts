@@ -1,13 +1,12 @@
 /**
- * chain-api — поверхность цепочек вне данных (план, этап 3, п. 8, 10–12; тест-план §7.5 №3.9–3.10):
- * охранники снесённого API, зарезервированные имена, ошибки построения, кэш плана, onQuery.
+ * chain-api — поверхность цепочек вне данных (план, этап 3, п. 8, 10–12; тест-план §7.5 №3.10):
+ * зарезервированные имена, ошибки построения, кэш плана, onQuery.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { engine, lt, type Engine, type Tenant } from './_engine.js';
 import { appDsn } from './_harness.js';
 import { seedSalon, type Salon } from './_salon.js';
-import * as letopis from '../src/index.js';
 import { connect, cursorOf, RESERVED_CLASS_NAMES, type Db, type QueryEvent, type Row } from '../src/index.js';
 import { PLAN } from '../src/chain.js';
 import { buildRead, type Step } from '../src/sql.js';
@@ -31,32 +30,9 @@ after(async () => {
   await e?.close();
 });
 
-const removedErr = (replacement: RegExp) => (err: { code?: string; message?: string }) =>
-  err.code === 'removed' && /сняты? в 1\.0\.0|снята в 1\.0\.0/.test(err.message ?? '') && replacement.test(err.message ?? '');
-
-test('охранники снесённого API: ошибка с версией 1.0.0 и заменой (3.9)', async () => {
-  const any = db as unknown as Record<string, unknown>;
-  const chain = db.Staff() as unknown as Record<string, unknown>;
-  assert.throws(() => chain.run, removedErr(/paths\(\)/));
-  assert.throws(() => chain.execute, removedErr(/paths\(\)/));
-  assert.throws(() => chain.account, removedErr(/auth\.switch/));
-  assert.throws(() => any.reloadSchema, removedErr(/db\.refresh/));
-  for (const f of ['accounts', 'credentials', 'resources', 'rules']) assert.throws(() => any[f], removedErr(/системные классы/));
-  assert.throws(() => (any.watch as (cb: unknown) => void)(() => {}), removedErr(/watch\(\{ from \}\)/));
-  assert.throws(() => (any.watch as (c: string, cb: unknown) => void)('Staff', () => {}), removedErr(/watch\(\{ from \}\)/));
-  assert.throws(() => (any.auth as Record<string, unknown>).sessions, removedErr(/в базе/));
-  assert.throws(() => (any.acl as Record<string, unknown>).reload, removedErr(/сами/));
-  assert.throws(() => any.compact, removedErr(/trimHistory/));
-  assert.throws(() => letopis.uuidv7(), removedErr(/uuidv5/));
-  assert.throws(() => `${letopis.LETOPIS_NS}`, removedErr(/арендатора/));
-  for (const opt of ['partition', 'enforceAccount', 'enforceAcl', 'container', 'image', 'dataDir', 'redisPort', 'version']) {
-    await assert.rejects(connect({ dsn: appDsn(), schema: e.schema, token: t.token, [opt]: true } as never), removedErr(/./), opt);
-  }
-});
-
 test('зарезервированные имена: методы раньше классов; база отклоняет связь с таким именем', async () => {
   const chain = db.Staff() as unknown as Record<string, unknown>;
-  for (const m of ['create', 'update', 'upsert', 'delete', 'anonymize', 'reclass', 'restore', 'purge', 'rekey', 'cache']) {
+  for (const m of ['create', 'update', 'upsert', 'delete', 'restore', 'cache']) {
     assert.equal(typeof chain[m], 'function', m);
   }
   // слот — только после глагола записи

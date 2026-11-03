@@ -6,9 +6,9 @@
  * неё только на время явного `set role`. Повторный накат ничего не меняет.
  *
  * up() — оркестратор без Docker: ждёт базу (удалённую — до таймаута), создаёт её, проверяет версию
- * PostgreSQL (18+) и кодировку UTF8, ставит схему (fresh — заново), обновляет отставшую (upgrade:
+ * PostgreSQL (18+) и кодировку UTF8, ставит схему (fresh — заново), обновляет отставшую ревизию 2.x (upgrade:
  * миграции lib/sql/migrate/ и повторный накат), кладёт сиды, выдаёт или регистрирует сервисный ключ и
- * выполняет ANALYZE только для таблиц без статистики.
+ * выполняет ANALYZE только для таблиц без статистики. Схему letopis 1.x не трогает: 2.0 ставится только заново.
  */
 import { readFile, readdir } from 'node:fs/promises';
 import { createRequire } from 'node:module';
@@ -19,29 +19,35 @@ import postgres from 'postgres';
 import { DDL_REVISION, RESERVED_CLASS_NAMES } from './types.js';
 import { startPglite, type PgliteOptions, type PgliteServer } from './pglite.js';
 import { hashPassword } from './auth.js';
-import { LetopisError } from './errors.js';
+import { checkOptions, lerr, lmsg, type MsgKey, type Params } from './errors.js';
+import { sqlCatalog } from './messages/index.js';
 import { v5Id } from './uuid.js';
 import { SIGNAL_MODES, type SignalMode } from './signals.js';
 
 export const SYSTEM_ID = '2eba6d0a-1edd-4bb6-a85a-a703dab49035';
 export const SCHEMA_VERSION = 'v2';
 
+/**
+ * Первая ревизия движка 2.0 (план 2.0, редакция 2): схема ниже неё — letopis 1.x или схема без штампа ревизии. Её
+ * `up()` не обновляет, а `connect()` к ней не подключается: 2.0 ставится только заново (`up({ fresh: true })`), данные
+ * 1.x не переносятся. Накат миграций `up({ upgrade })` — в пределах 2.x, от этой ревизии до `DDL_REVISION`.
+ */
+export const FIRST_REVISION = 8;
+
+/**
+ * Отказ на схеме letopis 1.x (план 2.0, 7.10 №5): ревизия из комментария схемы ниже `FIRST_REVISION` — 7 и ниже у 1.x,
+ * 0 — штампа ревизии нет. `up()` зовёт её до любых изменений (до общей части `install()`), `connect()` — до входа по
+ * ключу: функции схемы 1.x не вызываются.
+ */
+export function refuse1x(schema: string, rev: number): void {
+  if (rev < FIRST_REVISION) throw lerr('boot.schema_1x', { schema, rev, first: FIRST_REVISION });
+}
+
 export interface InstallOptions {
   /** Полное имя схемы с версией, например `v2.salon`. */
   schema: string;
   owner?: string;
   app?: string;
-  /**
-   * Разрешить `db.reset()` и `maintain({ now })` — для тестовых установок и стендов; по умолчанию запрещено. Значение
-   * задаётся при установке и хранится в схеме: каждый `up()` записывает его заново (план, §2.2).
-   */
-  allowReset?: boolean;
-  /**
-   * Политика хранения истории для классов без своей, например
-   * `{ all: '1 day', daily: '1 week', weekly: '1 month', monthly: '1 year', yearly: 'forever' }`; не задана — история
-   * хранится вся. Значение задаётся при установке и хранится в схеме: каждый `up()` записывает его заново (план, §2.11).
-   */
-  history?: HistoryPolicy;
   /** Номер последнего накатываемого файла — для пошаговых тестов. */
   upTo?: number;
   /** Сиды после ядра: имена lib/sql/seed.<имя>.sql (например 'booking') или пути к своим файлам .sql. */
@@ -60,20 +66,9 @@ export interface InstallOptions {
   /**
    * Что видно в сигналах базы (`NOTIFY`): `'class'` (у новой схемы по умолчанию) — имя класса; `'tenant'` — имя класса и
    * псевдоним арендатора (токен); `'opaque'` — только псевдонимы класса и арендатора; `'none'` — сигналов нет.
-   * Режим хранится в схеме: `up()` без опции его не меняет, `reset({ all })` сохраняет (план 1.1, §2.2).
+   * Режим хранится в схеме: `up()` без опции его не меняет.
    */
   signals?: SignalMode;
-}
-
-/** Политика хранения истории (§2.11): сроки ярусов по возрастанию, 'forever' — бессрочно. */
-export interface HistoryPolicy {
-  all: string;
-  daily?: string;
-  weekly?: string;
-  monthly?: string;
-  yearly?: string;
-  /** Часовой пояс границ периодов (по умолчанию UTC). */
-  tz?: string;
 }
 
 export interface InstallResult {
@@ -123,13 +118,15 @@ export interface EngineStamp {
 let stamp: EngineStamp | undefined;
 
 /**
- * Штамп движка этого пакета. Хэш — по исходному тексту файлов ядра до подстановок (переводы строк — LF): одна и та же
- * сборка даёт один штамп при любых опциях установки, а версия пакета без правок SQL штамп не меняет.
+ * Штамп движка этого пакета. Хэш — по исходному тексту файлов ядра до подстановок (переводы строк — LF) и по каталогу
+ * сообщений базы (разделы sql-*, подстановка @MESSAGES@): одна и та же сборка даёт один штамп при любых опциях
+ * установки, а версия пакета без правок SQL и этих разделов штамп не меняет.
  */
 export async function engineStamp(): Promise<EngineStamp> {
   if (stamp) return stamp;
   const h = createHash('sha256');
   for (const f of await engineFiles()) h.update(`${f}\n${(await readFile(join(SQL_DIR, f), 'utf8')).replace(/\r\n/g, '\n')}\n`);
+  h.update(`@MESSAGES@\n${JSON.stringify(sqlCatalog())}\n`);
   const version = (createRequire(import.meta.url)('../package.json') as { version: string }).version;
   return (stamp = { version, sql: h.digest('hex').slice(0, 16) });
 }
@@ -166,16 +163,16 @@ export async function stampDrift(schema: string, comment: string): Promise<strin
   const code = await engineStamp().catch(() => null); // файлов ядра рядом со сборкой нет — сверять не с чем
   if (!code || /\bsql=([0-9a-f]+)/.exec(comment)?.[1] === code.sql) return null;
   const was = /\bengine=(\S+)/.exec(comment)?.[1];
-  if (was && compareVersions(was, code.version) > 0) {
-    return `letopis: схему ${schema} обновила letopis ${was}, библиотека старее (${code.version}) — обновите пакет: up() этой версией вернул бы прежние функции`;
-  }
-  const by = !was ? 'версия до 1.4.0' : was === code.version ? `другая сборка letopis ${was}` : `letopis ${was}`;
-  return `letopis: функции схемы ${schema} поставила ${by}, библиотека — ${code.version}: обновите схему — вызовите up({ schema: '${schema}' })`;
+  // схему обновила версия новее пакета — или в штампе нет версии (его правили руками: штамп ревизии 2.x up() пишет
+  // всегда с версией), другая сборка той же версии, другая версия
+  const key: MsgKey = was && compareVersions(was, code.version) > 0 ? 'boot.stamp_newer'
+    : !was ? 'boot.stamp_unknown' : was === code.version ? 'boot.stamp_other_build' : 'boot.stamp_other_version';
+  return 'letopis: ' + lmsg(key, { schema, version: code.version, ...(was ? { was } : {}) });
 }
 
 export function substitute(text: string, vars: Record<string, string>): string {
   return text.replace(/@([A-Z_]+)@/g, (m, k: string) => {
-    if (!(k in vars)) throw new Error(`letopis.up: неизвестный маркер ${m} в SQL`);
+    if (!(k in vars)) throw lerr('boot.unknown_marker', { marker: m });
     return vars[k];
   });
 }
@@ -183,14 +180,14 @@ export function substitute(text: string, vars: Record<string, string>): string {
 export async function install(sql: postgres.Sql, opts: InstallOptions): Promise<InstallResult & { found: number | null }> {
   const owner = opts.owner ?? 'letopis_owner';
   const app = opts.app ?? 'letopis_app';
-  if (!SCHEMA_NAME.test(opts.schema)) throw new Error(`letopis.up: bad schema name "${opts.schema}" (нужно v<N>.<имя>)`);
-  for (const r of [owner, app]) if (!ROLE_NAME.test(r)) throw new Error(`letopis.up: bad role name "${r}"`);
+  if (!SCHEMA_NAME.test(opts.schema)) throw lerr('boot.install_schema_name', { schema: opts.schema });
+  for (const r of [owner, app]) if (!ROLE_NAME.test(r)) throw lerr('boot.role_name', { role: r });
   if (opts.signals !== undefined && !SIGNAL_MODES.includes(opts.signals)) {
-    throw new Error(`letopis.up: signals — ${SIGNAL_MODES.join(', ')}, а не ${String(opts.signals)}`);
+    throw lerr('boot.signals_mode', { modes: SIGNAL_MODES.join(', '), signals: String(opts.signals) });
   }
 
   const [{ v }] = await sql<{ v: string }[]>`select current_setting('server_version_num') as v`;
-  if (Number(v) < 180000) throw new Error(`letopis.up: нужен PostgreSQL 18 или новее, а сервер — ${v}`);
+  if (Number(v) < 180000) throw new Error(`letopis.up: ${lmsg('boot.install_pg_version', { version: v })}`);
 
   // Общая часть установки — роли, членство установщика, pgcrypto и право владельца на схему pgcrypto — одна на все
   // установки базы, а роли — на весь кластер. Параллельные up() разных схем меняли её одновременно: grant на схему
@@ -220,7 +217,7 @@ export async function install(sql: postgres.Sql, opts: InstallOptions): Promise<
         // роль владельца создал кто-то другой, а у установщика нет на неё ADMIN — понятная ошибка вместо сырой 42501
         // (план 2.0, 7.5 №3)
         if (e.code === '42501') {
-          throw Object.assign(new Error(`letopis.up: роль ${owner} уже есть, а у установщика нет на неё ADMIN OPTION — установку ведёт роль, создавшая ${owner}, или роль с этим правом (grant ${owner} to <установщик> with admin option)`), { cause: e });
+          throw lerr('boot.owner_no_admin', { owner }, { cause: e });
         }
         if (e.code !== '0LP01' && e.code !== '23505') throw e; // уже выдано циклом — нет; 23505 — выдал up() другой базы
       });
@@ -240,10 +237,11 @@ export async function install(sql: postgres.Sql, opts: InstallOptions): Promise<
     APP_NAME: app,
     PGCRYPTO: quoteIdent(nsp),
     SYSTEM: SYSTEM_ID,
-    ALLOW_RESET: opts.allowReset ? 'true' : 'false',
-    HISTORY_DEFAULT: quoteLiteral(JSON.stringify(opts.history ?? null)),
     // методы цепочки — в тексте функции reserved_names() (план, §2.14)
     RESERVED_NAMES: RESERVED_CLASS_NAMES.map(quoteLiteral).join(', '),
+    // каталог сообщений базы — разделы sql-* (план 2.0, этап 3, п. 3): ключ → имя ошибки и русский шаблон, JSON-литерал
+    // функции message_catalog() (15-errors.sql); обновляет его каждый up(), как прочие функции
+    MESSAGES: quoteLiteral(JSON.stringify(sqlCatalog())),
     // режим сигналов — после set role: сохранённый режим лежит в строке ключа secret владельца
     SIGNALS: 'class',
   };
@@ -265,7 +263,17 @@ export async function install(sql: postgres.Sql, opts: InstallOptions): Promise<
     // считаются миграции, — под блокировкой: up() видит ревизию до неё, и второй upgrade повторил бы миграции, уже
     // накатанные первым. Разные схемы друг друга не ждут: ключ — имя схемы.
     await lockSchema(tx, opts.schema);
-    if (opts.fresh) await tx.unsafe(`drop schema if exists ${quoteIdent(opts.schema)} cascade`);
+    if (opts.fresh) {
+      // схему удаляет её владелец или суперпользователь. Установщик без суперпользователя состоит в роли владельца без
+      // наследования прав (inherit false, set true): сам он получил бы «must be owner of schema» (42501), а от роли
+      // владельца — удаляет (ревью: fresh от такого установщика падал)
+      const [own] = await tx.unsafe(`select r.rolname as role, not pg_has_role(current_user, n.nspowner, 'USAGE')
+          and pg_has_role(current_user, n.nspowner, 'SET') as via
+        from pg_namespace n join pg_roles r on r.oid = n.nspowner where n.nspname = $1`, [opts.schema]);
+      if (own?.via) await tx.unsafe(`set local role ${quoteIdent(own.role as string)}`);
+      await tx.unsafe(`drop schema if exists ${quoteIdent(opts.schema)} cascade`);
+      if (own?.via) await tx.unsafe('set local role none');
+    }
     found = await schemaRevision(tx, opts.schema);
     if (opts.migrateFrom !== undefined && found !== null) {
       migrations = await migrationFiles(opts.migrationsDir ?? MIGRATE_DIR, Math.max(opts.migrateFrom, found));
@@ -305,7 +313,7 @@ export async function install(sql: postgres.Sql, opts: InstallOptions): Promise<
     for (const seed of opts.seeds ?? []) {
       // имя сида пакета или путь к своему файлу
       const own = seed.endsWith('.sql') || /[\\/]/.test(seed);
-      if (!own && !/^[a-z0-9-]+$/.test(seed)) throw new Error(`letopis.up: bad seed name "${seed}"`);
+      if (!own && !/^[a-z0-9-]+$/.test(seed)) throw lerr('boot.seed_name', { seed });
       const f = own ? resolve(seed) : join(SQL_DIR, `seed.${seed}.sql`);
       try {
         await tx.unsafe(substitute(await readFile(f, 'utf8'), vars));
@@ -315,19 +323,11 @@ export async function install(sql: postgres.Sql, opts: InstallOptions): Promise<
         throw err;
       }
     }
-    if (opts.history && files.some((f) => f.startsWith('40-'))) {
-      // умолчание проверяется той же метасхемой, что политика класса (сроки по возрастанию, all ≥ суток)
-      await tx.unsafe(`select ${quoteIdent(opts.schema)}.class_prepare($1::jsonb, $2::uuid)`,
-        [{ name: 'HistoryDefault', kind: 'hub', history: opts.history } as never, SYSTEM_ID]).catch((e: Error) => {
-        e.message = `letopis.up: history: ${e.message}`;
-        throw e;
-      });
-    }
     if (files.some((f) => f.startsWith('95-'))) {
       const S = quoteIdent(opts.schema);
       if (opts.serviceKey) {
         // свой ключ: регистрируется, если его ещё нет (ключ хранится как sha256)
-        if (!/^lts_[0-9a-f]{32,128}$/.test(opts.serviceKey)) throw new Error('letopis.up: serviceKey — lts_ и не меньше 32 шестнадцатеричных знаков');
+        if (!/^lts_[0-9a-f]{32,128}$/.test(opts.serviceKey)) throw lerr('boot.service_key_format');
         const hash = createHash('sha256').update(opts.serviceKey, 'utf8').digest();
         const [{ n }] = await tx.unsafe(`select count(*)::int as n from ${S}.secret where kind = 'APIKEY' and material = $1 and deleted_at is null`, [hash]);
         if (n === 0) {
@@ -372,14 +372,14 @@ export interface UpOptions extends Omit<InstallOptions, 'schema' | 'upTo' | 'mig
   schema: string;
   /** Удалить схему и поставить заново. ДАННЫЕ СХЕМЫ ТЕРЯЮТСЯ. */
   fresh?: boolean;
-  /** Обновить схему отставшей ревизии: миграции и повторный накат; данные сохраняются. */
+  /** Обновить схему отставшей ревизии 2.x: миграции и повторный накат; данные сохраняются. */
   upgrade?: boolean;
   /** Без сообщений в консоль. */
   quiet?: boolean;
   /** Сколько ждать базу, мс (по умолчанию 60 000). */
   waitTimeoutMs?: number;
   /**
-   * Запустить PGlite — PostgreSQL прямо в процессе Node — для разработки без своего сервера (решение 6 точки А);
+   * Запустить PGlite — PostgreSQL прямо в процессе Node — для разработки без своего сервера;
    * подключение к нему — `connect({ dsn: r.pglite.dsn, schema: r.schema, listen: false, max: 1, allowBypassRls: true })`.
    * Соединение у PGlite одно, поэтому одновременные транзакции и гонки на нём не проверить: для таких тестов и в CI нужен
    * настоящий PostgreSQL.
@@ -390,7 +390,28 @@ export interface UpOptions extends Omit<InstallOptions, 'schema' | 'upTo' | 'mig
    * кладёт итог в `r.tenant` — свой сид для этого не нужен.
    */
   tenant?: TenantOptions;
+  /**
+   * Роль приложения с логином (план 2.0, этап 3): заводится или получает новый пароль и членство в роли приложения
+   * (`letopis_app`). Имя и пароль квотирует база (`format` с `%I` и `%L`). Привилегированную роль — суперпользователя,
+   * с `CREATEROLE`, `CREATEDB`, `REPLICATION`, `BYPASSRLS`, роль-владельца или её члена — up() не трогает
+   * (`invalid_data`). Строка подключения роли — `r.login.dsn`: с ней и `connect({ admin })` малое приложение работает
+   * одним процессом.
+   */
+  login?: LoginOptions;
 }
+
+/** Роль приложения up({ login }). */
+export interface LoginOptions {
+  user: string;
+  password: string;
+}
+
+/** Все опции up(): неизвестная — invalid_data с похожими именами до подключения (checkOptions; план 2.0, 7.10 №4). */
+const UP_OPTIONS = {
+  dsn: true, sql: true, schema: true, fresh: true, upgrade: true, quiet: true, waitTimeoutMs: true, pglite: true, tenant: true,
+  login: true, owner: true, app: true, seeds: true, migrationsDir: true, serviceKey: true,
+  signals: true,
+} satisfies Record<keyof UpOptions, true>;
 
 export interface UpResult extends InstallResult {
   /** Схемы не было — поставлена. */
@@ -399,13 +420,24 @@ export interface UpResult extends InstallResult {
   upgraded: boolean;
   /** Ревизия движка после наката. */
   revision: number;
-  /** Таблицы, для которых выполнен ANALYZE (статистики не было). */
+  /**
+   * Таблицы, у которых статистики не было и ANALYZE от роли владельца её собрал; оставшиеся без статистики — в
+   * `warnings`.
+   */
   analyzed: string[];
   /** up({ pglite }): запущенный PGlite — строка подключения и остановка. */
   pglite?: PgliteServer;
   /** up({ tenant }): арендатор (и его первый пользователь с сессией). */
   tenant?: TenantResult;
-  /** Предупреждения (версия сервера); без quiet каждое уже напечатано через console.warn. */
+  /**
+   * up({ login }): роль приложения — заведена (`created`) или получила новый пароль; `dsn` — строка подключения роли
+   * (из `dsn` установки или PGlite; при готовом пуле `sql` её нет).
+   */
+  login?: { user: string; created: boolean; dsn?: string };
+  /**
+   * Предупреждения (версия сервера, таблицы без статистики, хабы с зарезервированными именами); без quiet каждое уже
+   * напечатано через console.warn.
+   */
   warnings: string[];
 }
 
@@ -441,7 +473,7 @@ export async function ensureDatabase(dsn: string, log: (m: string) => void = () 
     await sql.unsafe(`create database ${quoteIdent(name)} encoding 'UTF8' template template0`).catch((e: { code?: string }) => {
       if (e.code !== '42P04') throw e;
     });
-    log(`база ${name} создана`);
+    log(lmsg('boot.log_database_created', { name }));
     return true;
   } finally {
     await sql.end({ timeout: 1 });
@@ -453,18 +485,16 @@ export async function ensureDatabase(dsn: string, log: (m: string) => void = () 
  * иначе отказ. Возвращает предупреждения: с чем установка работает, но рискует.
  */
 export function checkServer(versionNum: number, encoding: string): string[] {
-  if (versionNum < 180000) throw new Error(`letopis.up: нужен PostgreSQL 18 или новее, а сервер — ${Math.floor(versionNum / 10000)} (${versionNum})`);
-  if (encoding.toUpperCase() !== 'UTF8') throw new Error(`letopis.up: база в кодировке ${encoding}, нужна UTF8 (casefold и коллация pg_unicode_fast)`);
+  // обычный Error: подходящего кода нет
+  if (versionNum < 180000) throw new Error(`letopis.up: ${lmsg('boot.pg_version', { major: Math.floor(versionNum / 10000), num: versionNum })}`);
+  if (encoding.toUpperCase() !== 'UTF8') throw new Error(`letopis.up: ${lmsg('boot.encoding', { encoding })}`);
   const warnings: string[] = [];
   // план 1.1, этап 2: исправлено в 18.2
-  if (versionNum < 180002) {
-    warnings.push(`PostgreSQL ${Math.floor(versionNum / 10000)}.${versionNum % 10000}: до 18.2 сервер мог усечь CLOG, который ещё нужен `
-      + 'непрочитанным сигналам NOTIFY; обновите сервер до 18.2 или новее');
-  }
+  if (versionNum < 180002) warnings.push(lmsg('boot.pg_clog', { version: `${Math.floor(versionNum / 10000)}.${versionNum % 10000}` }));
   return warnings;
 }
 
-/** Ревизия движка схемы по комментарию 'letopis ddl_revision=N'; схемы нет — null. */
+/** Ревизия движка схемы по комментарию 'letopis ddl_revision=N'; схемы нет — null, штампа ревизии нет — 0. */
 export async function schemaRevision(sql: Pick<postgres.Sql, 'unsafe'>, schema: string): Promise<number | null> {
   const [r] = await sql.unsafe(`select obj_description(n.oid, 'pg_namespace') as c from pg_namespace n where n.nspname = $1`, [schema]);
   if (!r) return null;
@@ -474,20 +504,23 @@ export async function schemaRevision(sql: Pick<postgres.Sql, 'unsafe'>, schema: 
 /**
  * Ставит или обновляет установку letopis в схеме. Если схема уже есть и её ревизия та же, что у пакета, `up()` выполняет
  * повторный накат: заново ставит функции, не трогая данные, — поэтому его можно вызывать при каждом запуске приложения.
- * Схему отставшей ревизии `up()` обновляет только с `upgrade: true`, а на схеме новее пакета отказывает.
+ * Схему отставшей ревизии 2.x `up()` обновляет только с `upgrade: true`, а на схеме новее пакета отказывает. Схему без
+ * штампа ревизии не трогает и отказывает (`invalid_data`): заново её ставит `up({ fresh: true })`.
  */
 export async function up(opts: UpOptions): Promise<UpResult> {
+  checkOptions('up', opts, UP_OPTIONS);
   const log = opts.quiet ? () => {} : (m: string) => console.log(`letopis.up: ${m}`);
   const schema = opts.schema.includes('.') ? opts.schema : `${SCHEMA_VERSION}.${opts.schema}`;
-  if (!SCHEMA_NAME.test(schema)) throw new Error(`letopis.up: bad schema name "${opts.schema}" (нужно <имя> или v<N>.<имя>)`);
-  // опции арендатора — до подключения и наката: с неверными up() ничего не начинает
+  if (!SCHEMA_NAME.test(schema)) throw lerr('boot.up_schema_name', { schema: opts.schema });
+  // опции арендатора и роли приложения — до подключения и наката: с неверными up() ничего не начинает
   if (opts.tenant) checkTenant(opts.tenant);
+  if (opts.login !== undefined) checkLogin(opts.login);
   let sql = opts.sql;
   const own = !sql;
   const lite = opts.pglite ? await startPglite(opts.pglite === true ? {} : opts.pglite) : undefined;
   if (lite) sql = postgres(lite.dsn, { max: 1, onnotice: () => {} });
   if (!sql) {
-    if (!opts.dsn) throw new Error('letopis.up: нужен dsn или sql');
+    if (!opts.dsn) throw lerr('boot.no_connection');
     const deadline = Date.now() + (opts.waitTimeoutMs ?? 60_000);
     for (;;) {
       const ping = await pgPing(opts.dsn);
@@ -497,7 +530,9 @@ export async function up(opts: UpOptions): Promise<UpResult> {
         await ensureDatabase(opts.dsn, log);
         continue;
       }
-      if (Date.now() > deadline) throw new Error(`letopis.up: база ${new URL(opts.dsn).host} не готова за ${Math.round((opts.waitTimeoutMs ?? 60_000) / 1000)} с`);
+      if (Date.now() > deadline) {
+        throw new Error(`letopis.up: ${lmsg('boot.wait_timeout', { host: new URL(opts.dsn).host, seconds: Math.round((opts.waitTimeoutMs ?? 60_000) / 1000) })}`);
+      }
       await new Promise((r) => setTimeout(r, 500));
     }
     sql = postgres(opts.dsn, { max: 1, onnotice: () => {} });
@@ -510,26 +545,60 @@ export async function up(opts: UpOptions): Promise<UpResult> {
     // ревизия до блокировки схемы — для ранних отказов; что накатывать, install() решает по ревизии под блокировкой
     const before = opts.fresh ? null : await schemaRevision(sql, schema);
     if (before !== null && before > DDL_REVISION) {
-      throw new Error(`letopis.up: схема ${schema} ревизии ${before}, а библиотека знает только ${DDL_REVISION} — обновите пакет`);
+      throw new Error(`letopis.up: ${lmsg('boot.schema_newer', { schema, rev: before, known: DDL_REVISION })}`);
     }
+    // схема letopis 1.x — отказ до любых изменений, с upgrade тоже: 2.0 ставится только заново (план 2.0, 7.10 №5)
+    if (before !== null) refuse1x(schema, before);
+    // отставшая ревизия 2.x — только с upgrade (миграции lib/sql/migrate/)
     if (before !== null && before < DDL_REVISION && !opts.upgrade) {
-      throw new Error(`letopis.up: схема ${schema} ревизии ${before}, библиотека — ${DDL_REVISION}: обновите её up({ schema: '${schema}', upgrade: true })`);
+      throw new Error(`letopis.up: ${lmsg('boot.schema_older', { schema, rev: before, want: DDL_REVISION })}`);
     }
-    const { dsn: _d, sql: _s, schema: _sc, fresh: _f, upgrade: _u, quiet: _q, waitTimeoutMs: _w, pglite: _p, ...rest } = opts;
+    const { dsn: _d, sql: _s, schema: _sc, fresh: _f, upgrade: _u, quiet: _q, waitTimeoutMs: _w, pglite: _p, login: _l, ...rest } = opts;
     const { found, ...res } = await install(sql, {
       ...rest, schema, ...(opts.fresh ? { fresh: true } : {}), ...(before !== null && before < DDL_REVISION ? { migrateFrom: before } : {}),
     });
-    if (opts.fresh) log(`схема ${schema} удалена и поставлена заново (fresh)`);
-    // ANALYZE — только там, где статистики ещё нет: на повторном накате это самая дорогая часть
-    const fresh = await sql`select relname from pg_stat_user_tables
-      where schemaname = ${schema} and last_analyze is null and last_autoanalyze is null order by relname`;
-    const analyzed = fresh.map((r) => r.relname as string);
-    for (const t of analyzed) await sql.unsafe(`analyze ${quoteIdent(schema)}.${quoteIdent(t)}`);
+    if (opts.fresh) log(lmsg('boot.log_fresh', { schema }));
+    // ANALYZE — только там, где статистики ещё нет: на повторном накате это самая дорогая часть. От роли владельца, как у
+    // загрузчика: таблицы принадлежат ей, а установщик без суперпользователя наследования её прав не имеет — его ANALYZE
+    // PostgreSQL пропускал с WARNING (ревью). В analyzed — только таблицы, где статистика появилась; оставшиеся без
+    // неё — предупреждение
+    const missing = async (): Promise<string[]> => (await sql`select relname from pg_stat_user_tables
+      where schemaname = ${schema} and last_analyze is null and last_autoanalyze is null order by relname`).map((r) => r.relname as string);
+    const todo = await missing();
+    if (todo.length) {
+      await sql.begin(async (tx) => {
+        await tx.unsafe(`set local role ${quoteIdent(res.owner)}`);
+        for (const t of todo) await tx.unsafe(`analyze ${quoteIdent(schema)}.${quoteIdent(t)}`);
+      });
+    }
+    const left = todo.length ? await missing() : [];
+    const analyzed = todo.filter((t) => !left.includes(t));
+    if (left.length) {
+      const w = lmsg('boot.analyze_skipped', { owner: res.owner, tables: left.map((t) => `${schema}.${t}`).join(', ') });
+      warnings.push(w);
+      if (!opts.quiet) console.warn(`letopis.up: ${w}`);
+    }
+    // хабы с зарезервированными именами, заведённые мимо проверки базы (план 2.0, этап 4, п. 2; 7.10 №3): накат их
+    // оставляет и называет, новых таких база не пишет. Строки Class — от роли владельца, как ANALYZE: у установщика без
+    // суперпользователя прав на таблицы нет, а RLS владельца таблицы не касается
+    const reserved = await sql.begin(async (tx) => {
+      await tx.unsafe(`set local role ${quoteIdent(res.owner)}`);
+      return tx.unsafe(`select x.data->>'name' as name, x.tenant::text as tenant from ${quoteIdent(schema)}.entity x
+        where x.class = 'Class' and x.data->>'kind' = 'hub' and x.data->>'name' = any ($1::text[])
+        order by x.data->>'name', x.tenant`, [[...RESERVED_CLASS_NAMES] as never]);
+    });
+    if (reserved.length) {
+      const w = lmsg('boot.reserved_hubs', { hubs: reserved.map((h) => `${h.name as string} (${h.tenant as string})`).join(', ') });
+      warnings.push(w);
+      if (!opts.quiet) console.warn(`letopis.up: ${w}`);
+    }
     const revision = (await schemaRevision(sql, schema)) ?? 0;
-    log(`${found === null ? 'схема поставлена' : found < DDL_REVISION ? `схема обновлена с ревизии ${found}` : 'повторный накат'}: ${schema}, ревизия ${revision}`);
+    log(lmsg(found === null ? 'boot.log_installed' : found < DDL_REVISION ? 'boot.log_upgraded' : 'boot.log_reapplied', { schema, revision, from: found }));
     const tenant = opts.tenant ? await createTenant(sql, schema, opts.tenant, opts.owner) : undefined;
+    const login = opts.login ? await ensureLogin(sql, opts.login, res.owner, res.app, opts.dsn ?? lite?.dsn) : undefined;
+    if (login) log(lmsg(login.created ? 'boot.log_login_created' : 'boot.log_login_updated', { user: login.user }));
     return { ...res, created: found === null, upgraded: found !== null && found < DDL_REVISION, revision, analyzed, warnings,
-      ...(lite ? { pglite: lite } : {}), ...(tenant ? { tenant } : {}) };
+      ...(lite ? { pglite: lite } : {}), ...(tenant ? { tenant } : {}), ...(login ? { login } : {}) };
   } catch (e) {
     if (lite) await sql.end({ timeout: 1 }).then(() => lite.close(), () => lite.close());
     throw e;
@@ -539,6 +608,47 @@ export async function up(opts: UpOptions): Promise<UpResult> {
   }
 }
 
+/** Проверка up({ login }) до подключения: имя роли и пароль. */
+function checkLogin(login: unknown): void {
+  if (!login || typeof login !== 'object') throw lerr('boot.login_not_object');
+  const { user, password } = login as Record<string, unknown>;
+  if (typeof user !== 'string' || !user.trim() || Buffer.byteLength(user, 'utf8') > 63 || user.startsWith('pg_') || user.includes('\0')) {
+    throw lerr('boot.login_user', { user: JSON.stringify(user) });
+  }
+  if (typeof password !== 'string' || !password || password.includes('\0')) throw lerr('boot.login_password');
+}
+
+/**
+ * Роль приложения up({ login }) (план 2.0, 7.9 №4): заводится или получает новый пароль, затем членство в роли
+ * приложения. Роли — объекты кластера: под той же блокировкой, что общая часть install(). Текст create/alter/grant
+ * собирает база (`format` с `%I` и `%L`), поэтому кавычки в имени и пароле не ломают SQL.
+ */
+async function ensureLogin(sql: postgres.Sql, login: LoginOptions, owner: string, app: string, dsn?: string): Promise<NonNullable<UpResult['login']>> {
+  const created = await sql.begin(async (tx) => {
+    await tx`select pg_advisory_xact_lock(hashtext('letopis'), hashtext('install'))`;
+    const [r] = await tx`select r.rolsuper or r.rolcreaterole or r.rolcreatedb or r.rolreplication or r.rolbypassrls
+        or pg_has_role(r.oid, ${owner}, 'USAGE') or pg_has_role(r.oid, ${owner}, 'SET') as privileged
+      from pg_roles r where r.rolname = ${login.user}`;
+    if (r?.privileged || login.user === owner || login.user === app) {
+      throw lerr('boot.login_privileged', { user: login.user });
+    }
+    const verb = r ? 'alter role %I login password %L' : 'create role %I login password %L';
+    const [{ q }] = await tx`select format(${verb}::text, ${login.user}::text, ${login.password}::text) as q`;
+    await tx.unsafe(q as string);
+    const [{ g }] = await tx`select format('grant %I to %I', ${app}::text, ${login.user}::text) as g`;
+    await tx.unsafe(g as string);
+    return !r;
+  });
+  let url: string | undefined;
+  if (dsn) {
+    const u = new URL(dsn);
+    u.username = login.user;
+    u.password = login.password;
+    url = u.toString();
+  }
+  return { user: login.user, created, ...(url ? { dsn: url } : {}) };
+}
+
 // ---------------------------------------------------------------------------
 // Первый арендатор и пользователь на чистой установке (решение владельца на точке В)
 // ---------------------------------------------------------------------------
@@ -546,7 +656,7 @@ export async function up(opts: UpOptions): Promise<UpResult> {
 export interface TenantOptions {
   /**
    * Имя арендатора — его аккаунта в System. Из имени вычисляется id арендатора, поэтому одно имя — всегда один и тот же
-   * арендатор (так же его находит `letopis import --tenant`).
+   * арендатор.
    */
   name: string;
   /** Правило арендатора «аутентифицированным можно всё» (READ, WRITE, DELETE; по умолчанию да). */
@@ -558,7 +668,7 @@ export interface TenantOptions {
     password: string;
     /**
      * Вид пароля (по умолчанию PASSWORD) — как у auth.setPassword: `^[A-Z][A-Z0-9_]{1,31}$`, не служебный вид (SESSION,
-     * APIKEY, KEYSECRET, OTP, TOTP, KEY, PROJECTOR, LOCK); иначе invalid_data.
+     * APIKEY, KEYSECRET, OTP, TOTP, KEY, LOCK); иначе invalid_data.
      */
     kind?: string;
     ttl?: string;
@@ -579,7 +689,7 @@ export interface TenantResult {
 }
 
 /** Служебные виды строк secret: их не принимают функции кредов (auth_kind_ok в 80-auth.sql) и createTenant. */
-const SERVICE_KINDS = ['SESSION', 'APIKEY', 'KEYSECRET', 'OTP', 'TOTP', 'KEY', 'PROJECTOR', 'LOCK'];
+const SERVICE_KINDS = ['SESSION', 'APIKEY', 'KEYSECRET', 'OTP', 'TOTP', 'KEY', 'LOCK'];
 
 /**
  * Опции арендатора до записи; возвращает роли членства пользователя (по умолчанию owner). Вид пароля user.kind — как у
@@ -590,24 +700,21 @@ const SERVICE_KINDS = ['SESSION', 'APIKEY', 'KEYSECRET', 'OTP', 'TOTP', 'KEY', '
  * (синтаксис маски).
  */
 function checkTenant(opts: TenantOptions): string[] {
-  if (!opts.name) throw new Error('letopis.createTenant: имя арендатора обязательно');
+  if (!opts.name) throw lerr('boot.tenant_name_required');
   // вид пароля — по правилу функций кредов (auth_kind_ok в 80-auth.sql): пароль пишет функция владельца мимо них, а с
   // видом в другом регистре или служебным (SESSION, TOTP…) по нему не войти, и служебные строки он подменял бы
   const kind: unknown = opts.user?.kind;
   if (kind != null && (typeof kind !== 'string' || !/^[A-Z][A-Z0-9_]{1,31}$/.test(kind) || SERVICE_KINDS.includes(kind))) {
-    throw new LetopisError('invalid_data', `createTenant: user.kind ${JSON.stringify(kind)} — вид пароля: заглавная латинская буква, затем заглавные буквы, цифры или «_», всего от 2 до 32 знаков; служебные виды ${SERVICE_KINDS.join(', ')} заняты (по умолчанию — PASSWORD)`);
+    throw lerr('boot.tenant_kind', { kind: JSON.stringify(kind), kinds: SERVICE_KINDS.join(', ') });
   }
   if (opts.user?.roles === undefined) return ['owner'];
   const roles: unknown = opts.user.roles;
-  const bad = (why: string) => new LetopisError('invalid_data', `createTenant: user.roles — ${why}`);
-  if (!Array.isArray(roles) || roles.length === 0) throw bad("непустой список ролей, например ['staff']");
+  if (!Array.isArray(roles) || roles.length === 0) throw lerr('boot.tenant_roles_empty');
   for (const r of roles) {
-    if (typeof r !== 'string') throw bad(`роль — строка, а не ${r === null ? 'null' : typeof r}`);
-    if (!r || r !== r.trim() || /[,{}]/.test(r) || r.startsWith('!')) {
-      throw bad(`роль ${JSON.stringify(r)}: нужно имя роли, а не маска группы — не пустое, без пробелов по краям, запятых, фигурных скобок и «!» в начале`);
-    }
+    if (typeof r !== 'string') throw lerr('boot.tenant_role_type', { type: r === null ? 'null' : typeof r });
+    if (!r || r !== r.trim() || /[,{}]/.test(r) || r.startsWith('!')) throw lerr('boot.tenant_role_mask', { role: JSON.stringify(r) });
   }
-  if (new Set(roles).size !== roles.length) throw bad('роли повторяются');
+  if (new Set(roles).size !== roles.length) throw lerr('boot.tenant_roles_repeat');
   return roles;
 }
 
@@ -629,16 +736,14 @@ export async function createTenant(sql: postgres.Sql, schema: string, opts: Tena
     // раз, остальные находят его по имени (без неё оба вставили бы ту же строку и один упал бы на ключе)
     await lockSchema(tx, schema);
     await tx.unsafe(`set local role ${quoteIdent(owner)}`);
-    /** Строка есть — true, не было — false; строки нет, а журнал id есть, — удалена: отказ gone (что и как вернуть). */
-    const exists = async (id: string, cls: 'Account' | 'member', gone: string) => {
+    /** Строка есть — true, не было — false; строки нет, а журнал id есть, — удалена: отказ по ключу gone (что и как вернуть). */
+    const exists = async (id: string, cls: 'Account' | 'member', gone: MsgKey, params: Params) => {
       const [r] = await tx.unsafe(`select exists (select 1 from ${S}.entity where id = $1::uuid) as live,
           exists (select 1 from ${S}.log where id = $1::uuid) as was`, [id]);
-      if (!r.live && r.was) throw new LetopisError('invalid_data', `createTenant: ${gone}`, { id, class: cls });
+      if (!r.live && r.was) throw lerr(gone, { ...params, id }, { detail: { id, class: cls } });
       return r.live as boolean;
     };
-    const why = 'а его история осталась в журнале — повтор удалённое не воскрешает';
-    const created = !(await exists(tenant, 'Account', `арендатор «${opts.name}» (${tenant}) удалён, ${why}: `
-      + 'верните его db.Account(id).restore() от имени системного администратора или выберите другое имя'));
+    const created = !(await exists(tenant, 'Account', 'boot.tenant_deleted', { name: opts.name }));
     if (created) {
       await tx.unsafe(`select ${S}.sys_create($1::uuid, 'Account', $2::uuid, '{}', $3::jsonb)`,
         [tenant, SYSTEM_ID, { name: opts.name, categories: [], enabled: true } as never]);
@@ -646,15 +751,13 @@ export async function createTenant(sql: postgres.Sql, schema: string, opts: Tena
     }
     let token: string | null = null;
     if (u && user) {
-      if (!(await exists(user, 'Account', `аккаунт пользователя ${u.login} (${user}) удалён, ${why}: `
-        + 'верните его db.Account(id).restore() от имени системного администратора или выберите другой логин'))) {
+      if (!(await exists(user, 'Account', 'boot.tenant_user_deleted', { login: u.login }))) {
         await tx.unsafe(`select ${S}.sys_create($1::uuid, 'Account', $2::uuid, '{}', $3::jsonb)`,
           [user, SYSTEM_ID, { name: u.name, categories: ['User'], enabled: true } as never]);
       }
       const member = (await tx.unsafe(`select ${S}.v5_id($1::uuid, 'member', array[$2::text, $1::text]) as id`, [tenant, user]))[0].id as string;
       // существующее членство не трогаем: повтор с другими ролями их не меняет (их правят правкой member)
-      if (!(await exists(member, 'member', `членство ${u.login} в арендаторе «${opts.name}» (${member}) удалено, ${why}: `
-        + 'верните его db.member(id).restore() в этом арендаторе или выберите другой логин'))) {
+      if (!(await exists(member, 'member', 'boot.tenant_member_deleted', { login: u.login, name: opts.name }))) {
         await tx.unsafe(`select ${S}.sys_create($1::uuid, 'member', $2::uuid, $3::jsonb, $4::jsonb)`,
           [member, tenant, { User: user, Tenant: tenant } as never, { roles } as never]);
       }

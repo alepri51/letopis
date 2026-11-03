@@ -7,12 +7,12 @@
  * узлу (pivot): от него ветвится следующий шаг. Модификаторы возвращают новую цепочку; терминалы
  * строят один запрос (sql.ts) и исполняют его транзакцией под сессией (tx.ts).
  *
- * Запись (этап 4): глаголы create, update, upsert, delete, anonymize, reclass — звенья плана; слоты
+ * Запись (этап 4): глаголы create, update, upsert, delete — звенья плана; слоты
  * `.Роль.set/unset/add/remove` правят концы записываемой версии. Терминал цепочки с глаголами
  * исполняет весь план одной транзакцией (write.ts): продолжение идёт от результата глагола.
- * Этап 6: restore, purge, rekey; versions({ follow }); кэш результатов .cache() (cache.ts).
+ * Этап 6: restore; versions(); кэш результатов .cache() (cache.ts).
  */
-import { LetopisError, removed } from './errors.js';
+import { lerr, lwarn, similar, type LetopisError } from './errors.js';
 import { sessionTag, type ResultCache } from './cache.js';
 import type { ClassInfo, Registry } from './registry.js';
 import {
@@ -20,7 +20,7 @@ import {
   type AggSpec, type BuiltQuery, type ReadMode, type Step,
 } from './sql.js';
 import type { Executor } from './tx.js';
-import type { BlameOptions, BlameResult, ChainMods, Cursor, DiffOptions, DiffResult, Filter, Path, QueryEvent, Row } from './types.js';
+import type { ChainMods, Cursor, Filter, Path, QueryEvent, Row } from './types.js';
 import { execBatch, execPlan, precheckPlan, slotRole, type PlanOp, type PlanResult, type Slot, type SlotValue, type WriteRow } from './write.js';
 
 export interface ChainCtx {
@@ -74,15 +74,8 @@ export interface ChainCore {
   ids(): Promise<string[]>;
   /** Число сущностей последнего шага; { paths: true } — число путей. */
   count(opts?: { paths?: boolean }): Promise<number>;
-  /**
-   * Все версии сущностей последнего шага (надгробия — $deleted), по id и номеру версии;
-   * { follow: true } — и через смену id при reclass и rekey, по времени.
-   */
-  versions(opts?: { follow?: boolean }): Promise<Row[]>;
-  /** Что изменилось между двумя версиями или моментами (по умолчанию — предыдущая версия → последняя), план 1.1. */
-  diff(opts?: DiffOptions): Promise<DiffResult[]>;
-  /** Кто, когда и почему последним изменил каждое поле версии (по умолчанию текущей), план 1.1. */
-  blame(opts?: BlameOptions): Promise<BlameResult[]>;
+  /** Все версии сущностей последнего шага (надгробия — $deleted), по id и номеру версии. */
+  versions(): Promise<Row[]>;
   /**
    * Сумма поля `'data.<путь>'` по объектам последнего шага: значения приводятся к числу, складывает база. `limit()` и
    * `offset()` на итог не влияют; нет ни одного значения — `null`.
@@ -126,7 +119,7 @@ export interface ChainCore {
    * Постраничный вывод по курсору: ответ начинается строго после строки, на которой кончилась прошлая страница, в
    * порядке `sort()` (без `sort()` — ошибка `invalid_query`). Курсор этой строки даёт `cursorOf(строка, поле)` с тем же
    * полем, что в `sort()`. Листает `rows()`, `ids()`, `versions()` и `paths()` (курсор пути — `cursorOf(путь, поле)`);
-   * `count()`, агрегаты, `diff()` и `blame()` курсор не учитывают.
+   * перед `count()` и агрегатами (`sum`, `avg`, `min`, `max`, `countBy`) — `invalid_query`: они считают по всем объектам.
    */
   after(cursor: Cursor): Chain;
   /**
@@ -162,38 +155,29 @@ export interface ChainCore {
    * же цепочка (та же переменная) второй раз в одном пути шагов не добавляет, а возвращает к своему последнему шагу:
    * следующий шаг пойдёт от него.
    */
-  entity(x: Chain | Row): Chain;
+  entity(x: ChainRef | Row): Chain;
   /** Создать объект: концы — из пути и слотов; занятый ключ — ошибка exists с id. */
   create(data?: Record<string, unknown>, opts?: { reason?: string }): Chain;
-  /** Новая версия каждой цели шага: слияние патча в базе; inc(n) — приращение; { rev } — с проверкой версии. */
-  update(patch?: Record<string, unknown>, opts?: { rev?: number; reason?: string }): Chain;
+  /**
+   * Новая версия каждой цели шага: слияние патча в базе; inc(n) — приращение; { rev } — с проверкой версии. Цели сужают
+   * фильтр, id, `tags()`, `owner()` или `limit()` хотя бы у одного шага, иначе `invalid_query`; правка всех строк —
+   * `{ all: true }`.
+   */
+  update(patch?: Record<string, unknown>, opts?: { rev?: number; all?: boolean; reason?: string }): Chain;
   /** Создать или заменить целиком (класс с ключом); строка ответа несёт $upsert. */
   upsert(data: Record<string, unknown>, opts?: { reason?: string }): Chain;
   /**
    * Удаляет цели шага; строки, которые на них ссылаются, база удаляет вместе с ними, отвязывает или не даёт удалить цель —
    * как задано в `onDelete` их ссылок. Без `{ confirm: true }` — предпросмотр удаления: ничего не удаляется, терминал
-   * вернёт все строки, которых оно коснулось бы, у каждой `$action` — что с ней будет.
+   * вернёт все строки, которых оно коснулось бы, у каждой `$action` — что с ней будет. С `{ confirm: true }` цели сужают
+   * фильтр, id, `tags()`, `owner()` или `limit()` хотя бы у одного шага, иначе `invalid_query`; удаление всех строк —
+   * `{ confirm: true, all: true }`.
    */
-  delete(opts?: { confirm?: boolean; reason?: string }): Chain;
-  /** Затереть строковые поля ('[erased]') и пометить тегом anonymized. */
-  anonymize(fields: string[], opts?: { reason?: string }): Chain;
-  /** Сменить класс: у класса с ключом — новый id и перевод ссылок. */
-  reclass(cls: string, data?: Record<string, unknown>, opts?: { reason?: string }): Chain;
+  delete(opts?: { confirm?: boolean; all?: boolean; reason?: string }): Chain;
   /** Чтение с блокировкой строк последнего шага до конца db.begin() (rows, first, ids). */
   forUpdate(): Chain;
   /** Восстановить удалённые объекты шага: последний снимок новой версией (id прежний). */
   restore(opts?: { reason?: string }): Chain;
-  /**
-   * Стирает историю удалённых объектов шага: все их версии в журнале, от каждого остаётся одна запись `purge`. Удалённые
-   * объекты шаг находит сам, без `withDeleted()`. Без `{ confirm: true }` — предпросмотр: ничего не стирается, терминал
-   * вернёт надгробия с `$versions` — сколько версий сотрётся.
-   */
-  purge(opts?: { confirm?: boolean; reason?: string }): Chain;
-  /**
-   * Новое значение ключа объектов шага. id вычисляется из ключа, поэтому объект получает новый id: ссылки других строк
-   * на него переводятся на новый id, а журнал связывает старый id с новым.
-   */
-  rekey(patch: Record<string, unknown>, opts?: { reason?: string }): Chain;
   /** Кэш результатов (§2.12): ответ хранится в памяти процесса ttl секунд (по умолчанию 60). */
   cache(opts?: { ttl?: number }): Chain;
 }
@@ -211,6 +195,8 @@ export type StepFn = ((filter?: Filter) => Chain) & {
   remove(value: unknown): Chain;
 };
 export type Chain = ChainCore & { [className: string]: StepFn };
+/** Любая цепочка — с типами по моделям (`TypedChain`) или без них (`Chain`): аргумент `entity()` и значение слота. */
+export type ChainRef = Pick<ChainCore, 'ids'>;
 
 /** Внутренний канал: план чужой ленивой цепочки (entity()). */
 export const PLAN: unique symbol = Symbol('letopis.plan');
@@ -240,8 +226,12 @@ export function lookupStep(reg: Registry, name: string): { cls: ClassInfo; role?
   return t ? { cls: t, role: name } : undefined;
 }
 
-const unknownName = (name: string): never => {
-  throw new LetopisError('invalid_class', `класс или роль ${name} не найдены`);
+/** Имена, которыми начинается шаг: классы, их алиасы и роли концов реестра. */
+const stepNames = (reg: Registry): string[] => reg.all().flatMap((c) => [c.name, ...(c.alias ? [c.alias] : []), ...Object.keys(c.ends)]);
+
+/** Неизвестный класс или роль — с похожими именами реестра (план 2.0, 7.9 №6). */
+const unknownName = (reg: Registry, name: string): never => {
+  throw lerr('api.unknown_step', { name, similar: similar(name, stepNames(reg)) });
 };
 
 const nodeOf = (steps: Step[], s: Step): Step =>
@@ -258,13 +248,13 @@ function pivotNodeOf(steps: Step[], cls: string): Step | undefined {
 }
 
 const noHistoryWarned = new Set<string>();
-function warnNoHistory(steps: Step[], method: 'versions' | 'asOf' | 'diff' | 'blame'): void {
+function warnNoHistory(steps: Step[], method: 'versions' | 'asOf'): void {
   const cls = steps[steps.length - 1]?.cls;
   if (!cls || cls.history !== false) return;
   const key = `${cls.name}|${method}`;
   if (noHistoryWarned.has(key)) return;
   noHistoryWarned.add(key);
-  console.warn(`letopis: .${method}() у класса ${cls.name} без журнала (history: false) — истории нет`);
+  lwarn('api.no_history', { method, cls: cls.name });
 }
 
 function report(ctx: ChainCtx, mode: QueryEvent['mode'], steps: Step[], t0: number, rows: number): void {
@@ -273,7 +263,7 @@ function report(ctx: ChainCtx, mode: QueryEvent['mode'], steps: Step[], t0: numb
   const slow = ctx.slowMs !== undefined && ms > ctx.slowMs;
   const classes = steps.map((s) => s.cls.name);
   if (ctx.onQuery) ctx.onQuery({ mode, classes, ms, rows, slow });
-  else if (slow) console.warn(`letopis: медленный запрос ${ms.toFixed(0)} мс — ${mode} ${classes.join('→')}`);
+  else if (slow) lwarn('api.slow_query', { ms: ms.toFixed(0), mode, classes: classes.join('→') });
 }
 
 /** Классы, которые читает цепочка (семейства шагов): по ним сбрасывается её ответ в кэше. */
@@ -321,7 +311,7 @@ async function exec<T>(ctx: ChainCtx, q: BuiltQuery, mode: QueryEvent['mode'], s
 
 async function read<T>(ctx: ChainCtx, steps: Step[], mods: ChainMods, mode: ReadMode, agg?: AggSpec): Promise<{ q: BuiltQuery | null; res: T[] }> {
   const hasOps = steps.some((s) => s.op);
-  if (ctx.batch && hasOps) throw new LetopisError('invalid_query', 'план стоит в очереди батча — его исполнит batch.run()');
+  if (ctx.batch && hasOps) throw lerr('api.batch_queued');
   if (mods.forUpdate) return lockedRead(ctx, steps, mods, mode) as Promise<{ q: BuiltQuery | null; res: T[] }>;
   if (hasOps) return plan(ctx, steps, mods, mode, agg) as Promise<{ q: BuiltQuery | null; res: T[] }>;
   const { cache: _c, ...plain } = mods;
@@ -337,16 +327,22 @@ function modName(mods: ChainMods): string | undefined {
 }
 
 function afterVerbError(name: string, verb: string): LetopisError {
-  return new LetopisError('invalid_query',
-    `${name}() после ${verb}() ни на что не действует: глагол проходит по всем целям шага, а ответ — его строки. ` +
-    `Цели сужают limit(), offset() и sort() до глагола: db.Класс(…).limit(n).${verb}(…)`);
+  return lerr('api.mod_after_verb', { name, verb });
+}
+
+/**
+ * Курсор after() листает строки, а count() и агрегаты чтения считают по всем объектам шага: раньше курсор там молча не
+ * учитывался, с 2.0 — invalid_query до запроса (план 2.0, этап 4, п. 2; 7.10 №7).
+ */
+function afterNotPaged(mods: ChainMods, fn: string): void {
+  if (mods.after !== undefined) throw lerr('api.after_not_paged', { fn });
 }
 
 /**
  * Терминалы rows, first, ids, count и paths цепочки, которая кончается глаголом, отдают строки самой правки.
  * Модификатор выборки между глаголом и терминалом ни на что не подействовал бы: limit резал бы только ответ, хотя
  * правка прошла по всем целям, остальные молча пропускались. Поэтому — отказ до записи. После глагола модификатор
- * относится к чтению за ним (шаг класса, versions(), diff(), blame(), агрегаты) или сужает цели следующего глагола.
+ * относится к чтению за ним (шаг класса, versions(), агрегаты) или сужает цели следующего глагола.
  */
 function checkAfterVerb(steps: Step[], mods: ChainMods): void {
   const op = steps[steps.length - 1]?.op;
@@ -359,7 +355,7 @@ function checkAfterVerb(steps: Step[], mods: ChainMods): void {
  * чтения (строки rows/paths, id, n, агрегаты), чтобы терминалы разбирали его одинаково.
  */
 async function plan(ctx: ChainCtx, steps: Step[], mods: ChainMods, mode: ReadMode, agg?: AggSpec): Promise<{ q: BuiltQuery | null; res: unknown[] }> {
-  precheckPlan(ctx.reg, steps);
+  precheckPlan(ctx.reg, steps, mods.order, agg);
   const t0 = performance.now();
   const r: PlanResult = await ctx.exec.run((q) => execPlan({ reg: ctx.reg, schema: ctx.schema, q, tenant: ctx.tenant(), owner: ctx.owner, ...reasons(ctx) }, steps, mods, mode, agg));
   if (r.kind === 'read') {
@@ -387,9 +383,9 @@ async function plan(ctx: ChainCtx, steps: Step[], mods: ChainMods, mode: ReadMod
  * заблокированная — acl_denied.
  */
 async function lockedRead(ctx: ChainCtx, steps: Step[], mods: ChainMods, mode: ReadMode): Promise<{ q: BuiltQuery | null; res: unknown[] }> {
-  if (!ctx.exec.explicit) throw new LetopisError('tx_required', 'forUpdate() — только внутри db.begin(): вне явной транзакции блокировка снялась бы сразу');
+  if (!ctx.exec.explicit) throw lerr('api.for_update_outside_tx');
   if ((mode !== 'rows' && mode !== 'ids') || mods.asOf !== undefined || mods.withDeleted || steps.some((s) => s.deepMax !== undefined || s.op)) {
-    throw new LetopisError('lock_unsupported', 'forUpdate() — с терминалами rows, first, ids, без агрегатов, asOf, versions, withDeleted, deep и глаголов');
+    throw lerr('api.for_update_unsupported');
   }
   const S = `"${ctx.schema.replace(/"/g, '""')}"`;
   const { forUpdate: _f, ...plain } = mods;
@@ -405,7 +401,7 @@ async function lockedRead(ctx: ChainCtx, steps: Step[], mods: ChainMods, mode: R
     const fresh = ((await q.unsafe(rowsQ.text, rowsQ.params as never[], { prepare: true })) as unknown as { row: Record<string, unknown> }[])
       .filter((r) => want.has(r.row.id as string));
     const denied = fresh.filter((r) => !locked.has(r.row.id as string)).map((r) => r.row.id as string);
-    if (denied.length) throw new LetopisError('acl_denied', `строки видны, но заблокировать их нельзя: ${denied.join(', ')}`, { ids: denied });
+    if (denied.length) throw lerr('api.lock_denied', { ids: denied.join(', ') }, { detail: { ids: denied } });
     return fresh;
   });
   report(ctx, mode, steps, t0, res.length);
@@ -416,20 +412,8 @@ async function lockedRead(ctx: ChainCtx, steps: Step[], mods: ChainMods, mode: R
 const reasons = (ctx: ChainCtx) => ({ reason: ctx.reason ?? ctx.txReason ?? '', txReason: ctx.txReason ?? '' });
 /** Опция reason глагола (план 1.1, §2.1): проверяет precheckPlan. */
 const reasonOf = (o?: { reason?: unknown }): { reason?: string } => (o?.reason !== undefined ? { reason: o.reason as string } : {});
-
-/** diff({ from, to }): номер версии (целое ≥ 1) или момент (ISO-строка, Date). */
-function versionRef(v: unknown, what: string, moments = true): number | string {
-  if (typeof v === 'number' && Number.isInteger(v) && v >= 1 && v <= 2147483647) return v;
-  if (moments && v instanceof Date && !Number.isNaN(+v)) return v.toISOString();
-  if (moments && typeof v === 'string' && !Number.isNaN(Date.parse(v))) return v;
-  throw new LetopisError('invalid_query', `${what}: номер версии (целое ≥ 1)${moments ? ' или момент (ISO-строка, Date)' : ''}`);
-}
-/** blame({ at }): момент (ISO-строка, Date). */
-function momentOf(v: unknown, what: string): string {
-  if (v instanceof Date && !Number.isNaN(+v)) return v.toISOString();
-  if (typeof v === 'string' && !Number.isNaN(Date.parse(v))) return v;
-  throw new LetopisError('invalid_query', `${what}: момент — ISO-строка или Date`);
-}
+/** Опция all у update() и delete({ confirm: true }): правка всех целей без фильтра (план 2.0, этап 4, п. 2). */
+const allOf = (o?: { all?: unknown }): { all?: true } => (o?.all === true ? { all: true } : {});
 
 /** Строка ответа: из чтения — to_jsonb узла, из плана — готовая строка записи. */
 const rowOf = (r: { row: Record<string, unknown>; done?: true }): Row => (r.done ? (r.row as unknown as WriteRow) : toRow(r.row));
@@ -445,7 +429,7 @@ function slotValue(v: unknown): SlotValue {
   if (v === null || typeof v === 'string') return v as SlotValue;
   if (Array.isArray(v)) return v.map((x) => (typeof x === 'string' ? x : (x as { id: string }).id));
   if (typeof v === 'object' && typeof (v as { id?: unknown }).id === 'string') return { id: (v as { id: string }).id };
-  throw new LetopisError('invalid_query', 'значение слота — id, список id, строка ответа или цепочка');
+  throw lerr('api.slot_value');
 }
 
 function classProp(ctx: ChainCtx, name: string, found: { cls: ClassInfo; role?: string }, ownerSteps: Step[] | undefined,
@@ -467,14 +451,14 @@ function classProp(ctx: ChainCtx, name: string, found: { cls: ClassInfo; role?: 
     const last = ownerSteps?.[ownerSteps.length - 1];
     const kind = last?.op?.kind;
     if (!last || (kind !== 'create' && kind !== 'update' && kind !== 'upsert')) {
-      throw new LetopisError('invalid_query', `слот .${name}.${op}() — после create(), update() или upsert(): db.Класс(…).update(…).${name}.${op}(…)`);
+      throw lerr('api.slot_without_write', { name, op });
     }
     const role = slotRole(ctx.reg, last.cls, name);
     const end = last.cls.ends[role];
-    if ((op === 'add' || op === 'remove') && !end.many) throw new LetopisError('invalid_query', `слот .${name}.${op}(): конец ${role} одиночный — set() или unset()`);
-    if (op === 'unset' && (end.required || (end.min ?? 0) > 0)) throw new LetopisError('invalid_query', `слот .${name}.unset(): конец ${role} обязателен`);
+    if ((op === 'add' || op === 'remove') && !end.many) throw lerr('api.slot_single', { name, op, role });
+    if (op === 'unset' && (end.required || (end.min ?? 0) > 0)) throw lerr('api.slot_required', { name, role });
     if ((op === 'set' || op === 'unset') && last.slots?.some((x) => x.role === role && (x.op === 'set' || x.op === 'unset'))) {
-      throw new LetopisError('invalid_query', `слот ${role} задан дважды в одной записи`);
+      throw lerr('api.slot_twice', { role });
     }
     const value = op === 'unset' ? null : slotValue(v);
     const next = ownerSteps!.slice();
@@ -500,7 +484,7 @@ export function makeChain(ctx: ChainCtx, steps: Step[], mods: ChainMods, nodes: 
   }
   const withLast = (patch: Partial<Step>): Chain => {
     const lastOp = steps[steps.length - 1]?.op;
-    if (lastOp) throw new LetopisError('invalid_query', `модификатор шага после ${lastOp.kind}() — сначала шаг класса`);
+    if (lastOp) throw lerr('api.step_mod_after_verb', { verb: lastOp.kind });
     const next = steps.slice();
     next[next.length - 1] = { ...steps[steps.length - 1], ...patch };
     return makeChain(ctx, next, mods, nodes);
@@ -519,7 +503,7 @@ export function makeChain(ctx: ChainCtx, steps: Step[], mods: ChainMods, nodes: 
   /** Глагол — звено плана на последнем шаге (глагол уже есть — новый шаг «те же сущности»); модификаторы — его целям. */
   const withOp = (op: PlanOp): Chain => {
     const last = steps[steps.length - 1];
-    if (!last) throw new LetopisError('invalid_query', `${op.kind}() — нужен шаг класса: db.Класс(…).${op.kind}(…)`);
+    if (!last) throw lerr('api.verb_without_step', { verb: op.kind });
     // батч: причина db.batch(имя, { reason }) — при постановке в очередь, а не при run(): очередь общая по имени, и
     // run() может позвать фасад без причины или с другой (ревью №1 точки А плана 1.1)
     if (ctx.batch && op.reason === undefined && ctx.reason !== undefined) op = { ...op, reason: ctx.reason };
@@ -533,7 +517,7 @@ export function makeChain(ctx: ChainCtx, steps: Step[], mods: ChainMods, nodes: 
   const entityStep = (x: unknown): Chain => {
     const plan = peekPlan(x);
     const prev = steps.length ? nodeOf(steps, steps[steps.length - 1]) : undefined;
-    if (plan?.steps.some((s) => s.op)) throw new LetopisError('invalid_query', 'entity() принимает читающий паттерн — цепочку с глаголами вклеить нельзя');
+    if (plan?.steps.some((s) => s.op)) throw lerr('api.entity_with_verbs');
     if (plan) {
       const known = nodes.get(x as object);
       if (known !== undefined) {
@@ -553,10 +537,11 @@ export function makeChain(ctx: ChainCtx, steps: Step[], mods: ChainMods, nodes: 
       if (prev) resolveHop(ctx.reg, prev, next);
       return makeChain(ctx, [...steps, next], mods, nodes);
     }
-    throw new LetopisError('invalid_query', 'entity() принимает ленивую цепочку или строку ответа');
+    throw lerr('api.entity_arg');
   };
 
   const agg = (fn: AggSpec['fn']) => async (field: string) => {
+    afterNotPaged(mods, fn);
     const { q, res } = await read<{ v?: unknown; k?: string; n?: number }>(ctx, steps, mods, 'agg', { fn, field });
     if (fn === 'countBy') return Object.fromEntries(res.map((r) => [r.k ?? 'null', r.n]));
     const v = res[0]?.v;
@@ -566,144 +551,111 @@ export function makeChain(ctx: ChainCtx, steps: Step[], mods: ChainMods, nodes: 
     return v;
   };
 
+  /** Свойство цепочки: метод или модификатор — функция, иначе шаг класса, алиаса или роли. */
+  const member = (prop: string): unknown => {
+    switch (prop) {
+      case 'then':
+        return undefined;
+      case 'entity':
+        return entityStep;
+      case 'paths':
+        return async () => {
+          checkAfterVerb(steps, mods);
+          // q === null — пути из результата глагола: строки уже готовы. Ключи — в порядке шагов (jsonb хранит их
+          // по длине), узел последнего шага — последним: по нему cursorOf(путь, поле) берёт курсор (план 2.0, 7.1 №3)
+          const { q, res } = await read<{ path: Record<string, Record<string, unknown>> }>(ctx, steps, mods, 'paths');
+          if (q === null) return res.map((r) => r.path as unknown as Path);
+          return res.map((r) => Object.fromEntries(q.keys.map((k) => [k, toRow(r.path[k])])) as Path);
+        };
+      case 'rows':
+        return async () => {
+          checkAfterVerb(steps, mods);
+          return (await read<{ row: Record<string, unknown>; done?: true }>(ctx, steps, mods, 'rows')).res.map(rowOf);
+        };
+      case 'first':
+        return async () => {
+          checkAfterVerb(steps, mods);
+          const { res } = await read<{ row: Record<string, unknown>; done?: true }>(ctx, steps, { ...mods, limit: 1 }, 'rows');
+          return res[0] ? rowOf(res[0]) : null;
+        };
+      case 'ids':
+        return async () => {
+          checkAfterVerb(steps, mods);
+          return (await read<{ id: string }>(ctx, steps, mods, 'ids')).res.map((r) => r.id);
+        };
+      case 'count':
+        return async (opts?: { paths?: boolean }) => {
+          checkAfterVerb(steps, mods);
+          afterNotPaged(mods, 'count');
+          return (await read<{ n: number }>(ctx, steps, mods, opts?.paths ? 'countPaths' : 'count')).res[0].n;
+        };
+      case 'versions':
+        return async () => {
+          warnNoHistory(steps, 'versions');
+          return (await read<{ row: Record<string, unknown> }>(ctx, steps, mods, 'versions')).res.map((r) => toRow(r.row));
+        };
+      case 'sum':
+      case 'avg':
+      case 'min':
+      case 'max':
+      case 'countBy':
+        return agg(prop);
+      case 'limit':
+        return (n: number) => withMods({ limit: n });
+      case 'offset':
+        return (n: number) => withMods({ offset: n });
+      case 'sort':
+        return (field: string, dir?: 'asc' | 'desc' | boolean) => withMods({ order: field, desc: dir === true || dir === 'desc' });
+      case 'asOf':
+        return (t: string | Date) => {
+          warnNoHistory(steps, 'asOf');
+          return withMods({ asOf: t instanceof Date ? t.toISOString() : t });
+        };
+      case 'after':
+        return (cursor: Cursor) => withMods({ after: cursor });
+      case 'withDeleted':
+        return () => withMods({ withDeleted: true });
+      case 'deep':
+        return (max = 32) => withLast({ deepMax: max });
+      case 'exact':
+        return () => withLast({ exact: true });
+      case 'alias':
+        return (name: string) => withLast({ aliasKey: name });
+      case 'tags':
+        return (v: unknown) => withLast({ tagsFilter: v });
+      case 'owner':
+        return (v: string | { id: string }) => withLast({ ownerFilter: typeof v === 'object' ? v.id : v });
+      // глаголы записи — звенья плана (этап 4)
+      case 'create':
+        return (data: Record<string, unknown> = {}, opts?: { reason?: string }) => withOp({ kind: 'create', data, ...reasonOf(opts) });
+      case 'update':
+        return (data: Record<string, unknown> = {}, opts?: { rev?: number; all?: boolean; reason?: string }) =>
+          withOp({ kind: 'update', data, ...(opts?.rev !== undefined ? { rev: opts.rev } : {}), ...allOf(opts), ...reasonOf(opts) });
+      case 'upsert':
+        return (data: Record<string, unknown> = {}, opts?: { reason?: string }) => withOp({ kind: 'upsert', data, ...reasonOf(opts) });
+      case 'delete':
+        return (opts?: { confirm?: boolean; all?: boolean; reason?: string }) => withOp({ kind: 'delete', confirm: opts?.confirm === true, ...allOf(opts), ...reasonOf(opts) });
+      case 'set': case 'unset': case 'add': case 'remove':
+        throw lerr('api.slot_method', { method: prop });
+      case 'forUpdate':
+        return () => withMods({ forUpdate: true });
+      case 'restore':
+        return (opts?: { reason?: string }) => withOp({ kind: 'restore', ...reasonOf(opts) });
+      case 'cache':
+        return (opts?: { ttl?: number }) => {
+          if (opts?.ttl !== undefined && !(opts.ttl > 0)) throw lerr('api.cache_ttl');
+          return withMods({ cache: opts ?? {} });
+        };
+    }
+    const found = lookupStep(ctx.reg, prop) ?? unknownName(ctx.reg, prop);
+    return classProp(ctx, prop, found, steps, mods, nodes);
+  };
+
   const handler: ProxyHandler<object> = {
     get(_t, prop) {
       if (prop === PLAN) return { steps, mods } satisfies PlanPeek;
       if (typeof prop === 'symbol') return undefined;
-      switch (prop) {
-        case 'then':
-          return undefined;
-        case 'entity':
-          return entityStep;
-        case 'paths':
-          return async () => {
-            checkAfterVerb(steps, mods);
-            // q === null — пути из результата глагола: строки уже готовы. Ключи — в порядке шагов (jsonb хранит их
-            // по длине), узел последнего шага — последним: по нему cursorOf(путь, поле) берёт курсор (план 2.0, 7.1 №3)
-            const { q, res } = await read<{ path: Record<string, Record<string, unknown>> }>(ctx, steps, mods, 'paths');
-            if (q === null) return res.map((r) => r.path as unknown as Path);
-            return res.map((r) => Object.fromEntries(q.keys.map((k) => [k, toRow(r.path[k])])) as Path);
-          };
-        case 'rows':
-          return async () => {
-            checkAfterVerb(steps, mods);
-            return (await read<{ row: Record<string, unknown>; done?: true }>(ctx, steps, mods, 'rows')).res.map(rowOf);
-          };
-        case 'first':
-          return async () => {
-            checkAfterVerb(steps, mods);
-            const { res } = await read<{ row: Record<string, unknown>; done?: true }>(ctx, steps, { ...mods, limit: 1 }, 'rows');
-            return res[0] ? rowOf(res[0]) : null;
-          };
-        case 'ids':
-          return async () => {
-            checkAfterVerb(steps, mods);
-            return (await read<{ id: string }>(ctx, steps, mods, 'ids')).res.map((r) => r.id);
-          };
-        case 'count':
-          return async (opts?: { paths?: boolean }) => {
-            checkAfterVerb(steps, mods);
-            return (await read<{ n: number }>(ctx, steps, mods, opts?.paths ? 'countPaths' : 'count')).res[0].n;
-          };
-        case 'versions':
-          return async (opts?: { follow?: boolean }) => {
-            warnNoHistory(steps, 'versions');
-            const m = opts?.follow ? { ...mods, follow: true } : mods;
-            return (await read<{ row: Record<string, unknown> }>(ctx, steps, m, 'versions')).res.map((r) => toRow(r.row));
-          };
-        case 'diff':
-          return async (opts: DiffOptions = {}) => {
-            warnNoHistory(steps, 'diff');
-            const hist = {
-              ...(opts.from !== undefined ? { from: versionRef(opts.from, 'diff({ from })') } : {}),
-              ...(opts.to !== undefined ? { to: versionRef(opts.to, 'diff({ to })') } : {}),
-              ...(opts.follow ? { follow: true } : {}),
-            };
-            return (await read<{ row: DiffResult }>(ctx, steps, { ...mods, hist }, 'diff')).res.map((r) => r.row);
-          };
-        case 'blame':
-          return async (opts: BlameOptions = {}) => {
-            warnNoHistory(steps, 'blame');
-            if (opts.limit !== undefined) versionRef(opts.limit, 'blame({ limit })', false);
-            const hist = {
-              ...(opts.at !== undefined ? { at: momentOf(opts.at, 'blame({ at })') } : {}),
-              ...(opts.limit !== undefined ? { limit: opts.limit } : {}),
-            };
-            // null — объекта на момент at не было (или он не виден)
-            return (await read<{ row: BlameResult | null }>(ctx, steps, { ...mods, hist }, 'blame')).res
-              .map((r) => r.row).filter((x): x is BlameResult => x !== null);
-          };
-        case 'sum':
-        case 'avg':
-        case 'min':
-        case 'max':
-        case 'countBy':
-          return agg(prop);
-        case 'limit':
-          return (n: number) => withMods({ limit: n });
-        case 'offset':
-          return (n: number) => withMods({ offset: n });
-        case 'sort':
-          return (field: string, dir?: 'asc' | 'desc' | boolean) => withMods({ order: field, desc: dir === true || dir === 'desc' });
-        case 'asOf':
-          return (t: string | Date) => {
-            warnNoHistory(steps, 'asOf');
-            return withMods({ asOf: t instanceof Date ? t.toISOString() : t });
-          };
-        case 'after':
-          return (cursor: Cursor) => withMods({ after: cursor });
-        case 'withDeleted':
-          return () => withMods({ withDeleted: true });
-        case 'deep':
-          return (max = 32) => withLast({ deepMax: max });
-        case 'exact':
-          return () => withLast({ exact: true });
-        case 'alias':
-          return (name: string) => withLast({ aliasKey: name });
-        case 'tags':
-          return (v: unknown) => withLast({ tagsFilter: v });
-        case 'owner':
-          return (v: string | { id: string }) => withLast({ ownerFilter: typeof v === 'object' ? v.id : v });
-        // охранники снесённого API (этап 3, п. 11)
-        case 'run':
-          throw removed('run()', 'paths()');
-        case 'execute':
-          throw removed('execute()', 'paths()');
-        case 'account':
-          throw removed('account()', 'арендатор сессии и auth.switch() (этап 5)');
-        // глаголы записи — звенья плана (этап 4)
-        case 'create':
-          return (data: Record<string, unknown> = {}, opts?: { reason?: string }) => withOp({ kind: 'create', data, ...reasonOf(opts) });
-        case 'update':
-          return (data: Record<string, unknown> = {}, opts?: { rev?: number; reason?: string }) =>
-            withOp({ kind: 'update', data, ...(opts?.rev !== undefined ? { rev: opts.rev } : {}), ...reasonOf(opts) });
-        case 'upsert':
-          return (data: Record<string, unknown> = {}, opts?: { reason?: string }) => withOp({ kind: 'upsert', data, ...reasonOf(opts) });
-        case 'delete':
-          return (opts?: { confirm?: boolean; reason?: string }) => withOp({ kind: 'delete', confirm: opts?.confirm === true, ...reasonOf(opts) });
-        case 'anonymize':
-          return (fields: string[], opts?: { reason?: string }) => withOp({ kind: 'anonymize', fields, ...reasonOf(opts) });
-        case 'reclass':
-          return (cls: string, data?: Record<string, unknown>, opts?: { reason?: string }) =>
-            withOp({ kind: 'reclass', cls, ...(data !== undefined ? { data } : {}), ...reasonOf(opts) });
-        case 'set': case 'unset': case 'add': case 'remove':
-          throw new LetopisError('invalid_query', `${prop}() — метод слота: db.Класс(…).update(…).Роль.${prop}(…)`);
-        case 'forUpdate':
-          return () => withMods({ forUpdate: true });
-        case 'restore':
-          return (opts?: { reason?: string }) => withOp({ kind: 'restore', ...reasonOf(opts) });
-        case 'purge':
-          return (opts?: { confirm?: boolean; reason?: string }) => withOp({ kind: 'purge', confirm: opts?.confirm === true, ...reasonOf(opts) });
-        case 'rekey':
-          return (patch: Record<string, unknown>, opts?: { reason?: string }) => withOp({ kind: 'rekey', data: patch ?? {}, ...reasonOf(opts) });
-        case 'cache':
-          return (opts?: { ttl?: number }) => {
-            if (opts?.ttl !== undefined && !(opts.ttl > 0)) throw new LetopisError('invalid_query', 'cache({ ttl }): срок — положительное число секунд');
-            return withMods({ cache: opts ?? {} });
-          };
-      }
-      const found = lookupStep(ctx.reg, prop) ?? unknownName(prop);
-      return classProp(ctx, prop, found, steps, mods, nodes);
+      return member(prop);
     },
   };
   return new Proxy({}, handler) as Chain;
@@ -715,39 +667,40 @@ export function makeChain(ctx: ChainCtx, steps: Step[], mods: ChainMods, nodes: 
  * и общей с другими фасадами быть не может: иначе план исполнился бы от имени чужого актора.
  */
 export function makeBatch(ctx: ChainCtx, queue: BatchEntry[]): Batch {
+  const member = (prop: string): unknown => {
+    switch (prop) {
+      case 'run':
+        return async () => {
+          const entries = queue.splice(0, queue.length);
+          const loose = entries.find((x) => x.loose)?.loose;
+          if (loose) throw afterVerbError(loose.name, loose.verb);
+          const plans = entries.map((x) => x.steps);
+          for (const p of plans) precheckPlan(ctx.reg, p);
+          if (!plans.length) return [];
+          return ctx.exec.run((q) => execBatch({ reg: ctx.reg, schema: ctx.schema, q, tenant: ctx.tenant(), owner: ctx.owner, ...reasons(ctx) }, plans));
+        };
+      case 'discard':
+        return () => void queue.splice(0, queue.length);
+      case 'size':
+        return () => queue.length;
+    }
+    return startStep({ ...ctx, batch: { queue } }, prop);
+  };
   return new Proxy({}, {
     get(_t, prop) {
       if (typeof prop === 'symbol' || prop === 'then') return undefined;
-      switch (prop) {
-        case 'run':
-          return async () => {
-            const entries = queue.splice(0, queue.length);
-            const loose = entries.find((x) => x.loose)?.loose;
-            if (loose) throw afterVerbError(loose.name, loose.verb);
-            const plans = entries.map((x) => x.steps);
-            for (const p of plans) precheckPlan(ctx.reg, p);
-            if (!plans.length) return [];
-            return ctx.exec.run((q) => execBatch({ reg: ctx.reg, schema: ctx.schema, q, tenant: ctx.tenant(), owner: ctx.owner, ...reasons(ctx) }, plans));
-          };
-        case 'execute':
-          throw removed('batch.execute()', 'batch.run()');
-        case 'discard':
-          return () => void queue.splice(0, queue.length);
-        case 'size':
-          return () => queue.length;
-      }
-      return startStep({ ...ctx, batch: { queue } }, prop);
+      return member(prop);
     },
   }) as Batch;
 }
 
 /** Старт пути от корня db: класс, алиас или роль. */
 export function startStep(ctx: ChainCtx, name: string): StepFn {
-  const found = lookupStep(ctx.reg, name) ?? unknownName(name);
+  const found = lookupStep(ctx.reg, name) ?? unknownName(ctx.reg, name);
   return classProp(ctx, name, found, undefined, {}, NO_NODES);
 }
 
 /** Старт пути с готового узла: db.entity(row | цепочка). */
-export function startEntity(ctx: ChainCtx, x: Chain | Row): Chain {
+export function startEntity(ctx: ChainCtx, x: ChainRef | Row): Chain {
   return makeChain(ctx, [], {}, NO_NODES).entity(x);
 }

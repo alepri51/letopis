@@ -1,0 +1,132 @@
+{
+  "id": "ops/03-cli",
+  "context": {
+    "schema": "v2.g_ops_03_cli",
+    "dsn": {
+      "admin": "postgres://postgres:test@localhost:15433/letopis",
+      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
+    },
+    "user": {
+      "login": "anna@romashka.ru",
+      "password": "Ромашка-2026!"
+    },
+    "up": {
+      "serviceKey": "lts_49863f952c7a6041b00609ec9dc9e2db0d0634a8b7349a6418a7441afbdb4048",
+      "tenant": {
+        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
+        "token": "9edd7a5ef652dfda44247bd4a708ae1641cfba611127960899b5d299acc0d980",
+        "created": true
+      }
+    }
+  },
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": {
+        "сухой прогон": "сухой прогон: создать 7, изменить 0, без изменений 0, системных 0",
+        "--check до --apply, код": 1,
+        "с --apply": "применено: создать 7, изменить 0, без изменений 0, системных 0",
+        "--check после --apply, код": 0
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": [
+        "Class"
+      ]
+    },
+    {
+      "result": {
+        "код выхода": 0,
+        "начало файла": [
+          "export interface CategoryData {",
+          "export interface CategoryLinks {",
+          "export interface CategoryModel {",
+          "export interface CustomerData {"
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "код выхода": 1,
+        "ошибка": "letopis: no_session: нет действующей сессии",
+        "файл прежний": true
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "код выхода": 0,
+        "report": {
+          "rows": 2,
+          "loaded": 2,
+          "updated": 0,
+          "skipped": 0,
+          "duplicates": 0,
+          "byClass": {
+            "Shop": 2
+          },
+          "external": 0,
+          "portions": 1,
+          "ms": 221.25969999999506
+        }
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": [
+        "Shop"
+      ]
+    },
+    {
+      "result": {
+        "код выхода": 0,
+        "отчёт": {
+          "skipped": false,
+          "sessions": 0,
+          "codes": 0,
+          "queue": 0
+        }
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": [
+        "letopis_model",
+        "letopis_query",
+        "letopis_history"
+      ],
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    }
+  ]
+}

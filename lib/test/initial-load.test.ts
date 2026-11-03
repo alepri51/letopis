@@ -1,19 +1,17 @@
 /**
- * initial-load — первая заливка (план 1.1, §2.3, этап 3; тест-план §7.4 №1–9, №11 — замер
- * bench/initial-load.mjs): равенство с обычным загрузчиком (строки, журнал, хэши, verify), структура
- * и режимы триггеров после перестройки, seq и tx системных строк, непустая схема, вставка во время
- * запуска, откат, пакетная вставка в WAL, commitEvery, импорт одной транзакцией.
+ * initial-load — первая заливка (план 1.1, §2.3, этап 3; тест-план §7.4 №1–8; №11 — замер bench/initial-load.mjs;
+ * №9 — импорт из 0.21 одной транзакцией и №10 — агрегаты в базе — сняты вместе с ними в 2.0.0): равенство с обычным
+ * загрузчиком (строки и журнал), структура и режимы триггеров после перестройки, seq и tx системных строк,
+ * непустая схема, вставка во время запуска, откат, пакетная вставка в WAL, commitEvery.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { engine, lt, waitForLock, SYSTEM_ID, type Engine } from './_engine.js';
 import { ADMIN_DSN, ident } from './_harness.js';
-import { connect, v5Id, type Db } from '../src/index.js';
+import { connect, type Db } from '../src/index.js';
 import { install } from '../src/up.js';
 import { initialSession } from '../src/load.js';
-import { import021 } from '../src/import.js';
 
 let e: Engine;
 let B: string;
@@ -55,10 +53,12 @@ const sysLog = (S: string) => e.sql.unsafe(`select id, rev, seq::text as seq, tx
   where class in ('Class', 'Account', 'member', 'Resource', 'rule') order by seq`);
 const dataCount = async (S: string) => (await e.sql.unsafe(`select count(*)::int as n from ${S}.entity where tenant = $1`, [T]))[0].n as number;
 const adminDb = (schema: string) => connect({ dsn: ADMIN_DSN, schema, allowBypassRls: true, listen: false, cache: false, max: 3 });
-/** Схема B заново пустая: reset({ all }), затем арендатор и классы. */
+/** Схема B заново пустая: установка заново (fresh), затем арендатор и классы; подключение к ней — тоже заново. */
 async function emptyB(): Promise<void> {
-  await b.reset({ level: 'all', confirm: B });
+  await b.close();
+  await install(e.sql, { schema: B, fresh: true });
   await prepare(SB);
+  b = await adminDb(B);
 }
 const loadEnv = (schema: string) => ({ sql: e.sql, schema, tenant: T, admin: true, ownerRole: 'letopis_owner' });
 
@@ -67,7 +67,7 @@ before(async () => {
   B = `${e.schema}_b`;
   SB = ident(B);
   await e.sql.unsafe(`drop schema if exists ${SB} cascade`);
-  await install(e.sql, { schema: B, allowReset: true });
+  await install(e.sql, { schema: B });
   await prepare(e.S);
   await prepare(SB);
   a = await adminDb(e.schema);
@@ -93,16 +93,14 @@ test('7.4 №1–3: равенство с обычным загрузчиком;
   const sys0 = await sysLog(SB);
   const reports = await initialSession(loadEnv(B), async (s) => [await s.load(rows(n)), await s.load(hist, { withHistory: true })]);
   assert.deepEqual(reports.map((r) => r.loaded), [n, 2000]);
-  // строки и журнал — те же; хэши режима истории (заданное время версий) — те же
+  // строки и журнал — те же; версии режима истории (заданное время версий) — те же
   const ent = (S: string) => e.sql.unsafe(`select id, rev, class, owner, links, data, tags, op, author, agent from ${S}.entity where tenant = $1 order by id`, [T]);
   const log = (S: string) => e.sql.unsafe(`select id, rev, class, data, links, op from ${S}.log where tenant = $1 order by id, rev`, [T]);
-  const hashes = (S: string) => e.sql.unsafe(`select id, rev, encode(hash, 'hex') as h, encode(prev_hash, 'hex') as p from ${S}.log
+  const hist2 = (S: string) => e.sql.unsafe(`select id, rev, at::text as at, author, agent from ${S}.log
     where tenant = $1 and data->>'name' like 'h-%' order by id, rev`, [T]);
   assert.deepEqual(await ent(SB), await ent(e.S));
   assert.deepEqual(await log(SB), await log(e.S));
-  assert.deepEqual(await hashes(SB), await hashes(e.S));
-  assert.equal((await b.verify()).ok, true);
-  assert.equal((await a.verify()).ok, true);
+  assert.deepEqual(await hist2(SB), await hist2(e.S));
   // структура восстановлена по каталогу, триггеры — ENABLE ALWAYS
   const cat1 = await catalog(B);
   assert.deepEqual(cat1, cat0);
@@ -111,7 +109,7 @@ test('7.4 №1–3: равенство с обычным загрузчиком;
   assert.deepEqual((await sysLog(SB)).slice(0, sys0.length), [...sys0]);
 });
 
-test('7.4 №4: непустая схема — not_empty до любых изменений; после reset({ all }) первая заливка работает', async () => {
+test('7.4 №4: непустая схема — not_empty до любых изменений; в установленной заново первая заливка работает', async () => {
   const cat0 = await catalog(B);
   const n0 = await dataCount(SB);
   await assert.rejects(b.load(rows(10, 'x'), { initial: true, tenant: T }), lt('not_empty'));
@@ -195,56 +193,4 @@ test('7.4 №8: commitEvery вместе с initial — отказ до отпр
   await assert.rejects(b.load(rows(10, 'c'), { initial: true, existing: 'skip', tenant: T }), lt('invalid_data'));
   assert.deepEqual(await catalog(B), cat0);
   assert.equal(await dataCount(SB), n0);
-});
-
-test('7.4 №9: letopis import --initial — одной транзакцией, данные обоих арендаторов', async () => {
-  const SRC = 'v1.t_initial_src';
-  const DST = 'v2.t_initial_imp';
-  await e.sql.unsafe(`drop schema if exists ${ident(SRC)} cascade`);
-  await e.sql.unsafe((await readFile(new URL('./fixtures/v021.sql', import.meta.url), 'utf8')).replaceAll('<SCHEMA>', SRC));
-  await e.sql.unsafe(`drop schema if exists ${ident(DST)} cascade`);
-  await install(e.sql, { schema: DST, allowReset: true });
-  await assert.rejects(import021({ from: ADMIN_DSN, fromSchema: SRC, dsn: ADMIN_DSN, schema: DST, tenant: 'Импорт', keyless: ['Service'], quiet: true, initial: true, update: true }),
-    lt('invalid_data'));
-  const r = await import021({ from: ADMIN_DSN, fromSchema: SRC, dsn: ADMIN_DSN, schema: DST, tenant: 'Импорт', keyless: ['Service'], quiet: true, initial: true });
-  assert.equal(r.verify.ok, true);
-  assert.ok(r.resources.skipped > 0, 'ресурсы сида пропущены, как без флага');
-  const tenants = [v5Id(SYSTEM_ID, 'Account', ['aaaaaaaa-0000-4000-8000-000000000001']), v5Id(SYSTEM_ID, 'Account', ['aaaaaaaa-0000-4000-8000-000000000002'])];
-  const per = await e.sql.unsafe(`select tenant, count(*)::int as n from ${ident(DST)}.entity where tenant = any ($1::uuid[]) group by tenant`, [tenants]);
-  assert.equal(per.length, 2, 'данные обоих арендаторов');
-  const [{ txs }] = await e.sql.unsafe(`select count(distinct tx)::int as txs from ${ident(DST)}.log where agent = 'letopis import'`);
-  assert.equal(txs, 1, 'весь импорт — одна транзакция');
-});
-
-test('7.4 №10: агрегаты — первая заливка операций в схему с агрегатом: итог равен сумме загруженных операций', async () => {
-  await emptyB();
-  const purse = { name: 'Purse', kind: 'hub', key: ['code'],
-    fields: { properties: { code: { type: 'string' }, total: { type: 'integer', minimum: 0 }, n: { type: 'integer' } }, required: ['code', 'total'] },
-    aggregate: { total: { sum: 'amount', of: 'Spend', via: 'Purse' }, n: { count: true, of: 'Spend', via: 'Purse' } } };
-  const spend = { name: 'Spend', kind: 'link', fields: { properties: { amount: { type: 'integer' } }, required: ['amount'] },
-    ends: { Purse: { class: 'Purse', required: true, onDelete: 'cascade' } } };
-  await e.sql.begin(async (tx) => {
-    await tx.unsafe('set local role letopis_owner');
-    for (const c of [purse, spend]) {
-      await tx.unsafe(`select ${SB}.sys_create(${SB}.v5_id($1::uuid, 'Class', array[$2]), 'Class', $1::uuid, '{}', $3::jsonb)`, [SYSTEM_ID, c.name, c as never]);
-    }
-  });
-  // переданное значение агрегатного поля загрузчик не пишет: итог считает база (agg_fill)
-  const purses = Array.from({ length: 50 }, (_, i) => ({ $class: 'Purse', code: `p${i}`, total: 999 }));
-  const spends = Array.from({ length: 5000 }, (_, i) => ({ $class: 'Spend', amount: (i % 7) + 1, Purse: { $key: [`p${i % 50}`] } }));
-  const r = await b.load([...purses, ...spends], { initial: true, tenant: T, batch: 1000 });
-  assert.equal(r.loaded, 5050);
-  const got = await e.sql.unsafe(`select p.data->>'code' as code, (p.data->>'total')::int as total, (p.data->>'n')::int as n, p.rev, p.data,
-      (select coalesce(sum((s.data->>'amount')::int), 0)::int from ${SB}.entity s where s.class = 'Spend' and s.links->>'Purse' = p.id::text) as want,
-      (select count(*)::int from ${SB}.entity s where s.class = 'Spend' and s.links->>'Purse' = p.id::text) as cnt,
-      (select l.data from ${SB}.log l where l.id = p.id order by l.rev desc limit 1) as last
-    from ${SB}.entity p where p.class = 'Purse' and p.tenant = $1 order by 1`, [T]);
-  assert.equal(got.length, 50);
-  for (const g of got) {
-    assert.deepEqual([g.total, g.n], [g.want, g.cnt], g.code as string);
-    assert.equal(g.rev, 1, 'одна версия: значение — в ней же');
-    assert.deepEqual(g.last, g.data, 'версия журнала — с тем же значением, что строка');
-  }
-  const v = await b.verify({ data: true });
-  assert.equal(v.ok, true, JSON.stringify(v.issues.slice(0, 5)));
 });
