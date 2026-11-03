@@ -6,27 +6,25 @@
 
 <!-- prerelease:start -->
 Прогоны — последний первым; строки шагов, не входивших в прогон, остаются из прежних (колонка «Прогон»):
-- 2026-11-03 04:52 UTC, версия 2.0.0-alpha.0, коммит 7419abc, с незакоммиченными правками: всё зелёное за 00:19 (шаги: typecheck, check:docs, coverage, lib build).
-- 2026-11-03 04:35 UTC, версия 2.0.0-alpha.0, коммит fb16dc4, с незакоммиченными правками: **упал** за 16:01 (шаги: scenario salon, scenario wallet, scenario helpdesk, scenario documents, soak, check:package).
-- 2026-11-03 04:18 UTC, версия 2.0.0-alpha.0, коммит fb16dc4: **упал** за 02:28 (шаги: typecheck, check:docs, guide typecheck, examples, er, coverage, site build, sandbox, lib build, scenario salon, scenario wallet, scenario helpdesk, scenario documents, soak, check:package).
+- 2026-11-03 09:10 UTC, версия 2.0.0-alpha.0, коммит 28ac0c9: всё зелёное за 18:41 (шаги: typecheck, check:docs, guide typecheck, examples, er, coverage, site build, sandbox, lib build, scenario salon, scenario wallet, scenario helpdesk, scenario documents, soak, check:package).
 
 | Шаг | Итог | Время | Подробности | Прогон |
 |---|---|---|---|---|
-| typecheck | ok | 00:04 |  | 2026-11-03 04:52 UTC, 7419abc |
-| check:docs | ok | 00:05 | 1.4.2 → 2.0.0-alpha.0 — шаг «мажор», изменения требуют не меньше чем «мажор» | 2026-11-03 04:52 UTC, 7419abc |
-| guide typecheck | ok | 00:03 |  | 2026-11-03 04:18 UTC, fb16dc4 |
-| examples | ok | 01:28 | все примеры прошли: 51 | 2026-11-03 04:18 UTC, fb16dc4 |
-| er | ok | 00:05 |  | 2026-11-03 04:18 UTC, fb16dc4 |
-| coverage | ok | 00:07 | 323 из 323 | 2026-11-03 04:52 UTC, 7419abc |
-| site build | ok | 00:28 |  | 2026-11-03 04:18 UTC, fb16dc4 |
-| sandbox | ok | 00:03 | снимок basics/01 совпал, без Origin — 403 | 2026-11-03 04:18 UTC, fb16dc4 |
-| lib build | ok | 00:03 |  | 2026-11-03 04:52 UTC, 7419abc |
-| scenario salon | ok | 00:13 | проверок 27 | 2026-11-03 04:35 UTC, fb16dc4 |
-| scenario wallet | ok | 00:09 | проверок 21 | 2026-11-03 04:35 UTC, fb16dc4 |
-| scenario helpdesk | ok | 00:34 | проверок 74 | 2026-11-03 04:35 UTC, fb16dc4 |
-| scenario documents | ok | 00:04 | проверок 24 | 2026-11-03 04:35 UTC, fb16dc4 |
-| soak | ok | 15:07 | критериев 8 из 8 | 2026-11-03 04:52 UTC, 7419abc |
-| check:package | ok | 00:14 | 54 экспортов | 2026-11-03 04:52 UTC, 7419abc |
+| typecheck | ok | 00:05 |  | 2026-11-03 09:10 UTC, 28ac0c9 |
+| check:docs | ok | 00:04 | 1.4.2 → 2.0.0-alpha.0 — шаг «мажор», изменения требуют не меньше чем «мажор» | 2026-11-03 09:10 UTC, 28ac0c9 |
+| guide typecheck | ok | 00:03 |  | 2026-11-03 09:10 UTC, 28ac0c9 |
+| examples | ok | 01:31 | все примеры прошли: 51 | 2026-11-03 09:10 UTC, 28ac0c9 |
+| er | ok | 00:10 |  | 2026-11-03 09:10 UTC, 28ac0c9 |
+| coverage | ok | 00:07 | 324 из 324 | 2026-11-03 09:10 UTC, 28ac0c9 |
+| site build | ok | 00:27 |  | 2026-11-03 09:10 UTC, 28ac0c9 |
+| sandbox | ok | 00:03 | снимок basics/01 совпал, без Origin — 403 | 2026-11-03 09:10 UTC, 28ac0c9 |
+| lib build | ok | 00:03 |  | 2026-11-03 09:10 UTC, 28ac0c9 |
+| scenario salon | ok | 00:06 | проверок 27 | 2026-11-03 09:10 UTC, 28ac0c9 |
+| scenario wallet | ok | 00:09 | проверок 21 | 2026-11-03 09:10 UTC, 28ac0c9 |
+| scenario helpdesk | ok | 00:35 | проверок 74 | 2026-11-03 09:10 UTC, 28ac0c9 |
+| scenario documents | ok | 00:04 | проверок 24 | 2026-11-03 09:10 UTC, 28ac0c9 |
+| soak | ok | 15:01 | критериев 8 из 8 | 2026-11-03 09:10 UTC, 28ac0c9 |
+| check:package | ok | 00:13 | 54 экспортов | 2026-11-03 09:10 UTC, 28ac0c9 |
 <!-- prerelease:end -->
 
 ## Срез S9 (план 2.0): заметки к прогонам
