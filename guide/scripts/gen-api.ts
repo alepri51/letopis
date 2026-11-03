@@ -7,7 +7,7 @@
  *
  * Инвентарь — из кода, как у scripts/coverage.ts: методы цепочки, корня и батча (CHAIN_METHODS, DB_METHODS,
  * BATCH_METHODS; объявления — ChainCore, StepFn, DbCore, Batch), члены AuthApi, AclApi, Subscription, Registry, End,
- * опции (ConnectOptions, UpOptions, …), экспорты точек входа (docs/api-contract.json), команды CLI (USAGE в
+ * опции (ConnectOptions, UpOptions, …), экспорты точек входа (lib/api-contract.json), команды CLI (USAGE в
  * lib/src/cli.ts), инструменты MCP (lib/src/mcp.ts). Сигнатуры и типы — TypeScript Compiler API, описания — JSDoc; чего
  * в JSDoc нет — coverage/api-docs.ts (ключ — id пункта, как в covers примеров). Ссылки на примеры — по covers примеров
  * guide/examples/**.
@@ -277,7 +277,7 @@ for (const m of classMembers('registry.ts', 'Registry')) add(memberItem(`registr
 for (const m of classMembers('model.ts', 'End')) add(memberItem(`end.${m.name!.getText()}`, `конец.${m.name!.getText()}${ts.isMethodDeclaration(m) ? '()' : ''}`, m));
 
 // экспорты точек входа
-const contract = JSON.parse(readFileSync(join(ROOT, '..', 'docs', 'api-contract.json'), 'utf8'));
+const contract = JSON.parse(readFileSync(join(ROOT, '..', 'lib', 'api-contract.json'), 'utf8'));
 const ENTRIES: [string, string, string][] = [['.', 'export', 'index.ts'], ['./model', 'model', 'model.ts'], ['./mcp', 'mcp', 'mcp.ts']];
 const exportedTypes = new Map<string, ts.Declaration>();
 for (const [entry, prefix, file] of ENTRIES) {

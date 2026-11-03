@@ -4,7 +4,7 @@
  *   npx tsx scripts/coverage.ts [--strict] [--list]
  *
  * Инвентарь собирается из кода, а не руками:
- * - экспорты точек входа, методы цепочки, `db` и батча — `docs/api-contract.json`;
+ * - экспорты точек входа, методы цепочки, `db` и батча — `lib/api-contract.json`;
  * - опции `connect`, `up`, `watch`, `load`, кэша, MCP, методы `db.auth`, свойства описания класса — члены интерфейсов
  *   в `lib/src`;
  * - коды ошибок — каталог базы (`LT_NAMES`), коды, которые бросает библиотека (`new LetopisError('…')`, `fail('…')`,
@@ -34,7 +34,7 @@ const add = (group: string, prefix: string, names: Iterable<string>) => {
 };
 
 // ---------- контракт API ----------
-const contract = JSON.parse(readFileSync(join(ROOT, '..', 'docs', 'api-contract.json'), 'utf8'));
+const contract = JSON.parse(readFileSync(join(ROOT, '..', 'lib', 'api-contract.json'), 'utf8'));
 add('экспорты letopis', 'export', contract.exports['.'].values);
 add('экспорты letopis/model', 'model', contract.exports['./model'].values);
 add('экспорты letopis/mcp', 'mcp', contract.exports['./mcp'].values);
