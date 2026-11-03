@@ -83,7 +83,7 @@ sequenceDiagram
   S->>DB: db.begin({ reason: 'подписан: …' })
   S->>DB: tr.Contract().create(данные черновика, signedBy).Party.set(контрагент)
   DB-->>S: договор — новый объект, id из класса и номера
-  S->>DB: tr.Draft(id).delete({ confirm: true, all: true }) — осознанно, без превью: надгробие, история остаётся
+  S->>DB: tr.Draft(id).delete({ confirm: true, all: true }) — осознанно, без предпросмотра: надгробие, история остаётся
   S->>DB: commit — записано всё или ничего
   U->>S: «История»
   S->>DB: Doc([id договора, idOf('Draft', { number })]).withDeleted().sort('at').versions()

@@ -53,7 +53,7 @@ export default example({
     {
       title: 'Олег пробует удалить товар — отказ базы',
       text:
-        'Запрет проверяет база, а не интерфейс: даже прямой вызов удаления — превью и `delete({ confirm: true, expect })` ' +
+        'Запрет проверяет база, а не интерфейс: даже прямой вызов удаления — предпросмотр и `delete({ confirm: true, expect })` ' +
         'по нему — получает `acl_denied`, ничего не удалено.',
       run: async () => {
         const shown = await asOleg.Product(d.mug).delete().rows();

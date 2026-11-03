@@ -8,7 +8,7 @@ import { erDiagram } from '../_shared/diagram.ts';
 const Shop = hub('Shop', { name: z.string(), city: z.string().optional() }, { key: ['name'] });
 const Category = hub('Category', { name: z.string() }, {
   key: ['name'],
-  ends: { Parent: one('Category').optional().onDelete('unset') }, // дерево: ссылка на родителя
+  ends: { Parent: one('Category').optional().onDelete('unset') }, // дерево: конец к родителю
 });
 const Product = hub('Product', { sku: z.string(), title: z.string(), price: z.number().int().min(0) }, {
   ends: { Shop, Category: many(Category, { max: 5, onDelete: 'unset' }) },

@@ -48,7 +48,7 @@ export default example({
         'Его сессии погашены до удаления, и сигнал об этом сбросил кэш подключения Бориса: тот же запрос с `.cache()` ' +
         'снова идёт в базу и по погашенной сессии ничего не находит. Сервис по токену Бориса получает `null`.',
       run: async ({ admin, schema, svc }) => {
-        const shown = await root.Account(boris.user!).delete().rows(); // превью: что удалится
+        const shown = await root.Account(boris.user!).delete().rows(); // предпросмотр: что удалится
         await root.Account(boris.user!).delete({ confirm: true, expect: shown }).rows();
         const left = await admin.unsafe(`select kind from "${schema}".secret where account = $1`, [boris.user!]);
         let cached = (await lutik.rule().cache().rows()).length;

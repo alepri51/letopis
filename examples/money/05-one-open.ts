@@ -128,7 +128,7 @@ export default example({
         'Возврат — удаление открытой выдачи. Следующая выдача той же вещи создаётся тем же ключом и продолжает ' +
         'историю: в журнале выдачи вещи идут версиями одного объекта.',
       run: async ({ db }) => {
-        const open = await db.Item(ball).OpenLoan().delete().rows(); // превью: что закроется
+        const open = await db.Item(ball).OpenLoan().delete().rows(); // предпросмотр: что закроется
         await db.Item(ball).OpenLoan().delete({ confirm: true, expect: open, reason: 'вернули' }).rows();
         await db.Item(ball).OpenLoan().create({ since: '2026-11-04' }).Member.set(petr).rows();
         return (await db.Item(ball).OpenLoan().versions()).map((v) => `v${v.rev} ${v.op} — ${who(v.links.Member)}`);
@@ -141,7 +141,7 @@ export default example({
         '`Member`). Ответ `delete` — надгробия этого удаления: у каждой строки `id`, `rev` надгробия и причина. Причину ' +
         'делайте своей для каждого удаления — по ней потом находят его каскад.',
       run: async ({ db }) => {
-        const preview = await db.Member(petr).delete().rows(); // превью: Пётр и его открытая выдача
+        const preview = await db.Member(petr).delete().rows(); // предпросмотр: Пётр и его открытая выдача
         const gone = await db.Member(petr).delete({ confirm: true, expect: preview, reason: 'удалён по ошибке (оп. 41)' }).rows();
         loanId = gone.find((r) => r.class === 'OpenLoan')!.id;
         return gone.map((r) => ({ class: r.class, rev: r.rev, deleted: r.$deleted, reason: r.reason }));
@@ -155,7 +155,7 @@ export default example({
         'Историю удалённой строки показывает `versions()` по её id — шаг с явным id берёт и удалённые.',
       run: async ({ db }) => {
         await db.Item(ball).OpenLoan().create({ since: '2026-11-05' }).Member.set(anna).rows();
-        const open = await db.Item(ball).OpenLoan().delete().rows(); // превью: что закроется
+        const open = await db.Item(ball).OpenLoan().delete().rows(); // предпросмотр: что закроется
         await db.Item(ball).OpenLoan().delete({ confirm: true, expect: open, reason: 'вернули' }).rows();
         return (await db.OpenLoan(loanId).versions())
           .map((v) => `v${v.rev} ${v.op} — ${who(v.links.Member)}${v.reason ? ` (${v.reason})` : ''}`);
