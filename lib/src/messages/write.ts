@@ -94,12 +94,13 @@ export const write = {
     code: 'invalid_query',
     ru: 'update(patch, { rev }): rev — номер версии строки',
   },
-  // write.ts:precheckPlan — update() или delete({ confirm: true }), а ни у одного шага до глагола нет фильтра, id,
-  // tags(), owner() или limit() (план 2.0, этап 4, п. 2; 7.10 №2); call — сам вызов, cls — класс шага глагола
+  // write.ts:precheckPlan (narrowed) — update() или delete({ confirm: true }), а ни у шага глагола, ни у шагов до него нет
+  // фильтра, id, непустого tags(), owner() или limit() и раньше в цепочке нет create() или upsert(); у update() цель
+  // задаёт и data.id патча (план 2.0, этап 4, п. 2; 7.10 №2); call — сам вызов, cls — класс шага глагола
   'write.no_filter': {
     code: 'invalid_query',
-    ru: '{call} без фильтра ({cls}): ни у одного шага нет фильтра, id или limit() — правка прошла бы по всем строкам',
-    hint: 'сузить цели фильтром, id или limit(); правка всех строк — опция глагола { all: true }',
+    ru: '{call} без фильтра ({cls}): ни у шага глагола, ни у шагов до него нет фильтра, id, непустого tags(), owner() или limit(), и раньше в цепочке нет create() или upsert() — правка прошла бы по всем строкам',
+    hint: 'сузить цели фильтром, id, tags(), owner() или limit() (цель update() задаёт и data.id патча); правка всех строк — опция глагола { all: true }',
   },
   // слот после глагола, который слотов не принимает
   'write.slot_bad_verb': {

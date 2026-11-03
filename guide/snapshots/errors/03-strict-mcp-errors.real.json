@@ -11,11 +11,11 @@
       "password": "Ромашка-2026!"
     },
     "up": {
-      "serviceKey": "lts_f7175e68096b6e5309b01d0c995ec080f9139959894ba9d1e9502f654eaafbdb",
+      "serviceKey": "lts_1d8b85dbcffb4ef4fb56f0c31b02d63ecac37e780d1bc3eb561ee59c142bb0a8",
       "tenant": {
         "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
         "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "303e08ceb3864aec2fb1d89a12a1777516432c25b1f388167d8c9ee48921cb58",
+        "token": "2bbbc6bde609d0889c2e84725e39657d4b97f518209cf23f02da96528410f67b",
         "created": true
       }
     }
@@ -30,7 +30,7 @@
       "result": null,
       "error": {
         "code": "invalid_query",
-        "message": "letopis: invalid_query: update() без фильтра (Product): ни у одного шага нет фильтра, id или limit() — правка прошла бы по всем строкам",
+        "message": "letopis: invalid_query: update() без фильтра (Product): ни у шага глагола, ни у шагов до него нет фильтра, id, непустого tags(), owner() или limit(), и раньше в цепочке нет create() или upsert() — правка прошла бы по всем строкам",
         "detail": null
       },
       "entity": [],
@@ -68,7 +68,7 @@
       "result": null,
       "error": {
         "code": "invalid_query",
-        "message": "letopis: invalid_query: delete({ confirm: true }) без фильтра (Category): ни у одного шага нет фильтра, id или limit() — правка прошла бы по всем строкам",
+        "message": "letopis: invalid_query: delete({ confirm: true }) без фильтра (Category): ни у шага глагола, ни у шагов до него нет фильтра, id, непустого tags(), owner() или limit(), и раньше в цепочке нет create() или upsert() — правка прошла бы по всем строкам",
         "detail": null
       },
       "entity": [],

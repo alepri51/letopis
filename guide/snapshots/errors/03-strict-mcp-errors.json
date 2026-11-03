@@ -53,7 +53,7 @@
       "result": null,
       "error": {
         "code": "invalid_query",
-        "message": "letopis: invalid_query: update() без фильтра (Product): ни у одного шага нет фильтра, id или limit() — правка прошла бы по всем строкам",
+        "message": "letopis: invalid_query: update() без фильтра (Product): ни у шага глагола, ни у шагов до него нет фильтра, id, непустого tags(), owner() или limit(), и раньше в цепочке нет create() или upsert() — правка прошла бы по всем строкам",
         "detail": null,
         "expected": true
       },
@@ -108,7 +108,7 @@
       "result": null,
       "error": {
         "code": "invalid_query",
-        "message": "letopis: invalid_query: delete({ confirm: true }) без фильтра (Category): ни у одного шага нет фильтра, id или limit() — правка прошла бы по всем строкам",
+        "message": "letopis: invalid_query: delete({ confirm: true }) без фильтра (Category): ни у шага глагола, ни у шагов до него нет фильтра, id, непустого tags(), owner() или limit(), и раньше в цепочке нет create() или upsert() — правка прошла бы по всем строкам",
         "detail": null,
         "expected": true
       },
