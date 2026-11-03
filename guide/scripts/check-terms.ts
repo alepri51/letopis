@@ -7,8 +7,8 @@
  *   HTML-тегов и комментариев; подписи схем mermaid — текст страницы, они в счёт;
  * - то же в текстах примеров examples/** (title, summary, заголовки и тексты шагов — из исходника, без запуска),
  *   в описаниях справочника coverage/api-docs.ts и в схемах-плеерах .vitepress/theme/flows.ts;
- * - глоссарий: у каждой строки есть термин в terms.ts (первое слово строки) с тем же английским соответствием
- *   (колонка «По-английски»), у каждого термина terms.ts есть строка.
+ * - глоссарий: у каждой строки есть термин в terms.ts (первое слово строки), у каждого термина terms.ts есть строка
+ *   (английской колонки нет: документация только на русском, английский снят в 2.0.0).
  * Страницы справочника (pages/reference/) и ошибок (pages/errors/) собраны из исходников lib — JSDoc и каталога
  * сообщений, которые сайт не правит: нарушения там только печатаются (предупреждение), правятся в lib. Описания
  * справочника, которые пишет сайт (coverage/api-docs.ts), проверяются строго.
@@ -138,12 +138,9 @@ for (const f of walk(join(ROOT, 'examples'), '.ts')) strings += scanTs(f, hits, 
 strings += scanTs(join(ROOT, 'coverage', 'api-docs.ts'), hits);
 strings += scanTs(join(ROOT, '.vitepress', 'theme', 'flows.ts'), hits);
 
-// 3. глоссарий: строки ↔ terms.ts, колонка «По-английски»
+// 3. глоссарий: строки ↔ terms.ts
 const plain = (s: string) => s.replace(/\[([^\]]+)\]\([^)]*\)/g, '$1').replace(/`([^`]+)`/g, '$1').replace(/\*\*([^*]+)\*\*/g, '$1').trim();
 const gloss = readFileSync(join(ROOT, 'pages', 'glossary', 'index.md'), 'utf8').replace(/\r\n/g, '\n').split('\n');
-const head = gloss.find((l) => l.startsWith('| Термин'))?.split('|').map((c) => c.trim()) ?? [];
-const enCol = head.indexOf('По-английски');
-if (enCol < 0) errors.push('глоссарий: нет колонки «По-английски»');
 const byTerm = new Map(terms.map((t) => [t.term, t]));
 const seen = new Set<string>();
 gloss.forEach((l, i) => {
@@ -154,8 +151,6 @@ gloss.forEach((l, i) => {
   if (!t) { errors.push(`pages/glossary/index.md:${i + 1}: термина «${first}» нет в coverage/terms.ts`); return; }
   if (seen.has(first)) errors.push(`pages/glossary/index.md:${i + 1}: термин «${first}» — второй раз`);
   seen.add(first);
-  const en = plain(cells[enCol] ?? '');
-  if (enCol >= 0 && en !== t.en) errors.push(`pages/glossary/index.md:${i + 1}: «${first}» по-английски «${en}», в coverage/terms.ts — «${t.en}»`);
 });
 for (const t of terms) if (!seen.has(t.term)) errors.push(`coverage/terms.ts: термина «${t.term}» нет в глоссарии (pages/glossary/index.md)`);
 

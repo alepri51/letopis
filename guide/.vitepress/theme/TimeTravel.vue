@@ -25,7 +25,7 @@ onMounted(async () => {
 
 const cur = computed(() => versions.value[k.value] ?? null);
 const prev = computed(() => (k.value > 0 ? versions.value[k.value - 1] : null));
-const gone = computed(() => cur.value?.op === 'delete' || cur.value?.op === 'purge');
+const gone = computed(() => cur.value?.op === 'delete');
 const fmt = (v: unknown) => (v === null || v === undefined ? '—' : typeof v === 'object' ? JSON.stringify(v) : String(v));
 const keys = computed(() => [...new Set([...Object.keys(prev.value?.data ?? {}), ...Object.keys(cur.value?.data ?? {})])]);
 const changed = (key: string) => !!prev.value && fmt(prev.value.data?.[key]) !== fmt(cur.value?.data?.[key]);
@@ -38,7 +38,6 @@ const OPS: Record<string, string> = {
   update: 'изменён',
   delete: 'удалён — в журнале надгробие с последним снимком',
   restore: 'возвращён последним снимком',
-  purge: 'история стёрта',
 };
 </script>
 
@@ -92,7 +91,7 @@ const OPS: Record<string, string> = {
         <template v-else>
           Так объект вернёт <code>asOf(момент)</code> для любого момента
           <template v-if="next">от {{ cur.at }} до {{ next.at }} (следующая версия)</template><template v-else>начиная с {{ cur.at }}</template>.
-          Подсвечены поля, изменённые этой версией; <code>diff()</code> даёт то же самое списком.
+          Подсвечены поля, которые эта версия изменила по сравнению с предыдущей.
         </template>
       </p>
     </template>
@@ -121,7 +120,7 @@ const OPS: Record<string, string> = {
 .lt-tt-tick { font-size: 12px; border: 1px solid var(--vp-c-divider); border-radius: 6px; padding: 1px 8px; background: var(--vp-c-default-soft); cursor: pointer; }
 .lt-tt-tick.op-create { background: var(--vp-c-green-soft); }
 .lt-tt-tick.op-update { background: var(--vp-c-warning-soft); }
-.lt-tt-tick.op-delete, .lt-tt-tick.op-purge { background: var(--vp-c-danger-soft); }
+.lt-tt-tick.op-delete { background: var(--vp-c-danger-soft); }
 .lt-tt-tick.op-restore { background: var(--vp-c-brand-soft); }
 .lt-tt-tick.active { outline: 2px solid var(--vp-c-brand-1); font-weight: 600; }
 .lt-tt-head { margin: 4px 0 8px; }
