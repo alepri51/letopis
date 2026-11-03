@@ -4,6 +4,91 @@
 «Версии и совместимость» в README; шаг версии сверяет `npm run check:semver`. С 1.4.2 у правки ядра (библиотеки и SQL)
 в конце пункта указан источник находки: «Источник: тест», «пример», «сервис», «ревью», «soak» или «внедрение».
 
+## [3.0.0] — 2026-11-03
+
+Мажор: безопасность по умолчанию и журнал событий. Удаление и восстановление без сверки с тем, что видел пользователь,
+теперь отказ, а не молчаливое действие; `createTenant` проверяет свой первый аргумент; вместо голых `TypeError` и
+вводящих в заблуждение отказов — ошибки letopis с подсказкой. Ревизия движка 9 → 10: схему 2.x обновляет
+`up({ schema, upgrade: true })` (миграция `sql/migrate/0010-impersonation-no-account.sql`, новое тело `ctx()`).
+
+### Переход на 3.0
+Что ломается и как переписать:
+
+- **`delete({ confirm: true })` без `expect`** — отказ `invalid_query`, ключ `write.confirm_without_expect`, ничего не
+  удалено. Удаляйте ровно показанное превью:
+
+  ```ts
+  const preview = await db.Item(id).delete().rows();          // показать пользователю
+  await db.Item(id).delete({ confirm: true, expect: preview }).rows();
+  ```
+
+  Где удаление без превью — осознанный замысел (служебная чистка, удаление, подтверждённое в окне без показа
+  каскада), — `delete({ confirm: true, all: true })`: удалить текущий состав целей без сверки (без фильтра — все
+  строки класса, как прежде `all: true`). Правило одно для цепочек, `db.begin()`, `db.batch()` и `db.as()`.
+- **`restore()` без `expect`** — отказ `invalid_query`, ключ `write.restore_without_expect`, ничего не восстановлено, и
+  для явных id тоже (`db.Item(id).restore()`): между удалением и восстановлением объект могли вернуть, изменить и удалить
+  снова — `restore()` вернул бы надгробие, которого пользователь не видел. Передавайте надгробия:
+
+  ```ts
+  const gone = await db.Item(id).delete({ confirm: true, expect: preview }).rows();
+  await db.Item(id).restore({ expect: gone }).rows();
+  // или по корзине: const tomb = await db.Item(id).withDeleted().rows(); restore({ expect: tomb })
+  ```
+
+  Вернуть то, что можно, — `restore({ expect, partial: true })`; осознанно вернуть все удалённые цели шага без сверки —
+  `restore({ all: true })`. Предупреждение `write.restore_no_filter` снято: без `expect` и `all` теперь отказ.
+- **`createTenant(admin, …)`** — `admin` обязан быть пулом `postgres()` (функция с `begin` и `unsafe`); строка DSN,
+  подключение `connect()` letopis, `undefined` или другой объект — отказ `invalid_query`, ключ
+  `api.create_tenant_admin` (раньше — `TypeError: sql.begin is not a function`). Имя схемы нормализуется как в
+  `connect()` и `up()`: `createTenant(admin, 'salon', …)` работает со схемой `v2.salon` (раньше — сырая ошибка
+  PostgreSQL `42P01`).
+- Типы опций: `delete(opts?: DeleteOptions)` и `restore(opts: RestoreOptions)` (новые экспортируемые типы) —
+  `delete({ confirm: true })` без `expect` и `all`, а также `restore()` без аргумента TypeScript отклоняет при
+  компиляции. `confirm` — литерал `true`, а не `boolean`.
+- `svc.as(id)` с id аккаунта, которого нет (не заводили или удалён), — `target_not_found`, ключ
+  `sql-core.impersonation_no_account` «аккаунт … не найден» (раньше — `acl_denied` «действовать от имени этого аккаунта
+  нельзя», как запрет прав). Запрет (System, сервис, системный администратор, выключенный аккаунт) — как прежде
+  `acl_denied`.
+- Связь, переданная полем данных (`create({ …, Member: id })`), — `invalid_data` с новым ключом `write.link_in_data`
+  вместо `api.validation_failed_end`: текст сам называет ключи и синтаксис `.Роль.set(id)`. Ключ находит и имя класса
+  на конце, если роль называется иначе. Код ошибки прежний.
+
+### Логирование
+- Журнал событий: `connect({ log, logLevel, redact })` и `up({ log, logLevel, redact })`. `log` — функция
+  `(event) => void` или объект с методами `debug`/`info`/`warn`/`error` (pino, `console`): вызов
+  `logger[level](event, event.event)`. `logLevel` — `'debug' | 'info' | 'warn' | 'error' | 'off'`, по умолчанию
+  `'info'`; ниже порога событие не собирается. `LETOPIS_LOG=<уровень>` — если `log` не передан, события пишутся
+  JSON-строками в stderr. CLI: `letopis <команда> --log[=уровень]`.
+- Событие: `{ ts, level, event, op, ms, tenant, account, tx, chain, rows, code, key, detail }`, у ошибок ещё `cause`.
+  Секреты (пароли, токены, ключ сервиса, пароль в DSN, значения секретов) маскируются всегда; `redact: string[]` —
+  дополнительные имена полей. `onQuery` остаётся; каждый SQL — ещё и событие `sql` уровня `debug`.
+- События: `connect`, `close`, `up`, `migrate`, `sync`, `read`, `cache.hit`, `cache.miss`, `write`, `delete.preview`,
+  `delete`, `restore`, `tx.begin`, `tx.commit`, `tx.rollback`, `tx.retry`, `auth.login`, `auth.logout`, `auth.revoke`,
+  `auth.switch`, `watch.start`, `watch.stop`, `signal`, `maintain`, `warning`, `error`, `sql`. Уровни: `write`,
+  `delete`, `restore`, `auth.*`, `up`, `migrate`, `sync`, `maintain` — `info`; `warning`, `tx.retry` — `warn`;
+  `error` — `error`; `read`, `cache.*`, `tx.begin`, `tx.commit`, `sql`, `delete.preview` — `debug`. Каталог событий —
+  `lib/src/messages/log.ts`, слой — `lib/src/log.ts`.
+
+### Добавлено
+- `delete({ confirm: true, all: true })` и `restore({ all: true })` — осознанное действие без сверки (см. «Переход на
+  3.0»). Экспорт типов `DeleteOptions`, `RestoreOptions`.
+
+### Изменено
+- `versions()` — по-прежнему терминал (промис строк), но метод цепочки на его результате (`versions().rows()`,
+  `versions().sort(…)`) — `invalid_query`, ключ `api.versions_terminal`, с подсказкой «модификаторы — до
+  `versions()`» вместо `TypeError: … rows is not a function`. Источник: внедрение.
+- Инструмент MCP `letopis_write` (op `delete`) удаляет с `expect` — превью, которое подтвердил человек; расхождение под
+  блокировкой — `conflict` (`write.preview_changed`), ничего не удалено. Параметры инструмента прежние.
+- `db.acl.revoke()` и `db.acl.roles(account, null)` удаляют правила и членство как осознанное действие
+  (`{ confirm: true, all: true }`); поведение прежнее.
+- Подсказки об удалённом арендаторе, пользователе и членстве в `createTenant` (`boot.tenant_deleted` и соседние) и кода
+  `not_deleted` называют `restore({ expect })` с надгробием из `withDeleted().rows()`.
+- Описание пакета в `package.json` — по-русски; агенту — `AGENT-CHEATSHEET.md` и `llms.txt` в пакете, исходный код
+  доступен (PolyForm Noncommercial 1.0.0).
+
+### Удалено
+- Ключ каталога `api.validation_failed_end` (заменён `write.link_in_data`) и предупреждение `write.restore_no_filter`.
+
 ## [2.1.0] — 2026-11-03
 
 Правки по прогонам первых пользователей и агентов. Новые опции необязательны. Что меняется для работающего кода —

@@ -12,7 +12,7 @@ import { Changelog1 } from '@/components/changelog1';
 import { api, rub, when, type Doc, type Me, type Version } from '@/lib/api';
 
 type Detail = { doc: Doc; versions: Version[] };
-type Preview = { id: string; class: string; action: string; depth: number }[];
+type Preview = { id: string; rev: number; class: string; action: string; depth: number }[];
 
 const OP: Record<string, string> = { create: 'создан', update: 'изменён', delete: 'удалён', restore: 'восстановлен' };
 const KIND: Record<string, string> = { Contract: 'договор', Draft: 'черновик' };
@@ -136,7 +136,7 @@ export function DocCard({ id, me, tick, onOpen, onClose, onChanged }: {
             <ul className="text-sm">{(preview ?? []).map((p) => <li key={p.id}>{'— '.repeat(p.depth)}{p.class}: {p.action}</li>)}</ul>
             <DialogFooter>
               <Button variant="outline" onClick={() => setPreview(null)}>Отмена</Button>
-              <Button variant="destructive" onClick={async () => { setPreview(null); const r = await run(`/api/docs/${doc.id}/delete`, { confirm: true }, 'Удалён — документ в корзине'); if (r) onClose(); }}>Удалить</Button>
+              <Button variant="destructive" onClick={async () => { const shown = preview; setPreview(null); const r = await run(`/api/docs/${doc.id}/delete`, { confirm: true, expect: shown }, 'Удалён — документ в корзине'); if (r) onClose(); }}>Удалить</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

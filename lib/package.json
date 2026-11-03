@@ -1,7 +1,7 @@
 {
   "name": "letopis",
-  "version": "2.1.0",
-  "description": "AI agents: read AGENT-CHEATSHEET.md in this package before writing code (ИИ-агенту — сначала AGENT-CHEATSHEET.md). Letopis (летопись): versioned entity store on PostgreSQL 18 — integrity, history, tenants and access control enforced by the database itself, dot-notation chains on top",
+  "version": "3.0.0",
+  "description": "Letopis (летопись): хранилище версионированных сущностей на PostgreSQL 18 — целостность, история, арендаторы и права проверяет сама база, поверх — цепочки через точку. ИИ-агенту — AGENT-CHEATSHEET.md и llms.txt в пакете; исходный код доступен (PolyForm Noncommercial 1.0.0)",
   "keywords": [
     "postgres",
     "postgresql",

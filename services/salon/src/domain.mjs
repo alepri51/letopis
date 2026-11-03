@@ -72,10 +72,10 @@ export async function book(db, { day, hour, staffId, serviceId, name, phone }, t
   }
 }
 
-/** Отменить бронь: удаление с надгробием, история остаётся. */
+/** Отменить бронь: удаление с надгробием, история остаётся. Отмену одной брони клиент подтвердил сам — { all: true }. */
 export async function cancel(db, bookingId, trace = []) {
-  trace.push(`db.booking(id).delete({ confirm: true, reason: 'отмена клиентом' })`);
-  return db.booking(bookingId).delete({ confirm: true, reason: 'отмена клиентом' }).rows();
+  trace.push(`db.booking(id).delete({ confirm: true, all: true, reason: 'отмена клиентом' })`);
+  return db.booking(bookingId).delete({ confirm: true, all: true, reason: 'отмена клиентом' }).rows();
 }
 
 /**
@@ -84,9 +84,11 @@ export async function cancel(db, bookingId, trace = []) {
  */
 export async function restore(db, bookingId, trace = []) {
   const [was] = await db.booking(bookingId).withDeleted().rows();
-  if (was?.$deleted && was.reason === MOVE_REASON) throw new ServiceError(409, 'бронь не отменена, а перенесена — она в расписании на новом слоте');
-  trace.push(`db.booking(id).restore()`);
-  return db.booking(bookingId).restore().rows();
+  if (!was) throw new ServiceError(404, 'брони нет');
+  if (was.$deleted && was.reason === MOVE_REASON) throw new ServiceError(409, 'бронь не отменена, а перенесена — она в расписании на новом слоте');
+  // вернуть ровно то надгробие, которое проверили выше: отмену могли вернуть и отменить снова из другой вкладки
+  trace.push(`db.booking(id).restore({ expect: [надгробие] })`);
+  return db.booking(bookingId).restore({ expect: [was] }).rows();
 }
 
 /**
@@ -120,8 +122,8 @@ export async function move(db, bookingId, { day, hour, staffId }, trace = []) {
       .Location.set(live.links.Location).Schedule.set(live.links.Schedule).Item.set(live.links.Item);
     if (live.links.Customer) plan = plan.Customer.set(live.links.Customer);
     const [row] = await plan.rows();
-    trace.push(`tr.booking(прежняя).delete({ confirm: true }) — прежний слот освобождён: надгробие с причиной «${MOVE_REASON}»`);
-    await tr.booking(live.id).delete({ confirm: true }).rows();
+    trace.push(`tr.booking(прежняя).delete({ confirm: true, all: true }) — прежний слот освобождён: надгробие с причиной «${MOVE_REASON}»`);
+    await tr.booking(live.id).delete({ confirm: true, all: true }).rows();
     await tr.commit();
     trace.push('tr.commit()');
     return row;

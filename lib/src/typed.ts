@@ -16,7 +16,7 @@
  */
 import type { ChainCore, ChainRef } from './chain.js';
 import type { Cursor, Op, OP, Path, Row, Scalar } from './types.js';
-import type { Expected, IncMarker } from './write.js';
+import type { DeleteOptions, IncMarker, RestoreOptions } from './write.js';
 
 /**
  * То, что цепочкам нужно от модели: имя, алиас и типы для вывода — данные строки, концы строки, концы класса (роль →
@@ -242,14 +242,19 @@ export type TypedChain<C, M extends readonly AnyModelLike[]> = Omit<ChainCore, R
   /** Без фильтра, id, `tags()`, `owner()` и `limit()` у шагов — `invalid_query`; правка всех строк — `{ all: true }`. */
   update(patch?: PatchOf<DataOf<C>>, opts?: { rev?: number; all?: boolean; reason?: string }): TypedChain<C, M>;
   upsert(data: Partial<DataOf<C>>, opts?: { reason?: string }): TypedChain<C, M>;
-  /** С `{ confirm: true }` без фильтра, id, `tags()`, `owner()` и `limit()` у шагов — `invalid_query`; всех — `{ all: true }`. */
-  delete(opts?: { confirm?: boolean; all?: boolean; reason?: string; expect?: readonly Expected[] }): TypedChain<C, M>;
+  /**
+   * Без опций — превью. `{ confirm: true, expect: превью }` — удалить ровно показанное (цели сужены фильтром, id, `tags()`,
+   * `owner()` или `limit()`); `{ confirm: true }` без `expect` — `invalid_query` (`write.confirm_without_expect`);
+   * осознанно удалить текущий состав без сверки — `{ confirm: true, all: true }`.
+   */
+  delete(opts?: DeleteOptions): TypedChain<C, M>;
   forUpdate(): TypedChain<C, M>;
   /**
    * `{ expect }` — надгробия `{ id, rev }`: восстановить ровно то, что ушло удалением; расхождение — отказ по смыслу
    * (`write.restore_already`, `write.restore_id_taken`, `write.restore_stale`). `{ expect, partial: true }` — что можно, а
-   * остальное — строки `$action: 'skip'` с причиной `$why`.
+   * остальное — строки `$action: 'skip'` с причиной `$why`. Без `expect` — `invalid_query` (`write.restore_without_expect`);
+   * осознанно вернуть все удалённые цели шага без сверки — `{ all: true }`.
    */
-  restore(opts?: { reason?: string; expect?: readonly Expected[]; partial?: boolean }): TypedChain<C, M>;
+  restore(opts: RestoreOptions): TypedChain<C, M>;
   cache(opts?: { ttl?: number }): TypedChain<C, M>;
 } & HopsOf<C, M>;

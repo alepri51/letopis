@@ -725,6 +725,14 @@ function checkTenant(opts: TenantOptions): string[] {
  * пользователь или членство были удалены, повтор их не воскрешает — отказ `invalid_data`.
  */
 export async function createTenant(sql: postgres.Sql, schema: string, opts: TenantOptions, owner = 'letopis_owner'): Promise<TenantResult> {
+  // admin — пул postgres(): строка DSN, подключение connect() letopis или другой объект упали бы голым TypeError на
+  // sql.begin (3.0)
+  const pool: unknown = sql;
+  if (typeof pool !== 'function' || typeof (pool as { begin?: unknown }).begin !== 'function' || typeof (pool as { unsafe?: unknown }).unsafe !== 'function') {
+    throw lerr('api.create_tenant_admin', { type: pool === null ? 'null' : typeof pool });
+  }
+  // имя схемы — как у connect() и up(): без точки — с префиксом версии (v2.salon)
+  if (typeof schema === 'string' && !schema.includes('.')) schema = `${SCHEMA_VERSION}.${schema}`;
   const roles = checkTenant(opts);
   const S = quoteIdent(schema);
   const tenant = v5Id(SYSTEM_ID, 'Account', [`tenant:${opts.name}`]);

@@ -700,12 +700,13 @@ async function write(db: Db, a: Args, ctx: ServerContext, sdk: Sdk, server: McpS
   const c = await confirmDelete(sdk, server, ctx, op, message, who);
   if ('ask' in c) return c.ask;
   if (!c.granted) throw lerr(c.reason);
-  // превью и удаление — одной транзакцией: подтверждено ровно то, что удаляется
+  // превью и удаление — одной транзакцией: подтверждено ровно то, что удаляется; delete сверяет превью сам (expect,
+  // 3.0) — под блокировкой замыкания каскада
   const tx = await db.begin();
   try {
     const again = await step(tx, cls)(targets).delete(opts).rows();
     if (operationOf(db, cls, targets, again) !== op) throw lerr('mcp.delete_data_changed');
-    const rows = await step(tx, cls)(targets).delete({ confirm: true, ...opts }).rows();
+    const rows = await step(tx, cls)(targets).delete({ confirm: true, expect: again, ...opts }).rows();
     await tx.commit();
     return ok({ deleted: rows, operation: op });
   } catch (e) {

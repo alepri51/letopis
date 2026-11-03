@@ -21,6 +21,12 @@ export const sqlCore = {
     code: 'acl_denied',
     ru: 'нет права auth.impersonate',
   },
+  // 20-context.sql, ctx(): имперсонация аккаунта, которого нет (не заводили или удалён); id — значение letopis.account
+  'sql-core.impersonation_no_account': {
+    code: 'target_not_found',
+    ru: 'аккаунт {id} не найден',
+    hint: 'id аккаунта — из ответа verifyPassword(), createTenant() или db.auth.tenants(); удалённый аккаунт через as() не вернуть',
+  },
   // 20-context.sql, ctx(): имперсонация System, сервиса или системного администратора не системным администратором
   'sql-core.impersonation_denied': {
     code: 'acl_denied',

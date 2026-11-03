@@ -314,7 +314,8 @@ export function makeAcl(S: string, exec: Executor, db?: () => unknown): AclApi {
           if (it.op !== 'API' && it.target === '*' && !it.condition) objects.push(sysId(`all:${it.op}`));
           for (const g of groups) {
             for (const o of objects) {
-              if (g && o) n += (await tr.rule({ Group: g, Object: o }).delete({ confirm: true }).rows()).length;
+              // снять правило — замысел вызова, превью некому показывать: { all: true } (3.0) — без сверки, цели сужает фильтр
+              if (g && o) n += (await tr.rule({ Group: g, Object: o }).delete({ confirm: true, all: true }).rows()).length;
             }
           }
         }
@@ -332,7 +333,8 @@ export function makeAcl(S: string, exec: Executor, db?: () => unknown): AclApi {
         return m ? [...((m.data.roles as string[] | undefined) ?? [])] : null;
       }
       if (roles === null) {
-        await inTx('roles', (tr) => tr.member({ User: acc, Tenant: tenant }).delete({ confirm: true }).rows());
+        // roles(account, null) — снять членство: замысел вызова, без сверки с превью (3.0)
+        await inTx('roles', (tr) => tr.member({ User: acc, Tenant: tenant }).delete({ confirm: true, all: true }).rows());
         return null;
       }
       if (!Array.isArray(roles)) throw lerr('access.roles_not_array');

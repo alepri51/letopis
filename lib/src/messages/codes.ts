@@ -81,7 +81,7 @@ export const codes = {
   'codes.not_deleted': {
     code: 'not_deleted',
     ru: '`restore` работает только для удалённых объектов',
-    hint: 'сначала `delete()`, потом `restore()`',
+    hint: 'сначала `delete({ confirm: true, expect })`, потом `restore({ expect })` с надгробиями из ответа `delete()` или `withDeleted().rows()`',
   },
   'codes.exists': {
     code: 'exists',

@@ -59,8 +59,13 @@ begin
       perform @SCHEMA@.lt_fail('sql-core.no_impersonate_right');
     end if;
     select e.id, e.data into a from @SCHEMA@.entity e where e.id = imp::uuid and e.class = 'Account' and e.tenant = '@SYSTEM@'::uuid;
+    -- аккаунта нет (не заводили или удалён) — «не найден», а не «нельзя» (3.0): сервис с правом имперсонации отличит
+    -- опечатку в id от запрета
+    if a.id is null then
+      perform @SCHEMA@.lt_fail('sql-core.impersonation_no_account', jsonb_build_object('id', imp));
+    end if;
     -- от имени System, сервисов, системных администраторов и отключённых аккаунтов действовать нельзя
-    if a.id is null or not coalesce((a.data->>'enabled')::boolean, true) or a.id = '@SYSTEM@'::uuid
+    if not coalesce((a.data->>'enabled')::boolean, true) or a.id = '@SYSTEM@'::uuid
        or coalesce(a.data->'categories' ?| array['System', 'Service'], false)
        or exists (select 1 from @SCHEMA@.entity x
                   where x.id = @SCHEMA@.v5_id('@SYSTEM@'::uuid, 'member', array[a.id::text, '@SYSTEM@']) and x.class = 'member') then

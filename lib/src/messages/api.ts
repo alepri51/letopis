@@ -75,12 +75,6 @@ export const api = {
     code: 'invalid_data',
     ru: ' (всего нарушений: {n}, все — err.issues)',
   },
-  // write.ts, checkFullData: данные не проходят описание класса, а лишний ключ — имя конца класса
-  'api.validation_failed_end': {
-    code: 'invalid_data',
-    ru: 'данные не проходят описание класса {cls}',
-    hint: 'конец (ссылка) — не поле данных: его задают путь цепочки (db.Владелец(id).Класс().create(…)) или слот .Роль.set(id) после глагола',
-  },
   // index.ts: connect({ schema })
   'api.connect_schema': {
     code: 'invalid_data',
@@ -293,5 +287,18 @@ export const api = {
   'api.schema_newer': {
     code: 'invalid_data',
     ru: 'движок схемы {schema} ревизии {rev} новее библиотеки (она знает {known}) — обновите пакет letopis',
+  },
+  // up.ts, createTenant(): первый аргумент — не пул postgres() (строка DSN, подключение connect(), объект без begin и
+  // unsafe); type — typeof значения или null
+  'api.create_tenant_admin': {
+    code: 'invalid_query',
+    ru: 'createTenant(admin, …): admin — пул postgres() с правами администратора, а не {type}',
+    hint: "const admin = postgres(dsnАдминистратора); await createTenant(admin, 'salon', { name }); await admin.end(). DSN-строку и подключение connect() letopis createTenant не принимает",
+  },
+  // chain.ts, versions(): у результата versions() вызвали метод цепочки (rows, first, sort…); method — его имя
+  'api.versions_terminal': {
+    code: 'invalid_query',
+    ru: 'versions() — терминал: отдаёт строки версий, у результата нет .{method}()',
+    hint: "const v = await db.Класс(id).versions(); модификаторы — до versions(): db.Класс(id).sort('at', 'desc').limit(10).versions()",
   },
 } satisfies Section<'api'>;

@@ -45,7 +45,7 @@ export { ne, gt, gte, lt, lte, between, inList, like, ilike, starts, ends, has, 
  */
 export const or = orFilters as unknown as <F extends object>(...filters: NoInfer<F>[]) => OrOp<F>;
 export { cursorOf } from './sql.js';
-export { inc, isInc, type Expected, type IncMarker, type WriteRow } from './write.js';
+export { inc, isInc, type DeleteOptions, type Expected, type IncMarker, type RestoreOptions, type WriteRow } from './write.js';
 export { totpCode, hashPassword, verifyHash, type AuthApi, type LoginResult, type Credential, type SessionInfo } from './auth.js';
 export type { AclApi, AclDecision, AclDataDecision, AclOp, AclRule, AclRuleSpec, AclTarget } from './acl.js';
 export type { LoadOptions, LoadReport, LoadIssue, LoadInput } from './load.js';

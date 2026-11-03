@@ -20,10 +20,10 @@ import {
   type AggSpec, type BuiltQuery, type ReadMode, type Step,
 } from './sql.js';
 import type { Executor } from './tx.js';
-import type { ChainMods, Cursor, Filter, Path, QueryEvent, Row } from './types.js';
+import { CHAIN_METHODS, type ChainMods, type Cursor, type Filter, type Path, type QueryEvent, type Row } from './types.js';
 import {
-  completeIssues, dropUndefined, execBatch, execPlan, lockIds, precheckPlan, slotRole, type Expected, type PlanOp, type PlanResult, type Slot,
-  type SlotValue, type WriteRow,
+  completeIssues, dropUndefined, execBatch, execPlan, lockIds, precheckPlan, slotRole, type DeleteOptions, type Expected, type PlanOp,
+  type PlanResult, type RestoreOptions, type Slot, type SlotValue, type WriteRow,
 } from './write.js';
 
 export interface ChainCtx {
@@ -178,13 +178,14 @@ export interface ChainCore {
   /**
    * Удаляет цели шага; строки, которые на них ссылаются, база удаляет вместе с ними, отвязывает или не даёт удалить цель —
    * как задано в `onDelete` их ссылок. Без `{ confirm: true }` — предпросмотр удаления: ничего не удаляется, терминал
-   * вернёт все строки, которых оно коснулось бы, у каждой `$action` — что с ней будет. С `{ confirm: true }` цели сужают
-   * фильтр, id, `tags()`, `owner()` или `limit()` хотя бы у одного шага, иначе `invalid_query`; удаление всех строк —
-   * `{ confirm: true, all: true }`. С `{ confirm: true, expect: превью }` удаляется ровно показанное: в транзакции удаления
-   * превью строится заново и сравнивается с `expect` по `id`, `rev` и `$action`; расхождение — `conflict` (ничего не
-   * удалено, новое превью — `err.detail.preview`).
+   * вернёт все строки, которых оно коснулось бы, у каждой `$action` — что с ней будет. `{ confirm: true, expect: превью }`
+   * удаляет ровно показанное: в транзакции удаления превью строится заново и сравнивается с `expect` по `id`, `rev` и
+   * `$action`; расхождение — `conflict` (ничего не удалено, новое превью — `err.detail.preview`); цели сужают фильтр, id,
+   * `tags()`, `owner()` или `limit()` хотя бы у одного шага, иначе `invalid_query`. `{ confirm: true }` без `expect` —
+   * `invalid_query` (`write.confirm_without_expect`); осознанно удалить текущий состав целей без сверки (и без фильтра —
+   * все строки) — `{ confirm: true, all: true }`.
    */
-  delete(opts?: { confirm?: boolean; all?: boolean; reason?: string; expect?: readonly Expected[] }): Chain;
+  delete(opts?: DeleteOptions): Chain;
   /** Чтение с блокировкой строк последнего шага до конца db.begin() (rows, first, ids). */
   forUpdate(): Chain;
   /**
@@ -193,9 +194,11 @@ export interface ChainCore {
    * каждой — та же; иначе ничего не восстановлено: уже восстановлена — `not_deleted` (`write.restore_already`), id занял
    * новый объект — `not_deleted` (`write.restore_id_taken`), прочее (удалена снова, менялась) — `conflict`
    * (`write.restore_stale`); причины по целям — `err.detail.stale`. `{ expect, partial: true }` — восстановить то, что
-   * можно: остальные цели приходят строками `{ …строка, $action: 'skip', $why }`.
+   * можно: остальные цели приходят строками `{ …строка, $action: 'skip', $why }`. Без `expect` — `invalid_query`
+   * (`write.restore_without_expect`), и для явных id; осознанно вернуть все удалённые цели шага без сверки —
+   * `{ all: true }`.
    */
-  restore(opts?: { reason?: string; expect?: readonly Expected[]; partial?: boolean }): Chain;
+  restore(opts: RestoreOptions): Chain;
   /** Кэш результатов (§2.12): ответ хранится в памяти процесса ttl секунд (по умолчанию 60). */
   cache(opts?: { ttl?: number }): Chain;
 }
@@ -496,11 +499,31 @@ async function lockedRead(ctx: ChainCtx, steps: Step[], mods: ChainMods, mode: R
   return { q: rowsQ, res: mode === 'ids' ? res.map((r) => ({ id: r.row.id })) : res };
 }
 
+/**
+ * Промис versions(): методы цепочки на нём (versions().rows(), versions().sort()) — ошибка letopis с подсказкой, а не
+ * TypeError «… is not a function» (3.0). Сам промис уже идёт: его отказ гасится, иначе он ушёл бы в unhandledRejection.
+ */
+function versionsPromise<T>(p: Promise<T>): Promise<T> {
+  for (const method of CHAIN_METHODS) {
+    if (method === 'then') continue;
+    Object.defineProperty(p, method, {
+      value: () => {
+        p.catch(() => {});
+        throw lerr('api.versions_terminal', { method });
+      },
+    });
+  }
+  return p;
+}
+
 /** Причины для плана: по умолчанию у глаголов (у батча — своя) и та, что стоит в транзакции. */
 const reasons = (ctx: ChainCtx) => ({ reason: ctx.reason ?? ctx.txReason ?? '', txReason: ctx.txReason ?? '' });
 /** Опция reason глагола (план 1.1, §2.1): проверяет precheckPlan. */
 const reasonOf = (o?: { reason?: unknown }): { reason?: string } => (o?.reason !== undefined ? { reason: o.reason as string } : {});
-/** Опция all у update() и delete({ confirm: true }): правка всех целей без фильтра (план 2.0, этап 4, п. 2). */
+/**
+ * Опция all у update() и delete({ confirm: true }): правка всех целей без фильтра (план 2.0, этап 4, п. 2); у
+ * delete({ confirm: true }) и restore() ещё — без сверки с expect (3.0).
+ */
 const allOf = (o?: { all?: unknown }): { all?: true } => (o?.all === true ? { all: true } : {});
 /** Опция expect у restore() и delete({ confirm: true }) (план 2.1, A1, A2): форму проверяет precheckPlan. */
 const expectOf = (o?: { expect?: unknown }): { expect?: readonly Expected[] } =>
@@ -688,10 +711,10 @@ export function makeChain(ctx: ChainCtx, steps: Step[], mods: ChainMods, nodes: 
           return (await read<{ n: number }>(ctx, steps, mods, opts?.paths ? 'countPaths' : 'count')).res[0].n;
         };
       case 'versions':
-        return async () => {
+        return () => versionsPromise((async () => {
           warnNoHistory(steps, 'versions');
           return (await read<{ row: Record<string, unknown> }>(ctx, steps, mods, 'versions')).res.map((r) => toRow(r.row));
-        };
+        })());
       case 'sum':
       case 'avg':
       case 'min':
@@ -733,15 +756,15 @@ export function makeChain(ctx: ChainCtx, steps: Step[], mods: ChainMods, nodes: 
       case 'upsert':
         return (data: Record<string, unknown> = {}, opts?: { reason?: string }) => withOp({ kind: 'upsert', data: dropUndefined(data), ...reasonOf(opts) });
       case 'delete':
-        return (opts?: { confirm?: boolean; all?: boolean; reason?: string; expect?: readonly Expected[] }) =>
+        return (opts?: DeleteOptions) =>
           withOp({ kind: 'delete', confirm: opts?.confirm === true, ...allOf(opts), ...reasonOf(opts), ...expectOf(opts) });
       case 'set': case 'unset': case 'add': case 'remove':
         throw lerr('api.slot_method', { method: prop });
       case 'forUpdate':
         return () => withMods({ forUpdate: true });
       case 'restore':
-        return (opts?: { reason?: string; expect?: readonly Expected[]; partial?: boolean }) =>
-          withOp({ kind: 'restore', ...reasonOf(opts), ...expectOf(opts), ...(opts?.partial === true ? { partial: true as const } : {}) });
+        return (opts?: RestoreOptions) =>
+          withOp({ kind: 'restore', ...allOf(opts), ...reasonOf(opts), ...expectOf(opts), ...(opts?.partial === true ? { partial: true as const } : {}) });
       case 'cache':
         return (opts?: { ttl?: number }) => {
           if (opts?.ttl !== undefined && !(opts.ttl > 0)) throw lerr('api.cache_ttl');

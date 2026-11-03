@@ -17,7 +17,7 @@
  * строка видна, но править нельзя — acl_denied; строки уже нет — target_not_found; номер версии
  * разошёлся со { rev } — conflict.
  */
-import { fromDbError, issuesFromDb, lerr, lmsg, lwarn, LetopisError, ValidationError } from './errors.js';
+import { fromDbError, issuesFromDb, lerr, lmsg, LetopisError, ValidationError, type Params } from './errors.js';
 import { isOp } from './ops.js';
 import type { ClassInfo, Registry } from './registry.js';
 import { accepts, buildRead, nextNodeKey, precheckStep, resolveHop, stepClasses, toRow, type AggSpec, type BuiltQuery, type ReadMode, type Step } from './sql.js';
@@ -62,8 +62,28 @@ export const isInc = (v: unknown): v is IncMarker =>
 export interface Expected {
   id: string;
   rev: number;
-  $action?: 'delete' | 'unset' | 'restrict';
+  /** У строки превью — что с ней будет; строку ответа (с любым $action) можно передать как есть. */
+  $action?: Row['$action'];
 }
+
+/**
+ * Опции delete() (3.0): без confirm — превью; `{ confirm: true, expect }` — удалить ровно показанное превью;
+ * `{ confirm: true, all: true }` — осознанно удалить текущий состав целей без сверки (и без фильтра). `{ confirm: true }`
+ * без expect и all — invalid_query (write.confirm_without_expect).
+ */
+export type DeleteOptions =
+  | { confirm?: false; all?: boolean; expect?: undefined; reason?: string }
+  | { confirm: true; expect: readonly Expected[]; all?: boolean; reason?: string }
+  | { confirm: true; all: true; expect?: readonly Expected[]; reason?: string };
+
+/**
+ * Опции restore() (3.0): `{ expect }` — надгробия, которые видел пользователь (ответ delete() или withDeleted()), с
+ * `partial: true` — что можно; `{ all: true }` — осознанно вернуть все удалённые цели шага без сверки. Без expect и all —
+ * invalid_query (write.restore_without_expect), и для явных id.
+ */
+export type RestoreOptions =
+  | { expect: readonly Expected[]; partial?: boolean; all?: boolean; reason?: string }
+  | { all: true; expect?: undefined; partial?: false; reason?: string };
 
 /** Глагол плана; reason — причина изменения этого глагола (план 1.1, §2.1). */
 export type PlanOp = (
@@ -71,7 +91,7 @@ export type PlanOp = (
   | { kind: 'update'; data: Record<string, unknown>; rev?: number; all?: true }
   | { kind: 'upsert'; data: Record<string, unknown> }
   | { kind: 'delete'; confirm: boolean; all?: true; expect?: readonly Expected[] }
-  | { kind: 'restore'; expect?: readonly Expected[]; partial?: true }
+  | { kind: 'restore'; all?: true; expect?: readonly Expected[]; partial?: true }
 ) & { reason?: string };
 
 /**
@@ -180,10 +200,26 @@ export function splitPatch(patch: Record<string, unknown>): { rest: Record<strin
  */
 const PENDING = new WeakMap<ValidationError, { cls: string; data: unknown }>();
 
-/** Лишний ключ данных — имя конца класса: подсказка «конец — из пути или .Роль.set()» (api.validation_failed_end). */
-function endAsField(cls: ClassInfo, data: Record<string, unknown>): boolean {
+/**
+ * Ключи данных, которые не поля класса, а его концы (связи): имя роли конца или имя класса на конце (у роли с другим
+ * именем). Пары [ключ, роль] — для текста «задайте .Роль.set(id)» (write.link_in_data, 3.0): подсказка в самом тексте
+ * ошибки, а не только в err.hint.
+ */
+function endsAsFields(cls: ClassInfo, data: Record<string, unknown>, skip?: string): [string, string][] {
   const props = (cls.schema.properties ?? {}) as Record<string, unknown>;
-  return Object.keys(data).some((k) => !(k in props) && cls.ends[k] !== undefined);
+  const out: [string, string][] = [];
+  for (const k of Object.keys(data)) {
+    if (data[k] === undefined || k in props || k === skip) continue;
+    if (cls.ends[k] !== undefined) { out.push([k, k]); continue; }
+    const role = Object.entries(cls.ends).find(([, e]) => (Array.isArray(e.class) ? e.class : [e.class]).includes(k))?.[0];
+    if (role !== undefined) out.push([k, role]);
+  }
+  return out;
+}
+
+/** Ключ и параметры ошибки «конец передан полем данных» (write.link_in_data). */
+function linkInData(cls: ClassInfo, verb: string, found: [string, string][]): { key: string; params: Params } {
+  return { key: 'write.link_in_data', params: { verb, cls: cls.name, keys: found.map(([k]) => k).join(', '), role: found[0][1] } };
 }
 
 /**
@@ -193,12 +229,11 @@ function endAsField(cls: ClassInfo, data: Record<string, unknown>): boolean {
 function checkPatchEnds(s: Step, patch: Record<string, unknown>): void {
   const cls = s.cls;
   if (cls.name === 'Class' || cls.abstract || cls.schema.additionalProperties !== false) return;
-  const props = (cls.schema.properties ?? {}) as Record<string, unknown>;
   const useDataId = s.filter === undefined && typeof patch.id === 'string';
-  const keys = Object.keys(patch).filter((k) => patch[k] !== undefined && !(k in props) && cls.ends[k] !== undefined && !(useDataId && k === 'id'));
-  if (!keys.length) return;
-  const issue = { path: [], keyword: 'additionalProperties', message: lmsg('model.issue_additional', { keys: keys.join(', ') }) };
-  throw new ValidationError(cls.name, [issue], { key: 'api.validation_failed_end', params: { cls: cls.name } });
+  const found = endsAsFields(cls, patch, useDataId ? 'id' : undefined);
+  if (!found.length) return;
+  const issue = { path: [], keyword: 'additionalProperties', message: lmsg('model.issue_additional', { keys: found.map(([k]) => k).join(', ') }) };
+  throw new ValidationError(cls.name, [issue], linkInData(cls, 'update', found));
 }
 
 /** Данные create/upsert: объект без маркеров; ранняя проверка валидатором на TypeScript. */
@@ -217,8 +252,8 @@ function checkFullData(cls: ClassInfo, data: unknown, verb: string): void {
   const full = applyDefaults(cls.schema, data as Record<string, unknown>);
   const issues = v(full);
   if (!issues.length) return;
-  const end = endAsField(cls, data as Record<string, unknown>);
-  const e = new ValidationError(cls.name, issues, end ? { key: 'api.validation_failed_end', params: { cls: cls.name } } : undefined);
+  const found = endsAsFields(cls, data as Record<string, unknown>);
+  const e = new ValidationError(cls.name, issues, found.length ? linkInData(cls, verb, found) : undefined);
   if (leavesToDb(v)) PENDING.set(e, { cls: cls.name, data: full });
   throw e;
 }
@@ -337,19 +372,22 @@ export function precheckPlan(reg: Registry, steps: Step[], order?: string, agg?:
         }
         break;
       case 'delete':
-        // превью (без confirm) ничего не удаляет — его не сужают
-        if (op.confirm && !op.all && !narrowed(steps, i)) throw lerr('write.no_filter', { call: 'delete({ confirm: true })', cls: s.cls.name });
+        // превью (без confirm) ничего не удаляет — его не сужают и не сверяют
         if (op.expect !== undefined) {
           if (!op.confirm) throw lerr('write.expect_without_confirm');
           checkExpect(op.expect, verb);
         }
+        // 3.0: удаление сверяется с превью, которое видел пользователь (expect); без сверки — только осознанно, { all: true }
+        if (op.confirm && op.expect === undefined && !op.all) throw lerr('write.confirm_without_expect');
+        if (op.confirm && !op.all && !narrowed(steps, i)) throw lerr('write.no_filter', { call: 'delete({ confirm: true, expect })', cls: s.cls.name });
         break;
       case 'restore':
         // partial (второй раунд 2.1, A3) — только с expect: пропуск считается по показанным надгробиям
         if (op.partial && op.expect === undefined) throw lerr('write.partial_without_expect');
         if (op.expect !== undefined) checkExpect(op.expect, verb);
-        // A13: без сужения и expect restore() восстанавливает всё удалённое шага — предупреждение, не отказ
-        else if (!narrowed(steps, i)) lwarn('write.restore_no_filter', { cls: s.cls.name }, { once: `restore-no-filter|${s.cls.name}` });
+        // 3.0: без expect — отказ, и для явных id тоже: restore вернул бы последнее надгробие, а не то, что видел
+        // пользователь (объект могли восстановить, поменять и удалить снова); вернуть всё без сверки — { all: true }
+        else if (!op.all) throw lerr('write.restore_without_expect');
         break;
     }
     for (const sl of s.slots ?? []) {

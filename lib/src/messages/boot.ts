@@ -8,7 +8,7 @@ const LOGIN = 'передать login: { user, password } — имя обычн�
 /** Подсказка отказов user.roles в createTenant() и up({ tenant }). */
 const ROLES = "передать user.roles — список разных имён ролей членства, например ['staff'], или не передавать: по умолчанию ['owner']";
 /** Подсказка отказов createTenant() об удалённой строке. */
-const GONE = 'вернуть удалённое restore() (текст называет, кто это может) или выбрать другое имя или логин: id вычисляется из них';
+const GONE = 'вернуть удалённое restore({ expect }) — надгробие из withDeleted().rows() (текст называет, кто это может) или выбрать другое имя или логин: id вычисляется из них';
 
 export const boot = {
   // up.ts, substitute(): в тексте SQL (ядро, миграция, свой сид) маркер, которого установщик не знает
@@ -129,19 +129,19 @@ export const boot = {
   // up.ts, createTenant(): строки арендатора нет, а его история в журнале есть
   'boot.tenant_deleted': {
     code: 'invalid_data',
-    ru: 'createTenant: арендатор «{name}» ({id}) удалён, а его история осталась в журнале — повтор удалённое не воскрешает: верните его db.Account(id).restore() от имени системного администратора или выберите другое имя',
+    ru: 'createTenant: арендатор «{name}» ({id}) удалён, а его история осталась в журнале — повтор удалённое не воскрешает: верните его db.Account(id).restore({ expect: await db.Account(id).withDeleted().rows() }) от имени системного администратора или выберите другое имя',
     hint: GONE,
   },
   // up.ts, createTenant(): строки аккаунта пользователя нет, а его история в журнале есть
   'boot.tenant_user_deleted': {
     code: 'invalid_data',
-    ru: 'createTenant: аккаунт пользователя {login} ({id}) удалён, а его история осталась в журнале — повтор удалённое не воскрешает: верните его db.Account(id).restore() от имени системного администратора или выберите другой логин',
+    ru: 'createTenant: аккаунт пользователя {login} ({id}) удалён, а его история осталась в журнале — повтор удалённое не воскрешает: верните его db.Account(id).restore({ expect: await db.Account(id).withDeleted().rows() }) от имени системного администратора или выберите другой логин',
     hint: GONE,
   },
   // up.ts, createTenant(): строки членства нет, а его история в журнале есть
   'boot.tenant_member_deleted': {
     code: 'invalid_data',
-    ru: 'createTenant: членство {login} в арендаторе «{name}» ({id}) удалено, а его история осталась в журнале — повтор удалённое не воскрешает: верните его db.member(id).restore() в этом арендаторе или выберите другой логин',
+    ru: 'createTenant: членство {login} в арендаторе «{name}» ({id}) удалено, а его история осталась в журнале — повтор удалённое не воскрешает: верните его db.member(id).restore({ expect: await db.member(id).withDeleted().rows() }) в этом арендаторе или выберите другой логин',
     hint: GONE,
   },
   // up.ts, refuse1x(): схема letopis 1.x — ревизия из комментария схемы ниже первой ревизии 2.0 (FIRST_REVISION) или

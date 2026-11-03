@@ -225,10 +225,25 @@ export const write = {
     ru: 'delete({ confirm: true, expect }): превью изменилось с тех пор, как его показали — ничего не удалено',
     hint: 'показать пользователю новое превью (err.detail.preview) и удалить с ним: delete({ confirm: true, expect: err.detail.preview })',
   },
-  // A13: restore() без сужения целей — восстанавливает всё удалённое шага; предупреждение (lwarn), один раз на класс
-  'write.restore_no_filter': {
+  // write.ts, checkFullData и checkPatchEnds (3.0, вместо api.validation_failed_end): лишний ключ данных — конец класса
+  // (имя роли или класса на конце); keys — такие ключи, role — роль первого из них. Нарушения ValidationError дописывает
+  // к тексту сам
+  'write.link_in_data': {
+    code: 'invalid_data',
+    ru: '{verb}() у {cls}: {keys} — связь, а не поле данных; конец задают путь цепочки или слот после глагола: .{role}.set(id)',
+    hint: 'конец (связь) — не поле данных: путь цепочки (db.Владелец(id).Класс().create(…)) или слот после глагола: db.Класс.create({ … }).Роль.set(id); у конца-списка — .Роль.add(id) / .Роль.remove(id), снять — .Роль.unset()',
+  },
+  // 3.0: delete({ confirm: true }) без expect и без all — удаление не сверено с показанным превью
+  'write.confirm_without_expect': {
     code: 'invalid_query',
-    ru: 'restore() у {cls} без фильтра, id и { expect } восстанавливает всё удалённое шага',
+    ru: 'delete({ confirm: true }) без { expect }: удаление не сверено с превью, которое видел пользователь — ничего не удалено',
+    hint: 'передайте expect из превью: const p = await db.Класс(id).delete().rows(); показать p пользователю; await db.Класс(id).delete({ confirm: true, expect: p }).rows(). Осознанно удалить текущий состав без сверки — delete({ confirm: true, all: true })',
+  },
+  // 3.0: restore() без expect и без all — и для явных id: последнее надгробие могло смениться с тех пор, как его видели
+  'write.restore_without_expect': {
+    code: 'invalid_query',
+    ru: 'restore() без { expect }: восстановление не сверено с надгробиями, которые видел пользователь — ничего не восстановлено',
+    hint: 'передайте expect — надгробия из ответа delete() или из db.Класс(id).withDeleted().rows(): restore({ expect }); восстановить то, что можно, — restore({ expect, partial: true }); осознанно вернуть все удалённые цели шага без сверки — restore({ all: true })',
   },
   // tx.ts — tx.ts:commitUnknown: связь оборвалась во время commit
   'write.commit_unknown': {

@@ -194,7 +194,8 @@ export async function createApp() {
   async function syncRules(db) {
     const tr = await db.begin({ reason: 'правила доступа компании' });
     try {
-      for (const alias of LEGACY_RESOURCES) await tr.Resource({ alias }).delete({ confirm: true }).rows();
+      // ресурсы прежних версий удаляются осознанно, без превью: { all: true }
+      for (const alias of LEGACY_RESOURCES) await tr.Resource({ alias }).delete({ confirm: true, all: true }).rows();
       for (const [verb, spec] of ACL) await tr.acl[verb](spec);
       await tr.commit();
     } catch (e) { await tr.rollback().catch(() => {}); throw e; }
@@ -650,8 +651,8 @@ export async function createApp() {
   app.post('/api/tickets/:id/delete', auth, route(async (req, res) => {
     const s = req.s;
     await act(s, 'Удаление заявки', async (lines) => {
-      lines.push('db.Ticket(id).delete({ confirm: true }) — право на удаление проверяет база (правило not-owner → ticket:DELETE, deny)');
-      await dbOf(s).Ticket(req.params.id).delete({ confirm: true, reason: why(s, 'удалена руководителем') }).rows();
+      lines.push('db.Ticket(id).delete({ confirm: true, all: true }) — удаление одной заявки, подтверждённое в окне, без сверки с превью; право на удаление проверяет база (правило not-owner → ticket:DELETE, deny)');
+      await dbOf(s).Ticket(req.params.id).delete({ confirm: true, all: true, reason: why(s, 'удалена руководителем') }).rows();
     });
     res.json({ ok: true });
   }));
@@ -737,8 +738,8 @@ export async function createApp() {
     const s = req.s, account = req.params.account, m = await member(s, account);
     if (account === s.account) throw new HttpError(409, 'Себя удалить нельзя');
     await act(s, 'Удалить из компании', async (lines) => {
-      await s.db.member(m.id).delete({ confirm: true, reason: 'удалён из компании' }).rows();
-      lines.push('db.member(id).delete() — членства нет: следующий запрос этого человека получит tenant_denied');
+      await s.db.member(m.id).delete({ confirm: true, all: true, reason: 'удалён из компании' }).rows();
+      lines.push('db.member(id).delete({ confirm: true, all: true }) — членства нет: следующий запрос этого человека получит tenant_denied');
       lines.push('запись в справочнике (Profile) остаётся: по ней в заявках видно, кто их вёл; строки, которыми он владел в компании, база передала компании — их новые версии с owner = компания');
     });
     res.json({ ok: true });

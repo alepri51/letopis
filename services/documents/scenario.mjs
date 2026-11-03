@@ -75,7 +75,8 @@ try {
   const pv = (await call(head, `/api/docs/${c.id}/delete`, {})).data;
   check(Array.isArray(pv.preview) && pv.preview.some((p) => p.id === c.id && p.action === 'delete') && (await call(head, `/api/docs/${c.id}`)).status === 200,
     'удаление без подтверждения — только превью', pv);
-  await call(head, `/api/docs/${c.id}/delete`, { confirm: true });
+  check((await call(head, `/api/docs/${c.id}/delete`, { confirm: true })).status === 400, 'удаление без показанного превью — отказ');
+  await call(head, `/api/docs/${c.id}/delete`, { confirm: true, expect: pv.preview });
   const trash = (await call(head, '/api/trash')).data;
   check(trash.some((x) => x.id === c.id && x.who === USERS.head.name) && !trash.some((x) => x.id === d.id) && (await call(head, '/api/stats')).data.deleted === 1,
     'удалённый договор — в корзине, надгробия черновика там нет', trash);
