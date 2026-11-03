@@ -24,6 +24,8 @@ hub<N extends string, const D extends ClassDef<z.ZodRawShape, EndsInput, AnyMode
   name: N,
   def?: D,
 ): ModelOf<N, D, ShapeOf<D['fields']>>
+// Короткая форма без опций: hub('Имя', { поле: z… }) — поля класса (полная форма { fields: z.object(…) } — выше).
+hub<N extends string, S extends z.ZodRawShape>(name: N, shape: S): ModelOf<N, {}, S>
 ```
 
 Описывает класс объектов (хаб): поля, ключ, концы и свойства класса. Класс-связь объектов со своими данными описывает `link()`.
@@ -73,6 +75,8 @@ link<N extends string, const D extends ClassDef<z.ZodRawShape, EndsInput, AnyMod
   name: N,
   def?: D,
 ): ModelOf<N, D, ShapeOf<D['fields']>>
+// Короткая форма без опций: link('Имя', { поле: z… }) — поля класса (полная форма { fields: z.object(…) } — выше).
+link<N extends string, S extends z.ZodRawShape>(name: N, shape: S): ModelOf<N, {}, S>
 ```
 
 Связь — отношение между объектами со своими данными (бронь, навык).

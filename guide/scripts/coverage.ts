@@ -58,8 +58,10 @@ function members(file: string, name: string): string[] {
   if (!out.length) throw new Error(`coverage: интерфейс ${name} не найден в lib/src/${file}`);
   return out;
 }
-add('опции connect()', 'connect', members('index.ts', 'ConnectOptions'));
-add('опции up()', 'up', new Set([...members('up.ts', 'UpOptions'), ...members('up.ts', 'InstallOptions')].filter((n) => !['upTo', 'migrateFrom'].includes(n))));
+// опции журнала (log, logLevel, redact) connect() и up() наследуют из LogOptions (lib/src/types.ts)
+const logOptions = members('types.ts', 'LogOptions');
+add('опции connect()', 'connect', [...members('index.ts', 'ConnectOptions'), ...logOptions]);
+add('опции up()', 'up', new Set([...members('up.ts', 'UpOptions'), ...members('up.ts', 'InstallOptions'), ...logOptions].filter((n) => !['upTo', 'migrateFrom'].includes(n))));
 add('опции watch()', 'watch', members('watch.ts', 'WatchOptions'));
 add('опции load()', 'load', members('load.ts', 'LoadOptions'));
 add('опции кэша', 'cache', members('cache.ts', 'CacheOptions'));

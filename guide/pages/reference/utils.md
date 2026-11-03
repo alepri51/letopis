@@ -985,7 +985,7 @@ const LOG_EVENTS: readonly string[]
 
 Каталог событий логирования. Имена основных событий зафиксированы спецификацией 3.0 (connect, close, up, migrate, sync, read, cache.hit, cache.miss, write, delete.preview, delete, restore, tx.\*, auth.login, auth.logout, auth.revoke, auth.switch, watch.start, watch.stop, signal, maintain, warning, error, sql); остальные — дополнительные.
 
-**Примеры:** живого примера пока нет.
+**Примеры:** [Логирование: что делает letopis](../logging/#пример-журнал-удаления-и-возврата)
 
 ## Константы
 

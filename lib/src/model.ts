@@ -362,6 +362,8 @@ type ModelOf<N extends string, D, S extends z.ZodRawShape> = Model<N, DataOf<Ext
  */
 export function hub<N extends string, S extends z.ZodRawShape, const O extends ClassOpts>(name: N, shape: S, opts: O): ModelOf<N, O, S>;
 export function hub<N extends string, const D extends ClassDef<z.ZodRawShape, EndsInput, AnyModel | undefined>>(name: N, def?: D): ModelOf<N, D, ShapeOf<D['fields']>>;
+/** Короткая форма без опций: hub('Имя', { поле: z… }) — поля класса (полная форма { fields: z.object(…) } — выше). */
+export function hub<N extends string, S extends z.ZodRawShape>(name: N, shape: S): ModelOf<N, {}, S>;
 export function hub(name: string, def?: unknown, opts?: unknown): AnyModel {
   return makeModel('hub', name, def, opts);
 }
@@ -369,6 +371,8 @@ export function hub(name: string, def?: unknown, opts?: unknown): AnyModel {
 /** Связь — отношение между объектами со своими данными (бронь, навык). */
 export function link<N extends string, S extends z.ZodRawShape, const O extends ClassOpts>(name: N, shape: S, opts: O): ModelOf<N, O, S>;
 export function link<N extends string, const D extends ClassDef<z.ZodRawShape, EndsInput, AnyModel | undefined>>(name: N, def?: D): ModelOf<N, D, ShapeOf<D['fields']>>;
+/** Короткая форма без опций: link('Имя', { поле: z… }) — поля класса (полная форма { fields: z.object(…) } — выше). */
+export function link<N extends string, S extends z.ZodRawShape>(name: N, shape: S): ModelOf<N, {}, S>;
 export function link(name: string, def?: unknown, opts?: unknown): AnyModel {
   return makeModel('link', name, def, opts);
 }

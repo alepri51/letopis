@@ -1,4 +1,4 @@
-import { syncModels } from 'letopis';
+import { LOG_EVENTS, syncModels, up as install, type LogEvent } from 'letopis';
 import { hub } from 'letopis/model';
 import { z } from 'zod';
 import { example } from '../_shared/example.ts';
@@ -11,7 +11,7 @@ export default example({
   summary:
     'connect({ log, logLevel }) пишет события: запись, удаление, восстановление, ошибки, вход. log — console, pino или ' +
     'своя функция; logLevel — порог (по умолчанию info). Пароли, токены и ключи в событиях всегда замаскированы.',
-  covers: ['connect.log', 'connect.logLevel'],
+  covers: ['connect.log', 'connect.logLevel', 'connect.redact', 'up.log', 'up.logLevel', 'up.redact', 'export.LOG_EVENTS'],
   steps: [
     {
       title: 'Логгер — console',
@@ -42,6 +42,22 @@ export default example({
         await app.Note(note).restore({ expect: gone }).rows();
         await app.Note(note).restore({ expect: gone }).rows().catch(() => null); // уже вернули — отказ
         return events.map(({ level, event, op, rows, code, key }) => ({ level, event, op, rows, code, key }));
+      },
+    },
+    {
+      title: 'Журнал установки и свои секретные поля: up({ log }), redact',
+      text:
+        'Те же опции есть у `up()`: установка пишет события `up` и `migrate`. `redact` — имена полей, которые журнал ' +
+        'маскирует везде в `detail` вдобавок к паролям, токенам и ключам (их он маскирует всегда). Здесь `up()` ставит ' +
+        'вторую, учебную схему — только чтобы показать его события. Полный список событий с уровнями — `LOG_EVENTS`.',
+      run: async ({ connect, dsn, schema, up }) => {
+        const events: Record<string, unknown>[] = [];
+        const log = (e: LogEvent) => void events.push({ ...e });
+        await install({ dsn: dsn.admin, schema: `${schema}_up`, quiet: true, log, logLevel: 'info', redact: ['passport'] });
+        const app = await connect({ dsn: dsn.app, schema, token: up.tenant!.token!, log, logLevel: 'info', redact: ['passport'] });
+        await app.Note().create({ text: 'с маскировкой' }).rows();
+        const catalog = Object.entries(LOG_EVENTS).slice(0, 4).map(([name, e]) => ({ name, level: e.level, ru: e.ru }));
+        return { events: events.map(({ level, event, op }) => ({ level, event, op })), catalog };
       },
     },
   ],
