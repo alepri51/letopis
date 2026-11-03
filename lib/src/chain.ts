@@ -20,7 +20,7 @@ import {
   type AggSpec, type BuiltQuery, type ReadMode, type Step,
 } from './sql.js';
 import type { Executor } from './tx.js';
-import type { BlameOptions, BlameResult, ChainMods, Cursor, DiffOptions, DiffResult, Filter, Path, QueryEvent, Row } from './types.js';
+import type { ChainMods, Cursor, Filter, Path, QueryEvent, Row } from './types.js';
 import { execBatch, execPlan, precheckPlan, slotRole, type PlanOp, type PlanResult, type Slot, type SlotValue, type WriteRow } from './write.js';
 
 export interface ChainCtx {
@@ -79,10 +79,6 @@ export interface ChainCore {
    * { follow: true } — и через смену id при reclass и rekey, по времени.
    */
   versions(opts?: { follow?: boolean }): Promise<Row[]>;
-  /** Что изменилось между двумя версиями или моментами (по умолчанию — предыдущая версия → последняя), план 1.1. */
-  diff(opts?: DiffOptions): Promise<DiffResult[]>;
-  /** Кто, когда и почему последним изменил каждое поле версии (по умолчанию текущей), план 1.1. */
-  blame(opts?: BlameOptions): Promise<BlameResult[]>;
   /**
    * Сумма поля `'data.<путь>'` по объектам последнего шага: значения приводятся к числу, складывает база. `limit()` и
    * `offset()` на итог не влияют; нет ни одного значения — `null`.
@@ -126,7 +122,7 @@ export interface ChainCore {
    * Постраничный вывод по курсору: ответ начинается строго после строки, на которой кончилась прошлая страница, в
    * порядке `sort()` (без `sort()` — ошибка `invalid_query`). Курсор этой строки даёт `cursorOf(строка, поле)` с тем же
    * полем, что в `sort()`. Листает `rows()`, `ids()`, `versions()` и `paths()` (курсор пути — `cursorOf(путь, поле)`);
-   * `count()`, агрегаты, `diff()` и `blame()` курсор не учитывают.
+   * `count()` и агрегаты курсор не учитывают.
    */
   after(cursor: Cursor): Chain;
   /**
@@ -270,7 +266,7 @@ function pivotNodeOf(steps: Step[], cls: string): Step | undefined {
 }
 
 const noHistoryWarned = new Set<string>();
-function warnNoHistory(steps: Step[], method: 'versions' | 'asOf' | 'diff' | 'blame'): void {
+function warnNoHistory(steps: Step[], method: 'versions' | 'asOf'): void {
   const cls = steps[steps.length - 1]?.cls;
   if (!cls || cls.history !== false) return;
   const key = `${cls.name}|${method}`;
@@ -356,7 +352,7 @@ function afterVerbError(name: string, verb: string): LetopisError {
  * Терминалы rows, first, ids, count и paths цепочки, которая кончается глаголом, отдают строки самой правки.
  * Модификатор выборки между глаголом и терминалом ни на что не подействовал бы: limit резал бы только ответ, хотя
  * правка прошла по всем целям, остальные молча пропускались. Поэтому — отказ до записи. После глагола модификатор
- * относится к чтению за ним (шаг класса, versions(), diff(), blame(), агрегаты) или сужает цели следующего глагола.
+ * относится к чтению за ним (шаг класса, versions(), агрегаты) или сужает цели следующего глагола.
  */
 function checkAfterVerb(steps: Step[], mods: ChainMods): void {
   const op = steps[steps.length - 1]?.op;
@@ -428,20 +424,6 @@ const reasons = (ctx: ChainCtx) => ({ reason: ctx.reason ?? ctx.txReason ?? '', 
 const reasonOf = (o?: { reason?: unknown }): { reason?: string } => (o?.reason !== undefined ? { reason: o.reason as string } : {});
 /** Опция all у update() и delete({ confirm: true }): правка всех целей без фильтра (план 2.0, этап 4, п. 2). */
 const allOf = (o?: { all?: unknown }): { all?: true } => (o?.all === true ? { all: true } : {});
-
-/** diff({ from, to }): номер версии (целое ≥ 1) или момент (ISO-строка, Date). */
-function versionRef(v: unknown, what: string, moments = true): number | string {
-  if (typeof v === 'number' && Number.isInteger(v) && v >= 1 && v <= 2147483647) return v;
-  if (moments && v instanceof Date && !Number.isNaN(+v)) return v.toISOString();
-  if (moments && typeof v === 'string' && !Number.isNaN(Date.parse(v))) return v;
-  throw lerr(moments ? 'api.version_or_moment' : 'api.version_number', { what });
-}
-/** blame({ at }): момент (ISO-строка, Date). */
-function momentOf(v: unknown, what: string): string {
-  if (v instanceof Date && !Number.isNaN(+v)) return v.toISOString();
-  if (typeof v === 'string' && !Number.isNaN(Date.parse(v))) return v;
-  throw lerr('api.moment', { what });
-}
 
 /** Строка ответа: из чтения — to_jsonb узла, из плана — готовая строка записи. */
 const rowOf = (r: { row: Record<string, unknown>; done?: true }): Row => (r.done ? (r.row as unknown as WriteRow) : toRow(r.row));
@@ -620,28 +602,6 @@ export function makeChain(ctx: ChainCtx, steps: Step[], mods: ChainMods, nodes: 
           warnNoHistory(steps, 'versions');
           const m = opts?.follow ? { ...mods, follow: true } : mods;
           return (await read<{ row: Record<string, unknown> }>(ctx, steps, m, 'versions')).res.map((r) => toRow(r.row));
-        };
-      case 'diff':
-        return async (opts: DiffOptions = {}) => {
-          warnNoHistory(steps, 'diff');
-          const hist = {
-            ...(opts.from !== undefined ? { from: versionRef(opts.from, 'diff({ from })') } : {}),
-            ...(opts.to !== undefined ? { to: versionRef(opts.to, 'diff({ to })') } : {}),
-            ...(opts.follow ? { follow: true } : {}),
-          };
-          return (await read<{ row: DiffResult }>(ctx, steps, { ...mods, hist }, 'diff')).res.map((r) => r.row);
-        };
-      case 'blame':
-        return async (opts: BlameOptions = {}) => {
-          warnNoHistory(steps, 'blame');
-          if (opts.limit !== undefined) versionRef(opts.limit, 'blame({ limit })', false);
-          const hist = {
-            ...(opts.at !== undefined ? { at: momentOf(opts.at, 'blame({ at })') } : {}),
-            ...(opts.limit !== undefined ? { limit: opts.limit } : {}),
-          };
-          // null — объекта на момент at не было (или он не виден)
-          return (await read<{ row: BlameResult | null }>(ctx, steps, { ...mods, hist }, 'blame')).res
-            .map((r) => r.row).filter((x): x is BlameResult => x !== null);
         };
       case 'sum':
       case 'avg':

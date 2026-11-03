@@ -17,8 +17,8 @@
 --
 -- Источник — текущее состояние (entity) или журнал: версии, действовавшие на момент p_at (срез
 -- asOf), либо надгробия удалённых (p_dead, для withDeleted). Возвращается rev версии: строки
--- журнала читаются по паре (id, rev) через уникальный индекс log_id_rev. Записи purge и trim
--- (этап 6) — не версии объекта: на момент после них объекта в срезе нет.
+-- журнала читаются по паре (id, rev) через уникальный индекс log_id_rev. Запись purge
+-- (этап 6) — не версия объекта: на момент после неё объекта в срезе нет.
 
 -- Цели концов строки: всех (p_roles is null) или только перечисленных ролей.
 create or replace function @SCHEMA@.role_ids(p_links jsonb, p_roles text[]) returns uuid[]
@@ -123,18 +123,18 @@ begin
         from @SCHEMA@.log l
         where l.id = any (p_ids) and l.at <= coalesce(p_at, 'infinity'::timestamptz)
         order by l.id, l.rev desc) v
-      where v.class = any (p_classes) and (v.op = 'delete') = p_dead and v.op not in ('purge', 'trim')
+      where v.class = any (p_classes) and (v.op = 'delete') = p_dead and v.op <> 'purge'
         and (p_data is null or v.data @> p_data) and (p_ends is null or @SCHEMA@.link_ids(v.links) @> p_ends)
         and @SCHEMA@.row_visible(v.tenant, v.class, v.id, v.owner, v.tags, v.data, v.links, c_tenant, c_account, c_plan);
   elsif p_ends is not null then
     -- по целям концов — от версий, ссылавшихся на первую цель (GIN log_ends); арендатор — после пробы
     return query select v.id, v.rev from @SCHEMA@.log_refs_at(p_classes, p_ends[1], p_at) v
       where (v.tenant = any (v_tenants) or v.class = 'member')
-        and (v.op = 'delete') = p_dead and v.op not in ('purge', 'trim')
+        and (v.op = 'delete') = p_dead and v.op <> 'purge'
         and (p_data is null or v.data @> p_data) and @SCHEMA@.link_ids(v.links) @> p_ends
         and @SCHEMA@.row_visible(v.tenant, v.class, v.id, v.owner, v.tags, v.data, v.links, c_tenant, c_account, c_plan);
   else
-    -- арендатор id неизменен, записи purge и trim несут арендатора объекта: условие до distinct on не меняет, какая
+    -- арендатор id неизменен, запись purge несёт арендатора объекта: условие до distinct on не меняет, какая
     -- версия id последняя (индекс log_class_tenant_at)
     -- кандидаты — по классу (индекс log_class_tenant_at), последняя версия id на момент — любого класса, и класс
     -- проверяется у неё: иначе после смены класса без смены id объект числился бы в прежнем классе (план 2.0, 7.1 №1)
@@ -145,14 +145,14 @@ begin
         select y.id, y.rev, y.op, y.class, y.tenant, y.owner, y.tags, y.data, y.links
         from @SCHEMA@.log y where y.id = c.id and y.at <= coalesce(p_at, 'infinity'::timestamptz)
         order by y.rev desc limit 1) v
-      where v.class = any (p_classes) and (v.op = 'delete') = p_dead and v.op not in ('purge', 'trim')
+      where v.class = any (p_classes) and (v.op = 'delete') = p_dead and v.op <> 'purge'
         and (p_data is null or v.data @> p_data) and (p_ends is null or @SCHEMA@.link_ids(v.links) @> p_ends)
         and @SCHEMA@.row_visible(v.tenant, v.class, v.id, v.owner, v.tags, v.data, v.links, c_tenant, c_account, c_plan);
     -- свои членства в других арендаторах: версии, ссылавшиеся на аккаунт (GIN log_ends)
     if v_member then
       return query select v.id, v.rev from @SCHEMA@.log_refs_at(array['member'], c_account, p_at) v
         where not (v.tenant = any (v_tenants))
-          and (v.op = 'delete') = p_dead and v.op not in ('purge', 'trim')
+          and (v.op = 'delete') = p_dead and v.op <> 'purge'
           and (p_data is null or v.data @> p_data) and (p_ends is null or @SCHEMA@.link_ids(v.links) @> p_ends)
           and @SCHEMA@.row_visible(v.tenant, v.class, v.id, v.owner, v.tags, v.data, v.links, c_tenant, c_account, c_plan);
     end if;
@@ -193,7 +193,7 @@ begin
     return query select s.src, v.id, v.rev
       from (select distinct u.x as src from unnest(p_src) u(x)) s
       cross join lateral @SCHEMA@.log_refs_at(p_classes, s.src, p_at) v
-      where (v.op = 'delete') = p_dead and v.op not in ('purge', 'trim')
+      where (v.op = 'delete') = p_dead and v.op <> 'purge'
         and (p_data is null or v.data @> p_data) and (p_ends is null or @SCHEMA@.link_ids(v.links) @> p_ends)
         and (p_roles is null or @SCHEMA@.role_has(v.links, p_roles, s.src))
         and @SCHEMA@.row_visible(v.tenant, v.class, v.id, v.owner, v.tags, v.data, v.links, c_tenant, c_account, c_plan);
@@ -243,14 +243,14 @@ begin
         select s.src, v.id, v.rev, 1, array[s.src, v.id]
         from (select distinct u.x as src from unnest(p_src) u(x)) s
         cross join lateral @SCHEMA@.log_refs_at(p_classes, s.src, p_at) v
-        where v.op not in ('delete', 'purge', 'trim')
+        where v.op not in ('delete', 'purge')
           and (p_roles is null or @SCHEMA@.role_has(v.links, p_roles, s.src))
           and @SCHEMA@.row_visible(v.tenant, v.class, v.id, v.owner, v.tags, v.data, v.links, c_tenant, c_account, c_plan)
       union all
         select d.src, v.id, v.rev, d.depth + 1, d.seen || v.id
         from d
         cross join lateral @SCHEMA@.log_refs_at(p_classes, d.id, p_at) v
-        where d.depth < p_max and not (v.id = any (d.seen)) and v.op not in ('delete', 'purge', 'trim')
+        where d.depth < p_max and not (v.id = any (d.seen)) and v.op not in ('delete', 'purge')
           and (p_roles is null or @SCHEMA@.role_has(v.links, p_roles, d.id))
           and @SCHEMA@.row_visible(v.tenant, v.class, v.id, v.owner, v.tags, v.data, v.links, c_tenant, c_account, c_plan))
       select distinct on (d.src, d.id) d.src, d.id, d.rev, d.depth from d order by d.src, d.id, d.depth;

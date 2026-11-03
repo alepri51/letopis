@@ -99,7 +99,7 @@ test('план 2.0, 7.1 №3: paths() с after() не теряет пути с �
   }
 });
 
-test('план 2.0, 7.1 №2: versions, diff и blame с follow после rekey — история только этого объекта, без нового объекта на старом id', async () => {
+test('план 2.0, 7.1 №2: versions с follow после rekey — история только этого объекта, без нового объекта на старом id', async () => {
   const [a] = await db.Sku().create({ code: 'K-1', v: 1 }).rows();
   await db.Sku(a.id).update({ v: 2 }).rows();
   const [a2] = await db.Sku(a.id).rekey({ code: 'K-2' }).rows(); // a.id — надгробие переноса, объект живёт на a2.id
@@ -112,14 +112,6 @@ test('план 2.0, 7.1 №2: versions, diff и blame с follow после rekey
   const vs = (rows: Row[]) => rows.filter((r) => !r.$deleted).map((r) => r.data.v);
   assert.deepEqual(vs(await db.Sku(a2.id).versions({ follow: true })), [1, 2, 2, 3], 'перенесённый: свои версии на обоих id, без нового объекта');
   assert.deepEqual(vs(await db.Sku(c.id).versions({ follow: true })), [100, 101], 'новый на прежнем id: только свои версии');
-
-  const [d] = await db.Sku(a2.id).diff({ follow: true });
-  assert.deepEqual([d.to?.rev, d.to?.id, d.from?.rev], [2, undefined, 1], 'diff: последняя версия перенесённого → предыдущая');
-  assert.deepEqual(d.changes, [{ path: ['data', 'v'], kind: 'changed', before: 2, after: 3 }]);
-
-  const leaf = async (id: string, path: string) => (await db.Sku(id).blame())[0].fields.find((f) => f.path.join('.') === path);
-  assert.deepEqual(await leaf(a2.id, 'data.code').then((f) => [f?.rev, f?.op]), [1, 'rekey'], 'blame перенесённого: код задал rekey');
-  assert.deepEqual(await leaf(c.id, 'data.code').then((f) => [f?.rev, f?.op]), [4, 'create'], 'blame нового: код задало его создание');
 });
 
 test('план 2.0, 7.1 №5: имя поля с @S@ в фильтре не портится', async () => {

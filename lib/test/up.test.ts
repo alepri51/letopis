@@ -243,8 +243,7 @@ test('up({ pglite }): база для разработки без PostgreSQL —
     const db = await connect({ dsn: r.pglite!.dsn, schema: 'v2.dev', apiKey: r.serviceKey!, allowBypassRls: true, listen: false, max: 1 });
     try {
       assert.ok(db.registry.has('Class'));
-      const v = await db.verify({ data: true });
-      assert.equal(v.ok, true);
+      assert.equal((await db.maintain()).skipped, false);
     } finally {
       await db.close();
     }

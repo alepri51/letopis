@@ -77,34 +77,6 @@ test('6.11 истёкшие сессии и коды убраны; действ�
   assert.equal(await secrets('OTP', t.id), 0);
 });
 
-test('план 2.0, 7.3 №4: maintain() чистит сессии и коды один раз за вызов — в первой пачке, а не в каждой', async () => {
-  await e.defineClass(t, { name: 'Thin4', kind: 'hub', key: ['code'], history: { all: '1 day' },
-    fields: { properties: { code: { type: 'string' }, n: { type: 'integer' } }, required: ['code'] } });
-  const ldr = await connect({ dsn: ADMIN_DSN, schema: e.schema, token: t.token, allowBypassRls: true, listen: false, max: 1 });
-  const a = await sysadmin(e);
-  const calls: unknown[][] = [];
-  const pool = postgres(appDsn(), { max: 2, onnotice: () => {},
-    debug: (_c: number, q: string, params: unknown[]) => { if (/\.maintain\(/.test(q)) calls.push(params); } });
-  const mdb = await connect({ sql: pool, schema: e.schema, token: a.token, listen: false });
-  try {
-    await ldr.refresh();
-    const base = Date.now() - 10 * 86_400_000;
-    await ldr.load(Array.from({ length: 6 }, (_, i) => ({ $class: 'Thin4', code: 'T4', n: i, $rev: i + 1,
-      $at: new Date(base + i * 3_600_000).toISOString() })), { withHistory: true });
-    await expired(t.id);
-    // по версии за пачку: прореживание идёт несколькими пачками
-    const r = await mdb.maintain({ limit: 1, batches: 3 });
-    assert.equal(r.batches, 3);
-    assert.ok(r.sessions >= 1 && r.codes >= 1, 'истёкшие сессии и коды убраны');
-    // параметр приходит в отладку уже сериализованным: true — 't'
-    assert.deepEqual(calls.map((p) => p[2] === true || p[2] === 't'), [true, false, false], 'очистка — только в первой пачке');
-  } finally {
-    await mdb.close();
-    await pool.end({ timeout: 5 });
-    await ldr.close();
-  }
-});
-
 test('6.11 не администратор — отказ; сервису — по отдельному правилу letopis.maintain', async () => {
   const tdb = await connect({ dsn: appDsn(), schema: e.schema, token: t.token, max: 1 });
   try {
@@ -122,8 +94,6 @@ test('6.11 не администратор — отказ; сервису — п
     });
     const r = await svc.maintain();
     assert.equal(r.skipped, false);
-    await assert.rejects(svc.maintain({ now: new Date() }), code('acl_denied'), 'момент «сейчас» — только администраторскому подключению');
-    await assert.rejects(svc.verify(), code('acl_denied'), 'правило — только на maintain');
   } finally {
     await svc.close();
   }
@@ -158,12 +128,12 @@ test('7.8.1 №11 из нескольких процессов работает 
   }
 });
 
-test('разбор в) maintain() за пулом в режиме транзакций: блокировка обслуживания транзакционная — не переживает пачку, обслуживание не встаёт', async () => {
+test('разбор в) maintain() за пулом в режиме транзакций: блокировка обслуживания транзакционная — не переживает транзакцию, обслуживание не встаёт', async () => {
   // Было: сеансовая pg_try_advisory_lock на reserve(), который за таким пулом серверное соединение не
   // закрепляет, — блокировка оставалась на серверном соединении, unlock уходил в другое (WARNING, которого
-  // библиотека не видит), и обслуживание прочих молча вставало (skipped). Стало: блокировка в транзакции каждой
-  // пачки (с ревью безопасности №3 — строка-замок, lock_try) — пул закрепляет серверное соединение на транзакцию,
-  // фиксация снимает блокировку.
+  // библиотека не видит), и обслуживание прочих молча вставало (skipped). Стало: блокировка в транзакции
+  // обслуживания (с ревью безопасности №3 — строка-замок, lock_try) — пул закрепляет серверное соединение на
+  // транзакцию, фиксация снимает блокировку.
   const notices: string[] = [];
   const pool = postgres(ADMIN_DSN, { max: 2, onnotice: (n) => notices.push(String(n.message)) });
   const s0 = await pool.reserve();
@@ -171,7 +141,7 @@ test('разбор в) maintain() за пулом в режиме транзак
   try {
     /** Занята ли строка-замок обслуживания (1 — занята): своя транзакция пробует взять её без ожидания. */
     const held = async () => ((await e.sql.begin(async (tx) => tx.unsafe(`select ${e.S}.lock_try($1) as ok`, [`${e.schema}:maintain`])))[0].ok ? 0 : 1);
-    /** Блокировок обслуживания в момент commit каждой пачки (транзакция ещё открыта). */
+    /** Блокировок обслуживания в момент commit (транзакция ещё открыта). */
     const atCommit: number[] = [];
     /** maintain() библиотеки через «пул»: администраторская роль, без сессии (admin_role). */
     const run = (route: number[]) => {
@@ -179,13 +149,13 @@ test('разбор в) maintain() за пулом в режиме транзак
       const sql = { reserve: async () => conn };
       return maintain({ sql, schema: e.schema, S: e.S, txc: { sql, token: null, notifier: null }, exec: { explicit: false } } as unknown as AdminCtx);
     };
-    // какое бы серверное соединение ни закрепил пул, блокировка живёт в транзакции пачки и уходит с её фиксацией
+    // какое бы серверное соединение ни закрепил пул, блокировка живёт в транзакции обслуживания и уходит с её фиксацией
     for (const route of [[0], [1]]) {
       atCommit.length = 0;
       const r = await run(route);
       assert.equal(r.skipped, false);
-      assert.deepEqual(atCommit, Array(r.batches).fill(1), 'в транзакции каждой пачки блокировка взята');
-      assert.equal(await held(), 0, 'после фиксации пачки блокировки нет');
+      assert.deepEqual(atCommit, [1], 'в транзакции обслуживания блокировка взята');
+      assert.equal(await held(), 0, 'после фиксации блокировки нет');
     }
     assert.deepEqual(notices.filter((m) => /lock/i.test(m)), [], 'unlock в чужое соединение больше не уходит');
     assert.equal((await adb.maintain()).skipped, false, 'обслуживание прочих не встаёт');

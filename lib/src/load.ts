@@ -49,8 +49,6 @@ export interface LoadOptions {
    * переносят историю объектов из другой системы.
    */
   withHistory?: boolean;
-  /** В конце перепроверить загруженные строки проверкой базы. */
-  verify?: boolean;
   /** Класс строк без $class (CLI --class). */
   class?: string;
   /** Арендатор строк (по умолчанию — арендатор сессии). */
@@ -76,7 +74,7 @@ export interface LoadOptions {
 
 /** Все опции load(): неизвестную checkOptions называет с похожими (план 2.0, 7.9 №6). */
 const LOAD_OPTIONS = {
-  duplicates: true, existing: true, batch: true, commitEvery: true, withHistory: true, verify: true, class: true, tenant: true,
+  duplicates: true, existing: true, batch: true, commitEvery: true, withHistory: true, class: true, tenant: true,
   agent: true, as: true, initial: true,
 } satisfies Record<keyof LoadOptions, true>;
 
@@ -145,8 +143,6 @@ interface Pending {
   tenant: string;
   external: Map<string, { line: number; role: string; allowed: string[] }>;
   owners: Map<string, number>;
-  /** verify: true — id записанных строк. */
-  verify: string[] | null;
 }
 
 /** Состояние сессии первой заливки. */
@@ -173,9 +169,8 @@ const esc = (v: unknown): string => {
   const s = String(v);
   return ESCAPED.test(s) ? s.replace(/\\/g, '\\\\').replace(/\t/g, '\\t').replace(/\n/g, '\\n').replace(/\r/g, '\\r') : s;
 };
-const hex = (b: Buffer | null | undefined): string | null => (b ? '\\x' + b.toString('hex') : null);
-const ENTITY_COLS = 'id, rev, class, cv, tenant, owner, links, data, tags, at, created_at, author, agent, op, reason, moved, prev_hash, validator';
-const LOG_COLS = 'id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash, tx';
+const ENTITY_COLS = 'id, rev, class, cv, tenant, owner, links, data, tags, at, created_at, author, agent, op, reason, moved, validator';
+const LOG_COLS = 'id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, tx';
 const asList = (v: string | string[]): string[] => (Array.isArray(v) ? v : [v]);
 /** Теги → литерал text[] для COPY (экранирование COPY — потом, в esc). */
 const pgArray = (tags: readonly string[]): string => `{${tags.map((t) => `"${t.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`).join(',')}}`;
@@ -435,25 +430,6 @@ async function copyLines(conn: Sql, text: string, lines: string[]): Promise<void
   });
 }
 
-/** verify: true — загруженные строки перепроверяет проверка базы (данные и цели концов); нарушения — в to. */
-async function verifyIds(conn: Sql, S: string, ids: string[], to: Issues): Promise<void> {
-  // строки классов — один раз на пару (класс, арендатор), а не на строку (materialized — иначе class_row вернётся в цикл
-  // по строкам); validate_data — полный, с правилами extra: verify перепроверяет всё
-  const bad = await conn.unsafe(`with k as materialized (select n.class, n.tenant, r.validator, r.data->'resolved'->'rules' as rules,
-        r.data->'resolved'->'vars' as vars
-      from (select distinct e.class, e.tenant from ${S}.entity e where e.id = any ($1::uuid[])) n
-      cross join lateral ${S}.class_row(n.class, n.tenant) r)
-    select id, class, issues from (select e.id, e.class, ${S}.validate_data(k.rules, k.validator, k.vars, e.data) as issues
-      from ${S}.entity e join k on k.class = e.class and k.tenant is not distinct from e.tenant where e.id = any ($1::uuid[])) s
-    where issues <> '[]'::jsonb limit ${ISSUES_LIMIT}`, [ids]);
-  for (const r of bad) to.add({ line: 0, code: 'invalid_data', message: lmsg('write.load_db_invalid', { id: r.id, cls: r.class }), id: r.id as string, issues: issuesFromDb(r.issues) });
-  if (bad.length >= ISSUES_LIMIT) to.unchecked.add(lmsg('write.load_db_check_limit', { limit: ISSUES_LIMIT }));
-  const [t] = await conn.unsafe(`select ${S}.targets_bad((select jsonb_agg(jsonb_build_object('class', e.class, 'tenant', e.tenant, 'links', e.links))
-    from ${S}.entity e where e.id = any ($1::uuid[]) and e.links <> '{}'::jsonb), false) as role`, [ids]);
-  const role = t?.role as string | null | undefined;
-  if (role) to.add({ line: 0, code: 'target_not_found', message: lmsg('write.load_db_target', { role }) });
-}
-
 /**
  * Загрузить строки (§2.6). Одна транзакция (или порции commitEvery): описания классов под
  * разделяемыми блокировками семейств, проверки в коде, COPY пачками, запрос по целям вне загрузки,
@@ -627,7 +603,6 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
     laterUnchecked(portion, issues);
     // первая заливка: транзакцию, роль и пояс поставила сессия, фиксирует и откатывает тоже она
     const conn: Awaited<ReturnType<Sql['reserve']>> = ini ? (ini.conn as unknown as Awaited<ReturnType<Sql['reserve']>>) : await env.sql.reserve();
-    const written: string[] = [];
     let failed: unknown = null;
     try {
       if (!ini) {
@@ -668,13 +643,13 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       // пропущенный объект для ссылок на него — вне загрузки (его сверит запрос в конце)
       // живые строки пачки: id → класс (existing: 'update' правит только объект того же класса)
       const live = new Map<string, string>();
-      const past = new Map<string, { rev: number; hash: Buffer; at: string }>();
+      const past = new Map<string, { rev: number; at: string }>();
       if (existing !== 'error' && !opts.withHistory) {
         for (let b = 0; b < portion.length; b += batch) {
           const ids = portion.slice(b, b + batch).map((i) => p1[i]!.id);
           const lock = existing === 'update' ? ' order by e.id for no key update' : '';
           for (const r of await conn.unsafe(`select e.id, e.class from ${S}.entity e where e.id = any ($1::uuid[])${lock}`, [ids])) live.set(r.id as string, r.class as string);
-          for (const r of await conn.unsafe(`select distinct on (l.id) l.id, l.rev, l.hash, l.at::text as at from ${S}.log l
+          for (const r of await conn.unsafe(`select distinct on (l.id) l.id, l.rev, l.at::text as at from ${S}.log l
               where l.id = any ($1::uuid[]) order by l.id, l.rev desc`, [ids])) past.set(r.id as string, r as never);
         }
         if (existing === 'skip') for (const i of portion) if (live.has(p1[i]!.id) || past.has(p1[i]!.id)) inLoad.delete(p1[i]!.id);
@@ -695,20 +670,20 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       }
 
       if (opts.withHistory) {
-        await historyWrite(conn as unknown as Sql, reg, todo, inLoad, external, xid as string, classesTouched, written);
+        await historyWrite(conn as unknown as Sql, reg, todo, inLoad, external, xid as string, classesTouched);
       } else if (ini) {
-        await pipeline(conn as unknown as Sql, reg, portion, inLoad, external, ts as string, xid as string, classesTouched, written, live, past);
+        await pipeline(conn as unknown as Sql, reg, portion, inLoad, external, ts as string, xid as string, classesTouched, live, past);
       } else {
         for (let b = 0; b < portion.length; b += batch) {
           const part = portion.slice(b, b + batch);
-          await writeBatch(conn as unknown as Sql, reg, part, inLoad, external, ts as string, xid as string, classesTouched, written, live, past);
+          await writeBatch(conn as unknown as Sql, reg, part, inLoad, external, ts as string, xid as string, classesTouched, live, past);
         }
       }
       if (issues.any) issues.fail();
       if (ini) {
-        // цели, владельцы, арендатор и проверка базы — в конце сессии, по перестроенным индексам
+        // цели, владельцы и арендатор — в конце сессии, по перестроенным индексам
         report.external += external.size;
-        ini.pending.push({ reg, tenant: tenant!, external, owners: new Map(owners), verify: opts.verify ? written : null });
+        ini.pending.push({ reg, tenant: tenant!, external, owners: new Map(owners) });
         for (const id of inLoad.keys()) ini.ids.add(id);
         let set = ini.touched.get(tenant!);
         if (!set) ini.touched.set(tenant!, (set = new Set()));
@@ -752,10 +727,6 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       const [acc] = await conn.unsafe(`select coalesce((data->>'enabled')::boolean, true) as enabled from ${S}.entity where id = $1::uuid and class = 'Account'`, [tenant]);
       if (!acc || !acc.enabled) issues.add({ line: portion.length ? portion[0] + 1 : 0, code: 'tenant_denied', message: lmsg('write.load_tenant_denied', { tenant }) });
       if (issues.any) issues.fail();
-      if (opts.verify && written.length) {
-        await verifyIds(conn as unknown as Sql, S, written, issues);
-        if (issues.any) issues.fail();
-      }
       // сигнал — функцией базы, как у триггеров: нагрузка по режиму сигналов установки (план 1.1)
       if (classesTouched.size) {
         const touched = [...classesTouched];
@@ -923,10 +894,10 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
 
   /** Пачка — подготовка и запись по очереди. */
   async function writeBatch(conn: Sql, reg: Registry, part: number[], inLoad: Map<string, { cls: string; alive: boolean }>,
-    external: Map<string, { line: number; role: string; allowed: string[] }>, ts: string, xid: string, touched: Set<string>, written: string[],
-    live: Map<string, string>, past: Map<string, { rev: number; hash: Buffer; at: string }>): Promise<void> {
-    const p = await prepareBatch(reg, part, inLoad, external, ts, xid, touched, written, live, past, 0);
-    if (p) await flushBatch(conn, p, ts, touched, written);
+    external: Map<string, { line: number; role: string; allowed: string[] }>, ts: string, xid: string, touched: Set<string>,
+    live: Map<string, string>, past: Map<string, { rev: number; at: string }>): Promise<void> {
+    const p = await prepareBatch(reg, part, inLoad, external, ts, xid, touched, live, past, 0);
+    if (p) await flushBatch(conn, p, ts, touched);
   }
 
   /**
@@ -936,12 +907,12 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
    * процесса); при ошибке подготовки запись в полёте доходит до конца, и откат идёт по готовому соединению.
    */
   async function pipeline(conn: Sql, reg: Registry, portion: number[], inLoad: Map<string, { cls: string; alive: boolean }>,
-    external: Map<string, { line: number; role: string; allowed: string[] }>, ts: string, xid: string, touched: Set<string>, written: string[],
-    live: Map<string, string>, past: Map<string, { rev: number; hash: Buffer; at: string }>): Promise<void> {
+    external: Map<string, { line: number; role: string; allowed: string[] }>, ts: string, xid: string, touched: Set<string>,
+    live: Map<string, string>, past: Map<string, { rev: number; at: string }>): Promise<void> {
     let flushing: Promise<void> | null = null;
     try {
       for (let b = 0; b < portion.length; b += batch) {
-        const p = await prepareBatch(reg, portion.slice(b, b + batch), inLoad, external, ts, xid, touched, written, live, past, 256);
+        const p = await prepareBatch(reg, portion.slice(b, b + batch), inLoad, external, ts, xid, touched, live, past, 256);
         const prev: Promise<void> | null = flushing;
         flushing = null;
         if (prev) await prev;
@@ -950,7 +921,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
           if (p?.inDb.length) issues.unchecked.add(lmsg('write.load_db_rules_unchecked'));
           return;
         }
-        flushing = flushBatch(conn, p, ts, touched, written);
+        flushing = flushBatch(conn, p, ts, touched);
         flushing.catch(() => {});
       }
       const last: Promise<void> | null = flushing;
@@ -967,8 +938,8 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
    * каждые столько строк (конвейер первой заливки). Нарушения — null.
    */
   async function prepareBatch(reg: Registry, part: number[], inLoad: Map<string, { cls: string; alive: boolean }>,
-    external: Map<string, { line: number; role: string; allowed: string[] }>, ts: string, xid: string, touched: Set<string>, written: string[],
-    live: Map<string, string>, past: Map<string, { rev: number; hash: Buffer; at: string }>, yieldEvery: number): Promise<Prepared | null> {
+    external: Map<string, { line: number; role: string; allowed: string[] }>, ts: string, xid: string, touched: Set<string>,
+    live: Map<string, string>, past: Map<string, { rev: number; at: string }>, yieldEvery: number): Promise<Prepared | null> {
     const ent: string[] = [];
     const log: string[] = [];
     const updates: Prepared['updates'] = [];
@@ -1011,13 +982,11 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       if (acl) rowsAcl.push({ i, class: cls.name, id, owner, tags, data: sh.data, links: sh.links });
       // общая голова строк entity и log — одной сборкой и одним экранированием
       const head = [id, rev, cls.name, cur.rev, tenant, owner, JSON.stringify(sh.links), JSON.stringify(sh.data), pgArray(tags), atv].map(esc).join('\t');
-      const ph = esc(hex(prev?.hash));
-      ent.push(`${head}\t${esc(atv)}\t${esc(author)}\t${esc(agent)}\tcreate\t\\N\t\\N\t${ph}\t\\N\n`);
-      if (cur.history !== false) log.push(`${head}\t${esc(author)}\t${esc(agent)}\tcreate\t\\N\t\\N\t${ph}\t${esc(xid)}\n`);
+      ent.push(`${head}\t${esc(atv)}\t${esc(author)}\t${esc(agent)}\tcreate\t\\N\t\\N\t\\N\n`);
+      if (cur.history !== false) log.push(`${head}\t${esc(author)}\t${esc(agent)}\tcreate\t\\N\t\\N\t${esc(xid)}\n`);
       report.loaded++;
       report.byClass[cls.name] = (report.byClass[cls.name] ?? 0) + 1;
       touched.add(cls.name);
-      written.push(id);
     }
     if (issues.any) {
       if (aclRan) issues.unchecked.add(lmsg('write.load_later_batches'));
@@ -1028,7 +997,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
   }
 
   /** Запись подготовленной пачки: условия ACL ({ as }) — запросом на пачку, COPY в entity и log, правки существующих. */
-  async function flushBatch(conn: Sql, p: Prepared, ts: string, touched: Set<string>, written: string[]): Promise<void> {
+  async function flushBatch(conn: Sql, p: Prepared, ts: string, touched: Set<string>): Promise<void> {
     const { ent, log, updates, rowsAcl, inDb } = p;
     if (inDb.length) await checkInDb(conn, inDb);
     if (acl) {
@@ -1061,29 +1030,26 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       // новая версия из заблокированных значений — одним оператором; без изменений — без версии
       const res = await conn.unsafe(`with u as (select * from jsonb_to_recordset($1::jsonb) as x(id uuid, data jsonb, links jsonb, tags text[])),
           up as (
-            update ${S}.entity e set data = u.data, links = u.links, tags = coalesce(u.tags, e.tags), rev = e.rev + 1, prev_hash = e.hash,
+            update ${S}.entity e set data = u.data, links = u.links, tags = coalesce(u.tags, e.tags), rev = e.rev + 1,
               at = greatest($2::timestamptz, e.at + interval '1 microsecond'), author = $3::uuid, agent = $4::text, op = 'update',
               reason = null, moved = null, cv = coalesce((${S}.class_row(e.class, e.tenant)).rev, e.cv)
             from u where e.id = u.id and (e.data is distinct from u.data or e.links is distinct from u.links
               or e.tags is distinct from coalesce(u.tags, e.tags))
             returning e.*),
           lg as (
-            insert into ${S}.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash)
-            select id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash from up
+            insert into ${S}.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved)
+            select id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved from up
             where ${S}.history_on(up.class, up.tenant) order by up.id)
         select up.id, up.class from up`, [updates.map((u) => ({ id: u.id, data: u.data, links: u.links, tags: u.tags })), ts, author, agent]);
       report.updated += res.length;
       report.skipped += updates.length - res.length;
-      for (const r of res) {
-        touched.add(r.class as string);
-        written.push(r.id as string);
-      }
+      for (const r of res) touched.add(r.class as string);
     }
   }
 
-  /** Режим истории: версии волнами — после каждой волны база отдаёт хэши, они prev_hash следующей. */
+  /** Режим истории: версии в журнал — волнами по номеру (первые версии всех объектов, затем вторые…), вставками по 5000. */
   async function historyWrite(conn: Sql, reg: Registry, portion: number[], inLoad: Map<string, { cls: string; alive: boolean }>,
-    external: Map<string, { line: number; role: string; allowed: string[] }>, xid: string, touched: Set<string>, written: string[]): Promise<void> {
+    external: Map<string, { line: number; role: string; allowed: string[] }>, xid: string, touched: Set<string>): Promise<void> {
     const byId = new Map<string, number[]>();
     for (const i of portion) {
       const id = p1[i]!.id;
@@ -1115,12 +1081,15 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
     if (issues.any) return;
     // без разворота в аргументы: на сотнях тысяч объектов он переполняет стек
     const waves = lists.reduce((m, l) => Math.max(m, l.length), 0);
-    const prevHash = new Map<string, Buffer | null>();
-    const lastPrev = new Map<string, Buffer | null>();
-    // волна — одна вставка с returning hash: хэши волны сразу становятся prev_hash следующей (мелкий
-    // COPY плюс отдельный запрос хэшей стоил по задержке TCP на волну)
+    const items: Record<string, unknown>[] = [];
+    const flush = async (): Promise<void> => {
+      if (!items.length) return;
+      await conn.unsafe(`insert into ${S}.log (${LOG_COLS})
+        select x.id, x.rev, x.class, x.cv, x.tenant, x.owner, x.links, x.data, x.tags, x.at, x.author, x.agent, x.op, null, null, x.tx::xid8
+        from jsonb_to_recordset($1::jsonb) as x(id uuid, rev int, class text, cv int, tenant uuid, owner uuid, tags text[], links jsonb,
+               data jsonb, at timestamptz, author uuid, agent text, op text, tx text)`, [items.splice(0) as never]);
+    };
     for (let w = 0; w < waves; w++) {
-      const items: Record<string, unknown>[] = [];
       for (const l of lists) {
         const i = l[w];
         if (i === undefined) continue;
@@ -1130,22 +1099,13 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
         const r = rows[i];
         const sh = shaped.get(i)!;
         const op = typeof r.$op === 'string' ? r.$op : w === 0 ? 'create' : 'update';
-        const ph = prevHash.get(id) ?? null;
-        if (w === l.length - 1) lastPrev.set(id, ph);
         items.push({ id, rev: w + 1, class: cls.name, cv: cur.rev, tenant, owner: sh.owner ?? tenant, tags: sh.tags ?? [], links: sh.links,
-          data: sh.data, at: r.$at, author: SYSTEM_ID, agent, op, ph: ph ? ph.toString('hex') : null, tx: xid });
+          data: sh.data, at: r.$at, author: SYSTEM_ID, agent, op, tx: xid });
         touched.add(cls.name);
-      }
-      for (let k = 0; k < items.length; k += 5000) {
-        const res = await conn.unsafe(`insert into ${S}.log (${LOG_COLS})
-          select x.id, x.rev, x.class, x.cv, x.tenant, x.owner, x.links, x.data, x.tags, x.at, x.author, x.agent, x.op, null, null,
-                 decode(x.ph, 'hex'), x.tx::xid8
-          from jsonb_to_recordset($1::jsonb) as x(id uuid, rev int, class text, cv int, tenant uuid, owner uuid, tags text[], links jsonb,
-                 data jsonb, at timestamptz, author uuid, agent text, op text, ph text, tx text)
-          returning id, hash`, [items.slice(k, k + 5000) as never]);
-        if (w < waves - 1) for (const h of res) prevHash.set(h.id as string, h.hash as Buffer);
+        if (items.length >= 5000) await flush();
       }
     }
+    await flush();
     // текущее состояние — последняя версия, если она не надгробие; created_at — время первой версии
     const ent: string[] = [];
     for (const l of lists) {
@@ -1157,11 +1117,9 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       const sh = shaped.get(last)!;
       const op = typeof r.$op === 'string' ? r.$op : l.length === 1 ? 'create' : 'update';
       ent.push([id, l.length, cls.name, cur.rev, tenant, sh.owner ?? tenant, JSON.stringify(sh.links), JSON.stringify(sh.data), pgArray(sh.tags ?? []), r.$at,
-        rows[l[0]].$at, SYSTEM_ID, agent, op, null, null, hex(cur.history === false ? null : lastPrev.get(id) ?? null), null].map(esc).join('\t') + '\n');
+        rows[l[0]].$at, SYSTEM_ID, agent, op, null, null, null].map(esc).join('\t') + '\n');
       report.loaded++;
       report.byClass[cls.name] = (report.byClass[cls.name] ?? 0) + 1;
-      // verify: true проверяет и строки режима истории (в 1.0.1 список был пуст — проверка не шла)
-      written.push(id);
     }
     await copyLines(conn, `copy ${S}.entity (${ENTITY_COLS}) from stdin${ini?.freeze ? ' with (freeze)' : ''}`, ent);
   }
@@ -1286,7 +1244,6 @@ export async function initialSession<T>(env: LoadEnv, fn: (s: InitialSession) =>
       }
       const [acc] = await q(`select coalesce((data->>'enabled')::boolean, true) as enabled from ${S}.entity where id = $1::uuid and class = 'Account'`, [p.tenant]);
       if (!acc || !acc.enabled) issues.add({ line: 0, code: 'tenant_denied', message: lmsg('write.load_tenant_denied', { tenant: p.tenant }) });
-      if (p.verify?.length) await verifyIds(conn as unknown as Sql, S, p.verify, issues);
     }
     if (issues.any) issues.fail();
     const pairs = [...state.touched].flatMap(([t, cs]) => [...cs].map((c) => [c, t] as const));

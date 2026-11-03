@@ -1,17 +1,16 @@
 #!/usr/bin/env node
 /**
- * CLI letopis (план, этап 2, п. 7; этап 4, п. 11; этап 6, п. 4, 8): `letopis sync`, `types`, `load`, `verify`,
- * `maintain`; план 1.1, §2.5 — `mcp`; план 2.0, этап 3, п. 8 — `sync --check`.
+ * CLI letopis (план, этап 2, п. 7; этап 4, п. 11; этап 6, п. 8): `letopis sync`, `types`, `load`, `maintain`; план 1.1,
+ * §2.5 — `mcp`; план 2.0, этап 3, п. 8 — `sync --check`.
  *
  *   letopis sync <модуль моделей> --dsn … --schema v2.x (--token … | --api-key …) [--apply | --check]
  *     --check — сухой прогон с кодом 1, если он нашёл изменения (создать или изменить); вместе с --apply — USAGE, код 2
  *   letopis types --dsn … --schema v2.x (--token … | --api-key …) [--out types.d.ts] [--system]
  *     --system — и классы арендатора System (системные, сиды пакета), без него — только классы арендатора сессии
  *   letopis load <файлы NDJSON…> --dsn … --schema v2.x (--token … | --api-key …) [--class C]
- *     [--duplicates error|first|last] [--existing error|skip|update] [--commit-every N] [--verify] [--initial]
+ *     [--duplicates error|first|last] [--existing error|skip|update] [--commit-every N] [--initial]
  *     --initial — первая заливка (план 1.1, §2.3): пустая схема, одна транзакция, индексы и триггеры — после загрузки
- *   letopis verify --dsn … --schema v2.x [--token … | --api-key …] [--data]   — код 1 при находках
- *   letopis maintain --dsn … --schema v2.x [--token … | --api-key …] [--batches N]
+ *   letopis maintain --dsn … --schema v2.x [--token … | --api-key …]
  *   letopis mcp --dsn … --schema v2.x --token … [--write]   — сервер MCP по stdio (план 1.1, §2.5); dsn, schema и
  *     token — ещё из LETOPIS_DSN, LETOPIS_SCHEMA, LETOPIS_TOKEN; только токен пользователя: --api-key — отказ
  *   справка — USAGE (её же читает справочник сайта, guide/scripts/gen-api.ts)
@@ -29,14 +28,13 @@ import { lerr, lmsg } from './errors.js';
 const USAGE = `letopis sync <модуль> --dsn <строка> --schema <v2.имя> (--token <токен> | --api-key <ключ>) [--apply | --check]
 letopis types --dsn <строка> --schema <v2.имя> (--token <токен> | --api-key <ключ>) [--out <файл>] [--system]
 letopis load <файлы…> --dsn <строка> --schema <v2.имя> (--token <токен> | --api-key <ключ>) [--class <Класс>]
-  [--duplicates error|first|last] [--existing error|skip|update] [--commit-every <N>] [--verify] [--initial]
-letopis verify --dsn <строка> --schema <v2.имя> [--token <токен> | --api-key <ключ>] [--data]
-letopis maintain --dsn <строка> --schema <v2.имя> [--token <токен> | --api-key <ключ>] [--batches <N>]
+  [--duplicates error|first|last] [--existing error|skip|update] [--commit-every <N>] [--initial]
+letopis maintain --dsn <строка> --schema <v2.имя> [--token <токен> | --api-key <ключ>]
 letopis mcp --dsn <строка> --schema <v2.имя> --token <токен пользователя> [--write]
   (или LETOPIS_DSN, LETOPIS_SCHEMA, LETOPIS_TOKEN; ключ сервиса --api-key не принимается)`;
 
 /** Команды CLI: остальное — USAGE с кодом 2 ещё до подключения. */
-const COMMANDS = new Set(['sync', 'types', 'load', 'verify', 'maintain', 'mcp']);
+const COMMANDS = new Set(['sync', 'types', 'load', 'maintain', 'mcp']);
 
 const isModel = (v: unknown): v is AnyModel => typeof v === 'object' && v !== null && typeof (v as AnyModel).describe === 'function' && typeof (v as AnyModel).name === 'string';
 
@@ -54,7 +52,6 @@ export async function main(argv: string[]): Promise<number> {
       dsn: { type: 'string' }, schema: { type: 'string' }, token: { type: 'string' }, 'api-key': { type: 'string' },
       apply: { type: 'boolean' }, out: { type: 'string' }, help: { type: 'boolean' },
       class: { type: 'string' }, duplicates: { type: 'string' }, existing: { type: 'string' }, 'commit-every': { type: 'string' },
-      verify: { type: 'boolean' }, data: { type: 'boolean' }, batches: { type: 'string' },
       initial: { type: 'boolean' }, write: { type: 'boolean' }, system: { type: 'boolean' }, check: { type: 'boolean' },
     },
   });
@@ -78,9 +75,9 @@ export async function main(argv: string[]): Promise<number> {
   if (cmd === 'mcp') return mcp(values);
   // загрузчику нужно администраторское подключение (§2.6, п. 1)
   const db = await connect({ dsn: values.dsn, schema: values.schema, token: values.token, apiKey: values['api-key'], max: 2,
-    // verify и maintain работают и на администраторском подключении без сессии; классы со строками синхронизирует
+    // maintain работает и на администраторском подключении без сессии; классы со строками синхронизирует
     // администраторское подключение с сессией арендатора
-    ...(cmd === 'load' || cmd === 'verify' || cmd === 'maintain' || cmd === 'sync' ? { allowBypassRls: true } : {}) });
+    ...(cmd === 'load' || cmd === 'maintain' || cmd === 'sync' ? { allowBypassRls: true } : {}) });
   try {
     if (cmd === 'sync') {
       if (!arg) { console.log(USAGE); return 2; }
@@ -107,19 +104,13 @@ export async function main(argv: string[]): Promise<number> {
         duplicates: values.duplicates as 'error' | 'first' | 'last' | undefined,
         existing: values.existing as 'error' | 'skip' | 'update' | undefined,
         commitEvery: values['commit-every'] ? Number(values['commit-every']) : undefined,
-        verify: values.verify,
         initial: values.initial,
       });
       console.log(JSON.stringify(r));
       return 0;
     }
-    if (cmd === 'verify') {
-      const r = await db.verify({ data: values.data });
-      console.log(JSON.stringify(r, null, 2));
-      return r.ok ? 0 : 1;
-    }
     if (cmd === 'maintain') {
-      const r = await db.maintain({ batches: values.batches ? Number(values.batches) : undefined });
+      const r = await db.maintain();
       console.log(JSON.stringify(r));
       return 0;
     }

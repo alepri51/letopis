@@ -32,7 +32,7 @@ export const api = {
     code: 'acl_denied',
     ru: 'новые значения строки запрещают правила доступа',
   },
-  // chain.ts, warnNoHistory: versions(), asOf(), diff(), blame() у класса без журнала — предупреждение (lwarn), один раз
+  // chain.ts, warnNoHistory: versions(), asOf() у класса без журнала — предупреждение (lwarn), один раз
   // на класс и метод; код записи не печатается
   'api.no_history': {
     code: 'invalid_query',
@@ -67,21 +67,6 @@ export const api = {
   'api.lock_denied': {
     code: 'acl_denied',
     ru: 'строки видны, но заблокировать их нельзя: {ids}',
-  },
-  // chain.ts, versionRef: diff({ from }), diff({ to }) — номер версии или момент; what — опция
-  'api.version_or_moment': {
-    code: 'invalid_query',
-    ru: '{what}: номер версии (целое ≥ 1) или момент (ISO-строка, Date)',
-  },
-  // chain.ts, versionRef: blame({ limit }) — только номер
-  'api.version_number': {
-    code: 'invalid_query',
-    ru: '{what}: номер версии (целое ≥ 1)',
-  },
-  // chain.ts, momentOf: blame({ at })
-  'api.moment': {
-    code: 'invalid_query',
-    ru: '{what}: момент — ISO-строка или Date',
   },
   // chain.ts, slotValue: значение .Роль.set(…), .add(…), .remove(…)
   'api.slot_value': {

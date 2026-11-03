@@ -10,7 +10,7 @@
 --             нескольким полям (anyOf, oneOf) потомок заменяет целиком, как поле
 --   ends      { <роль>: { class: <класс> | [<класс>…], many, required, min, max, onDelete, meta } }
 --   key       [<поле или роль>…] — из них вычисляется id (§2.3); [] — класс без ключа
---   history   true | false | политика хранения (§2.11)
+--   history   true | false — вести ли журнал версий
 --   ownerDefault 'tenant' | 'actor';  cache { ttl };  meta {…} до 64 КБ
 --   resolved  развёрнутое описание с учётом предков — пишет триггер, присланное значение перезаписывается
 -- Скомпилированная проверка данных класса лежит в колонке validator строки Class.
@@ -57,15 +57,7 @@ return $json${
       }
     },
     "key": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
-    "history": {"anyOf": [{"type": "boolean"}, {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["all"],
-      "properties": {
-        "all": {"type": "string"}, "daily": {"type": "string"}, "weekly": {"type": "string"},
-        "monthly": {"type": "string"}, "yearly": {"type": "string"}, "tz": {"type": "string"}
-      }
-    }]},
+    "history": {"type": "boolean"},
     "ownerDefault": {"type": "string", "enum": ["tenant", "actor"]},
     "cache": {"type": "object"},
     "meta": {"type": "object"},
@@ -162,7 +154,7 @@ begin
     'meta', meta);
 end $$;
 
--- Проверка описания класса: метасхема, правила ключа (§2.3), правило unset (§2.10), размер meta.
+-- Проверка описания класса: метасхема, правила ключа (§2.3), правило unset (§2.10), размер meta, журнал системных классов.
 -- Возвращает строку с заполненными resolved и validator.
 create or replace function @SCHEMA@.class_prepare(p_data jsonb, p_tenant uuid, out data jsonb, out validator jsonpath)
 language plpgsql stable
@@ -176,9 +168,6 @@ declare
   fld jsonb;
   e record;
   c record;
-  prev interval;
-  tiers text[];
-  i int;
 begin
   data := p_data - 'resolved';
   select * into ms from @SCHEMA@.class_meta_validator();
@@ -211,38 +200,9 @@ begin
       perform @SCHEMA@.lt_fail('sql-core.unset_required_end', jsonb_build_object('end', e.key));
     end if;
   end loop;
-  -- политика хранения: для системных классов запрещена (§2.11)
-  if coalesce((data->>'system')::boolean, false) and jsonb_typeof(res->'history') <> 'boolean' then
-    perform @SCHEMA@.lt_fail('sql-core.system_history_policy');
-  end if;
+  -- журнал системных классов — аудит прав и схемы: его не выключают
   if coalesce((data->>'system')::boolean, false) and res->'history' = 'false'::jsonb then
     perform @SCHEMA@.lt_fail('sql-core.system_history_off');
-  end if;
-  -- политика хранения (§2.11): сроки ярусов по возрастанию, all не меньше суток, 'forever' — только последний
-  if jsonb_typeof(res->'history') = 'object' then
-    prev := interval '0';
-    tiers := array(select u.tn from unnest(array['all', 'daily', 'weekly', 'monthly', 'yearly']) with ordinality u(tn, ord)
-                   where res->'history' ? u.tn order by u.ord);
-    for i in 1 .. cardinality(tiers) loop
-      k := res->'history'->>tiers[i];
-      if k = 'forever' then
-        if i <> cardinality(tiers) then
-          perform @SCHEMA@.lt_fail('sql-core.history_forever_not_last', jsonb_build_object('tier', tiers[i]));
-        end if;
-      elsif not pg_input_is_valid(k, 'interval') then
-        perform @SCHEMA@.lt_fail('sql-core.history_tier_unparsable', jsonb_build_object('tier', tiers[i], 'value', k));
-      elsif k::interval <= prev then
-        perform @SCHEMA@.lt_fail('sql-core.history_tiers_order', jsonb_build_object('tier', tiers[i]));
-      else
-        prev := k::interval;
-      end if;
-    end loop;
-    if (res->'history'->>'all') <> 'forever' and (res->'history'->>'all')::interval < interval '1 day' then
-      perform @SCHEMA@.lt_fail('sql-core.history_all_min_day');
-    end if;
-    if res->'history' ? 'tz' and not exists (select 1 from pg_timezone_names where name = res->'history'->>'tz') then
-      perform @SCHEMA@.lt_fail('sql-core.history_unknown_tz', jsonb_build_object('tz', res->'history'->>'tz'));
-    end if;
   end if;
   select * into c from @SCHEMA@.compile_validator(res->'schema');
   data := data || jsonb_build_object('resolved', res || jsonb_build_object('rules', c.rules, 'vars', c.vars));

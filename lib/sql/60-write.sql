@@ -441,17 +441,10 @@ create or replace function @SCHEMA@.log_version(e @SCHEMA@.entity) returns void
 language plpgsql volatile
 set search_path = pg_catalog, @SCHEMA@, pg_temp
 as $$
-declare
-  p @SCHEMA@.log;
 begin
   if @SCHEMA@.history_on(e.class, e.tenant) then
-    -- пути изменения: против предыдущей версии id, у первой версии переноса — против прежнего id (moved)
-    select l.* into p from @SCHEMA@.log l
-    where l.id = case when e.rev > 1 then e.id else e.moved end and l.op not in ('purge', 'trim')
-    order by l.rev desc limit 1;
-    insert into @SCHEMA@.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash, changed)
-    values (e.id, e.rev, e.class, e.cv, e.tenant, e.owner, e.links, e.data, e.tags, e.at, e.author, e.agent, e.op, e.reason, e.moved, e.prev_hash,
-            case when p.id is not null then @SCHEMA@.change_paths(p.data, p.links, p.tags, p.owner, p.class, e.data, e.links, e.tags, e.owner, e.class) end);
+    insert into @SCHEMA@.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved)
+    values (e.id, e.rev, e.class, e.cv, e.tenant, e.owner, e.links, e.data, e.tags, e.at, e.author, e.agent, e.op, e.reason, e.moved);
   end if;
   perform @SCHEMA@.signal(array[e.class], array[e.tenant]);
 end $$;
@@ -475,7 +468,7 @@ begin
   end if;
   update @SCHEMA@.entity x
      set class = coalesce(p_class, x.class), data = p_data, links = p_links, validator = p_validator,
-         rev = x.rev + 1, prev_hash = x.hash,
+         rev = x.rev + 1,
          at = greatest(@SCHEMA@.now_ts(), x.at + interval '1 microsecond'),
          author = coalesce(c.author, '@SYSTEM@'::uuid), agent = c.agent, op = p_op,
          reason = nullif(current_setting('letopis.reason', true), ''), moved = null,
@@ -502,7 +495,6 @@ declare
 begin
   select * into c from @SCHEMA@.ctx();
   e.rev := e.rev + 1;
-  e.prev_hash := e.hash;
   e.at := greatest(@SCHEMA@.now_ts(), e.at + interval '1 microsecond');
   e.author := coalesce(c.author, '@SYSTEM@'::uuid);
   e.agent := c.agent;
@@ -557,7 +549,7 @@ return (select min(r->>'class') from jsonb_array_elements(p_rows) r, (select @SC
                                    (x.a->>'tenant')::uuid, (x.a->>'account')::uuid, x.a->'plan'));
 
 -- Безопасно ли изменение описания класса (этап 1, п. 10): новые необязательные поля и концы,
--- метаданные, алиас, политика истории, кэш. Всё остальное — ужесточение с проверкой строк, в том числе
+-- метаданные, алиас, history, кэш. Всё остальное — ужесточение с проверкой строк, в том числе
 -- любая правка условий anyOf и oneOf (1.0.1: прежде они не сравнивались, и строки не перепроверялись).
 create or replace function @SCHEMA@.class_change_safe(o jsonb, n jsonb) returns boolean
 language sql immutable
@@ -676,8 +668,8 @@ end $$;
 -- без условий, иначе acl_denied «<что меняется>: нужно право <op> на все строки класса <класс>». Что меняется — p_what,
 -- по нему ключ каталога (план 2.0, этап 3, п. 3): reparent, history, tighten, rekey; иное — готовый текст. Сам класс первым,
 -- потомки — по глубине и имени; потомков у арендаторов класса System план сессии System не видит — они пропускаются.
--- Зовут class_acl_admit (смена предков и алиаса), ужесточение (class_evolve, rekey_class) и смена политики
--- хранения истории (class_admit; доработки после точки Б).
+-- Зовут class_acl_admit (смена предков и алиаса), ужесточение (class_evolve, rekey_class) и смена history — включение
+-- и выключение журнала (class_admit; доработки после точки Б).
 create or replace function @SCHEMA@.class_rows_admit(p_class text, p_tenant uuid, p_ops text[], p_what text) returns void
 language plpgsql stable
 set search_path = pg_catalog, @SCHEMA@, pg_temp
@@ -710,7 +702,7 @@ begin
   end loop;
 end $$;
 
--- Есть ли в журнале версии строк класса p_name арендатора p_tenant; записи purge и trim — не версии (доработки
+-- Есть ли в журнале версии строк класса p_name арендатора p_tenant; запись purge — не версия (доработки
 -- после точки Б: удаление и пересоздание класса, остаток Н2 ревью №2). У класса System — строки любого арендатора, кроме
 -- арендаторов со своим классом с тем же именем: их строки — строки своего класса, как их резолвит class_row (ревью
 -- безопасности №3: история такого класса не мешает администратору создать и удалить класс System)
@@ -718,7 +710,7 @@ create or replace function @SCHEMA@.class_has_history(p_name text, p_tenant uuid
 language sql stable
 set search_path = pg_catalog, @SCHEMA@, pg_temp
 return exists (select 1 from @SCHEMA@.log l
-               where l.class = p_name and l.op not in ('purge', 'trim')
+               where l.class = p_name and l.op <> 'purge'
                  and (l.tenant = p_tenant
                       or p_tenant = '@SYSTEM@'::uuid
                          and l.tenant <> all (array(select x.tenant from @SCHEMA@.entity x
@@ -820,10 +812,9 @@ begin
      and @SCHEMA@.class_orphan_history(data->>'name', p_tenant) then
     perform @SCHEMA@.lt_fail('sql-write.alias_orphan_history', jsonb_build_object('cls', data->>'name'));
   end if;
-  -- политика хранения истории (доработки после точки Б): по ней maintain() прореживает журнал строк класса, а
-  -- history: false выключает журнал. Одним правом WRITE на Class автор правки стирал бы аудит строк, на которые у него
-  -- нет прав, поэтому смена развёрнутой history существующего класса требует права READ и DELETE без условий на все
-  -- строки класса и его потомков своего арендатора — как trimHistory требует их на каждую цель
+  -- history (доработки после точки Б): history: false выключает журнал. Одним правом WRITE на Class автор правки
+  -- останавливал бы аудит строк, на которые у него нет прав, поэтому смена развёрнутой history существующего класса
+  -- требует права READ и DELETE без условий на все строки класса и его потомков своего арендатора
   if prevd is not null and prevd->'resolved'->'history' is distinct from data->'resolved'->'history' then
     perform @SCHEMA@.class_rows_admit(data->>'name', p_tenant, array['READ', 'DELETE'], 'history');
   end if;
@@ -916,18 +907,17 @@ begin
     end if;
     NEW.id := kid;
   end if;
-  -- воскрешение: номер версии и цепочка хэшей продолжаются от последней записи журнала; запись
-  -- блокируется — параллельные purge, обрезка и restore того же id ждут (этап 6), а если purge успел
-  -- стереть её, пара (id, rev) столкнётся с его записью purge в журнале, и операция повторится
-  select l.rev, l.hash, l.at, l.op, l.data into last from @SCHEMA@.log l where l.id = NEW.id order by l.rev desc limit 1 for update;
+  -- воскрешение: номер версии продолжается от последней записи журнала; запись блокируется — параллельные purge и
+  -- restore того же id ждут (этап 6), а если purge успел стереть её, пара (id, rev) столкнётся с его записью purge в
+  -- журнале, и операция повторится
+  select l.rev, l.at, l.op, l.data into last from @SCHEMA@.log l where l.id = NEW.id order by l.rev desc limit 1 for update;
   -- класс с историей строк в журнале (остаток Н2 ревью №2; доработки после точки Б): правила прав находят строки, и
   -- старые версии тоже, по именам класса, предков и алиасов — класс с другим parent или alias подставил бы
   -- старую историю под чужие правила. Поэтому, если журнал арендатора хранит версии строк класса с этим именем, класс
   -- создаётся только заново и с тем же описанием, что в надгробии его строки Class. Надгробия нет (история осталась от
   -- класса System, удалённого раньше, или строку Class стёрли мимо триггеров) — отказ: сначала purge() строк
   -- Так же — если историю хранят удалённые потомки класса (их правила находят старые версии и по алиасу предка), и
-  -- политика хранения прежняя: по ней maintain() прореживает старые версии (ревью безопасности №3; у описаний без ключа
-  -- history в resolved — значение по умолчанию true)
+  -- history прежняя (ревью безопасности №3; у описаний без ключа history в resolved — значение по умолчанию true)
   if NEW.class = 'Class'
      and (@SCHEMA@.class_has_history(NEW.data->>'name', NEW.tenant) or @SCHEMA@.class_orphan_history(NEW.data->>'name', NEW.tenant))
      and not (coalesce(last.op = 'delete', false)
@@ -938,7 +928,6 @@ begin
   end if;
   ts := @SCHEMA@.now_ts();
   NEW.rev := coalesce(last.rev, 0) + 1;
-  NEW.prev_hash := last.hash;
   NEW.at := greatest(ts, last.at + interval '1 microsecond');
   NEW.created_at := NEW.at;
   NEW.cv := cls.rev;
@@ -1056,7 +1045,6 @@ begin
     perform @SCHEMA@.family_lock(NEW, true);
   end if;
   NEW.rev := OLD.rev + 1;
-  NEW.prev_hash := OLD.hash;
   NEW.at := greatest(@SCHEMA@.now_ts(), OLD.at + interval '1 microsecond');
   NEW.cv := cls.rev;
   NEW.author := c.author;
@@ -1085,8 +1073,8 @@ begin
   if bad is not null then
     perform @SCHEMA@.lt_fail('sql-write.end_target_missing', jsonb_build_object('end', bad));
   end if;
-  insert into @SCHEMA@.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash)
-  select n.id, n.rev, n.class, n.cv, n.tenant, n.owner, n.links, n.data, n.tags, n.at, n.author, n.agent, n.op, n.reason, n.moved, n.prev_hash
+  insert into @SCHEMA@.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved)
+  select n.id, n.rev, n.class, n.cv, n.tenant, n.owner, n.links, n.data, n.tags, n.at, n.author, n.agent, n.op, n.reason, n.moved
   from added n
   join (select k.class, k.tenant from (select distinct a.class, a.tenant from added a) k
         where @SCHEMA@.history_on(k.class, k.tenant)) h on h.class = n.class and h.tenant = n.tenant
@@ -1125,9 +1113,8 @@ begin
   if bad is not null then
     perform @SCHEMA@.lt_fail('sql-write.end_target_missing', jsonb_build_object('end', bad));
   end if;
-  insert into @SCHEMA@.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash, changed)
-  select n.id, n.rev, n.class, n.cv, n.tenant, n.owner, n.links, n.data, n.tags, n.at, n.author, n.agent, n.op, n.reason, n.moved, n.prev_hash,
-         @SCHEMA@.change_paths(o.data, o.links, o.tags, o.owner, o.class, n.data, n.links, n.tags, n.owner, n.class)
+  insert into @SCHEMA@.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved)
+  select n.id, n.rev, n.class, n.cv, n.tenant, n.owner, n.links, n.data, n.tags, n.at, n.author, n.agent, n.op, n.reason, n.moved
   from new_rows n
   join old_rows o on o.id = n.id and o.rev <> n.rev
   join (select k.class, k.tenant from (select distinct a.class, a.tenant from new_rows a) k
@@ -1258,7 +1245,7 @@ begin
   for r in select x.* from @SCHEMA@.entity x where x.owner = p_user and x.owner <> x.tenant and x.tenant = p_tenant
            order by x.id for update loop
     update @SCHEMA@.entity x
-       set owner = p_tenant, rev = x.rev + 1, prev_hash = x.hash,
+       set owner = p_tenant, rev = x.rev + 1,
            at = greatest(@SCHEMA@.now_ts(), x.at + interval '1 microsecond'),
            author = coalesce(c.author, '@SYSTEM@'::uuid), agent = c.agent, op = 'update',
            reason = nullif(current_setting('letopis.reason', true), ''), moved = null
@@ -1340,9 +1327,9 @@ begin
   -- надгробия: последний снимок следующей версией с видом delete — одной вставкой на уровень, в порядке id: без
   -- order by порядок seq (а с ним итог delete() и время at) зависел от плана соединения и менялся от прогона к
   -- прогону; время now_ts() (volatile) планировщик вычисляет уже после сортировки
-  insert into @SCHEMA@.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash, changed)
+  insert into @SCHEMA@.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved)
   select g.id, g.rev + 1, g.class, g.cv, g.tenant, g.owner, g.links, g.data, g.tags,
-         greatest(@SCHEMA@.now_ts(), g.at + interval '1 microsecond'), v_author, c.agent, 'delete', v_reason, null, g.hash, '[]'::jsonb
+         greatest(@SCHEMA@.now_ts(), g.at + interval '1 microsecond'), v_author, c.agent, 'delete', v_reason, null
   from gone g
   join (select d.class, d.tenant from (select distinct x.class, x.tenant from gone x) d
         where @SCHEMA@.history_on(d.class, d.tenant)) h on h.class = g.class and h.tenant = g.tenant
@@ -1373,9 +1360,9 @@ begin
       where x.id in (select y.id from @SCHEMA@.entity y where y.id = any (casc) order by y.id for update)
       returning x.*
     ), t as (
-      insert into @SCHEMA@.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash, changed)
+      insert into @SCHEMA@.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved)
       select d.id, d.rev + 1, d.class, d.cv, d.tenant, d.owner, d.links, d.data, d.tags,
-             greatest(@SCHEMA@.now_ts(), d.at + interval '1 microsecond'), v_author, c.agent, 'delete', v_reason, null, d.hash, '[]'::jsonb
+             greatest(@SCHEMA@.now_ts(), d.at + interval '1 microsecond'), v_author, c.agent, 'delete', v_reason, null
       from d
       join (select dd.class, dd.tenant from (select distinct x.class, x.tenant from d x) dd
             where @SCHEMA@.history_on(dd.class, dd.tenant)) h on h.class = d.class and h.tenant = d.tenant
@@ -1559,12 +1546,12 @@ declare
   rid uuid;
 begin
   select * into c from @SCHEMA@.ctx();
-  select l.rev, l.hash, l.at into last from @SCHEMA@.log l where l.id = p_new_id order by l.rev desc limit 1 for update;
+  select l.rev, l.at into last from @SCHEMA@.log l where l.id = p_new_id order by l.rev desc limit 1 for update;
   ts := greatest(@SCHEMA@.now_ts(), last.at + interval '1 microsecond');
-  insert into @SCHEMA@.entity (id, rev, class, cv, tenant, owner, links, data, tags, at, created_at, author, agent, op, reason, moved, prev_hash, validator)
+  insert into @SCHEMA@.entity (id, rev, class, cv, tenant, owner, links, data, tags, at, created_at, author, agent, op, reason, moved, validator)
   values (p_new_id, coalesce(last.rev, 0) + 1, p_class, coalesce((@SCHEMA@.class_row(p_class, o.tenant)).rev, 0), o.tenant, o.owner,
           p_links, p_data, o.tags, ts, ts, coalesce(c.author, '@SYSTEM@'::uuid), c.agent, p_op,
-          nullif(current_setting('letopis.reason', true), ''), o.id, last.hash, null)
+          nullif(current_setting('letopis.reason', true), ''), o.id, null)
   returning * into n;
   perform @SCHEMA@.log_version(n);
   for r in select x.* from @SCHEMA@.entity x where x.ends @> array[o.id] and x.id <> p_new_id order by x.id for update loop
@@ -1834,6 +1821,6 @@ begin
     execute format('revoke all on function @SCHEMA@.%s from public', f);
   end loop;
 end $$;
--- сырой SQL пишет теми же merge, inc и links_patch, что и библиотека; verify() — в 90-time.sql
+-- сырой SQL пишет теми же merge, inc и links_patch, что и библиотека
 grant execute on function @SCHEMA@.merge(jsonb, jsonb), @SCHEMA@.inc(jsonb, text[], numeric, numeric), @SCHEMA@.links_patch(jsonb, jsonb),
   @SCHEMA@.reserved_names(), @SCHEMA@.reclass(uuid, text, jsonb), @SCHEMA@.delete_preview(uuid[]) to @APP@;

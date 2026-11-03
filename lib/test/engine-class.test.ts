@@ -183,15 +183,15 @@ test('7.3.4 №16: meta больше 64 КБ — отказ', async () => {
   await assert.rejects(def({ ...hub('Big'), meta: { blob: 'x'.repeat(70000) } }), lt('invalid_class'));
 });
 
-test('7.3.4 №17: политика хранения', async () => {
-  await def({ ...hub('Hist'), history: { all: '1 day', daily: '1 week', weekly: '1 month', monthly: '1 year', yearly: 'forever', tz: 'Europe/Moscow' } });
-  await assert.rejects(def({ ...hub('Hist2'), history: { all: '1 hour' } }), lt('invalid_class'));
-  await assert.rejects(def({ ...hub('Hist3'), history: { all: '1 week', daily: '1 day' } }), lt('invalid_class'));
-  await assert.rejects(def({ ...hub('Hist4'), history: { all: 'forever', daily: '1 week' } }), lt('invalid_class'));
+test('7.3.4 №17: history — только true или false; журнал системного класса не выключить', async () => {
+  await def({ ...hub('Hist'), history: false });
+  await def({ ...hub('HistOn'), history: true });
+  // ярусов хранения нет с 2.0.0: объект метасхема не принимает
+  await assert.rejects(def({ ...hub('HistObj'), history: { all: '1 day' } }), lt('invalid_data'));
   await assert.rejects(def({ ...hub('Hist5'), system: true }), lt('invalid_class'));
-  // системному классу политика не задаётся (сид пишет владелец)
+  // системному классу журнал не выключить (сид пишет владелец)
   await assert.rejects(e.asOwner((tx) => tx.unsafe(`select ${S}.class_prepare($1::jsonb, $2::uuid)`,
-    [{ name: 'rule', kind: 'link', system: true, history: { all: '1 day' } } as never, t.id])), lt('invalid_class'));
+    [{ name: 'rule', kind: 'link', system: true, history: false } as never, t.id])), lt('invalid_class'));
 });
 
 test('7.3.4 №18: имена на $', async () => {

@@ -1,7 +1,7 @@
 /**
  * initial-load — первая заливка (план 1.1, §2.3, этап 3; тест-план §7.4 №1–8; №11 — замер bench/initial-load.mjs;
  * №9 — импорт из 0.21 одной транзакцией и №10 — агрегаты в базе — сняты вместе с ними в 2.0.0): равенство с обычным
- * загрузчиком (строки, журнал, хэши, verify), структура и режимы триггеров после перестройки, seq и tx системных строк,
+ * загрузчиком (строки и журнал), структура и режимы триггеров после перестройки, seq и tx системных строк,
  * непустая схема, вставка во время запуска, откат, пакетная вставка в WAL, commitEvery.
  */
 import { test, before, after } from 'node:test';
@@ -93,16 +93,14 @@ test('7.4 №1–3: равенство с обычным загрузчиком;
   const sys0 = await sysLog(SB);
   const reports = await initialSession(loadEnv(B), async (s) => [await s.load(rows(n)), await s.load(hist, { withHistory: true })]);
   assert.deepEqual(reports.map((r) => r.loaded), [n, 2000]);
-  // строки и журнал — те же; хэши режима истории (заданное время версий) — те же
+  // строки и журнал — те же; версии режима истории (заданное время версий) — те же
   const ent = (S: string) => e.sql.unsafe(`select id, rev, class, owner, links, data, tags, op, author, agent from ${S}.entity where tenant = $1 order by id`, [T]);
   const log = (S: string) => e.sql.unsafe(`select id, rev, class, data, links, op from ${S}.log where tenant = $1 order by id, rev`, [T]);
-  const hashes = (S: string) => e.sql.unsafe(`select id, rev, encode(hash, 'hex') as h, encode(prev_hash, 'hex') as p from ${S}.log
+  const hist2 = (S: string) => e.sql.unsafe(`select id, rev, at::text as at, author, agent from ${S}.log
     where tenant = $1 and data->>'name' like 'h-%' order by id, rev`, [T]);
   assert.deepEqual(await ent(SB), await ent(e.S));
   assert.deepEqual(await log(SB), await log(e.S));
-  assert.deepEqual(await hashes(SB), await hashes(e.S));
-  assert.equal((await b.verify()).ok, true);
-  assert.equal((await a.verify()).ok, true);
+  assert.deepEqual(await hist2(SB), await hist2(e.S));
   // структура восстановлена по каталогу, триггеры — ENABLE ALWAYS
   const cat1 = await catalog(B);
   assert.deepEqual(cat1, cat0);

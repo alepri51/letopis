@@ -11,7 +11,7 @@
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { engine, type Engine, type Tenant } from './_engine.js';
+import { engine, journalIssues, type Engine, type Tenant } from './_engine.js';
 import { appDsn } from './_harness.js';
 import { connect, between, type Db, type Row } from '../src/index.js';
 
@@ -265,6 +265,5 @@ test('9. закрытие месяца: расписание с окнами н�
   assert.equal(await db.Клиент().count(), 1);
   assert.equal(await db.Услуга().count(), 2);
   assert.equal(await db.Комплекс().count(), 1);
-  const [{ v }] = await e.sql.unsafe(`select ${e.S}.verify() as v`);
-  assert.equal(v.ok, true, JSON.stringify(v.issues));
+  assert.deepEqual(await journalIssues(e.sql, e.S), []);
 });

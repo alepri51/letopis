@@ -171,12 +171,7 @@ test('7.3.8 №4: перечень функций владельца — search_
     delete_preview: async () => {
       assert.deepEqual([...await e.as(null, (tx) => tx.unsafe(`select * from ${S}.delete_preview(array[$1::uuid])`, [t.id]))], []);
     },
-    // пути колонки changed (ревью №1 точки А плана 1.1): без сессии — ничего
-    version_paths: async () => {
-      assert.deepEqual([...await e.as(null, (tx) => tx.unsafe(`select * from ${S}.version_paths(array[$1::uuid], array[2])`, [t.id]))], []);
-    },
     reclass: () => assert.rejects(e.as(null, (tx) => tx.unsafe(`select ${S}.reclass(gen_random_uuid(), 'Doc')`)), lt('no_session')),
-    verify: () => assert.rejects(q(`select ${S}.verify()`), lt('acl_denied')),
     // этап 6: история и эксплуатация
     session_expires: async () => {
       const [r] = await e.as(null, (tx) => tx.unsafe(`select ${S}.session_expires() as x`));
@@ -184,7 +179,6 @@ test('7.3.8 №4: перечень функций владельца — search_
     },
     restore: () => assert.rejects(e.as(null, (tx) => tx.unsafe(`select ${S}.restore(gen_random_uuid())`)), lt('no_session')),
     purge: () => assert.rejects(e.as(null, (tx) => tx.unsafe(`select ${S}.purge(gen_random_uuid(), true)`)), lt('no_session')),
-    trim_history: () => assert.rejects(e.as(null, (tx) => tx.unsafe(`select ${S}.trim_history(null, array['Doc'], now())`)), lt('no_session')),
     rekey: () => assert.rejects(e.as(null, (tx) => tx.unsafe(`select ${S}.rekey(gen_random_uuid(), '{}')`)), lt('no_session')),
     rekey_class: () => assert.rejects(e.as(null, (tx) => tx.unsafe(`select ${S}.rekey_class('Doc', '[]')`)), lt('no_session')),
     account_purge: async () => {
@@ -266,11 +260,11 @@ test('права по каталогу: функции приложения — 
     'account_purge', 'acl_all', 'acl_check', 'acl_check_data', 'acl_ok', 'acl_plan', 'acl_token', 'auth_credentials', 'auth_enroll_totp', 'auth_issue_apikey',
     'auth_issue_keysecret', 'auth_issue_otp', 'auth_link', 'auth_login_apikey', 'auth_logout', 'auth_logout_all', 'auth_lookup', 'auth_password_get',
     'auth_refresh', 'auth_revoke_credential', 'auth_session_info', 'auth_set_flags', 'auth_set_password', 'auth_switch', 'auth_tenants', 'auth_totp_enabled',
-    'auth_verify_totp', 'blame', 'change_paths', 'class_stamp', 'ctx', 'ctx_account', 'ctx_tenant', 'delete_preview', 'diff_versions', 'error_catalog', 'find_deep', 'find_hop', 'find_ids',
-    'history_default', 'history_iv', 'history_policy', 'history_segments', 'inc', 'issue_session', 'jsonb_changes', 'link_ids', 'links_patch', 'login_apikey', 'login_keysecret',
-    'login_otp', 'lt_text', 'maintain', 'merge', 'message_catalog', 'purge', 'reclass', 'rekey', 'rekey_class', 'reserved_names', 'restore', 'role_has', 'role_ids', 'row_changes',
-    'row_leaves', 'session_expires', 'signal_key', 'signal_mode', 'snapshot', 'trim_history', 'uuid_v5', 'v5_id', 'v5_name', 'verify', 'version_hash',
-    'version_paths', 'watch_head', 'watch_leaving', 'watch_read',
+    'auth_verify_totp', 'class_stamp', 'ctx', 'ctx_account', 'ctx_tenant', 'delete_preview', 'error_catalog', 'find_deep', 'find_hop', 'find_ids',
+    'inc', 'issue_session', 'link_ids', 'links_patch', 'login_apikey', 'login_keysecret',
+    'login_otp', 'lt_text', 'maintain', 'merge', 'message_catalog', 'purge', 'reclass', 'rekey', 'rekey_class', 'reserved_names', 'restore', 'role_has', 'role_ids',
+    'session_expires', 'signal_key', 'signal_mode', 'uuid_v5', 'v5_id', 'v5_name',
+    'watch_head', 'watch_leaving', 'watch_read',
   ]);
   const pubFns = await e.sql.unsafe(`select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = $1 and has_function_privilege('public', p.oid, 'execute')`, [e.schema]);
@@ -286,9 +280,8 @@ test('права по каталогу: функции приложения — 
     from pg_attribute a where a.attrelid = $1::regclass and a.attnum > 0 and not a.attisdropped order by a.attnum`, [`${S}.entity`]);
   assert.deepEqual(cols.filter((c) => c.ins).map((c) => c.attname).sort(), ['class', 'data', 'id', 'links', 'owner', 'tags', 'tenant']);
   assert.deepEqual(cols.filter((c) => c.upd).map((c) => c.attname).sort(), ['class', 'data', 'links', 'tags']);
-  // журнал — все колонки, кроме changed: её пути описывают разницу с предыдущей версией, а та читателю может быть
-  // не видна (ревью №1 точки А плана 1.1)
+  // журнал — все колонки на чтение (строки отбирает RLS)
   const logCols = await e.sql.unsafe(`select a.attname, has_column_privilege('letopis_app', a.attrelid, a.attnum, 'SELECT') as sel
     from pg_attribute a where a.attrelid = $1::regclass and a.attnum > 0 and not a.attisdropped order by a.attnum`, [`${S}.log`]);
-  assert.deepEqual(logCols.filter((c) => !c.sel).map((c) => c.attname), ['changed']);
+  assert.deepEqual(logCols.filter((c) => !c.sel).map((c) => c.attname), []);
 });

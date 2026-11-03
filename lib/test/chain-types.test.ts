@@ -256,7 +256,6 @@ export async function probe(): Promise<void> {
   void name, org;
   // строка из интерфейсов файла подходит туда, где ждут Row
   void db.entity(rows[0]).rows();
-  void db.trimHistory(rows[0], new Date());
   void db.Service().sort('data.name').after(cursorOf(rows[0], 'data.name')).rows();
   void db.Услуга().Org().first();
   void db.Account({ name: 'x' }).member().User();

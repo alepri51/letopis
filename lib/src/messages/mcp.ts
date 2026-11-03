@@ -252,20 +252,10 @@ export const mcp = {
     code: 'invalid_query',
     ru: '{where}: целое ≥ 1',
   },
-  // mcp.ts, history: параметр не для этого kind
-  'mcp.history_param': {
-    code: 'invalid_query',
-    ru: 'letopis_history: {param} — не для kind {kind}',
-  },
-  // mcp.ts, history: follow с kind blame
-  'mcp.blame_follow': {
-    code: 'invalid_query',
-    ru: 'letopis_history: follow — для versions и diff',
-  },
   // mcp.ts, history: kind не из списка; похожие — params.similar
   'mcp.unknown_kind': {
     code: 'invalid_query',
-    ru: 'letopis_history: kind — versions, diff или blame, а не {kind}',
+    ru: 'letopis_history: kind — versions, а не {kind}',
   },
   // mcp.ts, withLinks: links — не объект
   'mcp.links_not_object': {

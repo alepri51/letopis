@@ -5,7 +5,7 @@
  * Этап 2: connect() — подключение под сессией, реестр классов, отложенный сигнал, db.sql.
  * Этап 3: цепочки чтения t.Класс(…).Связь().rows(); этап 4 — запись цепочками и загрузчик.
  * Этап 5: db.auth (креды, вход, сессии), db.acl, db.as(аккаунт, { tenant }) — имперсонация.
- * Этап 6: история (restore, purge, rekey, trimHistory), verify, maintain, watch, кэш результатов.
+ * Этап 6: история (restore, purge, rekey), maintain, watch, кэш результатов.
  */
 import postgres from 'postgres';
 import { LetopisError, checkOptions, fromDbError, lerr, lwarn } from './errors.js';
@@ -25,8 +25,7 @@ import { ACL_CLASSES, ResultCache, type CacheOptions, type CacheStats } from './
 import { Subscription, type WatchOptions } from './watch.js';
 import { SIGNAL_MODES, Signals, bucket, throttle, type Signal, type SignalMode } from './signals.js';
 import {
-  maintain as runMaintain, rekeyClass as runRekeyClass, MAINTAIN_STOP, parseInterval,
-  scheduleMaintain, trimHistory as runTrim, verify as runVerify, type AdminCtx, type MaintainOptions, type MaintainReport, type VerifyResult,
+  maintain as runMaintain, rekeyClass as runRekeyClass, parseInterval, scheduleMaintain, type AdminCtx, type MaintainReport,
 } from './admin.js';
 import type { AnyModelLike, OrOp, StepsOf } from './typed.js';
 import { refuse1x, stampDrift } from './up.js';
@@ -53,12 +52,11 @@ export type { LoadOptions, LoadReport, LoadIssue, LoadInput } from './load.js';
 export type { Chain, ChainCore, ChainRef, StepFn, BatchEntry } from './chain.js';
 export type { ModelLike, AnyModelLike, RowOf, FilterOf, FieldFilterOf, TypedChain, StepsOf, PatchOf, OrOp, SystemModels } from './typed.js';
 export type { Row, Path, Filter, FieldFilter, Cursor, ChainMods, QueryEvent, Op, Scalar } from './types.js';
-export type { DiffChange, DiffResult, DiffOptions, BlameField, BlameResult, BlameOptions } from './types.js';
 export type { CacheOptions, CacheStats } from './cache.js';
 export type { SignalMode } from './signals.js';
 export type { WatchOptions, WatchEvent, Subscription } from './watch.js';
-export type { VerifyResult, VerifyIssue, MaintainOptions, MaintainReport } from './admin.js';
-export { up, createTenant, type UpOptions, type UpResult, type HistoryPolicy, type TenantOptions, type TenantResult, type LoginOptions } from './up.js';
+export type { MaintainReport } from './admin.js';
+export { up, createTenant, type UpOptions, type UpResult, type TenantOptions, type TenantResult, type LoginOptions } from './up.js';
 export { RESERVED_CLASS_NAMES, CHAIN_METHODS, DB_METHODS } from './types.js';
 
 const SYSTEM_ID = '2eba6d0a-1edd-4bb6-a85a-a703dab49035';
@@ -85,7 +83,7 @@ export interface ConnectOptions {
   /**
    * Один процесс малого приложения (план 2.0, этап 3): строка подключения администратора (или пул postgres.js). Второй
    * пул — не больше двух соединений — открывается при первой надобности и служит только администраторским вызовам корня
-   * подключения: `load`, `verify`, `maintain` и `syncModels`, с той же сессией.
+   * подключения: `load`, `maintain` и `syncModels`, с той же сессией.
    * Цепочки и `db.sql` идут через пул приложения (`dsn`) под RLS. Роль строки — суперпользователь или роль с `SET` на
    * роль-владельца, иначе `admin_required`. Пароль администратора в процессе приложения — только для малых приложений.
    */
@@ -115,7 +113,7 @@ export interface ConnectOptions {
    * Запускать `maintain()` по расписанию: интервал — число миллисекунд или строка вроде `'15m'`, `'1h'`, от 1 мс до
    * 2³¹−1 мс (около 24 суток); иначе `connect()` отказывает с `invalid_data`, не открывая соединений. Если обслуживание в
    * этот момент уже ведёт другой процесс или ещё идёт прошлый запуск, запуск пропускается. `close()` ждёт, пока идущий
-   * запуск доделает текущую пачку.
+   * запуск закончится.
    */
   maintain?: string | number;
 }
@@ -157,19 +155,10 @@ export interface DbCore {
   /** Отправить накопленные сигналы сейчас. */
   flushSignals(): Promise<void>;
   /**
-   * Проверяет целостность журнала всей установки: сходится ли хэш каждой версии с хэшем предыдущей и текущая строка
-   * объекта — с его последней версией; с `{ data: true }` проверяет ещё каждую строку. Якорь в ответе — один хэш текущих
-   * версий всех объектов: храните его вне базы, тогда заметна и подмена самых свежих версий. Нужно право `letopis.verify`
-   * (по умолчанию оно у системного администратора) или администраторское подключение.
+   * Обслуживание: истёкшие и погашенные сессии, одноразовые коды, строки-замки удалённых классов, очередь сигналов. Нужно
+   * право `letopis.maintain` (по умолчанию оно у системного администратора) или администраторское подключение.
    */
-  verify(opts?: { data?: boolean }): Promise<VerifyResult>;
-  /** Обслуживание: истёкшие сессии и коды, прореживание журнала по политике хранения, очередь сигналов. */
-  maintain(opts?: MaintainOptions): Promise<MaintainReport>;
-  /**
-   * Стирает версии, сделанные раньше момента `before`; текущая версия остаётся всегда. Вместо стёртого начала истории
-   * остаётся служебная запись `trim` со временем появления объекта.
-   */
-  trimHistory(target: string | string[] | Row | Row[], before: string | Date): Promise<number>;
+  maintain(): Promise<MaintainReport>;
   /**
    * Меняет ключ класса. Объекты его семейства (сам класс и потомки), у которых по новому ключу выходит другой id,
    * переезжают на новый id, а ссылки на них переводятся.
@@ -332,9 +321,7 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
     },
     refresh: sh.refresh,
     flushSignals: () => sh.notifier.flush(),
-    verify: (o) => (viaAdmin ? adminReady().then(() => runVerify(admCtx(), o)) : runVerify(adm, o)),
-    maintain: (o) => (viaAdmin ? adminReady().then(() => runMaintain(admCtx(), o)) : runMaintain(adm, o)),
-    trimHistory: (target, before) => runTrim(adm, target, before),
+    maintain: () => (viaAdmin ? adminReady().then(() => runMaintain(admCtx())) : runMaintain(adm)),
     rekeyClass: (cls, key) => runRekeyClass(adm, cls, key),
     watch: (o = {}) => {
       checkOptions('watch', o, WATCH_OPTIONS);
@@ -769,7 +756,7 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
         // живые подписки закрываются: иначе с чужим пулом (connect({ sql })) они опрашивали бы журнал и после close()
         // (план 2.0, 7.4 №8)
         for (const s of [...subs]) s.close();
-        // идущий maintain() по расписанию доделывает пачку: пул закрывается после неё, а не посреди транзакции
+        // идущий maintain() по расписанию доделывается: пул закрывается после него, а не посреди транзакции
         await stopMaintain?.();
         resync.stop();
         startReload.stop();
@@ -781,7 +768,7 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
       },
     };
     const db = makeDb(shared, { txc: ctx, tenant: () => root.tenant, registry: () => root.registry, root: true }, poolExecutor(ctx));
-    if (maintainEvery !== undefined) stopMaintain = scheduleMaintain((stopped) => db.maintain({ [MAINTAIN_STOP]: stopped } as MaintainOptions), maintainEvery);
+    if (maintainEvery !== undefined) stopMaintain = scheduleMaintain(() => db.maintain(), maintainEvery);
     return db;
   } catch (e) {
     if (own) await sql.end({ timeout: 1 });

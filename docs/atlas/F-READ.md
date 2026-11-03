@@ -19,11 +19,6 @@
 12. [N] `lib/src/sql.ts:buildRead#«entityByIds»` — строки узла по первичному ключу под RLS + условия шага; журнал — `logPart` по (id, rev).
 13. [N] `lib/src/sql.ts:buildRead#«const single»` — без pivot rows/ids/count/агрегаты/versions читают последний узел; paths и pivot — соединение `n0 ⋈ p1 ⋈ n1 …` с дофильтрами возвратов.
 
-## diff и blame (план 1.1, этап 1)
-- `lib/src/chain.ts` — терминалы `diff()`/`blame()`: номера и моменты проверяются до запроса, параметры — `ChainMods.hist`.
-- `lib/src/sql.ts:buildRead` — режимы `diff`/`blame` поверх множества сущностей последнего шага: `select S.diff_versions(z.id, …)` / `S.blame(z.id, …)` по одному документу на объект.
-- `lib/sql/75-history.sql:diff_versions`, `:blame` — журнал под RLS вызывающего (`log_select`); различия — `row_changes` и `jsonb_changes`, листья — `row_leaves`; пути колонки `changed` — `version_paths` (функция владельца: только когда видны обе версии пары; колонка приложению не выдана).
-
 ## Исполнение
 14. [N] `lib/src/chain.ts:exec` — с кэшем (`cacheTtl`) — F-WATCH «Кэш результатов»; иначе `ctx.exec.run(…, { read: true })`.
 15. [P] `lib/src/tx.ts:runTx` — транзакция `read committed`: `begin`, `set_config` (токен, пропуск прав, UTC) и запрос (`prepare: true`) одним конвейером; чтение фиксируется без опроса `letopis.changed`; 40P01/40001 — до 3 повторов. В `db.begin()` — `ExplicitTx.run`, без повторов. `onQuery {mode, classes, ms, rows, slow}`.
@@ -33,7 +28,7 @@
 Сбои: `invalid_class` (имя), `no_path` (переход) — при построении; `invalid_query` — `deep()` на первом шаге или не к тому же классу, `deep()` с `withDeleted()`, `after()` без `sort()`, неизвестное поле сортировки, курсор `after()` со значением не того типа, что поле `sort`, без `v` или с `id` не uuid (`lib/src/sql.ts:cursorParams`, до запроса); `forUpdate()` вне `db.begin()` — `tx_required`, с asOf/withDeleted/deep/агрегатами — `lock_unsupported`; без сессии — пустой ответ (политики и find_* видят только с сессией).
 Логи: `letopis: медленный запрос {ms} мс — {mode} A→B` (slowMs без onQuery); `.versions()/.asOf() у класса … без журнала` — `lib/src/chain.ts:warnNoHistory`.
 Варианты режима:
-- `asOf(t)` — все шаги из журнала: последняя версия ≤ t, не надгробие и не purge/trim;
+- `asOf(t)` — все шаги из журнала: последняя версия ≤ t, не надгробие и не запись `purge`;
 - `withDeleted()` — последний узел ещё и из надгробий журнала;
 - `forUpdate()` — `lockedRead`: id, `for no key update`, повторное чтение (F-WRITE);
 - `count({ paths: true })` — число путей, `count()` — сущностей.

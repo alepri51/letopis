@@ -111,19 +111,14 @@ test('находка 3: restore и purge чужого id не блокируют
 test('функции этапа 6 на чужих id и классах: тот же ответ, что для несуществующих; данные B не меняются', async () => {
   const note = await ins(b, 'Note', { text: 'keep' });
   const coded = await ins(b, 'Coded', { code: 'c-b' });
-  await assert.rejects(as(a, `select ${S}.trim_history(array[$1::uuid], null, now() + interval '1 day')`, [note.id]), lt('target_not_found'));
   await assert.rejects(as(a, `select ${S}.rekey($1, '{"code": "stolen"}')`, [coded.id]), lt('target_not_found'));
   await assert.rejects(as(a, `select ${S}.reclass($1, 'Note')`, [coded.id]), lt('target_not_found'));
-  // обрезка по классу трогает только свой арендатор
-  const [{ n }] = await as(a, `select ${S}.trim_history(null, array['Note'], now() + interval '1 day') as n`);
-  assert.equal(n, 0);
   const [{ c }] = await e.sql.unsafe(`select count(*)::int as c from ${S}.log where id = $1`, [note.id]);
   assert.equal(c, 1);
   const [still] = await e.sql.unsafe(`select data->>'code' as code from ${S}.entity where id = $1`, [coded.id]);
   assert.equal(still.code, 'c-b');
-  // обслуживание и verify — только по правам letopis.* (правила System)
-  await assert.rejects(as(a, `select ${S}.maintain(null, 1000000)`), lt('acl_denied'));
-  await assert.rejects(as(a, `select ${S}.verify(true)`), lt('acl_denied'));
+  // обслуживание — только по праву letopis.maintain (правила System)
+  await assert.rejects(as(a, `select ${S}.maintain()`), lt('acl_denied'));
 });
 
 test('log_refs_at приложению не выдана; срезы find_* по журналу не отдают строки чужого арендатора', async () => {
@@ -152,7 +147,7 @@ test('log_refs_at приложению не выдана; срезы find_* по
 test('подписка watch_read — с правами вызывающего: события чужого арендатора не видны', async () => {
   await ins(b, 'Note', { text: 'event-b' });
   await ins(a, 'Note', { text: 'event-a' });
-  const rows = await as(a, `select tenant from ${S}.watch_read('0'::xid8, 0, null, null, 100000)`);
+  const rows = await as(a, `select tenant from ${S}.watch_read('0'::xid8, 0, null, 100000)`);
   assert.ok(rows.length > 0);
   assert.ok(rows.every((r) => r.tenant === a.id || r.tenant === SYSTEM_ID), 'только свой арендатор и системные классы');
 });

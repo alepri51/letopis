@@ -182,39 +182,9 @@ export const sqlCore = {
     code: 'invalid_class',
     ru: 'onDelete unset недопустим для обязательного конца {end}',
   },
-  // 40-class.sql, class_prepare(): history-объект у класса System
-  'sql-core.system_history_policy': {
-    code: 'invalid_class',
-    ru: 'системным классам политика хранения не задаётся',
-  },
   // 40-class.sql, class_prepare()
   'sql-core.system_history_off': {
     code: 'invalid_class',
     ru: 'history: false для системных классов запрещён',
-  },
-  // 40-class.sql, class_prepare(): tier — ярус политики хранения
-  'sql-core.history_forever_not_last': {
-    code: 'invalid_class',
-    ru: 'history: forever допустим только у последнего яруса, а стоит у {tier}',
-  },
-  // 40-class.sql, class_prepare(): value — срок яруса, как его задали
-  'sql-core.history_tier_unparsable': {
-    code: 'invalid_class',
-    ru: 'history: срок яруса {tier} не разбирается: {value}',
-  },
-  // 40-class.sql, class_prepare()
-  'sql-core.history_tiers_order': {
-    code: 'invalid_class',
-    ru: 'history: сроки ярусов должны возрастать ({tier})',
-  },
-  // 40-class.sql, class_prepare()
-  'sql-core.history_all_min_day': {
-    code: 'invalid_class',
-    ru: 'history: ярус all не меньше суток',
-  },
-  // 40-class.sql, class_prepare()
-  'sql-core.history_unknown_tz': {
-    code: 'invalid_class',
-    ru: 'history: неизвестный часовой пояс {tz}',
   },
 } satisfies Section<'sql-core'>;

@@ -13,7 +13,7 @@ synced: f20b1cf
 - Обход RLS — флаг всего подключения (`Shared.allTenants`), а не фасада: `as()` поверх подключения с `allowBypassRls` — тоже `bypass_rls`. Опции «разрешить» нет.
 - `createMcpServer` зовут на каждое соединение stdio и каждый запрос HTTP (`createMcpHandler`), `cli.ts` — ещё раз до протокола. Он должен оставаться дешёвым (один запрос `ctx()`), а общее между экземплярами — только на уровне модуля (`STATE_KEY`, `sdkLoad`).
 - Обработчик — только через `guard`: исключение мимо него уйдёт в SDK, и текст с данными базы попадёт к модели без обёртки. В `failure` вне обёртки — только `code`; `message` без префикса `letopis: <код>: `; `similar` — из `detail.similar`; ошибка не из letopis (например, 57014 от `statement_timeout`) — `code: internal` и `sqlstate`. Ошибки входной схемы и вызов `letopis_write` без `write` отклоняет SDK — без `structuredContent`.
-- Пределы: `maxRows` 100 (1–10 000), `maxBytes` 50 000 (1 000–50 000 000). `fit` пропускает хотя бы один элемент — иначе курсор не двигался бы. В самом запросе ограничены `rows` и `ids` (`limit + 1` → `more`), `countBy` и `versions` (`maxRows + 1`, О8); `diff` и `blame` режутся в памяти (`truncated`, `total`); модель больше `maxBytes` — `brief`. Шагов ≤ 16, условий `$or` ≤ 64 (О8). Время запроса не ограничено — `statement_timeout` роли базы (README).
+- Пределы: `maxRows` 100 (1–10 000), `maxBytes` 50 000 (1 000–50 000 000). `fit` пропускает хотя бы один элемент — иначе курсор не двигался бы. В самом запросе ограничены `rows` и `ids` (`limit + 1` → `more`), `countBy` и `versions` (`maxRows + 1`, О8); модель больше `maxBytes` — `brief`. `letopis_history` — только версии: `kind` необязателен и принимает только `versions`. Шагов ≤ 16, условий `$or` ≤ 64 (О8). Время запроса не ограничено — `statement_timeout` роли базы (README).
 - Курсор свой (пагинация MCP — только у списков): base64url `{ f, d, v, id }` без подписи — подделка лишь сдвигает начало, видимость проверяет база; с другой сортировкой — `invalid_query`.
 - Удаление подтверждает хэш `operationOf` (схема, арендатор, класс, цели, строки превью), а не `operation` агента; в `db.begin()` превью повторяется и сверяется. HTTP в ревизии 2025 (экземпляр на запрос не знает возможностей клиента) — всегда отказ. В 2026-07-28 `requestState` подписан ключом процесса `STATE_KEY` вместе с аккаунтом, арендатором и сроком (10 мин): другой процесс, другой пользователь или истёкший срок — `confirmation_required`.
 - letopis грузится без SDK: `index.ts` и `cli.ts` не импортируют `mcp.ts` и `@modelcontextprotocol/*` статически (тест №12, `check-package`).
@@ -39,7 +39,7 @@ synced: f20b1cf
 
 **Проверка**
 - `cd lib && npx tsx --test --test-force-exit test/mcp.test.ts test/mcp-model.test.ts` — `mcp-model`: примеры `letopis_model` (7.9 №9), метаданные и наследование, `anyOf`/`oneOf`; `mcp`: №1–12, stdio, HTTP, О7, О8, «решение точки Б», `requestState`, «описания инструментов, их параметров и instructions — у каждого есть, по-русски»; ещё `engine-attacks` (№35, №37), `docs` (сценарий `mcp`), `npm run typecheck`.
-- Сигналы: отказ — `isError` и `structuredContent.error.code`; запись агента — `reason: 'mcp: letopis_write'` в `blame` и `versions`; `letopis mcp` — stderr и код 1 (код 2 — `--api-key` или нет токена).
+- Сигналы: отказ — `isError` и `structuredContent.error.code`; запись агента — `reason: 'mcp: letopis_write'` в `versions`; `letopis mcp` — stderr и код 1 (код 2 — `--api-key` или нет токена).
 
 **Точки входа**
 - `lib/src/mcp.ts:createMcpServer` — опции, допуск, инструменты
@@ -51,4 +51,4 @@ synced: f20b1cf
 - `lib/src/mcp.ts:confirmDelete` — elicitation в двух ревизиях
 
 **Не здесь**
-- `letopis mcp` (флаги, env, коды выхода) → M-MODEL; фасад и `internal.ts` → M-API; `ctx()`, сессии, ACL → M-ACCESS; цепочки, `after`, `diff`, `blame` → M-QUERY; превью и каскад удаления → M-WRITE, M-ENGINE.
+- `letopis mcp` (флаги, env, коды выхода) → M-MODEL; фасад и `internal.ts` → M-API; `ctx()`, сессии, ACL → M-ACCESS; цепочки, `after`, `versions` → M-QUERY; превью и каскад удаления → M-WRITE, M-ENGINE.

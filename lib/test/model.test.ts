@@ -27,7 +27,7 @@ const booking = link('booking', {
   onDelete: { Customer: 'unset' },
   fields: z.object({ start: z.iso.datetime({ precision: 3 }), notes: z.string().refine((s) => s.length < 500).optional() }),
   key: ['Staff', 'start'],
-  history: { all: '1 day', daily: '1 month' },
+  history: false,
 });
 const Short = hub('Short', { title: z.string(), n: z.number().int() }, { key: ['title'], meta: { order: 1 } });
 const MODELS = [Org, Person, Staff, Element, Service, Product, Complex, Customer, booking, Short];

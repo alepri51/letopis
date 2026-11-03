@@ -12,7 +12,7 @@
 export type ErrorCode =
   | 'no_session' | 'target_not_found' | 'invalid_data' | 'undeclared_end' | 'tenant_denied' | 'acl_denied'
   | 'id_mismatch' | 'id_from_db' | 'immutable_key' | 'invalid_class' | 'use_reclass' | 'reclass_denied'
-  | 'tightening_conflict' | 'isolation_level' | 'recreated_in_statement' | 'cursor_expired' | 'delete_restricted'
+  | 'tightening_conflict' | 'isolation_level' | 'recreated_in_statement' | 'delete_restricted'
   | 'not_deleted'
   | 'exists' | 'duplicate' | 'deleted' | 'conflict' | 'rev_ambiguous' | 'tx_required' | 'lock_unsupported'
   | 'commit_unknown' | 'tx_rolled_back' | 'no_key' | 'no_path' | 'invalid_query' | 'admin_required'

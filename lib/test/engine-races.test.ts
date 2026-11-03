@@ -5,7 +5,7 @@
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { engine, lt, waitForLock, type Engine, type Tenant } from './_engine.js';
+import { engine, journalIssues, lt, waitForLock, type Engine, type Tenant } from './_engine.js';
 
 let e: Engine;
 let t: Tenant;
@@ -41,10 +41,7 @@ const tighten = (cls: string, required: string[]) =>
   `update ${S}.entity set data = ${S}.merge(data, '${JSON.stringify({ fields: { required } })}') where class = 'Class' and tenant = '${t.id}' and data->>'name' = '${cls}'`;
 const loosen = (cls: string) =>
   q(`update ${S}.entity set data = ${S}.merge(data, '{"fields": {"required": []}}') where class = 'Class' and tenant = $1 and data->>'name' = $2`, [t.id, cls]);
-const verifyOk = async () => {
-  const [{ v }] = await e.sql.unsafe(`select ${S}.verify() as v`);
-  assert.equal(v.ok, true, JSON.stringify(v.issues));
-};
+const journalOk = async () => assert.deepEqual(await journalIssues(e.sql, S), []);
 
 before(async () => {
   e = await engine(import.meta.filename);
@@ -206,7 +203,7 @@ test('№6: удаление и создание объекта с тем же �
   assert.equal(again.rev, 3);
   const log = await e.sql.unsafe(`select rev, op from ${S}.log where id = $1 order by rev`, [o.id]);
   assert.deepEqual(log.map((r) => `${r.rev}:${r.op}`), ['1:create', '2:delete', '3:create']);
-  await verifyOk();
+  await journalOk();
   // B первым: объект ещё существует — «уже существует»
   await assert.rejects(ins('Org', { name: 'R6' }), lt('23505'));
 });
@@ -223,7 +220,7 @@ test('№7: правки разных полей одной строки — о�
   assert.deepEqual(row.data, { name: 'R7', city: 'A', phone: 'B' });
   const log = await e.sql.unsafe(`select rev from ${S}.log where id = $1 order by rev`, [o.id]);
   assert.deepEqual(log.map((r) => r.rev), [1, 2, 3]);
-  await verifyOk();
+  await journalOk();
 });
 
 test('№8: встречные каскады — одна транзакция получает 40P01, повтор проходит', async () => {
@@ -253,7 +250,7 @@ test('№8: встречные каскады — одна транзакция 
   // повтор жертвы: строки уже удалены победителем — итог как при последовательном удалении
   assert.equal(await exists(x.id), false);
   assert.equal(await exists(y.id), false);
-  await verifyOk();
+  await journalOk();
 });
 
 test('№14: два upsert одного ключа — без 23505', async () => {
@@ -297,7 +294,7 @@ test('№16: удаление корня с каскадом и ссылка н�
   await B2.finish(true);
   await assert.rejects(A2, lt('target_not_found'));
   assert.equal(await dangling(), 0);
-  await verifyOk();
+  await journalOk();
 });
 
 test('хвост ревью доработок после 1.2.0: удаление класса и параллельная запись его строки или потомка — без строк и потомков без класса', async () => {

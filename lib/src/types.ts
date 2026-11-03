@@ -28,14 +28,14 @@ export const CHAIN_METHODS = [
   'then', 'entity', 'paths', 'rows', 'first', 'ids', 'count', 'limit', 'offset', 'sort', 'asOf', 'withDeleted',
   'deep', 'exact', 'sum', 'avg', 'min', 'max', 'countBy', 'after', 'versions', 'create', 'update', 'upsert', 'set',
   'unset', 'add', 'remove', 'delete', 'anonymize', 'reclass', 'restore', 'purge', 'alias', 'tags', 'owner',
-  'forUpdate', 'cache', 'rekey', 'diff', 'blame',
+  'forUpdate', 'cache', 'rekey',
 ] as const;
 
 /** Свойства корня db (и транзакции db.begin()). */
 export const DB_METHODS = [
-  'as', 'begin', 'commit', 'rollback', 'lock', 'batch', 'watch', 'close', 'registry', 'sql', 'load', 'verify',
+  'as', 'begin', 'commit', 'rollback', 'lock', 'batch', 'watch', 'close', 'registry', 'sql', 'load',
   'maintain', 'auth', 'acl', 'idOf', 'refresh', 'transaction', 'flushSignals', 'schema', 'token', 'tenant',
-  'trimHistory', 'rekeyClass', 'cache',
+  'rekeyClass', 'cache',
 ] as const;
 
 /** Свойства батча db.batch(name). */
@@ -139,78 +139,15 @@ export interface ChainMods {
   follow?: boolean;
   /** Кэш результатов (§2.12): .cache() — срок по умолчанию, .cache({ ttl }) — свой, секунды. */
   cache?: { ttl?: number };
-  /** Параметры терминалов diff() и blame() (план 1.1, §2.1): номера версий или моменты (ISO). */
-  hist?: { from?: number | string; to?: number | string; at?: string; follow?: boolean; limit?: number };
 }
 
 /** Событие хука onQuery: один запрос цепочки. */
 export interface QueryEvent {
-  mode: 'paths' | 'rows' | 'ids' | 'count' | 'versions' | 'agg' | 'diff' | 'blame';
+  mode: 'paths' | 'rows' | 'ids' | 'count' | 'versions' | 'agg';
   /** Классы шагов цепочки. */
   classes: string[];
   ms: number;
   rows: number;
   /** ms > slowMs. */
   slow: boolean;
-}
-
-// ---------------------------------------------------------------------------
-// История: diff и blame (план 1.1, §2.1)
-// ---------------------------------------------------------------------------
-
-/** Изменение пути: added — не было, removed — не стало, changed — другое значение. */
-export interface DiffChange {
-  /** Путь: первый сегмент — раздел строки (data, links, tags, owner, class). */
-  path: string[];
-  kind: 'added' | 'removed' | 'changed';
-  before?: unknown;
-  after?: unknown;
-}
-
-/** Различия объекта между двумя версиями (diff()). */
-export interface DiffResult {
-  id: string;
-  class: string | null;
-  from: { rev: number; at: string; id?: string } | null;
-  to: { rev: number; at: string; id?: string; deleted?: true } | null;
-  changes: DiffChange[];
-}
-
-/** Кто и почему последним изменил лист версии (blame()). */
-export interface BlameField {
-  path: string[];
-  rev: number;
-  at: string;
-  author: string;
-  agent?: string;
-  op: string;
-  reason?: string;
-  /** Другой id (история прошла через смену id при reclass или rekey). */
-  id?: string;
-  /** false — до найденной версии история неполная: изменение могло быть раньше. */
-  exact: boolean;
-}
-
-/** Поля версии объекта с версиями, которые их изменили (blame()). */
-export interface BlameResult {
-  id: string;
-  class: string;
-  rev: number;
-  deleted?: true;
-  /** История просмотрена целиком и без пропусков. */
-  complete: boolean;
-  fields: BlameField[];
-}
-
-/** diff(): «до» и «после» — номер версии или момент (ISO-строка, Date); follow — через смену id. */
-export interface DiffOptions {
-  from?: number | string | Date;
-  to?: number | string | Date;
-  follow?: boolean;
-}
-
-/** blame(): версия на момент at (по умолчанию текущая); limit — сколько версий просматривать (1000). */
-export interface BlameOptions {
-  at?: string | Date;
-  limit?: number;
 }

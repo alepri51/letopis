@@ -13,18 +13,17 @@
 | `@APP@` | роль приложения, по умолчанию `letopis_app` |
 | `@PGCRYPTO@` | схема, где установлен pgcrypto (`pg_extension.extnamespace`) |
 | `@SYSTEM@` | id системного арендатора System: `2eba6d0a-1edd-4bb6-a85a-a703dab49035` (как в 0.21) |
-| `@HISTORY_DEFAULT@` | политика хранения по умолчанию `up({ history })` литералом JSON или `'null'` — константа установки |
 | `@RESERVED_NAMES@` | методы цепочки — `RESERVED_CLASS_NAMES` из `lib/src/types.ts`, литералами через запятую |
 | `@MESSAGES@` | каталог сообщений базы — разделы `sql-*` каталога `lib/src/messages` (план 2.0, этап 3, п. 3): литерал JSON «ключ → `{ name, ru }`» для `message_catalog()` в `15-errors.sql` |
 | `@SIGNALS@` | режим сигналов `class`, `tenant`, `opaque` или `none` (план 1.1, §2.2): опция `up({ signals })`, иначе сохранённый в `meta.signals` строки ключа `secret`, иначе `class` — константа установки |
 | `@ENGINE_VERSION@` | версия пакета (`lib/package.json`) — штамп движка в комментарии схемы (`99-revision.sql`) |
 | `@ENGINE_SQL@` | 16 знаков sha256 исходного текста файлов `NN-*.sql` до подстановок (переводы строк — LF) и разделов `sql-*` каталога сообщений: `connect()` сверяет его с файлами своего пакета |
 
-## Колонки снимка версии
+## Колонки версии
 
-Одинаковы в `entity` и `log` (§2.2): `id`, `rev`, `class`, `tenant`, `owner`, `links`, `data`, `tags`, `at` (время версии),
-`author`, `agent`, `op`, `reason`, `moved`. Хэш — генерируемая колонка: `sha256(prev_hash || snapshot(...))`, где
-`snapshot()` — неизменяемая функция, время входит числом микросекунд.
+Одинаковы в `entity` и `log` (§2.2): `id`, `rev`, `class`, `cv`, `tenant`, `owner`, `links`, `data`, `tags`, `at` (время
+версии), `author`, `agent`, `op`, `reason`, `moved`. У `entity` ещё `ends` (генерируемая: все цели концов),
+`created_at` и `validator` (у строк `Class`), у `log` — `seq` и `tx` (курсор подписки). Хэшей версий нет с 2.0.0.
 
 ## Коды ошибок
 
@@ -40,8 +39,8 @@
 бросают `raise` сами: текст — `lt_text(ключ, параметры)`, она и `message_catalog()` выданы приложению; `DETAIL` без своих
 полей — с `'nodetail', true`. Все места переведены на ключи: у прежней перегрузки `lt_fail(имя, текст, detail)` вызовов
 нет, а `lt_raise(код, имя, текст, detail)` — механизм новых перегрузок (единственный `raise`). Внутренняя ошибка —
-`lt_raise('XX000', ключ, …)` с кодом `internal`; находки `verify()` и нарушения данных несут `key` и `params`, а текст
-`problem` и `message` собирает `lt_text`. Литеральный текст в `raise` и в `problem` находки ловит `check:docs`
+`lt_raise('XX000', ключ, …)` с кодом `internal`; строки отказа ужесточения и нарушения данных несут `key` и `params`, а
+текст `problem` и `message` собирает `lt_text`. Литеральный текст в `raise` и в `problem` ловит `check:docs`
 (`literals`).
 
 | Код | Имя | Когда |
@@ -61,13 +60,12 @@
 | LT013 | `tightening_conflict` | ужесточению мешают строки; в деталях `rows`, `others` |
 | LT014 | `isolation_level` | удаление и смена класса — только в `read committed` |
 | LT015 | `recreated_in_statement` | id удалён и создан заново одним оператором |
-| LT016 | `cursor_expired` | курсор подписки старше яруса `all` (этап 6) |
 | LT017 | `delete_restricted` | удалению мешают ссылающиеся строки (`onDelete: restrict`); в деталях `rows`, `others` |
 | LT018 | `not_deleted` | `restore` и `purge` — только для удалённых объектов (этап 6) |
 
 ## Порядок файлов
 
-`10-core` → `15-errors` → `20-context` → `30-validate` → `40-class` → `50-acl` → `60-write` → `70-read` → `75-history` → `80-auth` → `90-time` → `95-seed.system` → `99-revision`. Миграции между ревизиями 2.x — `migrate/NNNN-*.sql` (номер — ревизия, к которой ведёт; правило — `migrate/README.md`), их применяет `up({ upgrade: true })` до повторного наката. У 2.0 (ревизия 8) миграций нет: схему letopis 1.x 2.0 не обновляет, а ставит заново (`up({ fresh: true })`).
+`10-core` → `15-errors` → `20-context` → `30-validate` → `40-class` → `50-acl` → `60-write` → `70-read` → `80-auth` → `90-time` → `95-seed.system` → `99-revision`. Миграции между ревизиями 2.x — `migrate/NNNN-*.sql` (номер — ревизия, к которой ведёт; правило — `migrate/README.md`), их применяет `up({ upgrade: true })` до повторного наката. У 2.0 (ревизия 8) миграций нет: схему letopis 1.x 2.0 не обновляет, а ставит заново (`up({ fresh: true })`).
 
 Файлы описывают только нынешнюю ревизию: `drop … if exists` в них — лишь там, где без него не пройдёт повторный накат
 той же ревизии (политики RLS в `50-acl.sql`: у `create policy` нет `or replace`). Смена сигнатуры функции в пределах

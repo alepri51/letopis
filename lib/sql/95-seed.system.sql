@@ -55,7 +55,7 @@ revoke all on function @SCHEMA@.sys_resource(uuid, text, text, jsonb), @SCHEMA@.
 -- Системный сид целиком (установка, этап 6): ключ подписи и счётчик прав, System,
 -- системные классы, общие группы и системные права (этап 5, п. 8). Роль admin — роль членства в
 -- System: системные администраторы работают в арендаторе System. Права auth.* — сервису
--- (имперсонация, выпуск сессий, креды), letopis.* (verify, maintain) — только системному
+-- (имперсонация, выпуск сессий, креды), letopis.* (maintain) — только системному
 -- администратору. Повторный вызов ничего не меняет.
 create or replace function @SCHEMA@.seed_system() returns void
 language plpgsql volatile

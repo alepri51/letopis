@@ -91,7 +91,7 @@ export const sqlWrite = {
   },
   'sql-write.history_needs_all': {
     code: 'acl_denied',
-    ru: 'класс {cls} меняет политику хранения истории: нужно право {op} на все строки класса {target}',
+    ru: 'класс {cls} включает или выключает журнал (history): нужно право {op} на все строки класса {target}',
   },
   'sql-write.tighten_needs_all': {
     code: 'acl_denied',

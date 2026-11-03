@@ -21,7 +21,6 @@ as $$
     ('LT013', 'tightening_conflict',    'letopis: tightening_conflict: ужесточению описания мешают строки'),
     ('LT014', 'isolation_level',        'letopis: isolation_level: операция разрешена только в read committed'),
     ('LT015', 'recreated_in_statement', 'letopis: recreated_in_statement: id удалён и создан заново одним оператором'),
-    ('LT016', 'cursor_expired',         'letopis: cursor_expired: курсор подписки старше яруса all'),
     ('LT017', 'delete_restricted',      'letopis: delete_restricted: удалению мешают ссылающиеся строки'),
     ('LT018', 'not_deleted',            'letopis: not_deleted: объект не удалён — restore и purge только для удалённых')
 $$;

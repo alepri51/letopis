@@ -95,14 +95,13 @@ test('план 2.0, 7.9 №3: connect({ admin }) — администратор�
     for (const d of [plain, db, wrong]) await d.refresh();
     // без admin — как раньше
     await assert.rejects(plain.load({ Note: [{ text: 'без admin' }] }), code('admin_required'));
-    await assert.rejects(plain.verify(), code('acl_denied'));
+    await assert.rejects(plain.maintain(), code('acl_denied'));
     // с admin — вторым пулом
     await db.load({ Note: [{ text: 'первая' }, { text: 'вторая' }] });
     assert.ok(await adminConnections((n) => n > 0) > 0, 'администраторский вызов открыл второй пул');
     assert.deepEqual((await syncModels(db, [Totals], { apply: true })).created, ['Totals']);
     const [cls] = await sql.unsafe(`select author from ${ident(SCHEMA)}.log where class = 'Class' and data->>'name' = 'Totals' order by rev desc limit 1`);
     assert.equal(cls.author, r.tenant!.user, 'та же сессия: класс описан аккаунтом сессии');
-    assert.equal((await db.verify()).ok, true);
     assert.equal((await db.maintain()).skipped, false);
     // цепочки и db.sql — пулом приложения под RLS
     assert.equal((await db.sql`select current_user as u`)[0].u, USER);

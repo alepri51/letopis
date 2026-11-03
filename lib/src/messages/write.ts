@@ -271,7 +271,7 @@ export const write = {
     code: 'invalid_data',
     ru: 'шаблоны pattern (их проверяет база) проверены не у всех строк',
   },
-  // причина в why (verifyIds, verify: true; checkInDb): проверка базы называет не больше limit строк
+  // причина в why (checkInDb): проверка базы называет не больше limit строк
   'write.load_db_check_limit': {
     code: 'invalid_data',
     ru: 'проверка базы называет не больше {limit} строк',
@@ -371,16 +371,6 @@ export const write = {
   'write.load_key_part_string': {
     code: 'invalid_data',
     ru: 'часть ключа {part} — строка',
-  },
-  // verifyIds (verify: true) — нарушение: строка не проходит проверку базы; нарушения — issues строки отчёта
-  'write.load_db_invalid': {
-    code: 'invalid_data',
-    ru: 'проверка базы: строка {id} не проходит описание класса {cls}',
-  },
-  // verifyIds: цели конца нет
-  'write.load_db_target': {
-    code: 'target_not_found',
-    ru: 'проверка базы: цель конца {role} не найдена',
   },
   // load(), initialSession(): подключение не может стать владельцем схемы
   'write.load_admin_required': {

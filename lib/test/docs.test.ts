@@ -89,8 +89,6 @@ assert.equal(canRead.allow, true)
 assert.equal(canReport.allow, true)
 assert.equal(canReport.rule?.weight, 50)
 assert.equal(atCreation!.data.price, 2500)
-assert.ok(trimmed >= 1)
-assert.equal(audit.ok, true)
 assert.notEqual(cursor, '')
 assert.equal(report.skipped, false)
 {

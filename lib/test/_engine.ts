@@ -144,6 +144,23 @@ export async function waitForLock(sql: Sql, n = 1, timeoutMs = 10000): Promise<v
   }
 }
 
+/**
+ * Сверка журнала для гонок и сценариев (verify() снят в 2.0.0): номера версий каждого id идут подряд с 1, а строка
+ * entity класса с журналом совпадает с его последней версией — номер, класс, данные, концы, теги, владелец. Возвращает
+ * нарушения: id и что не так; пустой список — журнал цел.
+ */
+export async function journalIssues(sql: Sql, S: string): Promise<{ id: string; problem: string }[]> {
+  return [...await sql.unsafe(`
+    select l.id, 'номера версий не подряд' as problem
+    from (select x.id, x.rev, row_number() over (partition by x.id order by x.rev) as n from ${S}.log x) l
+    where l.rev <> l.n
+    union all
+    select e.id, 'строка не совпадает с последней версией журнала'
+    from ${S}.entity e
+    left join lateral (select x.* from ${S}.log x where x.id = e.id order by x.rev desc limit 1) l on true
+    where coalesce((${S}.class_row(e.class, e.tenant)).data->'resolved'->>'history', 'true') <> 'false'
+      and (l.rev, l.class, l.data, l.links, l.tags, l.owner) is distinct from (e.rev, e.class, e.data, e.links, e.tags, e.owner)`)] as never;
+}
 
 /** Ошибка letopis с заданным именем (`letopis: <имя>:`) или кодом SQLSTATE. */
 export function lt(nameOrCode: string) {

@@ -17,25 +17,6 @@ return (
   from jsonb_path_query(coalesce(links, '{}'::jsonb), 'lax $.*[*]') as v
 );
 
--- Снимок версии для хэша (§2.2). Не зависит от настроек сеанса: время — числом микросекунд,
--- остальное — через текстовый вид jsonb, который от настроек не зависит.
-create or replace function @SCHEMA@.snapshot(
-  id uuid, rev int, class text, tenant uuid, owner uuid, links jsonb, data jsonb, tags text[],
-  at timestamptz, author uuid, agent text, op text, reason text, moved uuid
-) returns bytea
-language sql immutable parallel safe
-return convert_to(
-  jsonb_build_array(
-    id, rev, class, tenant, owner, links, data, to_jsonb(tags),
-    (extract(epoch from at) * 1000000)::bigint, author, agent, op, reason, moved
-  )::text,
-  'UTF8'
-);
-
-create or replace function @SCHEMA@.version_hash(prev_hash bytea, snap bytea) returns bytea
-language sql immutable parallel safe
-return sha256(coalesce(prev_hash, ''::bytea) || snap);
-
 create table if not exists @SCHEMA@.entity (
   id         uuid primary key,
   rev        int not null,
@@ -54,9 +35,6 @@ create table if not exists @SCHEMA@.entity (
   op         text not null,
   reason     text,
   moved      uuid,
-  prev_hash  bytea,
-  hash       bytea generated always as (@SCHEMA@.version_hash(prev_hash,
-               @SCHEMA@.snapshot(id, rev, class, tenant, owner, links, data, tags, at, author, agent, op, reason, moved))) stored,
   validator  jsonpath
 );
 create index if not exists entity_class_tenant on @SCHEMA@.entity (class, tenant);
@@ -85,12 +63,6 @@ create table if not exists @SCHEMA@.log (
   op         text not null,
   reason     text,
   moved      uuid,
-  prev_hash  bytea,
-  hash       bytea generated always as (@SCHEMA@.version_hash(prev_hash,
-               @SCHEMA@.snapshot(id, rev, class, tenant, owner, links, data, tags, at, author, agent, op, reason, moved))) stored,
-  -- пути изменения против предыдущей версии (план 1.1, ревизия 6): производные, в снимок и хэш не входят;
-  -- null — не посчитано (создание, загрузчик, импорт), blame досчитывает сравнением
-  changed    jsonb,
   constraint log_id_rev unique (id, rev)
 );
 -- срез журнала по классу (asOf, withDeleted) — по арендатору (доработки после точки Б): цена запроса не растёт с
@@ -102,8 +74,6 @@ create index if not exists log_moved on @SCHEMA@.log (moved) where moved is not 
 -- срез asOf и withDeleted по переходу и deep (ревизия 5): версии, ссылавшиеся на id, — как entity_ends у
 -- текущего состояния; без него поиск в журнале перебирал все версии класса (бенч этапа 7)
 create index if not exists log_ends on @SCHEMA@.log using gin (@SCHEMA@.link_ids(links));
--- журнал часто прореживается (§2.11): чаще чистим
-alter table @SCHEMA@.log set (autovacuum_vacuum_scale_factor = 0.02, autovacuum_analyze_scale_factor = 0.02);
 
 -- account — строка entity (аккаунт; у служебных строк KEY и LOCK — System): удалённый аккаунт уносит свои строки
 -- каскадом внешнего ключа — сессии, хэши паролей и ключей, секреты TOTP, внешние учётные записи (ревизия 7). Строка
@@ -129,24 +99,17 @@ alter table @SCHEMA@.entity owner to @OWNER@;
 alter table @SCHEMA@.log owner to @OWNER@;
 alter table @SCHEMA@.secret owner to @OWNER@;
 alter function @SCHEMA@.link_ids(jsonb) owner to @OWNER@;
-alter function @SCHEMA@.snapshot(uuid, int, text, uuid, uuid, jsonb, jsonb, text[], timestamptz, uuid, text, text, text, uuid) owner to @OWNER@;
-alter function @SCHEMA@.version_hash(bytea, bytea) owner to @OWNER@;
 
 -- Права приложения (§2.7, этап 1, п. 1): только пользовательские колонки.
 revoke all on @SCHEMA@.entity, @SCHEMA@.log, @SCHEMA@.secret from public, @APP@;
 grant select, delete on @SCHEMA@.entity to @APP@;
 grant insert (id, tenant, class, links, data, tags, owner) on @SCHEMA@.entity to @APP@;
 grant update (class, links, data, tags) on @SCHEMA@.entity to @APP@;
--- журнал — без колонки changed (ревью №1 точки А плана 1.1): её пути описывают разницу с предыдущей версией, а та
--- читателю может быть не видна (условие ACL скрыло её и пропустило следующую); blame получает пути через
--- version_paths, которая проверяет видимость обеих версий (75-history.sql)
-grant select (seq, tx, id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash, hash)
+grant select (seq, tx, id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved)
   on @SCHEMA@.log to @APP@;
 alter table @SCHEMA@.entity enable row level security;
 alter table @SCHEMA@.log enable row level security;
 alter table @SCHEMA@.secret enable row level security;
 revoke all on all functions in schema @SCHEMA@ from public;
--- генерируемые колонки ends и hash вычисляются с правами пишущей роли: функции чистые, без побочных эффектов
-grant execute on function @SCHEMA@.link_ids(jsonb),
-  @SCHEMA@.snapshot(uuid, int, text, uuid, uuid, jsonb, jsonb, text[], timestamptz, uuid, text, text, text, uuid),
-  @SCHEMA@.version_hash(bytea, bytea) to @APP@;
+-- генерируемая колонка ends вычисляется с правами пишущей роли: функция чистая, без побочных эффектов
+grant execute on function @SCHEMA@.link_ids(jsonb) to @APP@;

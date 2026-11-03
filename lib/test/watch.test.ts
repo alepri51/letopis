@@ -72,7 +72,7 @@ test('6.5 события по порядку фиксации, курсор, ф�
     const evs = await take(sub, 2);
     assert.deepEqual(evs.map((x) => x.row.data.n), [1, 3]);
     assert.ok(evs.every((x) => x.class === 'Ev' && x.row.tenant === t.id));
-    assert.match(evs[1].cursor, /^\d+:\d+:/);
+    assert.match(evs[1].cursor, /^\d+:\d+(~|$)/);
   } finally {
     sub.close();
   }

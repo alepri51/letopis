@@ -21,16 +21,6 @@ export type OnDelete = 'restrict' | 'cascade' | 'unset';
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface ClassMeta { [key: string]: unknown }
 
-/** Политика хранения истории (§2.11). */
-export interface HistoryPolicy {
-  all: string;
-  daily?: string;
-  weekly?: string;
-  monthly?: string;
-  yearly?: string;
-  tz?: string;
-}
-
 type Target = AnyModel | string;
 
 /** Имя класса цели: у модели — её имя, у строки — сама строка. */
@@ -121,7 +111,8 @@ export interface ClassDef<S extends z.ZodRawShape = z.ZodRawShape, E extends End
   fields?: z.ZodObject<S> | S;
   key?: readonly string[];
   onDelete?: Partial<Record<keyof E & string, OnDelete>>;
-  history?: boolean | HistoryPolicy;
+  /** Вести ли журнал версий (по умолчанию да). */
+  history?: boolean;
   ownerDefault?: 'tenant' | 'actor';
   cache?: { ttl?: number };
   meta?: ClassMeta;
@@ -137,7 +128,7 @@ export interface ClassDescription {
   fields: { properties: Record<string, JsonSchema>; required?: string[] };
   ends?: Record<string, { class: string | string[]; many?: boolean; required?: boolean; min?: number; max?: number; onDelete?: OnDelete; meta?: Record<string, unknown> }>;
   key?: string[];
-  history?: boolean | HistoryPolicy;
+  history?: boolean;
   ownerDefault?: 'tenant' | 'actor';
   cache?: { ttl?: number };
   meta?: ClassMeta;

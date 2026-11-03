@@ -74,9 +74,6 @@
         "AuthApi",
         "Batch",
         "BatchEntry",
-        "BlameField",
-        "BlameOptions",
-        "BlameResult",
         "CacheOptions",
         "CacheStats",
         "Chain",
@@ -90,15 +87,11 @@
         "Db",
         "DbCore",
         "DbTx",
-        "DiffChange",
-        "DiffOptions",
-        "DiffResult",
         "EndInfo",
         "FieldFilter",
         "FieldFilterOf",
         "Filter",
         "FilterOf",
-        "HistoryPolicy",
         "IncMarker",
         "Issue",
         "KeyedClass",
@@ -109,7 +102,6 @@
         "LoadReport",
         "LoginOptions",
         "LoginResult",
-        "MaintainOptions",
         "MaintainReport",
         "ModelLike",
         "Op",
@@ -134,8 +126,6 @@
         "UpOptions",
         "UpResult",
         "Validator",
-        "VerifyIssue",
-        "VerifyResult",
         "WatchEvent",
         "WatchOptions",
         "WriteRow"
@@ -156,7 +146,6 @@
         "ClassDef",
         "ClassDescription",
         "ClassMeta",
-        "HistoryPolicy",
         "Infer",
         "InferLinks",
         "JsonSchema",
@@ -181,14 +170,12 @@
     "anonymize",
     "asOf",
     "avg",
-    "blame",
     "cache",
     "count",
     "countBy",
     "create",
     "deep",
     "delete",
-    "diff",
     "entity",
     "exact",
     "first",
@@ -240,8 +227,6 @@
     "tenant",
     "token",
     "transaction",
-    "trimHistory",
-    "verify",
     "watch"
   ],
   "batch": [
@@ -257,7 +242,6 @@
     "commit_unknown",
     "confirmation_required",
     "conflict",
-    "cursor_expired",
     "delete_restricted",
     "deleted",
     "duplicate",
@@ -292,10 +276,6 @@
     {
       "module": "15-errors",
       "message": "letopis: acl_denied: отказ по правилам доступа"
-    },
-    {
-      "module": "15-errors",
-      "message": "letopis: cursor_expired: курсор подписки старше яруса all"
     },
     {
       "module": "15-errors",
@@ -366,10 +346,6 @@
       "message": "letopis: invalid_data: "
     },
     {
-      "module": "90-time",
-      "message": "letopis: cursor_expired: "
-    },
-    {
       "module": "errors",
       "message": "letopis: <…>: <…>"
     },
@@ -396,10 +372,6 @@
     {
       "module": "up",
       "message": "letopis.up: <…>: <…>"
-    },
-    {
-      "module": "up",
-      "message": "letopis.up: history: <…>"
     },
     {
       "module": "up",

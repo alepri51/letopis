@@ -28,7 +28,7 @@ export interface ModelDescription {
     oneOf?: unknown[];
     ends: Record<string, unknown>;
     key: string[];
-    history: unknown;
+    history: boolean;
     ownerDefault: string;
     cache?: { ttl?: number };
     meta: Record<string, unknown>;

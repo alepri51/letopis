@@ -1,7 +1,7 @@
 /**
- * load — загрузчик (план, §2.6, этап 4, п. 11; тест-план §7.6.1). Строки 9 (после purge — этап 6),
- * 18 (db.verify — этап 6), 20 (скорость — бенч этапа 7) здесь не проверяются; 16 (as) — в access-rest,
- * 23 и 24 (режим доверия, as с ним) сняты вместе с режимом (решение 2 точки А), охранник режима — в 2.0.0.
+ * load — загрузчик (план, §2.6, этап 4, п. 11; тест-план §7.6.1). Строка 20 (скорость — бенч этапа 7) здесь не
+ * проверяется; 16 (as) — в access-rest; 18 (verify: true и db.verify) снята в 2.0.0 вместе с verify; 23 и 24 (режим
+ * доверия, as с ним) сняты вместе с режимом (решение 2 точки А), охранник режима — в 2.0.0.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -70,8 +70,6 @@ test('7.6.1 №1: равенство с построчной записью — 
   assert.equal(v.length, 1);
   assert.equal(v[0].author, SYSTEM_ID, 'автор — System: триггеры не срабатывали');
   assert.equal(v[0].agent, 'letopis load');
-  const [{ v: ver }] = await e.sql.unsafe(`select ${e.S}.verify() as v`);
-  assert.equal(ver.ok, true, JSON.stringify(ver.issues));
 });
 
 test('7.6.1 №2–3: несколько классов за вызов; порядок не важен; ссылки по кругу', async () => {
@@ -190,8 +188,7 @@ test('7.6.1 №9–11: существующие объекты — error (exists
   assert.equal((await db.Org({ name: 'ex2' }).first())!.rev, 1);
   const ex3 = await db.Org({ name: 'ex3' }).first();
   assert.equal(ex3!.rev, 3, 'создание, надгробие, воскрешение');
-  const [{ v }] = await e.sql.unsafe(`select ${e.S}.verify() as v`);
-  assert.equal(v.ok, true, JSON.stringify(v.issues));
+  assert.deepEqual((await db.Org(ex3!.id).versions()).map((x) => [x.rev, x.op]), [[1, 'create'], [2, 'delete'], [3, 'create']]);
 });
 
 test('отчёт ошибки: в тексте — число всех проблемных строк, в detail — первые 100 и признак обрезки; порции — «не меньше»', async () => {
@@ -236,8 +233,8 @@ test('7.6.1 №17: сигнал — по одному на класс после
   assert.deepEqual([...new Set(got)].sort(), ['Master', 'Org']);
 });
 
-test('7.6.1 №18–19: verify: true перепроверяет базой; принятое загрузчиком принимает и create', async () => {
-  const r = await adm.load({ Org: [{ name: 'ver' }], Master: masters(20, 'ver', 'ver') }, { verify: true });
+test('7.6.1 №19: принятое загрузчиком принимает и create', async () => {
+  const r = await adm.load({ Org: [{ name: 'ver' }], Master: masters(20, 'ver', 'ver') });
   assert.equal(r.loaded, 21);
   const [org] = await db.Org({ name: 'ver' }).rows();
   for (const m of masters(5, 'ver', 'vc')) await db.Org(org.id).Master().create({ name: m.name, level: m.level }).rows();
@@ -298,9 +295,7 @@ test('7.6.1 №25–26: цели внутри загрузки — надгро�
   assert.equal(r.loaded, 2);
   const hf = await db.Folder({ name: 'hf' }).first();
   assert.equal(hf!.rev, 2);
-  assert.equal((await db.Folder(hf!.id).versions()).length, 2);
-  const [{ v }] = await e.sql.unsafe(`select ${e.S}.verify() as v`);
-  assert.equal(v.ok, true, 'хэши версий, записанных волнами, образуют цепочки: ' + JSON.stringify(v.issues));
+  assert.deepEqual((await db.Folder(hf!.id).versions()).map((x) => x.rev), [1, 2]);
 });
 
 test('7.6.1 №27–28: уровень изоляции — read committed; ключи на $ внутри данных — данные; маркер inc — отказ', async () => {
@@ -337,28 +332,18 @@ test('гонки 9, 13: загрузчик и create одного ключа; з
   assert.equal(((await p2) as { code?: string })?.code, 'target_not_found');
 });
 
-test('7.6.1 №9 (этап 6): объект после purge и после обрезки истории — отказ без запросов на пачку (deleted, exists)', async () => {
-  await adm.load([{ $class: 'Org', name: 'pg-1' }, { $class: 'Org', name: 'tr-1' }]);
+test('7.6.1 №9 (этап 6): объект после purge — отказ без запросов на пачку (deleted)', async () => {
+  await adm.load([{ $class: 'Org', name: 'pg-1' }]);
   const [pg] = await db.Org({ name: 'pg-1' }).rows();
   await db.Org(pg.id).delete({ confirm: true }).rows();
   await db.Org(pg.id).purge({ confirm: true }).rows();
-  const [tr] = await db.Org({ name: 'tr-1' }).rows();
-  await db.Org(tr.id).update({ city: 'B' }).rows();
-  await db.trimHistory(tr.id, new Date(Date.now() + 1000));
   let err: unknown;
   try {
-    await adm.load([{ $class: 'Org', name: 'pg-1' }, { $class: 'Org', name: 'tr-1' }]);
+    await adm.load([{ $class: 'Org', name: 'pg-1' }]);
   } catch (x) {
     err = x;
   }
-  assert.deepEqual(rowsOf(err).map((r) => [r.line, r.code]), [[1, 'deleted'], [2, 'exists']], 'версия 1 занята записями purge и trim');
-});
-
-test('7.6.1 №18 (этап 6): после загрузки verify: true и db.verify({ data: true }) — нарушений нет', async () => {
-  const r = await adm.load([{ $class: 'Org', name: 'vf-1', city: 'A' }, { $class: 'Org', name: 'vf-2', city: 'B' }], { verify: true });
-  assert.equal(r.loaded, 2);
-  const v = await adm.verify({ data: true });
-  assert.equal(v.ok, true, JSON.stringify(v.issues));
+  assert.deepEqual(rowsOf(err).map((r) => [r.line, r.code]), [[1, 'deleted']], 'версия 1 занята записью purge');
 });
 
 test('этап 7: $tags и $owner строки; режим истории с existing: skip пропускает объект со всей историей', async () => {

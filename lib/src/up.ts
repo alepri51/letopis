@@ -48,12 +48,6 @@ export interface InstallOptions {
   schema: string;
   owner?: string;
   app?: string;
-  /**
-   * Политика хранения истории для классов без своей, например
-   * `{ all: '1 day', daily: '1 week', weekly: '1 month', monthly: '1 year', yearly: 'forever' }`; не задана — история
-   * хранится вся. Значение задаётся при установке и хранится в схеме: каждый `up()` записывает его заново (план, §2.11).
-   */
-  history?: HistoryPolicy;
   /** Номер последнего накатываемого файла — для пошаговых тестов. */
   upTo?: number;
   /** Сиды после ядра: имена lib/sql/seed.<имя>.sql (например 'booking') или пути к своим файлам .sql. */
@@ -75,17 +69,6 @@ export interface InstallOptions {
    * Режим хранится в схеме: `up()` без опции его не меняет (план 1.1, §2.2).
    */
   signals?: SignalMode;
-}
-
-/** Политика хранения истории (§2.11): сроки ярусов по возрастанию, 'forever' — бессрочно. */
-export interface HistoryPolicy {
-  all: string;
-  daily?: string;
-  weekly?: string;
-  monthly?: string;
-  yearly?: string;
-  /** Часовой пояс границ периодов (по умолчанию UTC). */
-  tz?: string;
 }
 
 export interface InstallResult {
@@ -254,7 +237,6 @@ export async function install(sql: postgres.Sql, opts: InstallOptions): Promise<
     APP_NAME: app,
     PGCRYPTO: quoteIdent(nsp),
     SYSTEM: SYSTEM_ID,
-    HISTORY_DEFAULT: quoteLiteral(JSON.stringify(opts.history ?? null)),
     // методы цепочки — в тексте функции reserved_names() (план, §2.14)
     RESERVED_NAMES: RESERVED_CLASS_NAMES.map(quoteLiteral).join(', '),
     // каталог сообщений базы — разделы sql-* (план 2.0, этап 3, п. 3): ключ → имя ошибки и русский шаблон, JSON-литерал
@@ -340,14 +322,6 @@ export async function install(sql: postgres.Sql, opts: InstallOptions): Promise<
         err.message = `letopis.up: ${own ? seed : `seed.${seed}.sql`}: ${err.message}`;
         throw err;
       }
-    }
-    if (opts.history && files.some((f) => f.startsWith('40-'))) {
-      // умолчание проверяется той же метасхемой, что политика класса (сроки по возрастанию, all ≥ суток)
-      await tx.unsafe(`select ${quoteIdent(opts.schema)}.class_prepare($1::jsonb, $2::uuid)`,
-        [{ name: 'HistoryDefault', kind: 'hub', history: opts.history } as never, SYSTEM_ID]).catch((e: Error) => {
-        e.message = `letopis.up: history: ${e.message}`;
-        throw e;
-      });
     }
     if (files.some((f) => f.startsWith('95-'))) {
       const S = quoteIdent(opts.schema);
@@ -438,7 +412,7 @@ export interface LoginOptions {
 /** Все опции up(): неизвестную checkOptions называет с похожими (план 2.0, 7.9 №6). */
 const UP_OPTIONS = {
   dsn: true, sql: true, schema: true, fresh: true, upgrade: true, quiet: true, waitTimeoutMs: true, pglite: true, tenant: true,
-  login: true, owner: true, app: true, history: true, seeds: true, migrationsDir: true, serviceKey: true,
+  login: true, owner: true, app: true, seeds: true, migrationsDir: true, serviceKey: true,
   signals: true,
 } satisfies Record<keyof UpOptions, true>;
 

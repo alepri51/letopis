@@ -6,8 +6,8 @@
  * шаблон записи с параметрами. У каждой ошибки — подсказка «что делать» (`hint`) и ссылка на строку её кода в разделе
  * «Ошибки» README на GitHub по тегу версии (`docs`). База собирает текст по ключу и параметрам из того же шаблона и
  * кладёт их в DETAIL (`lt_fail(ключ, …)`), а fromDbError переносит их в поля ошибки (`key`, `params`); без ключа —
- * текст базы как есть. У нарушений (validate_data) и находок (verify, строки отказа ужесточения) key и params наружу не
- * идут: issuesFromDb, findingsFromDb.
+ * текст базы как есть. У нарушений (validate_data) и строк отказа ужесточения key и params наружу не идут: issuesFromDb,
+ * findingsFromDb.
  */
 import { createRequire } from 'node:module';
 import { IN_2_0, SIMILAR, codeOf, msgOf, render, type MsgKey, type Params } from './messages/index.js';
@@ -154,7 +154,7 @@ const LT_NAMES: Record<string, string> = {
   LT001: 'no_session', LT002: 'target_not_found', LT003: 'invalid_data', LT004: 'undeclared_end', LT005: 'tenant_denied',
   LT006: 'acl_denied', LT007: 'id_mismatch', LT008: 'id_from_db', LT009: 'immutable_key', LT010: 'invalid_class',
   LT011: 'use_reclass', LT012: 'reclass_denied', LT013: 'tightening_conflict', LT014: 'isolation_level',
-  LT015: 'recreated_in_statement', LT016: 'cursor_expired', LT017: 'delete_restricted', LT018: 'not_deleted',
+  LT015: 'recreated_in_statement', LT017: 'delete_restricted', LT018: 'not_deleted',
 };
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -175,8 +175,8 @@ export function issuesFromDb(issues: unknown): Issue[] {
 }
 
 /**
- * Находки из базы — находки verify() и строки отказа ужесточения (detail.rows от family_conflicts): у находки ещё key и
- * params, наружу они не идут (problem — текст базы), у нарушений в поле issues — тоже. Строка без ключа — как есть.
+ * Строки отказа ужесточения из базы (detail.rows от family_conflicts): у строки ещё key и params, наружу они не идут
+ * (problem — текст базы), у нарушений в поле issues — тоже. Строка без ключа — как есть.
  */
 export function findingsFromDb<T>(rows: readonly T[]): T[] {
   return rows.map((r) => {

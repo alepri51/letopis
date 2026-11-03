@@ -787,7 +787,7 @@ export async function execPlan(w: WriteCtx, steps: Step[], mods: ChainMods, mode
   await useReason(w, w.reason ?? '');
   const opStep = segments[segments.length - 1].steps.at(-1)!;
   const key = opStep.aliasKey ?? opStep.name;
-  if (tail.length || mode === 'versions' || mode === 'agg' || mode === 'diff' || mode === 'blame') {
+  if (tail.length || mode === 'versions' || mode === 'agg') {
     if (!start.length) return { kind: 'read', q: null, res: [] };
     const { q, res } = await readIn(w, [fromRows(opStep, start.map((r) => r.id)), ...tail], mods, mode, agg);
     return { kind: 'read', q, res };

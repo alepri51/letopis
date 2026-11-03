@@ -13,7 +13,7 @@ synced: f20b1cf
 - Значения правил — переменными (`vars`), шаблоны и имена — экранируются `jp_str`. Чего jsonpath не умеет (длина строки, uniqueItems, смысл даты, enum с объектами, min/maxProperties) — `extra`-правила в `validate_data`; внутри anyOf/oneOf они запрещены.
 - Неизвестное ключевое слово — отказ `invalid_class` с названием; пометки `title`, `description`, `examples`, `deprecated`, `x-*` пропускаются.
 - NUL (`\u0000`) в строке `jsonb` не хранит — ограничение PostgreSQL.
-- Нарушение `validate_data` — `{ path, keyword, message, key, params }` (план 2.0, этап 3, п. 3): `message` — русский текст `lt_text` по ключу `sql-core.issue_*`, рядом `key` и `params`. Библиотека убирает `key` и `params` (`issuesFromDb` в `lib/src/errors.ts`: `fromDbError`, загрузчик `checkInDb` и `verifyIds`; находки `verify` — `findingsFromDb`): публичная форма `Issue` — `{ path, keyword, message }`, сырой SQL видит все пять полей. Новое нарушение — тоже с `key` и `params`.
+- Нарушение `validate_data` — `{ path, keyword, message, key, params }` (план 2.0, этап 3, п. 3): `message` — русский текст `lt_text` по ключу `sql-core.issue_*`, рядом `key` и `params`. Библиотека убирает `key` и `params` (`issuesFromDb` в `lib/src/errors.ts`: `fromDbError`, загрузчик `checkInDb`; строки отказа ужесточения — `findingsFromDb`): публичная форма `Issue` — `{ path, keyword, message }`, сырой SQL видит все пять полей. Новое нарушение — тоже с `key` и `params`.
 
 **Что ещё менять вместе**
 - Новое ключевое слово: `allowed` в `jp_compile`, ветка компиляции, тест в `jsonschema.test.ts`, при наличии — файл официального набора в `lib/test/vectors/json-schema-test-suite/`.

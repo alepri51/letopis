@@ -32,7 +32,8 @@ export interface ClassInfo {
   schema: JsonSchema;
   ends: Record<string, EndInfo>;
   key: string[];
-  history: unknown;
+  /** Ведёт ли класс журнал версий (`history: false` — нет). */
+  history: boolean;
   ownerDefault: 'tenant' | 'actor';
   cache?: { ttl?: number };
   meta: Record<string, unknown>;
@@ -64,7 +65,7 @@ export class Registry {
         schema: res.schema as JsonSchema,
         ends: (res.ends ?? {}) as Record<string, EndInfo>,
         key: (res.key ?? []) as string[],
-        history: res.history,
+        history: res.history !== false,
         ownerDefault: (res.ownerDefault ?? 'tenant') as 'tenant' | 'actor',
         cache: (res.cache ?? undefined) as { ttl?: number } | undefined,
         meta: (res.meta ?? {}) as Record<string, unknown>,

@@ -1,7 +1,7 @@
 /**
  * mcp — инструменты MCP (план 1.1, §2.5, этап 5; тест-план §7.6 №1–12): модель, права, JSON-цепочка и подсказки,
  * предел и курсор, обёртка недоверенных данных, запись только с write, update только с rev, удаление с
- * подтверждением человека (elicitation в ревизиях 2025 и 2026-07-28), причина в blame, учётные данные, схемы
+ * подтверждением человека (elicitation в ревизиях 2025 и 2026-07-28), причина в версиях, учётные данные, схемы
  * инструментов, основная точка входа без SDK. Дополнительно: letopis mcp по stdio (клиент SDK запускает команду) и
  * обработчик HTTP приложения (createMcpHandler SDK, как в README). Клиент — из SDK, транспорт — в памяти. Описания
  * инструментов, их параметров и instructions — у каждого есть, по-русски.
@@ -444,22 +444,21 @@ test('доработки после точки Б: requestState подтверж
   }
 });
 
-test('№9: причина mcp: letopis_write — в blame', async () => {
+test('№9: причина mcp: letopis_write — в версиях', async () => {
   const cn = await open(db, { write: true });
   try {
     const created = await call(cn, 'letopis_write', { op: 'upsert', class: 'Doc', data: { code: 'D-1', text: 'черновик' } });
     const doc = created.structuredContent!.data.rows[0];
     await call(cn, 'letopis_write', { op: 'update', class: 'Doc', id: doc.id, rev: doc.rev, data: { text: 'итог' } });
-    const b = await call(cn, 'letopis_history', { class: 'Doc', id: doc.id, kind: 'blame' });
-    const text = b.structuredContent!.data.blame.fields.find((f: { path: string[] }) => f.path.join('.') === 'data.text');
-    assert.equal(text.reason, 'mcp: letopis_write');
-    assert.equal(text.rev, 2);
     const v = await call(cn, 'letopis_history', { class: 'Doc', id: doc.id, kind: 'versions' });
-    assert.deepEqual(v.structuredContent!.data.versions.map((x: { reason?: string }) => x.reason), ['mcp: letopis_write', 'mcp: letopis_write']);
-    const d = await call(cn, 'letopis_history', { class: 'Doc', id: doc.id, kind: 'diff' });
-    assert.deepEqual(d.structuredContent!.data.diff.changes.map((x: { path: string[] }) => x.path.join('.')), ['data.text']);
+    const versions = v.structuredContent!.data.versions as { rev: number; reason?: string; data: { text: string } }[];
+    assert.deepEqual(versions.map((x) => [x.rev, x.reason, x.data.text]),
+      [[1, 'mcp: letopis_write', 'черновик'], [2, 'mcp: letopis_write', 'итог']]);
+    // kind необязателен: по умолчанию — версии
+    const plain = await call(cn, 'letopis_history', { class: 'Doc', id: doc.id });
+    assert.deepEqual(plain.structuredContent!.data.versions.map((x: { rev: number }) => x.rev), [1, 2]);
     // значения перечислений проверяет схема инструмента (SDK): отказ без данных базы
-    const bad = await call(cn, 'letopis_history', { class: 'Doc', id: doc.id, kind: 'blam' });
+    const bad = await call(cn, 'letopis_history', { class: 'Doc', id: doc.id, kind: 'blame' });
     assert.equal(bad.isError, true);
     assert.match(bad.content[0].text ?? '', /kind/);
   } finally {

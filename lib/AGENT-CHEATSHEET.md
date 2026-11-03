@@ -45,7 +45,6 @@ const r = await up({ dsn: ADMIN, schema: 'myapp',                  // схема
   - `fresh` → пересоздать схему;
   - `upgrade` → накатить миграции 2.x (схему 1.x не обновляет);
   - `seeds` → имя сида пакета (например, `'booking'` — демо-домен) или путь к своему `.sql`;
-  - `history` → политика хранения;
   - ещё `serviceKey`, `quiet`;
   - `pglite: true` → база для разработки без PostgreSQL; затем `connect({ dsn: r.pglite.dsn, listen: false, max: 1,
     allowBypassRls: true, … })` — подключение суперпользователя, RLS на нём не действует.
@@ -77,7 +76,7 @@ const r = await up({ dsn: ADMIN, schema: 'myapp',                  // схема
     отказ `invalid_data`) или вручную: `create role myapp login password '…'; grant letopis_app to myapp;`;
   - подключение суперпользователем → ошибка `bypass_rls` (RLS не действовал бы);
   - администраторское подключение → только явно, `allowBypassRls: true`;
-  - один процесс: `connect({ dsn: r.login.dsn, admin: ADMIN, token })` → `load`, `verify`, `maintain`, `syncModels`
+  - один процесс: `connect({ dsn: r.login.dsn, admin: ADMIN, token })` → `load`, `maintain`, `syncModels`
     идут вторым пулом с той же сессией, цепочки — под RLS.
 - Аккаунты живут в арендаторе System:
   - создаёт их системный администратор (член System с ролью `admin`; назначает его свой сид установки или загрузчик
@@ -233,7 +232,7 @@ await db.Wallet(or({ number: 'W-1' }, { number: 'W-200' })).ids()
 - `after(cursorOf(строка, поле))`:
   - требует `sort()` по тому же полю;
   - листает `rows()`, `versions()` и `paths()` (курсор пути — `cursorOf(путь, поле)`, ключи пути — в порядке шагов);
-  - `count()`, агрегаты, `diff()`, `blame()` → курсор не учитывают.
+  - `count()` и агрегаты → курсор не учитывают.
 
 Операторы фильтра и их ключи в JSON-фильтре MCP (инструмент `letopis_query`, п. 14):
 
@@ -283,7 +282,7 @@ const adm = await connect({ dsn: ADMIN, schema: 'v2.myapp', token: login!.token,
 const rep = await adm.load({
   Shop: [{ name: 'Север' }],
   Wallet: [{ number: 'W-9', Shop: { $key: ['Север'] } }],     // ссылка: id | { $key: [...] } | { $ext }
-}, { existing: 'skip' })   // duplicates 'error'|'first'|'last', existing 'error'|'skip'|'update', commitEvery, withHistory, verify, tenant, as
+}, { existing: 'skip' })   // duplicates 'error'|'first'|'last', existing 'error'|'skip'|'update', commitEvery, withHistory, tenant, as
 // rep: { rows, loaded, updated, skipped, duplicates, byClass, external, portions, ms }
 ```
 - Первая заливка — `adm.load(rows, { initial: true })`, `letopis load --initial`:
@@ -294,7 +293,7 @@ const rep = await adm.load({
 Файлы NDJSON (объект на строку, все файлы — одна загрузка):
 ```sh
 npx letopis load shops.ndjson wallets.ndjson --dsn "$ADMIN" --schema v2.myapp --token "$TOKEN" [--class Wallet] \
-  [--duplicates first] [--existing skip] [--commit-every 100000] [--verify] [--initial]
+  [--duplicates first] [--existing skip] [--commit-every 100000] [--initial]
 # {"$class":"Shop","name":"Юг"}
 # {"$class":"Wallet","number":"W-10","Shop":{"$key":["Юг"]}}
 # {"$class":"Note","text":"x","$ext":"n1"}         ← $ext — внешний ключ строки для ссылок { "$ext": "n1" }
@@ -367,7 +366,6 @@ const shops = await db.Shop().cache({ ttl: 300 }).rows()      // кэш резу
 db.cache.stats(); db.cache.clear()
 ```
 - События → без потерь и повторов, под RLS.
-- Курсор старше яруса `all` политики хранения → `cursor_expired`.
 - `from: 'now'` → подписка видит только то, что зафиксировано после её начала.
 
 ### 10. Срез на дату и история
@@ -378,18 +376,10 @@ const was = await db.Wallet(w).asOf('2026-10-01T00:00:00Z').first()   // как 
 await db.Shop(shop).Wallet().asOf(new Date('2026-10-01')).rows()
 const history = await db.Wallet(w).versions()                         // все версии; версия удаления — $deleted
 await db.Wallet(w200).versions({ follow: true })                      // и через смену id (reclass, rekey)
-await db.Wallet(w).diff()                                             // что изменилось: предыдущая версия → последняя
-await db.Wallet(w).blame()                                            // кто, когда и почему (опция reason глагола) менял поля
 ```
-- `diff()` → массив `DiffResult`: `{ id, class, from, to, changes }`:
-  - `from` и `to` — `{ rev, at, id? }`, у `to` ещё `deleted?`;
-  - `to.deleted` → `changes` пуст;
-  - `from: null` → объекта тогда не было;
-  - изменение `DiffChange` — `{ path, kind: 'added' | 'removed' | 'changed', before?, after? }`.
-- `blame()` → массив `BlameResult`: `{ id, class, rev, complete, fields }`; `fields` — листья `BlameField` по порядку
-  пути: `{ path, rev, at, author, op, exact, agent?, reason?, id? }`.
-- `path` — массив сегментов: `['data', 'price']`; пустые `agent`, `reason`, `before`, `after` → опускаются.
-- Типы — из `letopis`.
+- Версия → `{ rev, op, at, author, agent?, reason? }`: причина — опция `reason` глагола, `db.begin({ reason })`,
+  `db.batch(имя, { reason })`; пустые `agent` и `reason` → опускаются.
+- Журнал хранит каждую версию: прореживания, обрезки истории и проверки хэшей нет.
 - Класс с `history: false` → не даёт `versions`, `asOf`, `restore` и событий подписки.
 
 ### 11. Агенты и MCP
@@ -429,9 +419,8 @@ const server = await createMcpServer(await svc.as(userId))   // letopis_model, l
 
 ### Эксплуатация
 
-- `db.verify({ data: true })` и `letopis verify` → цепочки хэшей, якорь.
-- `db.maintain()` и `connect({ maintain: '1h' })` → сессии, коды, прореживание журнала.
-- `db.trimHistory(цель, момент)`.
+- `db.maintain()` и `connect({ maintain: '1h' })` → истёкшие сессии и коды, строки-замки удалённых классов; журнал не
+  трогает.
 - Закрыть подключения — по одному разу; подключения из `svc.as()` делят пул с `svc`:
 
 <!-- run -->

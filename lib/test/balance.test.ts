@@ -11,7 +11,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import postgres from 'postgres';
-import { engine, waitForLock, type Engine, type Tenant } from './_engine.js';
+import { engine, journalIssues, waitForLock, type Engine, type Tenant } from './_engine.js';
 import { ADMIN_DSN, appDsn } from './_harness.js';
 import { commitProxy, type CommitProxy } from './_proxy.js';
 import { connect, inc, type Db, type Row } from '../src/index.js';
@@ -456,7 +456,7 @@ test('№28, 30: forUpdate вне транзакции, lock на завершё
   assert.equal(await db.Wallet({ group: 'g', balance: 1 }).count(), 0, 'ничего не записано');
 });
 
-test('№21: история кошелька — каждая операция версией с автором и временем, срез между операциями, verify чист', async () => {
+test('№21: история кошелька — каждая операция версией с автором и временем, срез между операциями, журнал цел', async () => {
   const w = await wallet('B-hist');
   await operate(db, w, 'h-1', 'topup', 1000);
   await operate(db, w, 'h-2', 'debit', 300);
@@ -465,6 +465,5 @@ test('№21: история кошелька — каждая операция �
   assert.ok(v.every((x) => x.author === t.id && typeof x.at === 'string'));
   const [mid] = await db.Wallet(w).asOf(v[1].at).rows();
   assert.equal(mid.data.balance, 1000, 'срез на момент между операциями');
-  const [{ r }] = await e.sql.unsafe(`select ${e.S}.verify() as r`);
-  assert.equal(r.ok, true, JSON.stringify(r.issues));
+  assert.deepEqual(await journalIssues(e.sql, e.S), []);
 });

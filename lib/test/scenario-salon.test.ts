@@ -39,7 +39,7 @@ let e: Engine;
 let t: Tenant;
 let db: Db;
 let svc: Db;   // сервис установки: вход, креды, сессии (права auth.*)
-let adb: Db;   // системный администратор: verify, maintain, purgeAccount
+let adb: Db;   // системный администратор: maintain, purgeAccount
 const dbs: Db[] = [];
 /** Именованный склад сущностей сцены (общий между актами). */
 const S: Record<string, Row> = {};
@@ -549,10 +549,10 @@ test('Акт 13. Аналитика: агрегации, keyset, alias, tags, к
 });
 
 // ===========================================================================
-// АКТ 14. История — asOf, versions, обрезка истории
-// покрывает: asOf, versions, trimHistory
+// АКТ 14. История — asOf, versions
+// покрывает: asOf, versions
 // ===========================================================================
-test('Акт 14. История: asOf и versions по изменению цены; обрезка старых версий', async () => {
+test('Акт 14. История: asOf и versions по изменению цены', async () => {
   const { ценаБорода } = S;
   const тогдаМомент = (await db.цена(ценаБорода.id).first())!.at;
   await db.цена(ценаБорода.id).update({ amounts: { RUB: 1000 } }).rows(); // подорожание (record сливается точечно)
@@ -561,12 +561,6 @@ test('Акт 14. История: asOf и versions по изменению цен
   assert.equal(rub((await db.цена(ценаБорода.id).asOf(тогдаМомент).first())!), 800);
   const версии = await db.цена(ценаБорода.id).versions();
   assert.deepEqual(версии.map(rub), [800, 1000]);
-
-  // обрезка: версии строже момента второй удаляются, текущая — никогда
-  assert.equal(await db.trimHistory(ценаБорода.id, версии[1].at), 1);
-  const послеОбрезки = await db.цена(ценаБорода.id).versions();
-  assert.equal(rub(послеОбрезки.at(-1)!), 1000);
-  assert.ok(!послеОбрезки.some((v) => v.op !== 'trim' && rub(v) === 800), 'старая цена стёрта из истории');
 });
 
 // ===========================================================================
@@ -835,16 +829,13 @@ test('Акт 21. Охранники: валидация, пути, слоты, �
   await fails(() => db.rollback(), 'tx_required');
   await fails(() => db.lock('x'), 'tx_required');
 
-  // служебные операции: загрузчик — только администраторское подключение; verify и maintain — системный администратор
+  // служебные операции: загрузчик — только администраторское подключение; maintain — системный администратор
   await fails(() => db.load([]), 'admin_required');
-  await fails(() => db.verify(), 'acl_denied');
   await fails(() => db.maintain(), 'acl_denied');
   // ключ меняют только у собственных классов арендатора; Service — системный класс демо-домена
   await fails(() => db.rekeyClass('Услуга', ['name']), 'invalid_class');
   const m = await adb.maintain();
   assert.equal(m.skipped, false);
-  const v = await adb.verify({ data: true });
-  assert.equal(v.ok, true, JSON.stringify(v.issues));
 });
 
 // ===========================================================================
@@ -861,17 +852,15 @@ const COVERED: Record<string, string> = {
   purge: 'А16', alias: 'А13', tags: 'А13 А20', owner: 'А20', forUpdate: 'А6', cache: 'А13', rekey: 'А13',
   // db
   as: 'А20', begin: 'А6 А7 А9', commit: 'А6 А7 А21', rollback: 'А7 А21', lock: 'А6 А7 А21', batch: 'А1 А5',
-  watch: 'А15', close: 'везде', registry: 'А1', sql: 'А1', load: 'А21 (admin_required)', verify: 'А21',
+  watch: 'А15', close: 'везде', registry: 'А1', sql: 'А1', load: 'А21 (admin_required)',
   maintain: 'А21', auth: 'А17 А18', acl: 'А19', idOf: 'А5 А6',
   refresh: 'А15', transaction: 'А1', flushSignals: 'А15', schema: 'А1', token: 'А1', tenant: 'А1 А17',
-  trimHistory: 'А14', rekeyClass: 'А21 (invalid_class: системный класс арендатору не перекодировать)',
+  rekeyClass: 'А21 (invalid_class: системный класс арендатору не перекодировать)',
   // батч
   run: 'А1', discard: 'А1', size: 'А1',
 };
 /** Имена, которых сценарий осознанно не касается как методов, — с причиной. */
 const NOT_TOUCHED: Record<string, string> = {
-  diff: 'план 1.1, этап 1: проверен набором history (§7.2), акты сценария 1.0 его не используют',
-  blame: 'план 1.1, этап 1: проверен набором history (§7.2), акты сценария 1.0 его не используют',
   then: 'не метод: цепочка нарочно не thenable (А21 проверяет, что then === undefined)',
 };
 

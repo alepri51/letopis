@@ -118,7 +118,7 @@ type BareOf<T> = T extends string ? { readonly name: T } : never;
 
 /**
  * Анонимный тип объекта вместо интерфейса: у интерфейса (`<Класс>Data` из `letopis types`) нет неявной индексной
- * сигнатуры, и без этого его строка не подошла бы туда, где ждут `Row` (`entity()`, `trimHistory()`, `cursorOf()`).
+ * сигнатуры, и без этого его строка не подошла бы туда, где ждут `Row` (`entity()`, `cursorOf()`).
  */
 type Plain<T> = { [K in keyof T]: T[K] };
 

@@ -4,79 +4,13 @@
 --   restore()        — последний снимок удалённого объекта новой версией (вид restore), с проверкой
 --                      по текущему описанию класса; id прежний;
 --   purge()          — стирание истории удалённого объекта: на место версии 1 встаёт запись purge
---                      с числом стёртых версий и последним хэшем;
---   trim_history()   — обрезка истории до момента: на место версии 1 встаёт запись trim со временем
---                      прежней версии 1, числом стёртых версий и хэшем последней из них;
+--                      с числом стёртых версий;
 --   rekey(), rekey_class() — новое значение ключа объекта или новый ключ класса: строка с новым id,
 --                      перевод ссылок (move_row), журнал связывает id колонкой moved;
 --   account_purge()  — удаление аккаунта с данными его арендатора (предохранители 0.21);
---   maintain()       — истёкшие сессии и коды, одна пачка прореживания журнала по политике хранения;
---   verify()         — цепочки хэшей с законными разрывами (purge, trim, прореживание),
---                      якорь, а с p_data — данные, концы, арендаторы, владельцы и id всех строк.
+--   maintain()       — истёкшие сессии и коды, строки-замки удалённых семейств.
 -- У id, у которого в журнале есть хоть одна запись, номер версии 1 всегда занят (этап 6, п. 3):
 -- на нём держится режим existing: 'error' загрузчика.
-
--- Умолчание политики хранения — константа установки up({ history }); null — хранить всё.
-create or replace function @SCHEMA@.history_default() returns jsonb
-language sql immutable parallel safe
-return nullif((@HISTORY_DEFAULT@)::jsonb, 'null'::jsonb);
-
--- Действующая политика хранения класса по развёрнутому описанию: своя (объект), умолчание установки
--- для классов с журналом, null — хранить всё. Системные классы не прореживаются (§2.11).
-create or replace function @SCHEMA@.history_policy(p_res jsonb) returns jsonb
-language sql immutable parallel safe
-return case
-  when (p_res->>'name') = any (array['Class', 'Account', 'member', 'Resource', 'rule']) then null
-  when jsonb_typeof(p_res->'history') = 'object' then p_res->'history'
-  when p_res->'history' = 'true'::jsonb then @SCHEMA@.history_default()
-end;
-
--- Срок яруса политики: интервал или бесконечность ('forever').
-create or replace function @SCHEMA@.history_iv(p_term text) returns interval
-language sql immutable parallel safe
-return case when p_term = 'forever' then 'infinity'::interval else p_term::interval end;
-
--- Конец последнего яруса политики: после него история удаляется (бесконечность — хранится всегда).
-create or replace function @SCHEMA@.history_horizon(p_pol jsonb) returns interval
-language sql immutable parallel safe
-return (select @SCHEMA@.history_iv(p_pol->>t.n) from unnest(array['all', 'daily', 'weekly', 'monthly', 'yearly']) with ordinality t(n, i)
-        where p_pol ? t.n order by t.i desc limit 1);
-
--- Нужна ли политике версия (§2.11): в ярусе all — все; дальше — последняя в своём периоде текущего
--- яруса или любого более крупного (недели не вкладываются в месяцы); старше последнего яруса со
--- сроком — не нужна. Время — местное в поясе политики: p_lt — версии, p_nowl — «сейчас», p_nlt —
--- следующей версии того же id (null — следующей нет). Ярус — календарно: моложе срока, если позже
--- «сейчас» минус срок (месяц — месяц, а не 30 дней).
-create or replace function @SCHEMA@.history_keep(p_pol jsonb, p_lt timestamp, p_nowl timestamp, p_nlt timestamp) returns boolean
-language plpgsql immutable parallel safe
-as $$
-declare
-  tiers text[] := array['all', 'daily', 'weekly', 'monthly', 'yearly'];
-  units text[] := array[null, 'day', 'week', 'month', 'year'];
-  my int;
-  i int;
-begin
-  for i in 1 .. 5 loop
-    continue when not (p_pol ? tiers[i]);
-    if p_lt > p_nowl - @SCHEMA@.history_iv(p_pol->>tiers[i]) then
-      my := i;
-      exit;
-    end if;
-  end loop;
-  if my is null then
-    return false;
-  end if;
-  if my = 1 or p_nlt is null then
-    return true;
-  end if;
-  for i in my .. 5 loop
-    continue when not (p_pol ? tiers[i]);
-    if date_trunc(units[i], p_nlt) <> date_trunc(units[i], p_lt) then
-      return true;
-    end if;
-  end loop;
-  return false;
-end $$;
 
 -- Действующая роль сеанса, под которой вызывающий работает вне функций владельца: роль SET ROLE (и параметра запуска
 -- role), иначе роль входа. Внутри функции владельца current_user — владелец, а session_user — роль входа, даже если
@@ -87,8 +21,8 @@ language sql stable
 set search_path = pg_catalog, @SCHEMA@, pg_temp
 return coalesce(nullif(current_setting('role'), 'none'), session_user)::name;
 
--- Роль подключения — администраторская (суперпользователь или может стать владельцем): verify и
--- maintain доступны ей и без сессии (CLI, обслуживание по расписанию), maintain(now) — только ей.
+-- Роль подключения — администраторская (суперпользователь или может стать владельцем): maintain доступен ей и без
+-- сессии (CLI, обслуживание по расписанию).
 create or replace function @SCHEMA@.admin_role() returns boolean
 language sql stable
 set search_path = pg_catalog, @SCHEMA@, pg_temp
@@ -156,10 +90,10 @@ set search_path = pg_catalog, @SCHEMA@, pg_temp
 return (select encode(sha256(convert_to(coalesce(string_agg(e.id::text || ':' || e.rev::text, ',' order by e.id), ''), 'UTF8')), 'hex')
         from @SCHEMA@.entity e where e.class = 'Class' and e.tenant in (@SCHEMA@.ctx_tenant(), '@SYSTEM@'::uuid));
 
--- ========================= restore, purge, обрезка истории =========================
+-- ========================= restore, purge =========================
 
 -- Последняя запись журнала id под блокировкой, если она видна актору в его арендаторе: параллельные
--- restore, purge, обрезка и воскрешение (trg_entity_bi берёт ту же блокировку) упорядочены.
+-- restore, purge и воскрешение (trg_entity_bi берёт ту же блокировку) упорядочены.
 create or replace function @SCHEMA@.last_version_visible(p_id uuid, p_tenant uuid, p_acl jsonb) returns @SCHEMA@.log
 language plpgsql volatile
 set search_path = pg_catalog, @SCHEMA@, pg_temp
@@ -245,9 +179,9 @@ begin
     perform @SCHEMA@.lt_fail('sql-time.no_write_row', jsonb_build_object('cls', l.class));
   end if;
   ts := greatest(@SCHEMA@.now_ts(), l.at + interval '1 microsecond');
-  insert into @SCHEMA@.entity (id, rev, class, cv, tenant, owner, links, data, tags, at, created_at, author, agent, op, reason, moved, prev_hash, validator)
+  insert into @SCHEMA@.entity (id, rev, class, cv, tenant, owner, links, data, tags, at, created_at, author, agent, op, reason, moved, validator)
   values (p_id, l.rev + 1, l.class, cls.rev, l.tenant, own, lk.links, d, l.tags, ts, ts, c.author, c.agent, 'restore',
-          nullif(current_setting('letopis.reason', true), ''), null, l.hash, null)
+          nullif(current_setting('letopis.reason', true), ''), null, null)
   returning * into n;
   perform @SCHEMA@.log_version(n);
   if l.class in ('rule', 'Resource', 'member', 'Account') then
@@ -257,8 +191,8 @@ begin
 end $$;
 
 -- Стирание истории удалённого объекта (этап 6, п. 3): без p_confirm — превью (число версий), с ним —
--- все версии удаляются, а на место версии 1 встаёт запись purge с числом стёртых версий и хэшем
--- последней. Право DELETE на класс по последнему снимку. История системных классов — аудит прав и
+-- все версии удаляются, а на место версии 1 встаёт запись purge с числом стёртых версий. Право DELETE на класс по
+-- последнему снимку. История системных классов — аудит прав и
 -- схемы: её не стирают.
 create or replace function @SCHEMA@.purge(p_id uuid, p_confirm boolean default false) returns jsonb
 language plpgsql volatile security definer
@@ -288,93 +222,16 @@ begin
     return jsonb_build_object('id', p_id, 'class', l.class, 'versions', n, 'purged', false);
   end if;
   delete from @SCHEMA@.log x where x.id = p_id;
-  insert into @SCHEMA@.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash)
-  values (p_id, 1, l.class, l.cv, l.tenant, l.tenant, '{}', jsonb_build_object('$purged', n, '$hash', encode(l.hash, 'hex')), '{}',
+  insert into @SCHEMA@.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved)
+  values (p_id, 1, l.class, l.cv, l.tenant, l.tenant, '{}', jsonb_build_object('$purged', n), '{}',
           greatest(@SCHEMA@.now_ts(), l.at + interval '1 microsecond'), coalesce(c.author, '@SYSTEM@'::uuid), c.agent, 'purge',
-          nullif(current_setting('letopis.reason', true), ''), null, null);
+          nullif(current_setting('letopis.reason', true), ''), null);
   -- воскрешение, зафиксированное, пока purge ждал блокировку, — отказ (снимок нового оператора его видит)
   if exists (select 1 from @SCHEMA@.entity e where e.id = p_id) then
     perform @SCHEMA@.lt_fail('sql-time.purge_restored');
   end if;
   perform @SCHEMA@.signal(array[l.class], array[l.tenant]);
   return jsonb_build_object('id', p_id, 'class', l.class, 'versions', n, 'purged', true);
-end $$;
-
--- Обрезка истории (этап 6, п. 3; замена compact 0.21): версии строже момента p_before удаляются,
--- текущая — никогда. Время версий одного id монотонно, поэтому удаляется начало истории — и всегда
--- версия 1: на её место встаёт запись trim со временем прежней версии 1 (срез на момент знает, когда
--- объект появился), номером последней стёртой версии ($trimmed) и её хэшем ($hash) — по ним verify()
--- проверяет стык. Цели — p_ids или все объекты классов p_classes арендатора; право DELETE на каждую
--- (по последней версии). Возвращает число стёртых версий.
-create or replace function @SCHEMA@.trim_history(p_ids uuid[], p_classes text[], p_before timestamptz) returns int
-language plpgsql volatile security definer
-set search_path = pg_catalog, @SCHEMA@, pg_temp
-as $$
-declare
-  c record;
-  rd jsonb;
-  dplan jsonb;
-  r @SCHEMA@.log;
-  first @SCHEMA@.log;
-  j int;
-  h bytea;
-  k int;
-  total int := 0;
-  classes text[] := '{}';
-begin
-  select * into c from @SCHEMA@.ctx();
-  if c.account is null then
-    perform @SCHEMA@.lt_fail('sql-time.no_session');
-  end if;
-  if p_before is null or (p_ids is null and p_classes is null) then
-    perform @SCHEMA@.lt_fail('sql-time.trim_args');
-  end if;
-  rd := @SCHEMA@.acl_actor('READ');
-  dplan := @SCHEMA@.acl_plan('DELETE');
-  if p_ids is not null then
-    -- явные цели: каждая обязана найтись
-    for r in select distinct on (u.x) l.* from unnest(p_ids) u(x)
-             left join lateral (select * from @SCHEMA@.log x where x.id = u.x order by x.rev desc limit 1) l on true
-             order by u.x loop
-      if r.id is null or r.tenant <> c.tenant or r.op = 'purge'
-         or not @SCHEMA@.row_visible(r.tenant, r.class, r.id, r.owner, r.tags, r.data, r.links, c.tenant, c.account, rd->'plan') then
-        perform @SCHEMA@.lt_fail('sql-time.target_not_found');
-      end if;
-    end loop;
-  end if;
-  -- по классам: последняя версия id — любого класса, класс проверяется у неё (план 2.0, 7.1 №1)
-  for r in select distinct on (l.id) l.* from @SCHEMA@.log l
-           where l.tenant = c.tenant and (case when p_ids is not null then l.id = any (p_ids)
-                                               else l.id in (select x.id from @SCHEMA@.log x where x.tenant = c.tenant and x.class = any (p_classes)) end)
-           order by l.id, l.rev desc loop
-    continue when p_ids is null and not (r.class = any (p_classes));
-    continue when r.op = 'purge'
-      or not @SCHEMA@.row_visible(r.tenant, r.class, r.id, r.owner, r.tags, r.data, r.links, c.tenant, c.account, rd->'plan');
-    if r.class in ('Class', 'Account', 'member', 'Resource', 'rule') then
-      perform @SCHEMA@.lt_fail('sql-time.trim_system');
-    end if;
-    if not @SCHEMA@.acl_row_ok(dplan, r.class, r.id, r.owner, r.tenant, r.tags, r.data, r.links) then
-      perform @SCHEMA@.lt_fail('sql-time.no_delete_class', jsonb_build_object('cls', r.class));
-    end if;
-    -- версии id под блокировкой: параллельная обрезка и прореживание ждут
-    perform 1 from @SCHEMA@.log x where x.id = r.id order by x.rev for update;
-    select max(x.rev) into j from @SCHEMA@.log x where x.id = r.id and x.at < p_before and x.rev < r.rev;
-    continue when j is null;
-    select x.* into first from @SCHEMA@.log x where x.id = r.id order by x.rev limit 1;
-    -- до момента — только сама запись trim: стирать нечего
-    continue when j = 1 and first.op = 'trim';
-    select x.hash into h from @SCHEMA@.log x where x.id = r.id and x.rev = j;
-    with d as (delete from @SCHEMA@.log x where x.id = r.id and x.rev <= j returning 1)
-    select count(*)::int into k from d;
-    insert into @SCHEMA@.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, agent, op, reason, moved, prev_hash)
-    values (r.id, 1, r.class, r.cv, r.tenant, r.tenant, '{}', jsonb_build_object('$trimmed', j, '$hash', encode(h, 'hex')), '{}',
-            first.at, coalesce(c.author, '@SYSTEM@'::uuid), c.agent, 'trim', nullif(current_setting('letopis.reason', true), ''), null, null);
-    -- запись trim заменяет версию 1: стёрто на одну меньше, если версия 1 была прежней записью trim
-    total := total + k - case when first.op = 'trim' then 1 else 0 end;
-    classes := classes || r.class;
-  end loop;
-  perform @SCHEMA@.signal(array_agg(d.x), array_agg(c.tenant)) from (select distinct x from unnest(classes) x) d;
-  return total;
 end $$;
 
 -- ========================= смена ключа =========================
@@ -638,144 +495,14 @@ end $$;
 
 -- ========================= обслуживание =========================
 
--- Одна пачка прореживания журнала (§2.11): версии, которые не нужны действующей политике хранения
--- своего класса — как его резолвит class_row: свой класс арендатора, иначе System; у арендатора со своим одноимённым
--- классом политика класса System не действует (план 2.0, 7.3 №1: класс System, заведённый позже, дублировал строки
--- журнала в отборе и стирал промежуточные версии). Не трогаются версия 1, текущая и версии особых видов (create, delete, reclass,
--- rekey, restore, purge, trim); история удалённого объекта, надгробие которого старше
--- последнего яруса со сроком, стирается целиком. Пачка — до 100 объектов после курсора (meta
--- строки ключа: участки по порядку id), не больше p_limit версий; объект, не вошедший целиком,
--- достаётся следующей пачке. Курсор дошёл до конца — сбрасывается (more = false).
-create or replace function @SCHEMA@.thin_batch(p_now timestamptz, p_limit int) returns jsonb
-language plpgsql volatile
-set search_path = pg_catalog, @SCHEMA@, pg_temp
-as $$
-declare
-  cur uuid;
-  ids uuid[];
-  vid uuid[];
-  vrev int[];
-  total int;
-  k int;
-  nxt uuid;
-  more boolean;
-begin
-  select (s.meta->>'thin')::uuid into cur from @SCHEMA@.secret s where s.id = '@SYSTEM@'::uuid for update;
-  -- умолчание установки прореживает журнал: verify() и после его снятия считает такие пропуски законными
-  if @SCHEMA@.history_default() is not null then
-    update @SCHEMA@.secret s set meta = s.meta || '{"default_policy": true}' where s.id = '@SYSTEM@'::uuid and not (s.meta ? 'default_policy');
-  end if;
-  -- момент из будущего (maintain({ now }) пускает только администраторская роль — тесты и демо): verify() судит о
-  -- законности разрывов прореживания по нему, а не по часам — иначе прореженное «наперёд» он считал бы порчей (обход
-  -- сервиса «Документы»)
-  if p_now > clock_timestamp() then
-    update @SCHEMA@.secret s set meta = s.meta || jsonb_build_object('thin_now', greatest(p_now, (s.meta->>'thin_now')::timestamptz))
-     where s.id = '@SYSTEM@'::uuid;
-  end if;
-  -- политика, граница по ярусу all и арендаторы со своим одноимённым классом (у класса System) — один раз на класс,
-  -- materialized: на строку журнала ни подзапроса, ни разбора data строки Class. Коррелированный not exists по entity в
-  -- условии соединения при выборке ANALYZE без строк Class (их единицы на сотни тысяч) уводил план в полный проход
-  -- журнала с хэш-соединением — maintain в ~6 раз медленнее в части прогонов (разбор замера против 1.0.1, 02.11.2026).
-  -- Курсор — диапазоном по индексу и в общем плане: >= coalesce и is distinct from — то же, что cur is null or l.id > cur
-  with pol as materialized (
-    select x.data->>'name' as cls, x.tenant as ct, p_now - @SCHEMA@.history_iv(h.p->>'all') as edge,
-           case when x.tenant = '@SYSTEM@'::uuid
-                then array(select y.tenant from @SCHEMA@.entity y
-                           where y.class = 'Class' and y.data->>'name' = x.data->>'name' and y.tenant <> '@SYSTEM@'::uuid)
-                else '{}'::uuid[] end as own
-    from @SCHEMA@.entity x cross join lateral (select @SCHEMA@.history_policy(x.data->'resolved') as p) h
-    where x.class = 'Class' and h.p is not null
-  )
-  select array_agg(q.id order by q.id) into ids from (
-    select distinct l.id from @SCHEMA@.log l
-    join pol on pol.cls = l.class
-      and (pol.ct = l.tenant or pol.ct = '@SYSTEM@'::uuid and l.tenant <> all (pol.own))
-    where l.at < pol.edge
-      and l.id >= coalesce(cur, '00000000-0000-0000-0000-000000000000'::uuid) and l.id is distinct from cur
-    order by l.id limit 100) q;
-  if ids is null then
-    update @SCHEMA@.secret s set meta = s.meta - 'thin' where s.id = '@SYSTEM@'::uuid;
-    return jsonb_build_object('thinned', 0, 'more', false);
-  end if;
-  -- последняя запись каждого id пачки — for update: restore(), purge() и новая версия того же id берут её же (инвариант
-  -- M-TIME); отбор ниже видит то, что они успели зафиксировать, и не стирает историю объекта, который только что
-  -- восстановили (план 2.0, 7.3 №3)
-  perform 1 from @SCHEMA@.log l
-   where l.id = any (ids) and not exists (select 1 from @SCHEMA@.log z where z.id = l.id and z.rev > l.rev)
-   order by l.id
-   for update of l;
-  with pol as (
-    select x.data->>'name' as cls, x.tenant as ct, @SCHEMA@.history_policy(x.data->'resolved') as p
-    from @SCHEMA@.entity x where x.class = 'Class'
-  ), v as (
-    -- все версии id, любого класса: последняя версия и следующая по времени — по всей цепочке (план 2.0, 7.3 №2: после
-    -- reclass версии прежнего класса без политики выпадали из отбора и переживали стирание истории удалённого)
-    select l.id, l.rev, l.at, l.op, l.class, l.tenant,
-           max(l.rev) over (partition by l.id) as last_rev,
-           first_value(l.op) over (partition by l.id order by l.rev desc) as last_op,
-           first_value(l.at) over (partition by l.id order by l.rev desc) as last_at,
-           first_value(l.class) over (partition by l.id order by l.rev desc) as last_class,
-           lead(l.at) over (partition by l.id order by l.rev) as next_at
-    from @SCHEMA@.log l
-    where l.id = any (ids)
-  ), vp as (
-    -- прореживание версии — по политике её класса; стирание удалённого целиком — по политике класса надгробия
-    select v.*, pv.p, coalesce(pv.p->>'tz', 'UTC') as tz, pl.p as lp, coalesce(pl.p->>'tz', 'UTC') as ltz
-    from v
-    left join pol pv on pv.cls = v.class
-      and (pv.ct = v.tenant
-           or pv.ct = '@SYSTEM@'::uuid
-              and not exists (select 1 from @SCHEMA@.entity y
-                              where y.class = 'Class' and y.tenant = v.tenant and y.data->>'name' = v.class))
-    left join pol pl on pl.cls = v.last_class
-      and (pl.ct = v.tenant
-           or pl.ct = '@SYSTEM@'::uuid
-              and not exists (select 1 from @SCHEMA@.entity y
-                              where y.class = 'Class' and y.tenant = v.tenant and y.data->>'name' = v.last_class))
-  )
-  select array_agg(vp.id order by vp.id, vp.rev), array_agg(vp.rev order by vp.id, vp.rev) into vid, vrev
-  from vp
-  where (vp.last_op = 'delete' and vp.lp is not null
-         and timezone(vp.ltz, vp.last_at) <= timezone(vp.ltz, p_now) - @SCHEMA@.history_horizon(vp.lp))
-     or (vp.p is not null and vp.rev <> 1 and vp.rev <> vp.last_rev
-         and vp.op not in ('create', 'delete', 'reclass', 'rekey', 'restore', 'purge', 'trim')
-         and not @SCHEMA@.history_keep(vp.p, timezone(vp.tz, vp.at), timezone(vp.tz, p_now), timezone(vp.tz, vp.next_at)));
-  total := coalesce(cardinality(vid), 0);
-  k := least(total, p_limit);
-  if k > 0 then
-    delete from @SCHEMA@.log l using unnest(vid[1:k], vrev[1:k]) u(id, rev) where l.id = u.id and l.rev = u.rev;
-  end if;
-  if total > p_limit then
-    -- объект на границе пачки — снова в следующей
-    nxt := vid[p_limit + 1];
-    cur := (select x from unnest(ids) x where x < nxt order by x desc limit 1);
-    more := true;
-  elsif cardinality(ids) = 100 then
-    cur := ids[100];
-    more := true;
-  else
-    cur := null;
-    more := false;
-  end if;
-  update @SCHEMA@.secret s set meta = case when cur is null then s.meta - 'thin' else s.meta || jsonb_build_object('thin', cur) end
-  where s.id = '@SYSTEM@'::uuid;
-  return jsonb_build_object('thinned', k, 'more', more);
-end $$;
-
--- Обслуживание (этап 6, п. 8): истёкшие и погашенные сессии и одноразовые коды, строки-замки удалённых семейств, одна
--- пачка прореживания журнала, заполнение очереди сигналов. Вызывает системный администратор, роль с
--- правом letopis.maintain или администраторское подключение. p_now — момент «сейчас» для
--- прореживания, только от администраторской роли (admin_role; тесты): иначе одним вызовом можно было бы проредить всю
--- историю, а роль владельца и так может стирать журнал. p_cleanup —
--- удалять ли истёкшие сессии, коды и строки-замки: библиотека передаёт true только в первой пачке вызова, иначе каждая
--- из ≤100 пачек заново просматривала бы secret (план 2.0, 7.3 №4); вызов без третьего аргумента чистит в каждой пачке.
-create or replace function @SCHEMA@.maintain(p_now timestamptz default null, p_limit int default 10000,
-  p_cleanup boolean default true) returns jsonb
+-- Обслуживание (этап 6, п. 8): истёкшие и погашенные сессии и одноразовые коды, строки-замки удалённых семейств,
+-- заполнение очереди сигналов. Вызывает системный администратор, роль с правом letopis.maintain или администраторское
+-- подключение. Один исполнитель: обслуживание идёт одной транзакцией под строкой-замком; занята — null.
+create or replace function @SCHEMA@.maintain() returns jsonb
 language plpgsql volatile security definer
 set search_path = pg_catalog, @SCHEMA@, pg_temp
 as $$
 declare
-  ts timestamptz := clock_timestamp();
   s int;
   o int;
   fam text := '@SCHEMA_NAME@:family:';
@@ -783,262 +510,53 @@ begin
   if not @SCHEMA@.letopis_allowed('letopis.maintain') then
     perform @SCHEMA@.lt_fail('sql-time.maintain_denied');
   end if;
-  -- один исполнитель: строка-замок до конца транзакции пачки (lock_try) — посторонняя роль её не займёт (ревью
+  -- один исполнитель: строка-замок до конца транзакции (lock_try) — посторонняя роль её не займёт (ревью
   -- безопасности №3, №2); занята — null, обслуживание продолжит держатель
   if not @SCHEMA@.lock_try('@SCHEMA_NAME@:maintain') then
     return null;
   end if;
-  if p_now is not null then
-    if not @SCHEMA@.admin_role() then
-      perform @SCHEMA@.lt_fail('sql-time.maintain_now');
-    end if;
-    ts := p_now;
-  end if;
-  s := 0;
-  o := 0;
-  if coalesce(p_cleanup, true) then
-    with d as (delete from @SCHEMA@.secret x where x.kind = 'SESSION'
-               and (x.deleted_at is not null or x.expires_at <= clock_timestamp()) returning 1)
-    select count(*)::int into s from d;
-    -- коды всех видов, которые выпускает auth_issue_otp: OTP и OTP_<имя> (тот же шаблон вида), — использованные,
-    -- заменённые, исчерпавшие попытки (deleted_at) и истёкшие
-    with d as (delete from @SCHEMA@.secret x where x.kind ~ '^OTP(_[A-Z0-9]{1,27})?$'
-               and (x.deleted_at is not null or x.expires_at <= clock_timestamp()) returning 1)
-    select count(*)::int into o from d;
-    -- строки-замки семейств, чьего корня больше нет — удалён класс или его арендатор (план 2.0, 7.7 №8, долгий
-    -- прогон): их заранее заводит запись строки Class (family_rows), а сами они не уходили — заведение и удаление
-    -- классов копило их без предела. Корень жив — строка Class с этим именем у арендатора семейства (family_name;
-    -- в имени класса двоеточия нет). Занятую строку не трогаем (skip locked), а строку-замок семейства — только вместе
-    -- с её шлюзом или без шлюза: исключительная блокировка берёт шлюз первым, и строка-замок, до которой она ещё не
-    -- дошла, у неё не пропадёт. Пропавшую строку lock_row и family_lock заводят заново, если класс с этим именем
-    -- появится снова.
-    with stale as (
-      select l.id, l.meta->>'name' as n
-      from @SCHEMA@.secret l
-      where l.kind = 'LOCK' and l.account = '@SYSTEM@'::uuid and l.deleted_at is null
-        and left(l.meta->>'name', length(fam)) = fam
-        and not exists (
-          select 1 from @SCHEMA@.entity c
-          where c.class = 'Class'
-            and c.data->>'name' = split_part(substr(l.meta->>'name', length(fam) + 1), ':', 2)
-            and c.tenant::text = split_part(substr(l.meta->>'name', length(fam) + 1), ':', 1))
-      for update of l skip locked)
-    delete from @SCHEMA@.secret x using stale st
-    where x.id = st.id
-      and (st.n like '%:gate'
-           or exists (select 1 from stale g where g.n = st.n || ':gate')
-           or not exists (select 1 from @SCHEMA@.secret y where y.id = @SCHEMA@.lock_id(st.n || ':gate')));
-  end if;
-  return jsonb_build_object('sessions', s, 'codes', o, 'queue', pg_notification_queue_usage())
-    || @SCHEMA@.thin_batch(ts, greatest(coalesce(p_limit, 10000), 1));
-end $$;
-
--- ========================= verify =========================
-
--- Проверка цепочек хэшей (этап 1, п. 11; этап 6, п. 4): номера версий подряд с 1, prev_hash каждой
--- версии равен хэшу предыдущей, строка entity совпадает с последней версией журнала, надгробие — с предыдущей версией
--- (план 2.0, 7.3 №5), колонку hash считает выражение установки (ревью). Законные
--- разрывы: после записи trim (стык — по $trimmed и $hash), запись purge — начало цепочки,
--- прореживание — пропуск после версии старше яруса all класса, у которого есть (или была) политика
--- хранения — своя или умолчание установки (метка default_policy в строке ключа). p_data — ещё и все строки: данные по проверке класса, концы (цель существует, её
--- арендатор — тот же или System, класс принимается концом), арендатор и владелец существуют, id
--- класса с ключом — v5 от ключа, хэш каждой версии журнала равен пересчитанному из её содержимого (ревью). Возвращает находки и
--- якорь — хэш всех голов цепочек: строк entity и последних версий удалённых
--- объектов. Находка — id (и rev или class), problem — русский текст по ключу каталога, key и params (план 2.0, этап 3,
--- п. 3). Только системный администратор (право letopis.verify) или администраторское подключение.
-create or replace function @SCHEMA@.verify(p_data boolean default false) returns jsonb
-language plpgsql stable security definer
-set search_path = pg_catalog, @SCHEMA@, pg_temp
-as $$
-declare
-  issues jsonb;
-  hash_issues jsonb;
-  data_issues jsonb := '[]'::jsonb;
-  anchor text;
-  ts timestamptz := clock_timestamp();
-begin
-  if not @SCHEMA@.letopis_allowed('letopis.verify') then
-    perform @SCHEMA@.lt_fail('sql-time.verify_denied');
-  end if;
-  -- прореживание с моментом из будущего (maintain({ now }) — тесты и демо) запомнило его: разрыв законен относительно
-  -- большего из часов и этого момента (thin_batch)
-  ts := greatest(ts, (select (k.meta->>'thin_now')::timestamptz from @SCHEMA@.secret k where k.id = '@SYSTEM@'::uuid));
-  -- Колонка hash (ревью): цепочки и якорь верят её значениям, поэтому она обязана быть генерируемой (stored) с выражением
-  -- установки (10-core.sql) — у entity, log и у каждой таблицы-наследника (pg_inherits): строки наследника видны в entity
-  -- и log, а выражение у него может быть своим. Иначе владелец снимает выражение (drop expression) или ставит своё и
-  -- пишет любые хэши, и ни цепочки, ни якорь этого не видят. Вернуть выражение установки можно только с пересчётом всех
-  -- значений (set expression переписывает таблицу, простую колонку генерируемой не сделать — только новой колонкой),
-  -- поэтому подменённые хэши живут, пока подмену видно в каталоге. Эталон — текст pg_get_expr в пути поиска verify: имя
-  -- функции без схемы — только если путь находит ту же функцию, то есть version_hash и snapshot этой схемы. Их тела verify
-  -- не сверяет (у тела return … prosrc пуст, тело — в prosqlbody): значения считаются при записи, а up() при каждом
-  -- накате ставит функции заново, и сверка видела бы лишь нынешнее тело, а не то, с которым писались строки. Хэши,
-  -- записанные при подменённой функции (подменил тело, переписал строки, вернул тело), выдаёт только пересчёт — его
-  -- делает verify(p_data) ниже.
-  with recursive rel as (
-    select c.oid from pg_class c where c.oid in ('@SCHEMA@.entity'::regclass, '@SCHEMA@.log'::regclass)
-    union
-    select i.inhrelid from pg_inherits i join rel on i.inhparent = rel.oid
-  )
-  select coalesce(jsonb_agg(jsonb_build_object('id', '@SYSTEM@', 'table', r.oid::regclass::text, 'column', 'hash',
-                    'expression', pg_get_expr(d.adbin, d.adrelid),
-                    'key', 'sql-time.verify_hash_column', 'params', jsonb_build_object('table', r.oid::regclass::text))
-                  order by r.oid::regclass::text), '[]'::jsonb)
-    into hash_issues
-  from rel r
-  left join pg_attribute a on a.attrelid = r.oid and a.attname = 'hash' and not a.attisdropped
-  left join pg_attrdef d on d.adrelid = a.attrelid and d.adnum = a.attnum
-  where a.attgenerated is distinct from 's'
-     or pg_get_expr(d.adbin, d.adrelid) is distinct from
-        'version_hash(prev_hash, snapshot(id, rev, class, tenant, owner, links, data, tags, at, author, agent, op, reason, moved))';
-  with pol as (
-    -- классы с политикой хранения сейчас или в истории строки Class; ярус all — действующий или сутки
-    select x.data->>'name' as cls, x.tenant as ct,
-           coalesce(@SCHEMA@.history_iv(@SCHEMA@.history_policy(x.data->'resolved')->>'all'), interval '1 day') as all_iv
-    from @SCHEMA@.entity x
-    where x.class = 'Class'
-      and (@SCHEMA@.history_policy(x.data->'resolved') is not null
-           or exists (select 1 from @SCHEMA@.log h where h.id = x.id and jsonb_typeof(h.data->'resolved'->'history') = 'object')
-           or (x.data->'resolved'->'history' = 'true'::jsonb and x.data->>'name' not in ('Class', 'Account', 'member', 'Resource', 'rule')
-               and exists (select 1 from @SCHEMA@.secret k where k.id = '@SYSTEM@'::uuid and k.meta ? 'default_policy')))
-  ), chain as (
-    select l.id, l.rev, l.class, l.tenant, l.prev_hash,
-           lag(l.rev) over w as prev_rev, lag(l.hash) over w as prev_h, lag(l.op) over w as prev_op,
-           lag(l.data) over w as prev_data, lag(l.at) over w as prev_at
-    from @SCHEMA@.log l
-    window w as (partition by l.id order by l.rev)
-  ), exp as (
-    select chain.*,
-           case when prev_op = 'trim' then (prev_data->>'$trimmed')::int + 1 else prev_rev + 1 end as want_rev,
-           case when prev_op = 'trim' then decode(prev_data->>'$hash', 'hex') else prev_h end as want_hash
-    from chain where prev_rev is not null
-  ), found as (
-    -- находка — id, номер версии, ключ каталога и параметры; текст problem — ниже, у всех находок сразу
-    select jsonb_build_object('id', id, 'rev', rev, 'key', 'sql-time.verify_chain_start', 'params', '{}'::jsonb) as f
-      from chain where prev_rev is null and (rev <> 1 or prev_hash is not null)
-    union all
-    select jsonb_build_object('id', id, 'rev', prev_rev, 'key', 'sql-time.verify_prev_hash', 'params', '{}'::jsonb)
-      from exp where rev = want_rev and prev_hash is distinct from want_hash
-    union all
-    select jsonb_build_object('id', id, 'rev', want_rev, 'key', 'sql-time.verify_gap', 'params', jsonb_build_object('from', want_rev, 'to', rev - 1))
-      from exp
-      where rev > want_rev
-        and not exists (select 1 from pol where pol.cls = exp.class and exp.prev_at < ts - pol.all_iv
-                                            and (pol.ct = exp.tenant
-                                                 or pol.ct = '@SYSTEM@'::uuid
-                                                    and not exists (select 1 from @SCHEMA@.entity y
-                                                                    where y.class = 'Class' and y.tenant = exp.tenant
-                                                                      and y.data->>'name' = exp.class)))
-    union all
-    select jsonb_build_object('id', id, 'rev', rev, 'key', 'sql-time.verify_trim_rev', 'params', '{}'::jsonb)
-      from exp where rev < want_rev
-    union all
-    select jsonb_build_object('id', e.id, 'rev', e.rev, 'key', 'sql-time.verify_entity_head', 'params', '{}'::jsonb)
-      from @SCHEMA@.entity e
-      left join lateral (select l.hash, l.rev from @SCHEMA@.log l where l.id = e.id order by l.rev desc limit 1) l on true
-      where coalesce((@SCHEMA@.class_row(e.class, e.tenant)).data->'resolved'->>'history', 'true') <> 'false'
-        and (l.hash is distinct from e.hash or l.rev is distinct from e.rev)
-    union all
-    -- надгробие — последний снимок строки: класс, арендатор, владелец, концы, данные и теги — как у предыдущей версии
-    -- (план 2.0, 7.3 №5: правку надгробия мимо триггеров не выдавали ни следующая версия, ни строка entity). Сверяются
-    -- надгробия движка — с посчитанным changed; загрузчик и импорт переносят чужую историю как есть (changed — null)
-    select jsonb_build_object('id', t.id, 'rev', t.rev, 'key', 'sql-time.verify_tombstone', 'params', '{}'::jsonb)
-      from @SCHEMA@.log t
-      join @SCHEMA@.log p on p.id = t.id and p.rev = t.rev - 1
-      where t.op = 'delete' and t.changed is not null and p.op not in ('purge', 'trim')
-        and (t.class, t.tenant, t.owner, t.links, t.data, t.tags) is distinct from (p.class, p.tenant, p.owner, p.links, p.data, p.tags)
-  )
-  select coalesce(jsonb_agg(f), '[]'::jsonb) into issues from found;
-  if coalesce(p_data, false) then
-    with cls as (
-      select x.tenant as ct, x.data->>'name' as name, x.data->'resolved' as res, x.validator
-      from @SCHEMA@.entity x where x.class = 'Class'
-    ), rows_ as (
-      select e.*, k.res, k.validator as vld
-      from @SCHEMA@.entity e
-      left join lateral (select cls.res, cls.validator from cls where cls.name = e.class and cls.ct in (e.tenant, '@SYSTEM@'::uuid)
-                         order by cls.ct = '@SYSTEM@'::uuid limit 1) k on true
-    ), found as (
-      select jsonb_build_object('id', r.id, 'class', r.class, 'key', 'sql-time.verify_class', 'params', '{}'::jsonb) as f
-        from rows_ r where r.class <> 'Class' and (r.res is null or coalesce((r.res->>'abstract')::boolean, false))
-      union all
-      -- нарушения — как у validate_data: с key и params, их библиотека тоже убирает
-      select jsonb_build_object('id', r.id, 'class', r.class, 'key', 'sql-time.verify_data', 'params', '{}'::jsonb,
-                                'issues', @SCHEMA@.validate_data(r.res->'rules', r.vld, r.res->'vars', r.data))
-        from rows_ r where r.class <> 'Class' and r.res is not null
-          and @SCHEMA@.validate_data(r.res->'rules', r.vld, r.res->'vars', r.data) <> '[]'::jsonb
-      union all
-      select jsonb_build_object('id', r.id, 'class', r.class, 'key', 'sql-time.verify_key_id', 'params', '{}'::jsonb)
-        from rows_ r where r.res is not null and jsonb_array_length(coalesce(r.res->'key', '[]'::jsonb)) > 0
-          and @SCHEMA@.key_id(r.res, r.class, r.tenant, r.data, r.links) is distinct from r.id
-      union all
-      select jsonb_build_object('id', r.id, 'class', r.class, 'key', 'sql-time.verify_tenant', 'params', '{}'::jsonb, 'tenant', r.tenant)
-        from rows_ r
-        where r.tenant <> '@SYSTEM@'::uuid
-          and not exists (select 1 from @SCHEMA@.entity a where a.id = r.tenant and a.class = 'Account' and a.tenant = '@SYSTEM@'::uuid)
-      union all
-      select jsonb_build_object('id', r.id, 'class', r.class, 'key', 'sql-time.verify_owner', 'params', '{}'::jsonb, 'owner', r.owner)
-        from rows_ r
-        where r.owner <> r.tenant
-          and not exists (select 1 from @SCHEMA@.entity a where a.id = r.owner and a.class = 'Account' and a.tenant = '@SYSTEM@'::uuid)
-      union all
-      select jsonb_build_object('id', p.id, 'class', p.class, 'key', 'sql-time.verify_end_target', 'params', '{}'::jsonb,
-                                'role', p.role, 'target', p.tid)
-        from (select r.id, r.class, r.tenant, r.res, k.key as role,
-                     (case jsonb_typeof(k.value) when 'array' then a.value else k.value end #>> '{}')::uuid as tid
-              from rows_ r
-              cross join lateral jsonb_each(r.links) k
-              left join lateral jsonb_array_elements(case jsonb_typeof(k.value) when 'array' then k.value else '[]'::jsonb end) a on true
-              where jsonb_typeof(k.value) = 'string' or a.value is not null) p
-        left join @SCHEMA@.entity t on t.id = p.tid
-        where t.id is null
-           or t.tenant not in (p.tenant, '@SYSTEM@'::uuid)
-           or (p.res is not null and not (
-                 @SCHEMA@.class_set(p.res->'ends'->p.role->'class') ? t.class
-                 or @SCHEMA@.class_set(p.res->'ends'->p.role->'class') ?| coalesce(
-                      (select array(select jsonb_array_elements_text(k2.data->'resolved'->'ancestors'))
-                       from @SCHEMA@.entity k2
-                       where k2.class = 'Class' and k2.data->>'name' = t.class and k2.tenant in (t.tenant, '@SYSTEM@'::uuid)
-                       order by k2.tenant = '@SYSTEM@'::uuid limit 1), '{}')))
-      union all
-      -- хэш каждой версии журнала — заново из её содержимого той же функцией, что у колонки hash (ревью): владелец,
-      -- подменивший тело version_hash или snapshot, переписавший строки и вернувший тело, оставляет хэши, которых нынешняя
-      -- функция не даёт, а стыки и головы цепочек прежние — ни цепочки, ни якорь подмену не видят. Формула (10-core.sql) с
-      -- 1.0.0 не менялась: версии, записанные прежними выпусками, пересчёт не выдаёт
-      select jsonb_build_object('id', l.id, 'rev', l.rev, 'key', 'sql-time.verify_hash_recomputed', 'params', '{}'::jsonb)
-        from @SCHEMA@.log l
-        where l.hash is distinct from @SCHEMA@.version_hash(l.prev_hash,
-                @SCHEMA@.snapshot(l.id, l.rev, l.class, l.tenant, l.owner, l.links, l.data, l.tags, l.at, l.author, l.agent, l.op, l.reason, l.moved))
-    )
-    select coalesce(jsonb_agg(f), '[]'::jsonb) into data_issues from found;
-  end if;
-  -- якорь — хэш голов цепочек в порядке id: строки entity и последние версии удалённых объектов — надгробие или запись
-  -- purge (план 2.0, 7.3 №5: раньше только строки entity, и порчу надгробия якорь не выдавал). Строка entity, удалённая
-  -- мимо триггеров, из якоря выпадает, как и прежде: последняя версия её журнала — не надгробие
-  select encode(sha256(coalesce(string_agg(h.hash, ''::bytea order by h.id), ''::bytea)), 'hex') into anchor
-  from (select e.id, e.hash from @SCHEMA@.entity e
-        union all
-        select l.id, l.hash from @SCHEMA@.log l
-        where l.op in ('delete', 'purge')
-          and not exists (select 1 from @SCHEMA@.log z where z.id = l.id and z.rev > l.rev)
-          and not exists (select 1 from @SCHEMA@.entity e where e.id = l.id)) h;
-  -- текст находки — русский шаблон её ключа каталога с параметрами (план 2.0, этап 3, п. 3); key и params остаются в
-  -- находке, verify() библиотеки их убирает
-  select coalesce(jsonb_agg(x.f || jsonb_build_object('problem', @SCHEMA@.lt_text(x.f->>'key', x.f->'params')) order by x.n), '[]'::jsonb)
-    into issues
-  from jsonb_array_elements(hash_issues || issues || data_issues) with ordinality x(f, n);
-  return jsonb_build_object('ok', issues = '[]'::jsonb, 'issues', issues, 'anchor', anchor);
+  with d as (delete from @SCHEMA@.secret x where x.kind = 'SESSION'
+             and (x.deleted_at is not null or x.expires_at <= clock_timestamp()) returning 1)
+  select count(*)::int into s from d;
+  -- коды всех видов, которые выпускает auth_issue_otp: OTP и OTP_<имя> (тот же шаблон вида), — использованные,
+  -- заменённые, исчерпавшие попытки (deleted_at) и истёкшие
+  with d as (delete from @SCHEMA@.secret x where x.kind ~ '^OTP(_[A-Z0-9]{1,27})?$'
+             and (x.deleted_at is not null or x.expires_at <= clock_timestamp()) returning 1)
+  select count(*)::int into o from d;
+  -- строки-замки семейств, чьего корня больше нет — удалён класс или его арендатор (план 2.0, 7.7 №8, долгий
+  -- прогон): их заранее заводит запись строки Class (family_rows), а сами они не уходили — заведение и удаление
+  -- классов копило их без предела. Корень жив — строка Class с этим именем у арендатора семейства (family_name;
+  -- в имени класса двоеточия нет). Занятую строку не трогаем (skip locked), а строку-замок семейства — только вместе
+  -- с её шлюзом или без шлюза: исключительная блокировка берёт шлюз первым, и строка-замок, до которой она ещё не
+  -- дошла, у неё не пропадёт. Пропавшую строку lock_row и family_lock заводят заново, если класс с этим именем
+  -- появится снова.
+  with stale as (
+    select l.id, l.meta->>'name' as n
+    from @SCHEMA@.secret l
+    where l.kind = 'LOCK' and l.account = '@SYSTEM@'::uuid and l.deleted_at is null
+      and left(l.meta->>'name', length(fam)) = fam
+      and not exists (
+        select 1 from @SCHEMA@.entity c
+        where c.class = 'Class'
+          and c.data->>'name' = split_part(substr(l.meta->>'name', length(fam) + 1), ':', 2)
+          and c.tenant::text = split_part(substr(l.meta->>'name', length(fam) + 1), ':', 1))
+    for update of l skip locked)
+  delete from @SCHEMA@.secret x using stale st
+  where x.id = st.id
+    and (st.n like '%:gate'
+         or exists (select 1 from stale g where g.n = st.n || ':gate')
+         or not exists (select 1 from @SCHEMA@.secret y where y.id = @SCHEMA@.lock_id(st.n || ':gate')));
+  return jsonb_build_object('sessions', s, 'codes', o, 'queue', pg_notification_queue_usage());
 end $$;
 
 -- ========================= подписка =========================
 
 -- Пачка событий подписки (этап 6, п. 5): версии журнала после курсора (tx, seq) ниже горизонта
 -- завершённых транзакций (pg_snapshot_xmin) — их уже ничто не обгонит, поэтому без потерь и повторов.
--- Выполняется с правами вызывающего: RLS журнала показывает только своё. p_at — время последнего
--- события курсора: старше яруса all какого-либо класса подписки — cursor_expired (события могли
--- проредиться). p_classes null — все классы. p_snap — снимок момента подписки «now»: транзакции,
--- видимые в нём (зафиксированные до подписки), не отдаются. Уход строки из классов подписки сменой класса без смены id
--- отдаёт watch_leaving.
-create or replace function @SCHEMA@.watch_read(p_tx xid8, p_seq bigint, p_at timestamptz, p_classes text[], p_limit int,
+-- Выполняется с правами вызывающего: RLS журнала показывает только своё. p_classes null — все классы. p_snap — снимок
+-- момента подписки «now»: транзакции, видимые в нём (зафиксированные до подписки), не отдаются. Уход строки из классов
+-- подписки сменой класса без смены id отдаёт watch_leaving.
+create or replace function @SCHEMA@.watch_read(p_tx xid8, p_seq bigint, p_classes text[], p_limit int,
   p_snap pg_snapshot default null)
 returns setof @SCHEMA@.log
 language plpgsql stable
@@ -1046,30 +564,8 @@ set search_path = pg_catalog, @SCHEMA@, pg_temp
 as $$
 declare
   horizon xid8 := pg_snapshot_xmin(pg_current_snapshot());
-  lim interval;
-  t uuid := @SCHEMA@.ctx_tenant();
 begin
-  if p_at is not null then
-    -- ярус all классов, которые видит подписка: арендатора сессии и System (кроме одноимённых своих); политика класса
-    -- чужого арендатора с тем же именем курсор не просрочивает (план 2.0, 7.3 №1). Без арендатора в контексте
-    -- (администраторское подключение видит всех) — все классы
-    select min(@SCHEMA@.history_iv(p.p->>'all')) into lim
-    from @SCHEMA@.entity x cross join lateral (select @SCHEMA@.history_policy(x.data->'resolved') as p) p
-    where x.class = 'Class' and p.p is not null and (p_classes is null or x.data->>'name' = any (p_classes))
-      and (t is null
-           or x.tenant = t
-           or x.tenant = '@SYSTEM@'::uuid
-              and not exists (select 1 from @SCHEMA@.entity y
-                              where y.class = 'Class' and y.tenant = t and y.data->>'name' = x.data->>'name'));
-    if lim is not null and p_at < clock_timestamp() - lim then
-      raise exception using errcode = 'LT016',
-        message = 'letopis: cursor_expired: ' || @SCHEMA@.lt_text('sql-time.cursor_expired'),
-        detail = jsonb_build_object('key', 'sql-time.cursor_expired', 'params', '{}'::jsonb, 'nodetail', true)::text;
-    end if;
-  end if;
-  -- колонки — явно: changed приложению не выдана (ревью №1 точки А плана 1.1), в ответе подписки она null
-  return query select l.seq, l.tx, l.id, l.rev, l.class, l.cv, l.tenant, l.owner, l.links, l.data, l.tags, l.at, l.author,
-      l.agent, l.op, l.reason, l.moved, l.prev_hash, l.hash, null::jsonb
+  return query select l.*
     from @SCHEMA@.log l
     where (l.tx, l.seq) > (p_tx, p_seq) and l.tx < horizon
       and (p_classes is null or l.class = any (p_classes))
@@ -1109,9 +605,9 @@ begin
   -- новую версию актор не видит — надгробие при любом p_classes и без автора: перебором классов подписки он узнал бы её
   -- класс (автоматическое ревью доработок после 1.2.0)
   return query select l.seq, l.tx, p.id, l.rev, p.class, p.cv, p.tenant, p.owner, p.links, p.data, p.tags, l.at,
-      case when v.seen then l.author end, null::text, 'delete'::text, null::text, null::uuid, null::bytea, null::bytea, null::jsonb
+      case when v.seen then l.author end, null::text, 'delete'::text, null::text, null::uuid
     from @SCHEMA@.log l
-    cross join lateral (select x.* from @SCHEMA@.log x where x.id = l.id and x.rev < l.rev and x.op not in ('purge', 'trim')
+    cross join lateral (select x.* from @SCHEMA@.log x where x.id = l.id and x.rev < l.rev and x.op <> 'purge'
                         order by x.rev desc limit 1) p
     cross join lateral (select bypass or @SCHEMA@.row_visible(l.tenant, l.class, l.id, l.owner, l.tags, l.data, l.links,
                                (a->>'tenant')::uuid, (a->>'account')::uuid, a->'plan') as seen) v
@@ -1138,20 +634,17 @@ do $$
 declare f text;
 begin
   foreach f in array array[
-    'history_default()', 'history_policy(jsonb)', 'history_iv(text)', 'history_horizon(jsonb)',
-    'history_keep(jsonb, timestamp, timestamp, timestamp)', 'session_role()', 'admin_role()', 'letopis_allowed(text)', 'session_expires()', 'signal_mode()', 'signal_key()', 'class_stamp()',
-    'last_version_visible(uuid, uuid, jsonb)', 'restore(uuid)', 'purge(uuid, boolean)', 'trim_history(uuid[], text[], timestamptz)',
-    'rekey(uuid, jsonb, jsonb)', 'rekey_class(text, jsonb)', 'account_purge(uuid)',
-    'thin_batch(timestamptz, int)', 'maintain(timestamptz, int, boolean)', 'verify(boolean)',
-    'watch_read(xid8, bigint, timestamptz, text[], int, pg_snapshot)', 'watch_leaving(xid8, bigint, text[], int, pg_snapshot, xid8, bigint)', 'watch_head()'] loop
+    'session_role()', 'admin_role()', 'letopis_allowed(text)', 'session_expires()', 'signal_mode()', 'signal_key()', 'class_stamp()',
+    'last_version_visible(uuid, uuid, jsonb)', 'restore(uuid)', 'purge(uuid, boolean)',
+    'rekey(uuid, jsonb, jsonb)', 'rekey_class(text, jsonb)', 'account_purge(uuid)', 'maintain()',
+    'watch_read(xid8, bigint, text[], int, pg_snapshot)', 'watch_leaving(xid8, bigint, text[], int, pg_snapshot, xid8, bigint)', 'watch_head()'] loop
     execute format('alter function @SCHEMA@.%s owner to @OWNER@', f);
     execute format('revoke all on function @SCHEMA@.%s from public', f);
   end loop;
 end $$;
--- приложению: функции владельца этапа 6 (проверяют права сами), подписка (под RLS) и чистые помощники политики
-grant execute on function @SCHEMA@.restore(uuid), @SCHEMA@.purge(uuid, boolean), @SCHEMA@.trim_history(uuid[], text[], timestamptz),
-  @SCHEMA@.rekey(uuid, jsonb, jsonb), @SCHEMA@.rekey_class(text, jsonb), @SCHEMA@.account_purge(uuid),
-  @SCHEMA@.maintain(timestamptz, int, boolean), @SCHEMA@.verify(boolean),
-  @SCHEMA@.session_expires(), @SCHEMA@.watch_read(xid8, bigint, timestamptz, text[], int, pg_snapshot), @SCHEMA@.watch_leaving(xid8, bigint, text[], int, pg_snapshot, xid8, bigint), @SCHEMA@.watch_head(),
-  @SCHEMA@.history_default(), @SCHEMA@.history_policy(jsonb), @SCHEMA@.history_iv(text),
+-- приложению: функции владельца этапа 6 (проверяют права сами) и подписка (под RLS)
+grant execute on function @SCHEMA@.restore(uuid), @SCHEMA@.purge(uuid, boolean),
+  @SCHEMA@.rekey(uuid, jsonb, jsonb), @SCHEMA@.rekey_class(text, jsonb), @SCHEMA@.account_purge(uuid), @SCHEMA@.maintain(),
+  @SCHEMA@.session_expires(), @SCHEMA@.watch_read(xid8, bigint, text[], int, pg_snapshot),
+  @SCHEMA@.watch_leaving(xid8, bigint, text[], int, pg_snapshot, xid8, bigint), @SCHEMA@.watch_head(),
   @SCHEMA@.signal_mode(), @SCHEMA@.signal_key(), @SCHEMA@.class_stamp() to @APP@;

@@ -1,10 +1,11 @@
 /**
  * engine-attacks — атаки сырым SQL от прикладной роли (план, §7.3.1, строки этапа 1; план 1.1, §7.7 №31–35).
- * Каждая попытка проверяет конкретный исход: код ошибки, пустую выборку, ноль строк или находку verify();
+ * Каждая попытка проверяет конкретный исход: код ошибки, пустую выборку или ноль строк;
  * №35 — агент через инструменты MCP (letopis/mcp); №36 — ревью безопасности №2 (смена parent, alias); №37 —
  * агент через MCP пишет классы прав, сессия системного администратора (О5); №40–46 — доработки после точки Б; №47 и
  * дальше — хвост ревью безопасности №3 (доработки после 1.2.0). Атаки на производные классы и агрегаты в базе (№33, №34,
- * №38, №39, №44, №50, №52, №53, №55, №57) сняты вместе с ними в 2.0.0; номера остальных прежние.
+ * №38, №39, №44, №50, №52, №53, №55, №57) сняты вместе с ними в 2.0.0, правка в обход триггеров, которую находил verify()
+ * (№19), — вместе с хэшами и verify(); номера остальных прежние.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -122,8 +123,6 @@ test('№5: смена класса — без ключа проходит, с �
   assert.deepEqual(oldLog.at(-1), { op: 'delete', moved: nid });
   const newLog = await e.sql.unsafe(`select op, moved from ${S}.log where id = $1 order by rev`, [nid]);
   assert.deepEqual(newLog[0], { op: 'reclass', moved: c1.id });
-  const [{ v }] = await e.sql.unsafe(`select ${S}.verify() as v`);
-  assert.equal(v.ok, true, JSON.stringify(v.issues));
 });
 
 test('№6: id не по ключу, id классу без ключа, второй объект с тем же ключом', async () => {
@@ -153,7 +152,6 @@ test('№10: версия «в прошлое» с явным временем',
   await assert.rejects(as(a, `update ${S}.entity set at = '2000-01-01' where id = $1`, [org.id]), lt('42501'));
   await assert.rejects(as(a, `insert into ${S}.entity (class, data, at) values ('Org', '{"name": "A10b"}', '2000-01-01')`), lt('42501'));
   await assert.rejects(as(a, `update ${S}.entity set rev = 1 where id = $1`, [org.id]), lt('42501'));
-  await assert.rejects(as(a, `update ${S}.entity set hash = null where id = $1`, [org.id]), lt('428C9'));
 });
 
 test('№11: каскад не задевает чужого арендатора — ссылки только внутри арендатора', async () => {
@@ -182,8 +180,7 @@ test('№14: чужой арендатор — пустая выборка, но
   assert.equal((await as(a, `select * from ${S}.entity where id = $1`, [theirs.id])).length, 0);
   assert.equal((await as(a, `update ${S}.entity set data = data where id = $1 returning id`, [theirs.id])).length, 0);
   assert.equal((await as(a, `delete from ${S}.entity where id = $1 returning id`, [theirs.id])).length, 0);
-  // журнал — по колонкам: select * приложению недоступен (колонка changed не выдана, ревью №1 точки А)
-  assert.equal((await as(a, `select id, rev from ${S}.log where id = $1`, [theirs.id])).length, 0);
+  assert.equal((await as(a, `select * from ${S}.log where id = $1`, [theirs.id])).length, 0);
   await assert.rejects(as(a, `insert into ${S}.entity (class, tenant, data) values ('Org', $1, '{"name": "x"}')`, [b.id]), lt('tenant_denied'));
 });
 
@@ -207,21 +204,6 @@ test('№18: параллельные правки разных полей од�
   const [row] = await e.sql.unsafe(`select data, rev from ${S}.entity where id = $1`, [org.id]);
   assert.deepEqual(row.data, { name: 'A18', city: 'Тверь', phone: '+7' });
   assert.equal(row.rev, 3);
-});
-
-test('№19: суперпользователь меняет строку в обход триггеров — verify находит', async () => {
-  const org = await ins(a, 'Org', { name: 'A19' });
-  await e.sql.begin(async (tx) => {
-    await tx.unsafe(`alter table ${S}.entity disable trigger user`);
-    await tx.unsafe(`update ${S}.entity set data = '{"name": "A19", "city": "подмена"}' where id = $1`, [org.id]);
-    for (const trg of ['entity_bi', 'entity_bu', 'entity_ai', 'entity_au', 'entity_bd', 'entity_bd_account', 'entity_ad']) {
-      await tx.unsafe(`alter table ${S}.entity enable always trigger ${trg}`);
-    }
-  });
-  const [{ v }] = await e.sql.unsafe(`select ${S}.verify() as v`);
-  assert.equal(v.ok, false);
-  assert.ok(v.issues.some((i: { id: string }) => i.id === org.id), JSON.stringify(v.issues));
-  await e.asOwner((tx) => tx.unsafe(`delete from ${S}.entity where id = $1`, [org.id]));
 });
 
 test('№20–23: роль владельца, двойник во временной схеме, выключение защиты, COPY', async () => {
@@ -610,8 +592,8 @@ test('№40 (доработки после точки Б, остаток Н2): �
   assert.deepEqual(await classRow(), was, 'класс на месте');
   // класс, удалённый с историей раньше (до 1.2): надгробие строки Class хранит прежнее описание
   await e.asOwner(async (tx) => {
-    await tx.unsafe(`insert into ${S}.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, op, prev_hash, changed)
-      select id, rev + 1, class, cv, tenant, owner, links, data, tags, now(), author, 'delete', hash, '[]' from ${S}.entity where id = $1`, [was.id]);
+    await tx.unsafe(`insert into ${S}.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, op)
+      select id, rev + 1, class, cv, tenant, owner, links, data, tags, now(), author, 'delete' from ${S}.entity where id = $1`, [was.id]);
     await tx.unsafe(`delete from ${S}.entity where id = $1`, [was.id]);
   });
   const master = CLASSES.find((c) => c.name === 'Master')!;
@@ -688,7 +670,7 @@ test('№42 (доработки после точки Б): reclass без пра
   assert.equal(h.links.S, ks.id, 'невидимая строка не переписана');
 });
 
-test('№43 (доработки после точки Б): политику хранения истории не задать одним правом WRITE на Class — maintain() не сотрёт чужой аудит', async () => {
+test('№43 (доработки после точки Б): журнал класса (history) не выключить одним правом WRITE на Class — чужой аудит не остановить', async () => {
   const { org, user } = await aclTenant();
   const { resource, rule, sysRes } = await import('./_access.js');
   const g = await sysRes(e, 'authenticated:ACCOUNT');
@@ -698,11 +680,11 @@ test('№43 (доработки после точки Б): политику хр
   const rev = async () => (await e.sql.unsafe(`select rev from ${S}.entity where class = 'Class' and tenant = $1 and data->>'name' = 'Note'`, [org]))[0].rev;
   const was = await rev();
   // Note пользователь читает и пишет, но не удаляет
-  await assert.rejects(setHistory({ all: '1 day' }), /меняет политику хранения истории: нужно право DELETE на все строки класса Note/);
+  await assert.rejects(setHistory(false), /включает или выключает журнал \(history\): нужно право DELETE на все строки класса Note/);
   await assert.rejects(setHistory(false), lt('acl_denied'));
   assert.equal(await rev(), was, 'описание не изменилось');
   await rule(e, org, g, await resource(e, org, 'note43:DELETE', 'DELETE', { class: 'Note' }), 'allow', 10);
-  assert.equal((await setHistory({ all: '1 day' })).length, 1, 'с правом DELETE — можно');
+  assert.equal((await setHistory(false)).length, 1, 'с правом DELETE — можно');
 });
 
 test('№45 (ревью безопасности №3, №2): прикладная роль не занимает внутренние блокировки — запись семейства, ужесточение и обслуживание не встают', async () => {
@@ -733,7 +715,7 @@ test('№45 (ревью безопасности №3, №2): прикладна
     await timed(`insert into ${S}.entity (class, data) values ('Lk', '{"v": 2}')`);
     await timed(`update ${S}.entity set data = ${S}.merge(data, '{"fields": {"required": ["v"]}}')
       where class = 'Class' and tenant = $1 and data->>'name' = 'Lk'`, [a.id]);
-    assert.equal((await adm.maintain({ batches: 1 })).skipped, false, 'обслуживание не встаёт');
+    assert.equal((await adm.maintain()).skipped, false, 'обслуживание не встаёт');
   } finally {
     await adm.close();
     await held.finish(false);
@@ -821,17 +803,16 @@ test('№49 (ревью безопасности №3): надгробие кл�
   /** Удаление класса с историей строк, как его допускала 1.1: надгробие строки Class и снятие строки от владельца. */
   const dropOld = (name: string) => e.asOwner(async (tx) => {
     const [c] = await tx.unsafe(`select id from ${S}.entity where class = 'Class' and tenant = $1 and data->>'name' = $2`, [x.id, name]);
-    await tx.unsafe(`insert into ${S}.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, op, prev_hash, changed)
-      select id, rev + 1, class, cv, tenant, owner, links, data, tags, now(), author, 'delete', hash, '[]' from ${S}.entity where id = $1`, [c.id]);
+    await tx.unsafe(`insert into ${S}.log (id, rev, class, cv, tenant, owner, links, data, tags, at, author, op)
+      select id, rev + 1, class, cv, tenant, owner, links, data, tags, now(), author, 'delete' from ${S}.entity where id = $1`, [c.id]);
     await tx.unsafe(`delete from ${S}.entity where id = $1`, [c.id]);
   });
-  // политика хранения: другая history подставила бы старые версии строк под другое прореживание
+  // history: заново класс создаётся только с прежней — как parent и alias
   const h = { name: 'H49', kind: 'hub', fields: { properties: {} } };
   await create(h);
   await q(`delete from ${S}.entity where id = $1`, [await ins('H49')]);
   await dropOld('H49');
   await assert.rejects(create({ ...h, history: false }), /журнал хранит историю строк класса H49/);
-  await assert.rejects(create({ ...h, history: { all: '1 day' } }), lt('invalid_class'));
   await create(h);
   // алиас предка: правила находят старые версии строк удалённого потомка и по алиасам его предков
   const base = { name: 'Base49', kind: 'hub', alias: 'База49', fields: { properties: {} } };
@@ -926,8 +907,8 @@ test('№56 (автоматическое ревью коммита 1734d21): п
     await tx`select set_config('letopis.token', ${x.token}, true)`;
     return tx.unsafe(sql, p as never[]);
   });
-  // verify — право letopis.verify или администраторская роль: администратором делает действующая роль, а не роль входа
-  await assert.rejects(priv(`select ${S}.verify()`), lt('acl_denied'));
+  // maintain — право letopis.maintain или администраторская роль: администратором делает действующая роль, а не роль входа
+  await assert.rejects(priv(`select ${S}.maintain()`), lt('acl_denied'));
   const leaving = await priv(`select l.id from ${S}.watch_leaving('0'::xid8, 0, array['Box56'], 1000) l`);
   assert.deepEqual(leaving.map((v) => v.id), [], 'уход строки чужого арендатора подписке арендатора не отдаётся');
   // без роли приложения тот же вход — администраторский: в обход RLS и с событиями ухода всех арендаторов

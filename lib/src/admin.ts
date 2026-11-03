@@ -1,45 +1,14 @@
 /**
- * Эксплуатация (план, этап 6, п. 3, 4, 7, 8): verify, maintain и его запуск по расписанию, обрезка истории, новый ключ
- * класса. Всё проверяет база: функции владельца 90-time.sql сами сверяют права (letopis.* — системный администратор
- * или администраторское подключение).
+ * Эксплуатация (план, этап 6, п. 7, 8): maintain и его запуск по расписанию, новый ключ класса. Всё проверяет база:
+ * функции владельца 90-time.sql сами сверяют права (letopis.* — системный администратор или администраторское
+ * подключение).
  */
 import type postgres from 'postgres';
-import { findingsFromDb, lerr, lmsg, lwarn } from './errors.js';
+import { lerr, lmsg, lwarn } from './errors.js';
 import type { Registry } from './registry.js';
 import { runTx, type Executor, type TxContext } from './tx.js';
 
 type Sql = postgres.Sql<Record<string, unknown>>;
-
-/**
- * Находка `verify()`: `id` и `rev` — объект и версия, `problem` — текст находки. Находка об устройстве
- * таблицы (колонку `hash` считает не выражение установки) — с id System и полями `table`, `column`, `expression`.
- */
-export interface VerifyIssue {
-  id: string;
-  rev?: number;
-  class?: string;
-  problem: string;
-  [k: string]: unknown;
-}
-
-export interface VerifyResult {
-  ok: boolean;
-  issues: VerifyIssue[];
-  /** Один хэш текущих версий всех объектов — храните его вне базы: подмену самых свежих версий выдаст его расхождение. */
-  anchor: string;
-}
-
-export interface MaintainOptions {
-  /** Момент «сейчас» для прореживания — только на администраторском подключении (тесты). */
-  now?: string | Date;
-  /** Сколько пачек прореживания журнала самое большее сделать за один вызов; каждая пачка — своя транзакция. */
-  batches?: number;
-  /** Сколько версий самое большее удалить в одной пачке прореживания. */
-  limit?: number;
-}
-
-/** Внутренняя опция maintain(): остановка запуска по расписанию — текущая пачка доделывается, следующая не начинается. */
-export const MAINTAIN_STOP = Symbol('letopis.maintain.stop');
 
 export interface MaintainReport {
   /** Другой процесс уже обслуживает установку (держит строку-замок обслуживания): этот вызов ничего не делал. */
@@ -51,11 +20,6 @@ export interface MaintainReport {
    * заменённых новым и исчерпавших попытки.
    */
   codes: number;
-  /** Прорежено версий журнала. */
-  thinned: number;
-  batches: number;
-  /** Прореживание не дошло до конца журнала — следующий вызов продолжит. */
-  more: boolean;
   /** Заполнение очереди сигналов PostgreSQL (0…1); больше половины — предупреждение. */
   queue: number;
 }
@@ -74,49 +38,20 @@ export interface AdminCtx {
 const one = async <T>(a: AdminCtx, text: string, params: unknown[] = []): Promise<T> =>
   a.exec.run(async (q) => ((await q.unsafe(text, params as never[])) as unknown as T[])[0]);
 
-export async function verify(a: AdminCtx, opts: { data?: boolean } = {}): Promise<VerifyResult> {
-  const r = await one<{ v: VerifyResult }>(a, `select ${a.S}.verify($1::boolean) as v`, [opts.data === true]);
-  // находка базы несёт ключ каталога и параметры (план 2.0, этап 3, п. 3): наружу они не идут, problem и сообщения
-  // нарушений — тексты базы
-  return { ...r.v, issues: findingsFromDb(r.v.issues) };
-}
-
-
 /**
- * Обслуживание: истёкшие сессии и коды, прореживание журнала пачками (каждая — своя транзакция,
- * долгих блокировок нет), заполнение очереди сигналов. Из нескольких процессов работает один: пачка
- * первым делом берёт строку-замок обслуживания (lock_try в maintain() базы: for update skip locked строки
- * secret, которую посторонняя роль не займёт), и та снимается с фиксацией пачки. Сеансовая блокировка
- * за пулом в режиме транзакций (PgBouncer) оставалась бы на
- * серверном соединении, которое пул отдаёт другим клиентам, — и обслуживание молча вставало бы
- * (skipped у всех). Блокировку держит другой процесс: до первой пачки — skipped; между пачками —
- * вызов останавливается (продолжит тот процесс), отчёт — о сделанном, more: true.
+ * Обслуживание: истёкшие и погашенные сессии, одноразовые коды, строки-замки удалённых семейств и заполнение очереди
+ * сигналов — одной транзакцией. Из нескольких процессов работает один: maintain() базы первым делом берёт строку-замок
+ * обслуживания (lock_try: for update skip locked строки secret, которую посторонняя роль не займёт), и та снимается с
+ * фиксацией. Сеансовая блокировка за пулом в режиме транзакций (PgBouncer) оставалась бы на серверном соединении,
+ * которое пул отдаёт другим клиентам, — и обслуживание молча вставало бы (skipped у всех). Строку-замок держит другой
+ * процесс — skipped.
  */
-export async function maintain(a: AdminCtx, opts: MaintainOptions & { [MAINTAIN_STOP]?: () => boolean } = {}): Promise<MaintainReport> {
+export async function maintain(a: AdminCtx): Promise<MaintainReport> {
   if (a.exec.explicit) throw lerr('time.maintain_in_tx');
-  const now = opts.now === undefined ? null : opts.now instanceof Date ? opts.now.toISOString() : opts.now;
-  const report: MaintainReport = { skipped: false, sessions: 0, codes: 0, thinned: 0, batches: 0, more: false, queue: 0 };
-  const max = opts.batches ?? 100;
-  for (let i = 0; i < max; i++) {
-    // запуск по расписанию остановлен (close()): следующая пачка не начинается, отчёт — с more: true
-    if (i > 0 && opts[MAINTAIN_STOP]?.()) break;
-    // блокировку берёт сама maintain() базы — строку-замок, которую посторонняя роль не займёт; занята — null.
-    // Истёкшие сессии и коды — только в первой пачке (план 2.0, 7.3 №4)
-    const [{ r }] = await runTx(a.txc, (q) => q.unsafe(`select ${a.S}.maintain($1::text::timestamptz, $2::int, $3::boolean) as r`,
-      [now, opts.limit ?? 10_000, i === 0] as never[]));
-    if (r === null) {
-      if (i === 0) return { ...report, skipped: true };
-      break;
-    }
-    const b = r as { sessions: number; codes: number; thinned: number; more: boolean; queue: number };
-    report.sessions += b.sessions;
-    report.codes += b.codes;
-    report.thinned += b.thinned;
-    report.queue = Number(b.queue);
-    report.more = b.more;
-    report.batches++;
-    if (!b.more) break;
-  }
+  const [{ r }] = await runTx(a.txc, (q) => q.unsafe(`select ${a.S}.maintain() as r`));
+  if (r === null) return { skipped: true, sessions: 0, codes: 0, queue: 0 };
+  const b = r as { sessions: number; codes: number; queue: number };
+  const report: MaintainReport = { skipped: false, sessions: b.sessions, codes: b.codes, queue: Number(b.queue) };
   const warn = queueWarning(report.queue);
   if (warn) console.warn(warn);
   return report;
@@ -151,15 +86,15 @@ export function parseInterval(v: unknown): number {
 
 /**
  * Запуск maintain() по расписанию (connect({ maintain: '1h' }); ms — уже проверенный интервал): ошибки — предупреждением,
- * следующий запуск не начинается, пока идёт прежний. Возвращает остановку: она снимает таймер, просит идущий запуск не
- * начинать новых пачек и ждёт его конца — close() закрывает пул после неё, а не посреди пачки.
+ * следующий запуск не начинается, пока идёт прежний. Возвращает остановку: она снимает таймер и ждёт конца идущего
+ * запуска — close() закрывает пул после него, а не посреди транзакции.
  */
-export function scheduleMaintain(run: (stopped: () => boolean) => Promise<unknown>, ms: number): () => Promise<void> {
+export function scheduleMaintain(run: () => Promise<unknown>, ms: number): () => Promise<void> {
   let stopped = false;
   let current: Promise<void> | null = null;
   const timer = setInterval(() => {
     if (current || stopped) return;
-    current = run(() => stopped)
+    current = run()
       .then(() => {}, (e) => lwarn('time.maintain_failed', { message: (e as Error).message }))
       .finally(() => (current = null));
   }, ms);
@@ -169,24 +104,6 @@ export function scheduleMaintain(run: (stopped: () => boolean) => Promise<unknow
     clearInterval(timer);
     await current;
   };
-}
-
-/**
- * Обрезка истории (этап 6, п. 3): версии строже момента before удаляются, текущая — никогда; на место
- * версии 1 встаёт запись trim. target — имя класса (с потомками), id или список id, строка ответа.
- */
-export async function trimHistory(a: AdminCtx, target: string | string[] | { id: string } | { id: string }[], before: string | Date): Promise<number> {
-  const at = before instanceof Date ? before.toISOString() : before;
-  let ids: string[] | null = null;
-  let classes: string[] | null = null;
-  if (typeof target === 'string' && a.registry().has(target)) {
-    classes = a.registry().family(target).map((c) => c.name);
-  } else {
-    const list = Array.isArray(target) ? target : [target];
-    ids = list.map((x) => (typeof x === 'string' ? x : x.id));
-  }
-  const r = await one<{ n: number }>(a, `select ${a.S}.trim_history($1::uuid[], $2::text[], $3::text::timestamptz) as n`, [ids, classes, at]);
-  return r.n;
 }
 
 /** Новый ключ класса (этап 6, п. 7): строки семейства переносятся на новые id. Возвращает их число. */

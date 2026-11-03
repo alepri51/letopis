@@ -5,7 +5,7 @@
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { engine, type Engine, type Tenant } from './_engine.js';
+import { engine, journalIssues, type Engine, type Tenant } from './_engine.js';
 import { appDsn } from './_harness.js';
 import { connect, type Db } from '../src/index.js';
 
@@ -39,10 +39,7 @@ after(async () => {
   await e?.close();
 });
 
-const verifyOk = async () => {
-  const v = (await e.sql.unsafe(`select ${e.S}.verify(true) as v`))[0].v as { ok: boolean; issues: unknown[] };
-  assert.equal(v.ok, true, JSON.stringify(v.issues));
-};
+const verifyOk = async () => assert.deepEqual(await journalIssues(e.sql, e.S), []);
 
 test('6.7 новое значение ключа у мастера: навыки с ключом [Master, Service] получают новые id, ссылки переведены', async () => {
   const [m] = await db.Master().create({ name: 'Вася', phone: '1' }).rows();
