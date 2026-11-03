@@ -291,7 +291,7 @@ const nuances: Nuance[] = [
   {
     id: 'restore-only-targets',
     topic: 'delete',
-    text: 'restore() возвращает только цели шага; строки, удалённые каскадом, возвращают отдельно — по надгробиям этого удаления, с restore({ expect }).',
+    text: 'restore({ expect }) возвращает только цели шага; строки, удалённые каскадом, возвращают отдельно — по надгробиям этого удаления (ответ delete), с restore({ expect, partial: true }).',
     source: 'lib/README.md, раздел 7',
   },
   {
@@ -303,20 +303,21 @@ const nuances: Nuance[] = [
   {
     id: 'delete-as-shown',
     topic: 'delete',
-    text: 'Предпросмотр — снимок на момент вызова, а delete({ confirm: true }) удаляет то, что есть при подтверждении. Удалить ровно показанное — delete({ confirm: true, expect: предпросмотр }): в транзакции удаления строки каскада блокируются, предпросмотр строится заново под блокировкой и сравнивается по id, rev и $action; не совпал — conflict (write.preview_changed), ничего не удалено, новый предпросмотр — в err.detail.preview.',
+    caught: 'invalid_query',
+    text: 'Подтверждение удаления — только с предпросмотром, который видел пользователь: delete({ confirm: true }) без expect — отказ invalid_query (write.confirm_without_expect), ничего не удалено; осознанно, без сверки — delete({ confirm: true, all: true }). delete({ confirm: true, expect: предпросмотр }) удаляет ровно показанное: в транзакции удаления строки каскада блокируются, предпросмотр строится заново под блокировкой и сравнивается по id, rev и $action; не совпал — conflict (write.preview_changed), ничего не удалено, новый предпросмотр — в err.detail.preview.',
     source: 'lib/src/write.ts:deleteOp; пример delete/01-delete-cascade',
   },
   {
     id: 'restore-cascade-by-reason',
     topic: 'delete',
-    text: 'withDeleted().restore() возвращает все удалённые строки шага — и те, что удалили раньше и отдельно. Строки одного удаления отличает причина: надгробия цели и её каскада получают reason этого удаления — отберите их по ней и верните restore({ expect: надгробия }). Причину делайте своей для каждого удаления.',
+    text: 'restore({ all: true }) вернул бы все удалённые строки шага — и те, что удалили раньше и отдельно. Строки одного удаления знает ответ delete, а без него их отличает причина: надгробия цели и её каскада получают reason этого удаления — отберите их по ней и верните restore({ expect: надгробия }). Причину делайте своей для каждого удаления.',
     source: 'lib/sql/60-write.sql (надгробия каскада с letopis.reason); пример delete/02-restore',
   },
   {
     id: 'restore-expect-stale',
     topic: 'delete',
     caught: 'conflict',
-    text: 'restore() без expect возвращает последний снимок строки, а не версию, ушедшую конкретным удалением: если выдачу с ключом по вещи после удаления участника пересоздали (вещь выдали другому) и закрыли, restore() оживит чужую закрытую выдачу. restore({ expect: [надгробие] }) вернёт строку, только если её последняя версия — то самое надгробие; иначе отказ и ничего не восстановлено (conflict write.restore_stale; если id занял новый живой объект — not_deleted write.restore_id_taken; err.detail.stale — причина каждой цели), а с partial: true — строка-пропуск. Приложение сообщает «не вернулась».',
+    text: 'Последний снимок строки — не обязательно версия, ушедшая конкретным удалением: если выдачу с ключом по вещи после удаления участника пересоздали (вещь выдали другому) и закрыли, restore({ all: true }) оживил бы чужую закрытую выдачу. restore({ expect: [надгробие] }) вернёт строку, только если её последняя версия — то самое надгробие; иначе отказ и ничего не восстановлено (conflict write.restore_stale; если id занял новый живой объект — not_deleted write.restore_id_taken; err.detail.stale — причина каждой цели), а с partial: true — строка-пропуск. Приложение сообщает «не вернулась».',
     source: 'lib/src/write.ts:deletedTargets, restoreOp; lib/sql/90-time.sql:restore; примеры money/05-one-open, delete/02-restore',
   },
   {
@@ -335,20 +336,20 @@ const nuances: Nuance[] = [
   {
     id: 'restore-no-filter',
     topic: 'delete',
-    caught: 'предупреждение write.restore_no_filter',
-    text: 'restore() без фильтра, id и expect (db.line().restore()) восстанавливает всё удалённое шага — это не отказ, letopis один раз предупреждает. Сужайте шаг или передавайте expect.',
+    caught: 'invalid_query',
+    text: 'restore() без expect — отказ invalid_query (write.restore_without_expect), и для явного id тоже: возвращают по надгробиям — ответу delete или строкам withDeleted().rows(). Осознанно вернуть все удалённые цели шага последним снимком — restore({ all: true }).',
     source: 'lib/src/write.ts:precheckPlan; пример delete/02-restore',
   },
   {
     id: 'empty-target-delete-restore',
     topic: 'delete',
-    text: 'restore() и delete({ confirm: true }) по несуществующему или невидимому id возвращают пустой список без ошибки — проверяйте длину ответа.',
+    text: 'Предпросмотр, удаление и возврат по несуществующему или невидимому id возвращают пустой список без ошибки — проверяйте длину ответа.',
     source: 'lib/src/write.ts:restoreOp, deleteOp; пример delete/02-restore',
   },
   {
     id: 'create-revives-deleted',
     topic: 'delete',
-    text: 'create с ключом удалённого объекта не ошибка: id тот же, история продолжается версией create, надгробие уходит из корзины, а прежний снимок вернуть уже нельзя — restore() даёт not_deleted (write.restore_id_taken). Нужен «новый» объект — проверьте ключ через withDeleted().first() до create.',
+    text: 'create с ключом удалённого объекта не ошибка: id тот же, история продолжается версией create, надгробие уходит из корзины, а прежний снимок вернуть уже нельзя — restore({ expect }) даёт not_deleted (write.restore_id_taken). Нужен «новый» объект — проверьте ключ через withDeleted().first() до create.',
     source: 'lib/sql/60-write.sql:trg_entity_bi; пример delete/02-restore',
   },
   {
@@ -553,7 +554,7 @@ const nuances: Nuance[] = [
     id: 'update-needs-filter',
     topic: 'write',
     caught: 'invalid_query',
-    text: 'update() и delete({ confirm: true }), у которых ни у одного шага нет фильтра, id, tags(), owner() или limit(), отклоняются до записи: правка прошла бы по всем строкам шага. Все строки — только явно: update(патч, { all: true }), delete({ confirm: true, all: true }); предпросмотр delete() — без условий.',
+    text: 'update() и delete({ confirm: true, expect }), у которых ни у одного шага нет фильтра, id, tags(), owner() или limit(), отклоняются до записи: правка прошла бы по всем строкам шага. Все строки — только явно: update(патч, { all: true }), delete({ confirm: true, all: true }); предпросмотр delete() — без условий.',
     source: 'lib/README.md, раздел 4 «Строгий режим», раздел 5 «Изменить: update»; пример errors/03-strict-mcp-errors',
   },
   {

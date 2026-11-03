@@ -280,7 +280,7 @@ run(): Promise<Row[][]>
 **Ошибки** ([все коды](../errors/)):
 
 - `exists` — `create` на ключ, который уже занят.
-- `invalid_query` — в плане `update()` или `delete({ confirm: true })` без фильтра, id, `tags()`, `owner()` или `limit()` и без `{ all: true }`, или модификатор выборки сразу после глагола: отказ до записи, `run()` не пишет ни одного плана.
+- `invalid_query` — в плане `update()` или `delete({ confirm: true, expect })` без фильтра, id, `tags()`, `owner()` или `limit()` и без `{ all: true }`, `delete({ confirm: true })` без `expect` (`write.confirm_without_expect`), `restore()` без `expect` (`write.restore_without_expect`), или модификатор выборки сразу после глагола: отказ до записи, `run()` не пишет ни одного плана.
 - `commit_unknown` — вне `db.begin()`: связь оборвалась во время `COMMIT`, исход неизвестен.
 
 **Примеры:** [Батч, теги, владелец и причина изменения](../write/#батч-теги-владелец-причина)

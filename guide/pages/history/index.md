@@ -38,7 +38,7 @@ db.Order(order).withDeleted().line()                     // живые стро�
 
 История удалённого — `versions()` по его id: `db.Order(order).versions()` отдаёт и надгробие, `withDeleted()` для этого не нужен. На шаге без явного id (`db.Order(order).line().versions()`) удалённые объекты в ответ не попадают — добавьте шагу `withDeleted()`.
 
-Без `sort()` версии идут по id и номеру версии. `sort()` задаёт порядок и версиям, а `limit()` ограничивает их в самом запросе: `db.Product(kettle).sort('at', 'desc').limit(5).versions()` — пять последних версий, новые первыми.
+Без `sort()` версии идут по id и номеру версии. `sort()` задаёт порядок и версиям, а `limit()` ограничивает их в самом запросе: `db.Product(kettle).sort('at', 'desc').limit(5).versions()` — пять последних версий, новые первыми. `versions()` — терминал: он сразу отдаёт строки, поэтому модификаторы ставят **до** него; `db.Product(kettle).versions().rows()` — отказ `invalid_query` (ключ `api.versions_terminal`).
 
 ## Что хранит журнал
 

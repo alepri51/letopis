@@ -6,11 +6,12 @@ import Flow from './Flow.vue';
 import Mermaid from './Mermaid.vue';
 import TimeTravel from './TimeTravel.vue';
 import NavChapters from './NavChapters.vue';
+import PageOutline from './PageOutline.vue';
 import { annotate } from './glossary';
 import { resetTouch } from './anchor';
 import './style.css';
 
-/** Обычная разметка темы, главы в меню-гамбургере и подсказки глоссария в тексте каждой страницы (кроме самого глоссария). */
+/** Обычная разметка темы, главы в меню-гамбургере, «На странице» над текстом на узком экране и подсказки глоссария в тексте каждой страницы (кроме самого глоссария). */
 const Layout = defineComponent({
   setup() {
     const route = useRoute();
@@ -23,8 +24,12 @@ const Layout = defineComponent({
       resetTouch();
       run();
     });
-    // в меню-гамбургере узкого экрана — ещё и главы (иначе они только за кнопкой «Главы» под шапкой)
-    return () => h(DefaultTheme.Layout, null, { 'nav-screen-content-after': () => h(NavChapters) });
+    // в меню-гамбургере узкого экрана — ещё и главы (иначе они только за кнопкой «Главы» под шапкой);
+    // над текстом страницы на узком экране — раскрытое «На странице» (PageOutline)
+    return () => h(DefaultTheme.Layout, null, {
+      'nav-screen-content-after': () => h(NavChapters),
+      'doc-before': () => h(PageOutline),
+    });
   },
 });
 

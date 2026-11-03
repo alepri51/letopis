@@ -19,6 +19,29 @@ for (const t of tenants) {   // t — результат createTenant: { tenant,
 Новый арендатор, заведённый позже, тоже получает модель отдельным вызовом. В примере ниже пользователь другого магазина обращается к товарам и получает `invalid_class`.
 :::
 
+## Завести арендатора: createTenant
+
+Арендатора с первым пользователем заводит [`createTenant(admin, schema, opts, owner?)`](../reference/setup#export-createtenant) из `letopis` — одной транзакцией от роли-владельца схемы, поэтому ей нужен **администраторский пул**:
+
+```ts
+import postgres from 'postgres'
+import { createTenant, syncModels } from 'letopis'
+
+const admin = postgres(ADMIN_DSN)                         // пул postgres() администратора базы — не строка DSN и не connect()
+const t = await createTenant(admin, 'shop', {             // 'shop' — то же имя, что в up({ schema }): станет v2.shop
+  name: 'Лютик',
+  user: { name: 'Борис', login: 'boris@lutik.ru', password: 'Лютик-2026!' },
+})
+await admin.end()                                         // пул закрывает вызывающий код
+const boris = await svc.as(t.user, { tenant: t.tenant })  // или connect({ dsn, schema, token: t.token })
+await syncModels(boris, models, { apply: true })          // модель — в новом арендаторе
+```
+
+- **`admin` — пул `postgres()`**, его роль должна уметь стать владельцем схемы (тот же администратор, что вызывал `up()`). Строка DSN, подключение `connect()` letopis, `undefined` — отказ `invalid_query` (ключ `api.create_tenant_admin`) до запросов к базе.
+- **`schema`** — как в `connect()` и `up()`: имя без точки получает префикс `v2.` (`'shop'` → `v2.shop`), полное имя (`r.schema` из `up()`) — как есть.
+- **Ответ** — `{ tenant, user, token, created }`: id арендатора и пользователя, токен его сессии и `created: false`, если арендатор уже был. Повтор с тем же именем ничего не дублирует, только выдаёт новую сессию.
+- Права: по умолчанию пользователи нового арендатора могут всё в нём (`grantAll`, правило веса 10) — ниже, как это сузить.
+
 ## Пример: роль, запрет, право на отчёты
 
 <Example id="access/01-rules" />
@@ -58,6 +81,7 @@ sequenceDiagram
 ## Подводные камни
 
 - **По умолчанию запрещено всё.** `createTenant` даёт правило «своим можно всё» (вес 10) — без него пользователи арендатора ничего не могут.
+- **`createTenant` берёт пул `postgres()`, а не строку.** Строка DSN или подключение `connect()` — `invalid_query` (`api.create_tenant_admin`); закрыть пул — `admin.end()`.
 - **Запрет с большим весом сильнее.** Так из «можно всё» вырезают исключения: у `db.acl.deny` вес по умолчанию 50, а при равном весе запрет сильнее разрешения.
 - **Интерфейс только прячет кнопки** (`acl.check`, `acl.checkData`), а запрещает база: прямой вызов получит `acl_denied`.
 - **Классы арендатора чужим не видны:** классы из `syncModels` принадлежат арендатору; общие для всех — в System. Модель записывают в каждом арендаторе отдельно.

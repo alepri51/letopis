@@ -104,7 +104,9 @@ const n = await loose(typed)[name]().count()   // то же подключени
 
 | Что | Ответ |
 |---|---|
-| `update()` или `delete({ confirm: true })`, а ни у одного шага нет фильтра, id, `tags()`, `owner()` или `limit()` | `invalid_query` до записи; все строки шага — `{ all: true }` ([запись](../write/), [удаление](../delete/)) |
+| `update()` или `delete({ confirm: true, expect })`, а ни у одного шага нет фильтра, id, `tags()`, `owner()` или `limit()` | `invalid_query` до записи (`write.no_filter`); все строки шага — `{ all: true }` ([запись](../write/), [удаление](../delete/)) |
+| `delete({ confirm: true })` без `expect` и без `all: true` | `invalid_query` до записи (`write.confirm_without_expect`): удаляют ровно показанный предпросмотр ([удаление](../delete/#удалить-ровно-то-что-показали)) |
+| `restore()` без `expect` и без `all: true` | `invalid_query` до записи (`write.restore_without_expect`): возвращают по надгробиям ([удаление](../delete/#вернуть-удаленное)) |
 | неизвестная опция `connect()`, `up()`, `db.load()`, `db.watch()`, `createMcpServer()` | `invalid_data` с похожими именами |
 | шаг — не класс, не алиас и не роль | `invalid_class` с похожими именами |
 | поле фильтра (и внутри `or()`), `sort('data.…')` или итога, которого нет в описании ни одного класса шага (с потомками, если шаг не `exact()`) | `invalid_query` с похожими именами до запроса, у записи — до записи; сверяется только первый ключ пути |
