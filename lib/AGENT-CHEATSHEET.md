@@ -1,4 +1,4 @@
-# letopis 2.0 — шпаргалка для агента
+# letopis 2.1 — шпаргалка для агента
 
 - Одна страница вместо [README.md](README.md) — для ИИ-агента, который пишет код поверх пакета; лежит в пакете рядом
   с README.
@@ -9,7 +9,7 @@
 - Код приложения — **ESM**: `"type": "module"` в его `package.json` (`npm pkg set type=module`) или файлы `.mjs`;
   иначе `import` → `SyntaxError: Cannot use import statement outside a module`.
 - Перед кодом прочитайте «Грабли» в конце: там отказы, на которых спотыкаются чаще всего (вход члена арендатора,
-  `restore()` и каскад, `undefined` в данных и фильтрах).
+  `restore()` и каскад, `withDeleted()` по шагу, `undefined` в фильтрах).
 
 ## Модель за минуту
 
@@ -24,10 +24,11 @@
   - уникальность — только ключ.
 - Арендатор = аккаунт. Строки принадлежат арендатору **сессии**; чужие → не видны.
 - Права включены всегда и по умолчанию **запрещают**.
-- Строгий режим 2.0: строгие типы по моделям (`connect({ models })`, имена во время выполнения — `loose(db)`);
+- Строгий режим: строгие типы по моделям (`connect({ models })`, имена во время выполнения — `loose(db)`);
   `update()` и `delete({ confirm: true })` без сужения целей и `after()` перед `count()` и агрегатами → `invalid_query`;
   неизвестное поле фильтра, `sort()` или агрегата → `invalid_query` с похожими именами; неизвестный класс или роль →
-  `invalid_class` с похожими; неизвестная опция → `invalid_data` с похожими именами.
+  `invalid_class` с похожими; неизвестная опция → `invalid_data` с похожими именами; id не uuid → `invalid_query`
+  (`query.bad_uuid`) до запроса.
 
 ## Рабочий цикл
 
@@ -118,7 +119,8 @@ const me = await svc.auth.verifyPassword({ identifier: 'olga@salon.ru', password
 const asOlga = await svc.as(me!.account, { tenant: SALON })        // asOlga.tenant === SALON
 // б) своё подключение по её токену: сначала перейти в салон
 const own = await connect({ dsn: APP, schema: 'v2.myapp', token: me!.token })
-await own.auth.tenants()           // [{ tenant: OLGA, roles: ['owner'] }, { tenant: SALON, roles: ['owner'] }]
+await own.auth.tenants()           // [{ tenant: OLGA, roles: ['owner'], name: 'Ольга', personal: true },
+                                   //  { tenant: SALON, roles: ['owner'], name: 'Салон', personal: false }]
 await own.auth.switch(SALON)       // own.tenant === SALON; switch меняет арендатора самой сессии (токена)
 ```
 - Без `{ tenant }` у `as()` и без `auth.switch()` → сессия в **личном** арендаторе пользователя (id его аккаунта):
@@ -128,18 +130,23 @@ await own.auth.switch(SALON)       // own.tenant === SALON; switch меняет 
   отвечайте пользователю, а не 500.
 - Веб-сервис: токен `me.token` — в cookie; в начале запроса `svc.auth.session(token)` → `{ account, tenant, … } |
   null`, затем `svc.as(account, { tenant: SALON })` (арендатор, в котором работает приложение пользователя).
-- Название арендатора пользователю не прочитать: строка `Account` арендатора ему не видна (видна только своя),
-  `auth.tenants()` отдаёт только `{ tenant, roles }`. Нужно название в интерфейсе → храните его в данных арендатора
-  (свой хаб, например `Salon` с полем `name`, заведённый при создании арендатора) или в конфигурации приложения.
+  Выход → `svc.auth.revoke(token)` с токеном из cookie: `true` — сессия погашена, `false` — её уже не было (право
+  `auth.session`); `svc.auth.revoke()` без аргумента погасил бы сессию самого сервиса.
+- В каких арендаторах пользователь → `(await svc.as(me.account)).auth.tenants()` (без подключения по его токену):
+  `[{ tenant, roles, name, personal }]`, первым — личный (`personal: true`); компании → `.filter((t) => !t.personal)`,
+  их названия → `t.name` (имя из `createTenant({ name })`).
+- Название арендатора → `name` из `auth.tenants()`; строка `Account` арендатора пользователю не видна (видна только
+  своя). Название, которое правят в интерфейсе, → в данных арендатора (свой хаб, например `Salon` с полем `name`).
 - `connect({ dsn | sql, schema: 'v2.имя', token | apiKey | service, admin, max, listen, cache, onQuery, slowMs,
-  maintain, refreshSession, allowBypassRls, owner, notifyIntervalMs, models })`. `schema` — **полное** имя с `v2.`.
+  maintain, refreshSession, allowBypassRls, owner, notifyIntervalMs, models })`. `schema` — `'v2.имя'` или, как у
+  `up()`, просто `'имя'` (→ `v2.имя`).
   - неизвестная опция (и у `up`, `db.load`, `db.watch`, `createMcpServer`) → `invalid_data` с похожими именами;
     `quiet` — опция только `up()`, у `connect()` её нет.
   - администраторское подключение (`allowBypassRls`) → печатает предупреждение «RLS не действует» — так и должно
     быть.
 - `db.auth`: `setPassword`, `verifyPassword`, `issueApiKey`, `verifyApiKey`, `issueKeySecret`, `verifyKeySecret`,
   `enrollTotp`, `verifyTotp`, `totpEnabled`, `issueOtp`, `verifyOtp`, `link`, `lookup`, `credentials`, `revokeCredential`,
-  `setFlags`, `sessionFor(account, { ttl })`, `session(token)`, `refresh`, `revoke`, `revokeAll`, `switch(tenant)`,
+  `setFlags`, `sessionFor(account, { ttl })`, `session(token)`, `refresh`, `revoke(token?)`, `revokeAll`, `switch(tenant)`,
   `tenants()`, `purgeAccount`:
   - проверка паролей, OTP и TOTP, выпуск сессий, сведения о сессии по токену и подтверждение кредов → вызывает
     **сервис** (права `auth.*`); обычный пользователь → `acl_denied`;
@@ -166,9 +173,9 @@ await own.auth.switch(SALON)       // own.tenant === SALON; switch меняет 
   - неверный, погашенный или истёкший токен, отключённый аккаунт → `null`;
   - так веб-сервис проверяет сессию из cookie в начале каждого запроса: чтение по погашенной сессии → ошибки нет,
     ответы просто пустые.
-- Работа в чужом арендаторе по членству: `await user.auth.tenants()` → `[{ tenant, roles }]`, затем
+- Работа в чужом арендаторе по членству: `await user.auth.tenants()` → `[{ tenant, roles, name, personal }]`, затем
   `await user.auth.switch(tenant)` (только от корня подключения). Первым в списке — собственный арендатор
-  пользователя: `tenant` — id его аккаунта, `roles: ['owner']`.
+  пользователя: `tenant` — id его аккаунта, `roles: ['owner']`, `personal: true`; за ним — по членству, по id.
 - Имперсонация сервисом: `const u = await svc.as(account, { tenant, owner })` — проверяет база, в журнале `author` —
   пользователь, `agent` — сервис. `db.as()` **асинхронный**.
 
@@ -198,13 +205,17 @@ export const Note = hub('Note', { text: z.string() }, {})   // без ключа
 
 Модели в базу:
 
-- классы → пишутся в арендатора сессии;
-- ужесточение, которому мешают строки, → `tightening_conflict`.
+- классы → пишутся в арендатора сессии; одна модель в нескольких арендаторах → `syncModels` в сессии каждого
+  (`await syncModels(await svc.as(владелец, { tenant }), models, { apply: true })` по арендаторам);
+- ужесточение, которому мешают строки, → `tightening_conflict`;
+- преобразования Zod (`.trim()`, `.toLowerCase()`, `.transform()`, `z.preprocess()`, `.pipe()`) → `invalid_class`
+  (`model.transform_unsupported`) до записи, и в сухом прогоне: база их не исполняет — приводите значение в коде до
+  записи, в модели оставьте проверку (`.regex()`, `.min()`).
 
 <!-- run -->
 ```ts
 const synced = await syncModels(db, [Shop, Wallet, Payment, Note], { apply: true })
-// synced: { applied, created, updated, unchanged, skipped, lost } (lost — refine и прочее, чего JSON Schema не выражает)
+// synced: { applied, created, updated, unchanged, skipped, lost } (lost — refine, которых JSON Schema не выражает)
 ```
 ```sh
 npx letopis sync ./models.js --dsn "$APP" --schema v2.myapp --token "$TOKEN"            # сухой прогон (.ts — Node 22.18+)
@@ -250,9 +261,13 @@ const batchRows = await b.run()                                              // 
   → `update(патч, { all: true })`.
 - Затронуто меньше строк, чем нашёл шаг, → откат плана с `target_not_found` (не видна), `conflict` (`rev` разошёлся)
   или `acl_denied`.
+- Фильтр `update()` не только по id (данные, концы, `tags()`, `owner()`) → перепроверяется под блокировкой: строки,
+  которые параллельная транзакция успела вывести из-под фильтра, не правятся. Значение из прочитанного → всё равно
+  `{ rev }` или `forUpdate()`; «одна открытая запись на вещь» → ключ связи.
 - **Концы — не поля данных.** Конец → из пути (`db.Shop(shop).Wallet().create(…)`) или слотом после глагола
   (`.Shop.set(id)`); ключ с именем роли в данных `create()` (`{ Shop: id }`) → `invalid_data` с нарушением
-  `additionalProperties` (лишний ключ в тексте не назван). Связь с двумя концами — один из пути, второй слотом:
+  `additionalProperties`: текст называет лишний ключ, подсказка — «конец — из пути или `.Роль.set()`»; у `update()` —
+  отказ до записи. Связь с двумя концами — один из пути, второй слотом:
 
 ```ts
 // models.ts: визит — связь мастера и салона
@@ -262,11 +277,11 @@ export const Visit = link('Visit', { at: z.string() }, { ends: { Shop, Master } 
 const [v] = await db.Shop(shop).Visit().create({ at: '2026-11-03T10:00:00Z' }).Master.set(master).rows()
 // v.links: { Shop: shop.id, Master: master.id }; db.Visit().create({ at, Shop: shop.id, Master: master.id }) → invalid_data
 ```
-- **`undefined` в данных:**
-  - `create`/`upsert` → ключ со значением `undefined` проверяется как есть → `invalid_data` (`type`); пустое
-    необязательное поле **не передавайте** (`...(phone ? { phone } : {})`);
-  - `update` → ключи со значением `undefined` отбрасываются (поле не меняется); `null` записывается как значение и
-    проходит, только если схема поля его допускает (`.nullable()`).
+- **`undefined` в данных** `create`, `upsert` и `update` → ключ отбрасывается (поле не пишется и не меняется); `null`
+  записывается как значение и проходит, только если схема поля его допускает (`.nullable()`).
+- `create()` по ключу удалённого → **занимает его id**: прежний объект больше не восстановить. Удалённое могут
+  вернуть → перед `create()` проверьте `db.Класс({ ключ }).withDeleted().first()` (`$deleted: true` — ключ у
+  удалённого).
 
 ### 5. Чтение цепочкой
 
@@ -292,15 +307,19 @@ await db.Wallet(or({ number: 'W-1' }, { number: 'W-2' })).ids()
     значением `undefined` в объекте фильтра (`{ id: undefined }`, `{ Shop: undefined }`) отбрасывается. Проверяйте
     обязательные id из запроса до цепочки (`update` и `delete({ confirm: true })` без сужения откажут сами,
     `invalid_query`; чтение и `restore()` — нет);
-  - id не в формате uuid (`db.Wallet('42')`) → ошибка PostgreSQL `22P02` (`invalid input syntax for type uuid`) без
-    кода letopis; проверяйте формат id на входе.
-- **Модификаторы выборки не привязаны к шагу**, у которого стоят: `sort`, `limit`, `offset`, `after`,
-  `withDeleted`, `forUpdate` → действуют на **последний** шаг цепочки (перед глаголом — на его цели); `asOf` → срез
-  всей цепочки. `db.Shop().sort('data.number').Wallet()` сортирует кошельки, а поле `sort()` сверяется с классом
-  последнего шага (`invalid_query: … не описано в классе …`).
-- `withDeleted()` → удалённые только на **последнем** шаге: путь через удалённый промежуточный узел (удалённая
-  связь → её конец) одной цепочкой не прочитать — он молча пуст. Удалённые связи → `db.Shop(s).Visit().withDeleted()
-  .rows()`, их концы → по id из `row.links` отдельным запросом (`db.Master(ids).withDeleted().rows()`).
+  - фильтр `undefined` → ещё и предупреждение `api.step_undefined_filter` в консоли;
+  - id не uuid (`db.Wallet('42')`) или `null` вместо id → `invalid_query` (`query.bad_uuid`) до запроса.
+- **Модификаторы выборки не привязаны к шагу**, у которого стоят: `sort`, `limit`, `offset`, `after`, `forUpdate` →
+  действуют на **последний** шаг цепочки (перед глаголом — на его цели); `asOf` → срез всей цепочки.
+  `db.Shop().sort('data.number').Wallet()` сортирует кошельки (и предупреждает `api.sort_not_last` — ставьте `sort()`
+  в конец), а поле `sort()` сверяется с классом последнего шага (`invalid_query: … не описано в классе …`).
+- **`withDeleted()` — модификатор своего шага**, как `exact()`:
+  - `db.Shop(s).Visit().withDeleted()` → живые и удалённые визиты живого салона;
+  - `db.Shop(s).withDeleted().Visit().withDeleted()` → удалённые визиты удалённого салона (путь через удалённый узел);
+  - `db.Shop(s).withDeleted().Visit()` → салон с удалёнными, визиты **только живые** + предупреждение
+    `api.with_deleted_step`;
+  - в цепочке записи → только перед `restore()`, у других глаголов → `invalid_query`.
+- `versions()` шага с явными id → и история удалённого (`db.Note(id).versions()`), `withDeleted()` не нужен.
 - Шаг — имя класса, алиас или роль конца:
   - шаг по родителю → отдаёт и потомков; `.exact()` → только свой класс;
   - `.deep(max)` → дерево (`$depth`);
@@ -350,9 +369,19 @@ await db.Note(n.id).restore().rows()                   // вернуть уда�
 - `delete({ confirm: true })` и `restore()` по чужому, невидимому или несуществующему id → **пустой ответ без
   ошибки** (как `update`): проверяйте длину ответа и отвечайте «не найдено», а не «удалено».
 - `delete({ confirm: true })` → надгробия **всего каскада** (цели и удалённые вместе с ними строки).
-- `restore()` → только **цели шага**, не каскад; цель — удалённые объекты последнего шага (сужения не требует:
-  `db.Note().restore()` вернёт все удалённые заметки). Каскад возвращают отдельным шагом — после цели, потому что
-  `withDeleted` не проходит через удалённый узел:
+- Удалить ровно показанное → `delete({ confirm: true, expect: preview })`: превью строится заново в транзакции и
+  сравнивается по `id`, `rev`, `$action`; изменилось → `conflict` (`write.preview_changed`), ничего не удалено, новое
+  превью — `err.detail.preview` (показать и удалить с ним). `expect` без `confirm` → `invalid_query`.
+- `restore()` → только **цели шага**, не каскад; цель — удалённые объекты последнего шага, шаг глагола сам читает
+  удалённые (сужения не требует: `db.Note().restore()` вернёт все удалённые заметки и предупредит
+  `write.restore_no_filter`). Каскад — отдельным шагом после цели или через удалённую цель:
+  `db.Wallet(w).withDeleted().Payment().restore()`.
+- **Вернуть ровно то, что ушло, → `restore({ expect })`** с надгробиями `{ id, rev }` (ответ `delete()` или строки
+  `withDeleted()` с `$deleted`). Восстанавливаются только цели из `expect` и только если последняя версия — это самое
+  надгробие; id пересоздан (`create()` по ключу удалённого) или удалён снова → `conflict` (`write.restore_stale`,
+  `err.detail.stale: [{ id, rev, expected, deleted }]`), ничего не восстановлено — пользователю «вещь уже у другого».
+  Без `expect` по id или пути `restore()` поднимет **последнее** надгробие id — возможно, чужое. Шаг глагола — по id из
+  `expect` (по пути ушедшее к другому молча пропустится); цель и каскад — в одной `db.begin()`:
 
 ```ts
 // Payment: ends: { Wallet: one(Wallet).onDelete('cascade') } — платежи удаляются вместе с кошельком
@@ -360,12 +389,15 @@ const gone = await db.Wallet(w).delete({ confirm: true, reason: 'close:W-1' }).r
 await db.Wallet(w).restore().rows()                          // только кошелёк; платежи ещё удалены
 // затем ОДИН из вариантов:
 // а) все удалённые платежи кошелька — в том числе удалённые раньше и отдельно от этого каскада
-await db.Wallet(w).Payment().withDeleted().restore().rows()
-// б) ровно этот каскад — по id из ответа delete
-await db.Payment(gone.filter((x) => x.class === 'Payment').map((x) => x.id)).restore().rows()
-// в) ровно этот каскад позже, без сохранённых id, — по причине: надгробия каскада получают reason глагола
+await db.Wallet(w).Payment().restore().rows()
+// б) ровно этот каскад — по надгробиям из ответа delete; пересозданный и снова удалённый id → conflict
+await db.Payment(gone.filter((x) => x.class === 'Payment').map((x) => x.id)).restore({ expect: gone }).rows()
+// в) ровно этот каскад позже, без сохранённого ответа, — по причине: надгробия каскада получают reason глагола;
+//    причина — своя у каждого удаления (с номером операции), иначе под отбор попадёт и чужое удаление
 const ours = (await db.Wallet(w).Payment().withDeleted().rows()).filter((x) => x.$deleted && x.reason === 'close:W-1')
-await db.Payment(ours.map((x) => x.id)).restore().rows()
+await db.Payment(ours.map((x) => x.id)).restore({ expect: ours }).rows()
+// кошелёк и платежи одной транзакцией: const tr = await db.begin(); try { …restore({ expect }) …; await tr.commit() }
+// catch (e) { await tr.rollback(); if (e.code === 'conflict') → «вещь уже у другого» }
 ```
 - `restore()` перепроверяет описание класса, концы (цели живы и видны, иначе `target_not_found`), ключ и права, но
   **не бизнес-правила**: восстановленная связь «мастер занимает кресло» вернёт кресло прежнему мастеру, даже если
@@ -382,9 +414,11 @@ export const Seat = link('Seat', { since: z.string() }, { key: ['Chair'], ends: 
 ```
   - мастер удалён → его `Seat` удалён каскадом, кресло свободно; новый `Seat` того же кресла → тот же id (история
     продолжается);
-  - затем `db.Master(m).Seat().withDeleted().restore()` → прежнюю связь не находит (она жива и ведёт к другому
-    мастеру) → пустой ответ; `db.Seat(id).restore()` → `not_deleted`. Двух владельцев не бывает; сверяйте длину
-    ответа и сообщайте, что кресло занято.
+  - затем `db.Master(m).Seat().restore()` → прежнюю связь не находит (она жива и ведёт к другому мастеру) → пустой
+    ответ; `db.Seat(id).restore()` → `not_deleted` (`write.restore_id_taken`: id занят новым объектом), с `expect`
+    → `conflict`. Двух владельцев не бывает; сверяйте длину ответа и сообщайте, что кресло занято.
+- Штатные ответы `restore()` → пустой (не найдено), `not_deleted` (жив или id занят), `conflict` (с `expect`),
+  `target_not_found` (цель конца удалена — восстановите сначала её): ответ пользователю, а не 500.
 
 ### 7. Загрузчик
 
@@ -490,8 +524,11 @@ const was = await db.Wallet(w).asOf('2026-10-01T00:00:00Z').first()   // как 
 await db.Shop(shop).Wallet().asOf(new Date('2026-10-01')).rows()
 const history = await db.Wallet(w).versions()                         // все версии; версия удаления — $deleted
 ```
-- Версия → `{ rev, op, at, author, agent?, reason? }`: причина — опция `reason` глагола, `db.begin({ reason })`,
+- Версия → строка ответа со снимком на эту версию: `{ id, class, rev, op, links, data, tags, at, author, agent?,
+  reason? }`, `op` — `create` | `update` | `delete` | `restore`, у версии удаления — `$deleted: true` и последний
+  снимок; без `sort()` → по id и `rev` по возрастанию. Причина — опция `reason` глагола, `db.begin({ reason })`,
   `db.batch(имя, { reason })`; пустые `agent` и `reason` → опускаются.
+- `versions()` шага с явными id → и история удалённого объекта.
 - Журнал хранит каждую версию: прореживания, обрезки и стирания истории объекта нет.
 - Класс с `history: false` → не даёт `versions`, `asOf`, `restore` и событий подписки.
 - Класс с историей строк не удаляется (`invalid_class`): класс, который придётся удалять, заводят с `history: false`.
@@ -537,8 +574,8 @@ const server = await createMcpServer(await svc.as(userId))   // letopis_model, l
   одноразовые коды, строки-замки удалённых классов, проверка очереди сигналов; отчёт `{ skipped, sessions, codes,
   queue }` (`skipped` — обслуживает другой процесс); журнал не трогает.
 - Закрыть подключения — по одному разу; подключения из `svc.as()` делят пул с `svc`:
-  - **не вызывайте `close()` у подключения из `svc.as()`** → оно закрывает общий пул `svc`: остальные фасады и сам
-    `svc` ломаются (`CONNECTION_DESTROYED`), скрипт может не завершиться; закрывайте только `svc` — один раз, в конце;
+  - `close()` у подключения из `svc.as()` → ничего не делает (пул общий); закрывайте `svc` — один раз, в конце: он
+    закрывает пул, подписки и все фасады;
   - скрипт (установка, сид) не завершается → проверьте, что каждое `connect()` закрыто.
 
 <!-- run -->
@@ -546,7 +583,7 @@ const server = await createMcpServer(await svc.as(userId))   // letopis_model, l
 await adm.close(); await db.close(); await svc.close()
 ```
 
-## Грабли 2.0
+## Грабли
 
 1. **`create` занятого ключа — ошибка `exists`** (`err.detail.id`), а не перезапись.
    - заменить целиком → `upsert`, и только у класса с ключом (иначе `no_key`);
@@ -560,7 +597,8 @@ await adm.close(); await db.close(); await svc.close()
    - `delete()` без `{ confirm: true }` → только превью;
    - `restore` → только для удалённых (иначе `not_deleted`);
    - `delete({ confirm: true })` и `restore()` по чужому или несуществующему id → пустой ответ без ошибки, как у
-     `update`: проверяйте длину ответа.
+     `update`: проверяйте длину ответа;
+   - `.length`, `.map()`, `[0]`, `for…of` у цепочки → `invalid_query` (`api.chain_not_rows`): строки — `await ….rows()`.
 4. **Деньги и счётчики** — `update({ balance: inc(n) })`: база прибавляет внутри оператора, без чтения и потерянных
    обновлений.
    - уход в минус → ловит проверка `minimum` в схеме;
@@ -596,7 +634,8 @@ await adm.close(); await db.close(); await svc.close()
     - `letopis sync` с токеном арендатора → пишет классы ему; другие арендаторы их не видят;
     - общие для всех классы → в System (сид установки);
     - `invalid_class: класс или роль X не найдены` на класс, который только что записан `syncModels`, → сессия не в
-      том арендаторе: проверьте `db.tenant`. Частый случай — пользователь вошёл (`verifyPassword`, `svc.as(account)`,
+      том арендаторе: проверьте `db.tenant`; текст «в реестре сессии нет ни одного класса арендатора»
+      (`api.unknown_step_no_classes`) → сессия в личном арендаторе. Частый случай — пользователь вошёл (`verifyPassword`, `svc.as(account)`,
       `connect({ token })`) и остался в личном арендаторе → `svc.as(account, { tenant })` или `auth.switch(tenant)`
       (§2, «Вход члена арендатора»);
     - похожее имя `member` в тексте этой ошибки → системный класс членства, а не ваш класс.
@@ -612,7 +651,12 @@ await adm.close(); await db.close(); await svc.close()
     - права `auth.*` (пароли, сессии, имперсонация) → есть у сервиса и системного администратора.
 15. **Ошибки:**
     - `err.code` — строчный код (`exists`, `conflict`, `invalid_data` …), текст — `letopis: <код>: …`;
-    - ошибка данных (`ValidationError`) → `err.issues: [{ path, keyword, message }]`;
+    - ошибка данных (`ValidationError`) → текст называет первое нарушение и их число, все — `err.issues: [{ path,
+      keyword, message }]`; текст пользователю — свои названия полей по `path` и фразы по `keyword` (`message` у
+      `enum` называет допустимые значения, у `additionalProperties` — лишний ключ, у прочих бывает общим);
+    - SQLSTATE `22P02` (значение не того типа, в том числе в `db.sql`) → `LetopisError` с `err.code ===
+      'invalid_query'` (`api.db_bad_value`), исходная ошибка — `err.cause` (`err.cause.code === '22P02'`); проверка
+      `err.code === '22P02'` не сработает;
     - `err.hint` — что делать, `err.docs` — ссылка на код в разделе «Ошибки» README;
     - неизвестный класс или роль → `invalid_class`, похожие имена в тексте и в `err.params.similar`;
     - неизвестная опция `connect()`, `up()`, `db.load()`, `db.watch()`, `createMcpServer()` → `invalid_data` с
@@ -631,17 +675,23 @@ await adm.close(); await db.close(); await svc.close()
     - `db.batch('x')` у корня, у каждого `await db.as(…)` и у каждой `db.begin()` → разные очереди;
     - план → исполняется от имени того, кто его поставил;
     - копите планы через один объект фасада.
-19. **`restore()` возвращает только цели шага.**
+19. **`restore()` возвращает только цели шага — и последнее надгробие id.**
     - каскад, удалённый вместе с целью, остаётся удалённым → отдельный шаг после цели (§6);
+    - id мог быть пересоздан и удалён снова → без `expect` поднимется чужое надгробие; ровно ушедшее →
+      `restore({ expect: надгробия })`, расхождение → `conflict` (`write.restore_stale`);
     - бизнес-правил `restore()` не проверяет → проверьте сами или держите правило ключом связи (§6).
 20. **`undefined` и формат id.**
-    - фильтр `undefined` → шаг без фильтра (`db.Wallet(undefined).first()` → любая строка);
-    - `undefined` в данных `create`/`upsert` → `invalid_data`; в `update` → ключ отброшен;
-    - id не uuid → сырая ошибка PostgreSQL `22P02`.
-21. **Модификаторы выборки — на последний шаг.**
-    - `sort`, `limit`, `offset`, `after`, `withDeleted`, `forUpdate` относятся к последнему шагу, где бы ни стояли;
-    - `withDeleted()` не проходит через удалённые промежуточные узлы (§5).
-22. **`close()` — только у исходного подключения**, не у фасада из `svc.as()` (Эксплуатация).
-23. **Штатные отказы — ответ пользователю, а не 500**: `exists` (уже есть), `conflict` (перечитать), `tenant_denied`
-    (нет членства), `acl_denied`, `invalid_data` (`err.issues`), `delete_restricted`, `not_deleted` → ловите
-    `LetopisError` по `err.code`.
+    - фильтр `undefined` → шаг без фильтра (`db.Wallet(undefined).first()` → любая строка) и предупреждение;
+    - `undefined` в данных `create`/`upsert`/`update` → ключ отброшен;
+    - id не uuid или `null` → `invalid_query` (`query.bad_uuid`) до запроса.
+21. **Модификаторы выборки — на последний шаг, `withDeleted()` — на свой.**
+    - `sort`, `limit`, `offset`, `after`, `forUpdate` относятся к последнему шагу, где бы ни стояли;
+    - `withDeleted()` — к шагу, после которого стоит: `X().withDeleted().Y()` → удалённые `X`, но живые `Y`
+      (предупреждение `api.with_deleted_step`); удалённые `Y` → `X().Y().withDeleted()` (§5).
+22. **`close()` — у исходного подключения**, один раз; у фасада из `svc.as()` он ничего не делает (Эксплуатация).
+23. **Штатные отказы — ответ пользователю, а не 500**: `exists` (уже есть), `conflict` (перечитать; у `restore({
+    expect })` — «вещь уже у другого», у `delete({ expect })` — показать новое превью), `tenant_denied` (нет членства),
+    `acl_denied`, `invalid_data` (`err.issues`), `delete_restricted`, `not_deleted` → ловите `LetopisError` по
+    `err.code`.
+24. **Предупреждения в консоли (`letopis: …`) — не отказы, но почти всегда ошибка в коде**: шаг с `undefined`, шаг
+    после `sort()`, `withDeleted()` не у последнего шага, `restore()` без сужения.
