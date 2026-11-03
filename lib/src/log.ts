@@ -32,14 +32,20 @@ const LEVELS: readonly LogLevel[] = ['debug', 'info', 'warn', 'error', 'off'];
 
 /** Имена полей с секретами: маскируются в любом месте detail всегда. */
 const SECRET_KEY = /pass(?:word|wd|phrase)?$|^pass|^pwd$|secret|token|api_?key|service_?key|authorization|cookie|credential|^hash$|^material$|^totp$|^otp$/i;
-/** Пароль в строке подключения: схема://пользователь:пароль@хост. */
-const DSN_PASSWORD = /([a-z][a-z0-9+.-]*:\/\/[^:/@\s]*:)[^@\s]*@/gi;
-/** Пароль в тексте SQL: `password '…'` (create/alter role). */
-const SQL_PASSWORD = /(\bpassword\s+)'(?:[^']|'')*'/gi;
+/**
+ * Учётные данные в строке подключения: схема://пользователь:пароль@хост — всё до последней `@` в части хоста
+ * (пароль может содержать `@`, `:` и `/`).
+ */
+const DSN_USERINFO = /([a-z][a-z0-9+.-]*:\/\/)[^\s'"]*@(?=[^@\s'"]*(?:[\s'"]|$))/gi;
+/** Пароль параметром: `?password=…`, `&pass=…`, `password=…` в строке libpq. */
+const KV_PASSWORD = /(\b(?:password|pass|passwd|pwd|sslpassword)\s*=\s*)(?:'(?:[^'\\]|\\.)*'|[^\s&;]+)/gi;
+/** Пароль в тексте SQL: `password '…'`, `password E'…'`, `password $$…$$` / `$tag$…$tag$` (create/alter role). */
+const SQL_PASSWORD = /(\bpassword\s+)(?:[eE]?'(?:[^'\\]|\\.|'')*'|(\$[A-Za-z_0-9]*\$)[\s\S]*?\2)/gi;
 
-/** Строка без секретов: пароль в строке подключения и в тексте SQL. */
+/** Строка без секретов: учётные данные в строке подключения, пароль параметром и в тексте SQL. */
 export function maskText(s: string): string {
-  return s.includes('://') || /password/i.test(s) ? s.replace(DSN_PASSWORD, '$1***@').replace(SQL_PASSWORD, "$1'***'") : s;
+  if (!s.includes('://') && !/pass|pwd/i.test(s)) return s;
+  return s.replace(DSN_USERINFO, '$1***@').replace(KV_PASSWORD, '$1***').replace(SQL_PASSWORD, "$1'***'");
 }
 
 const clip = (s: string, n: number): string => (s.length > n ? `${s.slice(0, n)}…(+${s.length - n})` : s);
@@ -299,7 +305,16 @@ let txSeq = 0;
 export const nextTx = (kind: 'b' | 't'): string => `${kind}${(++txSeq).toString(36)}`;
 
 /** Строка подключения без пароля. */
-export const maskDsn = (dsn: string | undefined): string | undefined => (dsn === undefined ? undefined : maskText(dsn));
+export const maskDsn = (dsn: string | undefined): string | undefined => {
+  if (dsn === undefined) return undefined;
+  // В журнал — только схема, хост, порт и база: без пользователя, пароля и параметров строки.
+  try {
+    const u = new URL(dsn);
+    return `${u.protocol}//${u.host}${u.pathname}`;
+  } catch {
+    return maskText(dsn);
+  }
+};
 
 /**
  * Операция с событием: время, событие успеха (done может дополнить поля, сменить событие или вернуть null — без
