@@ -56,9 +56,13 @@ jobs:
           registry-url: https://registry.npmjs.org
           cache: npm
           cache-dependency-path: lib/package-lock.json
+      # setup-node v7 больше не выставляет заглушку NODE_AUTH_TOKEN (actions/setup-node#1558), а .npmrc
+      # от registry-url ссылается на неё — npm ci получает токен явно.
       - name: Install
         working-directory: lib
         run: npm ci
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       # Шаг версии против прошлого выпуска (README, «Версии и совместимость»): контракт API и ревизия
       # движка из тега этой версии сравниваются с тегом прошлого выпуска; неверный шаг — публикации нет.
       - name: Check semver
