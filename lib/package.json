@@ -1,7 +1,7 @@
 {
   "name": "letopis",
   "version": "2.0.0",
-  "description": "Letopis (летопись): versioned entity store on PostgreSQL 18 — integrity, history, tenants and access control enforced by the database itself, dot-notation chains on top",
+  "description": "AI agents: read AGENT-CHEATSHEET.md in this package before writing code (ИИ-агенту — сначала AGENT-CHEATSHEET.md). Letopis (летопись): versioned entity store on PostgreSQL 18 — integrity, history, tenants and access control enforced by the database itself, dot-notation chains on top",
   "keywords": [
     "postgres",
     "postgresql",
@@ -14,7 +14,10 @@
     "jsonb",
     "multi-tenant",
     "acl",
-    "uuidv5"
+    "uuidv5",
+    "llms-txt",
+    "ai-agents",
+    "agent-cheatsheet"
   ],
   "license": "MIT",
   "repository": {
