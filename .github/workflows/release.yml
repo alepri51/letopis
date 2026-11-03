@@ -32,7 +32,7 @@ jobs:
           --health-cmd "pg_isready -U postgres -d letopis"
           --health-interval 5s --health-timeout 5s --health-retries 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -50,7 +50,7 @@ jobs:
           gh release edit "${{ github.event.release.tag_name }}" --notes-file RELEASE_NOTES.md
           echo "::notice::тело релиза взято из lib/CHANGELOG.md"
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
