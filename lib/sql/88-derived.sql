@@ -281,9 +281,6 @@ begin
   return n;
 end $$;
 
--- до ревью безопасности №2 перестройка удаляла строки всех классов с пометкой во всех арендаторах
-drop function if exists @SCHEMA@.derived_clear(text);
-
 do $$
 declare f text;
 begin
@@ -712,9 +709,6 @@ as $$
   where x.class = 'Class' and (x.tenant = p_tenant or (p_system and x.tenant = '@SYSTEM@'::uuid))
     and x.data->'resolved'->'ancestors' ? p_of
 $$;
-
--- до ревью коммита этапа 4б семейство брало классы System и для агрегата класса арендатора
-drop function if exists @SCHEMA@.agg_classes(text, uuid);
 
 -- Агрегатные поля цели p_id целиком из живых источников её арендатора: { поле: итог }. Класс цели — по строке
 -- арендатора p_tenant (свой или System): от него зависит, входят ли в семейство классы System.

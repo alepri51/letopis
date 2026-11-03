@@ -30,7 +30,7 @@ import {
   scheduleMaintain, trimHistory as runTrim, verify as runVerify, type AdminCtx, type MaintainOptions, type MaintainReport, type VerifyResult,
 } from './admin.js';
 import type { AnyModelLike, OrOp, StepsOf } from './typed.js';
-import { stampDrift } from './up.js';
+import { refuse1x, stampDrift } from './up.js';
 
 export { DDL_REVISION } from './types.js';
 export { uuidv5, v5Name, v5Id, idOf, type KeyedClass } from './uuid.js';
@@ -508,18 +508,12 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
       throw lerr('api.connect_bypass_rls');
     }
     if (bypass) lwarn('api.admin_connection');
-    let token = opts.token ?? null;
-    const apiKey = opts.apiKey ?? opts.service;
-    if (!token && apiKey) {
-      const [r] = await sql.unsafe(`select ${S}.login_apikey($1) as t`, [apiKey]).catch((e: unknown) => {
-        throw fromDbError(e);
-      });
-      token = r.t as string;
-    }
-    // ревизия движка: библиотека новее схемы — накат отстал (этап 6, п. 10)
+    // ревизия движка — до первого вызова функций схемы (вход по ключу): схема letopis 1.x — отказ (план 2.0, 7.10 №5)
     const [rv] = await sql`select obj_description(n.oid, 'pg_namespace') as c from pg_namespace n where n.nspname = ${opts.schema}`;
-    const rev = Number(/ddl_revision=(\d+)/.exec(String(rv?.c ?? ''))?.[1] ?? 0);
     if (!rv) throw lerr('api.connect_no_schema', { schema: opts.schema });
+    const rev = Number(/ddl_revision=(\d+)/.exec(String(rv.c ?? ''))?.[1] ?? 0);
+    refuse1x(opts.schema, rev);
+    // библиотека новее схемы 2.x — накат отстал (этап 6, п. 10)
     if (rev < DDL_REVISION) lwarn('api.schema_older', { schema: opts.schema, rev, want: DDL_REVISION });
     // схему обновил более новый пакет (во время раскатки старые экземпляры ещё работают): подключаемся, но предупреждаем —
     // этот пакет может не знать функций и колонок новой ревизии; up() такую схему не трогает и отказывает
@@ -529,9 +523,16 @@ export async function connect(opts: ConnectOptions): Promise<Db> {
       const drift = await stampDrift(opts.schema, String(rv.c ?? ''));
       if (drift) console.warn(drift);
     }
-    // режим сигналов установки (план 1.1, §2.2); схема, накатанная до него (нет signal_mode()), — class
-    const [sm] = await sql.unsafe(`select ${S}.signal_mode() as m`).catch((e: { code?: string }) => {
-      if (e.code === '42883') return [{ m: 'class' }];
+    let token = opts.token ?? null;
+    const apiKey = opts.apiKey ?? opts.service;
+    if (!token && apiKey) {
+      const [r] = await sql.unsafe(`select ${S}.login_apikey($1) as t`, [apiKey]).catch((e: unknown) => {
+        throw fromDbError(e);
+      });
+      token = r.t as string;
+    }
+    // режим сигналов установки (план 1.1, §2.2)
+    const [sm] = await sql.unsafe(`select ${S}.signal_mode() as m`).catch((e: unknown) => {
       throw fromDbError(e);
     });
     const mode: SignalMode = SIGNAL_MODES.includes(sm?.m as SignalMode) ? (sm.m as SignalMode) : 'class';

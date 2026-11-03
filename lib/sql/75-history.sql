@@ -91,10 +91,6 @@ begin atomic
   where a_class is distinct from b_class;
 end;
 
--- до ревью №1 точки А помощники принимали строку журнала целиком; приложению она теперь недоступна (changed)
-drop function if exists @SCHEMA@.version_changes(@SCHEMA@.log, @SCHEMA@.log);
-drop function if exists @SCHEMA@.version_leaves(@SCHEMA@.log);
-
 -- Пути изменения для колонки log.changed (ревизия 6): пути row_changes, у элемента множества — с самим
 -- элементом в конце (['links', роль, id], ['tags', тег]). Пишут триггер правки и log_version.
 create or replace function @SCHEMA@.change_paths(a_data jsonb, a_links jsonb, a_tags text[], a_owner uuid, a_class text,

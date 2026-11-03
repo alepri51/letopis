@@ -850,10 +850,6 @@ begin
     execute format('revoke all on function @SCHEMA@.%s from public', f);
   end loop;
 end $$;
--- до этапа 5 выпуск сессии сервисом принимал два аргумента; ранние сигнатуры OTP этапа 5
-drop function if exists @SCHEMA@.issue_session(uuid, interval);
-drop function if exists @SCHEMA@.auth_issue_otp(uuid, text, text, interval, int);
-drop function if exists @SCHEMA@.login_otp(text, text, text, int);
 grant execute on function
   @SCHEMA@.issue_session(uuid, interval, text[]), @SCHEMA@.auth_password_get(text, text),
   @SCHEMA@.auth_set_password(uuid, text, text, text, boolean, boolean), @SCHEMA@.auth_issue_apikey(uuid, text, interval),

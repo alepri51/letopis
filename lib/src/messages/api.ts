@@ -235,7 +235,8 @@ export const api = {
     ru: 'connect: схемы {schema} нет — установите её: up({ schema })',
     hint: 'установить схему up({ schema }) или исправить имя в connect({ schema })',
   },
-  // index.ts: ревизия движка схемы старше библиотеки — предупреждение (lwarn); want — DDL_REVISION
+  // index.ts: ревизия движка схемы 2.x старше библиотеки — предупреждение (lwarn); want — DDL_REVISION. Схема 1.x — отказ
+  // boot.schema_1x (refuse1x в up.ts)
   'api.schema_older': {
     code: 'invalid_data',
     ru: "движок схемы {schema} ревизии {rev}, библиотека ждёт {want} — обновите: up({ schema: '{schema}', upgrade: true })",

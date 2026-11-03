@@ -41,11 +41,6 @@ begin
   return v;
 end $$;
 
--- Строки вида LOCK других аккаунтов — не строки-замки: в 1.1 вид LOCK был открыт функциям кредов. При накате они
--- помечаются удалёнными; повторный накат их уже не находит.
-update @SCHEMA@.secret s set deleted_at = clock_timestamp()
-where s.kind = 'LOCK' and s.account <> '@SYSTEM@'::uuid and s.deleted_at is null;
-
 -- Строка-замок без ожидания (обслуживание и проектор — один исполнитель): true — взята до конца транзакции, false — её
 -- держит другая транзакция. Блокировка — отдельным оператором: строку, которую вставила lock_row, видит уже он.
 create or replace function @SCHEMA@.lock_try(p_name text) returns boolean
@@ -130,8 +125,6 @@ begin
     perform set_config('letopis.family_locks', held || '|' || n || '|', true);
   end if;
 end $$;
--- до итогового ревью безопасности ключ был без арендатора
-drop function if exists @SCHEMA@.family_lock(text, boolean);
 
 -- Список классов конца: строка или массив строк → отсортированный jsonb-массив.
 create or replace function @SCHEMA@.class_set(p jsonb) returns jsonb
@@ -197,9 +190,7 @@ end $$;
 -- нет повторов, соблюдены min и max; uuid — в каноническом виде строчными. К таблицам не обращается:
 -- цели проверяет targets_bad() — триггером после оператора, одним запросом на все строки.
 -- Ошибку не бросает: возвращает ключ каталога сообщений и параметры отказа (план 2.0, этап 3, п. 3; вызывающий бросает
--- ошибку по ним). До плана 2.0 отказ возвращался кодом и текстом: тип ответа другой, а create or replace его не
--- меняет — поэтому drop (функцию зовут только функции plpgsql, зависимостей в каталоге у неё нет).
-drop function if exists @SCHEMA@.links_shape(jsonb, jsonb);
+-- ошибку по ним).
 create or replace function @SCHEMA@.links_shape(p_res jsonb, p_links jsonb, out links jsonb, out key text, out params jsonb)
 language plpgsql immutable
 as $$
@@ -341,14 +332,11 @@ begin
   limit 1;
   return bad;
 end $$;
--- до этапа 5 цели не сверялись с правами актора
-drop function if exists @SCHEMA@.targets_bad(jsonb, boolean);
 
 -- Разбор концов и проверка целей одной строки — для функций владельца (reclass, проверка строк
 -- семейства), которые пишут мимо триггеров. При p_lock цели блокируются for key share; p_acl — как
 -- у targets_bad (цели видны актору). Отказ — ключ каталога и параметры, как у links_shape (вызывающий бросает
--- ошибку по ним); до плана 2.0 — код и текст: тип ответа другой, поэтому drop.
-drop function if exists @SCHEMA@.check_links(jsonb, jsonb, uuid, boolean, jsonb);
+-- ошибку по ним).
 create or replace function @SCHEMA@.check_links(p_res jsonb, p_links jsonb, p_tenant uuid, p_lock boolean, p_acl jsonb,
   out links jsonb, out key text, out params jsonb)
 language plpgsql volatile
@@ -370,7 +358,6 @@ begin
     key := 'sql-write.end_target_missing'; params := jsonb_build_object('end', bad);
   end if;
 end $$;
-drop function if exists @SCHEMA@.check_links(jsonb, jsonb, uuid, boolean);
 
 -- id класса с ключом — v5 от арендатора, класса и значений ключа (§2.3); у класса без ключа — null.
 create or replace function @SCHEMA@.key_id(p_res jsonb, p_class text, p_tenant uuid, p_data jsonb, p_links jsonb) returns uuid
@@ -393,8 +380,6 @@ return coalesce((@SCHEMA@.class_row(p_class, p_tenant)).data->'resolved'->>'hist
 -- 96 бит HMAC-SHA256 от «назначение:значение» на ключе сигналов (HMAC ключа строки KEY по
 -- 'letopis:signals', его отдаёт signal_key()): без ключа псевдоним не сопоставить с именем, а
 -- нагрузка детерминирована — PostgreSQL склеивает одинаковые сигналы транзакции.
--- до плана 1.1 сигнал принимал только имена классов
-drop function if exists @SCHEMA@.signal(text[]);
 
 create or replace function @SCHEMA@.signal_token(p_purpose text, p_value text, p_key bytea) returns text
 language sql immutable parallel safe
@@ -1753,9 +1738,7 @@ create or replace trigger entity_bi before insert on @SCHEMA@.entity
   for each row when (current_user <> '@OWNER_NAME@') execute function @SCHEMA@.trg_entity_bi();
 create or replace trigger entity_bu before update on @SCHEMA@.entity
   for each row when (current_user <> '@OWNER_NAME@') execute function @SCHEMA@.trg_entity_bu();
--- до ревизии 2 журнал писал строковый триггер entity_ai после insert или update
-drop trigger if exists entity_ai on @SCHEMA@.entity;
-create trigger entity_ai after insert on @SCHEMA@.entity referencing new table as added
+create or replace trigger entity_ai after insert on @SCHEMA@.entity referencing new table as added
   for each statement when (current_user <> '@OWNER_NAME@') execute function @SCHEMA@.trg_entity_ai();
 create or replace trigger entity_au after update on @SCHEMA@.entity referencing old table as old_rows new table as new_rows
   for each statement when (current_user <> '@OWNER_NAME@') execute function @SCHEMA@.trg_entity_au();
@@ -1797,7 +1780,6 @@ return (
 -- Агрегаты (план 1.1, §2.4): перенос — несколько операторов (новая строка, перевод ссылок, удаление старой), и
 -- триггер агрегатов на это время только копит их вклады (agg_hold_begin), а в конце применяет одним итогом: сумма
 -- не проходит через промежуточные значения, новая цель считается целиком из живых источников.
-drop function if exists @SCHEMA@.move_row(@SCHEMA@.entity, uuid, text, jsonb, jsonb, text);
 create or replace function @SCHEMA@.move_row(o @SCHEMA@.entity, p_new_id uuid, p_class text, p_data jsonb, p_links jsonb, p_op text,
   p_plan jsonb default null)
 returns @SCHEMA@.entity
@@ -2113,7 +2095,5 @@ begin
   end loop;
 end $$;
 -- сырой SQL пишет теми же merge, inc и links_patch, что и библиотека; verify() — в 90-time.sql
--- до этапа 6 verify() был без параметров
-drop function if exists @SCHEMA@.verify();
 grant execute on function @SCHEMA@.merge(jsonb, jsonb), @SCHEMA@.inc(jsonb, text[], numeric, numeric), @SCHEMA@.links_patch(jsonb, jsonb),
   @SCHEMA@.reserved_names(), @SCHEMA@.reclass(uuid, text, jsonb), @SCHEMA@.delete_preview(uuid[]) to @APP@;

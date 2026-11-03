@@ -479,9 +479,7 @@ return (p_tenant = c_tenant and (p_class = 'Class' or @SCHEMA@.acl_row_ok(c_plan
     or (p_class = 'Account' and p_id = c_account)
     or (p_class = 'member' and p_links->>'User' = c_account::text);
 
--- до этапа 5 видимость не зависела от прав
-drop function if exists @SCHEMA@.row_visible(uuid, text, uuid, uuid, uuid);
-
+-- Политики: create policy не знает or replace — повторный накат пересоздаёт их (drop policy if exists и create policy).
 drop policy if exists entity_select on @SCHEMA@.entity;
 create policy entity_select on @SCHEMA@.entity for select to @APP@
   using (
@@ -519,9 +517,6 @@ create policy log_select on @SCHEMA@.log for select to @APP@
     or (class = 'Account' and id = (select @SCHEMA@.ctx_account()))
     or (class = 'member' and links->>'User' = (select @SCHEMA@.ctx_account())::text)
   );
-
--- ранняя редакция этапа 5: проверка строки по одной карте плана в политиках
-drop function if exists @SCHEMA@.acl_ok(jsonb, text, uuid, uuid, uuid, text[], jsonb, jsonb);
 
 do $$
 declare f text;

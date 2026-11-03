@@ -147,8 +147,8 @@ begin
   foreach op in array array['READ', 'WRITE', 'DELETE'] loop
     perform @SCHEMA@.sys_rule(sys, g_admin, @SCHEMA@.sys_resource(sys, 'all:' || op, op, null), 'allow', 100);
   end loop;
-  -- строки-замки (60-write.sql: lock_row) семейств всех классов, в том числе классов арендаторов, заведённых до 1.2, и
-  -- обслуживания — заранее: первое обращение под нагрузкой их не вставляет
+  -- строки-замки (60-write.sql: lock_row) семейств всех классов — системных, из сидов (sys_create их не заводит) и
+  -- арендаторов — и обслуживания — заранее: первое обращение под нагрузкой их не вставляет
   perform @SCHEMA@.family_rows(c.tenant, c.data) from @SCHEMA@.entity c where c.class = 'Class';
   perform @SCHEMA@.lock_row('@SCHEMA_NAME@:maintain');
 end $$;

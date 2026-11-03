@@ -21,7 +21,7 @@ synced: f20b1cf
 - `purge` и `trimHistory` ждут проектор источника (`projector_pending`): брошенный проектор держит их, пока у арендатора есть его производные классы.
 
 **Что ещё менять вместе**
-- Новая функция в `88-derived.sql` → список `do $$` в конце её раздела (владелец, `revoke … from public`; иначе `roles` «права по каталогу»); `security definer` (сейчас только `trg_entity_total_*`) — ещё негативный тест `roles` №4; смена сигнатуры — `drop function if exists` прежней (образец `derived_clear(text)`), иначе `upgrade` найдёт лишнюю перегрузку.
+- Новая функция в `88-derived.sql` → список `do $$` в конце её раздела (владелец, `revoke … from public`; иначе `roles` «права по каталогу»); `security definer` (сейчас только `trg_entity_total_*`) — ещё негативный тест `roles` №4; смена сигнатуры — `drop function if exists` прежней, иначе повторный накат оставит лишнюю перегрузку (M-ENGINE).
 - Смысл или сигнатура `agg_*` → grep `agg_` по `lib/sql` и `lib/src`: крючки в `40-class.sql`, `60-write.sql`, `90-time.sql`, `95-seed.system.sql`, `load.ts`. Запись итога новой цели или `agg_hold_*` → `move_row` (`acc`), `restore`, `sys_update`, `sys_create`, загрузчик.
 - Правило объёма агрегата (классы System и арендатора) → grep `'@SYSTEM@'::uuid` по `88-derived.sql`, `class_admit` и `trg_entity_ad` (`60-write.sql`); тесты `aggregate` («ревью коммита этапа 4б», «7.5 №20»), атака №57.
 - Новая проверка источника → вызовы в `trg_entity_ai`, `trg_entity_au`, `class_evolve` (образец `46114ef`).
@@ -36,7 +36,7 @@ synced: f20b1cf
 - `watch_read(…, p_leaving = true)` (`90-time.sql`) — только у проектора: уход строки из `from` сменой класса без смены id становится изменением `delete` с `$deleted`, вход — `before` = null (ревью №3, №4); подписке уход отдаёт `watch_leaving`.
 
 **Проверка**
-- `cd lib && npx tsx --test --test-force-exit test/<имя>.test.ts`: `aggregate`, `projector`, `engine-attacks` (№33–34, 36, 38–39, 44–45, 50, 52–53, 55, 57), `roles` (№4, №7), `sync`, `initial-load`, `upgrade`.
+- `cd lib && npx tsx --test --test-force-exit test/<имя>.test.ts`: `aggregate`, `projector`, `engine-attacks` (№33–34, 36, 38–39, 44–45, 50, 52–53, 55, 57), `roles` (№4, №7), `sync`, `initial-load`.
 - Сигналы: `status()` (`state`, `lag`, `failed`, `rebuildingTenants`), отчёт `run()` (`skipped`, `locked`), `verify({ data: true })` — расхождения агрегатов. Замеры — `cd lib && npx tsx bench/derived.bench.mjs` (`BENCH_SCALE=0.1`).
 
 **Точки входа**

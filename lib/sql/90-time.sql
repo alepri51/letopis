@@ -292,9 +292,6 @@ return exists (select 1 from @SCHEMA@.secret s
                                and (v.tx, v.seq) > (split_part(k.head, ':', 1)::xid8, split_part(k.head, ':', 2)::bigint)
                                and not coalesce(pg_visible_in_snapshot(v.tx, k.snap::pg_snapshot), false)));
 
--- до 1.4 проверялась одна позиция: надгробие у purge, самая поздняя по (tx, seq) версия у стыка обрезки
-drop function if exists @SCHEMA@.projector_behind(uuid, text[], xid8, bigint);
-
 -- Стирание истории удалённого объекта (этап 6, п. 3): без p_confirm — превью (число версий), с ним —
 -- все версии удаляются, а на место версии 1 встаёт запись purge с числом стёртых версий и хэшем
 -- последней. Право DELETE на класс по последнему снимку. История системных классов — аудит прав и
@@ -709,12 +706,6 @@ begin
   return jsonb_build_object('account', p_account, 'rows', n_rows, 'versions', n_log, 'memberships', n_mem, 'owned', n_own);
 end $$;
 
--- ========================= сброс =========================
-
--- Сброс снят в 2.0.0 (план 2.0, редакция 2): накат на схему прежней версии убирает его функции.
-drop function if exists @SCHEMA@.reset(text, text, uuid, int);
-drop function if exists @SCHEMA@.reset_mark(uuid, text, uuid);
-
 -- ========================= обслуживание =========================
 
 -- Одна пачка прореживания журнала (§2.11): версии, которые не нужны действующей политике хранения
@@ -754,7 +745,7 @@ begin
   -- политика, граница по ярусу all и арендаторы со своим одноимённым классом (у класса System) — один раз на класс,
   -- materialized: на строку журнала ни подзапроса, ни разбора data строки Class. Коррелированный not exists по entity в
   -- условии соединения при выборке ANALYZE без строк Class (их единицы на сотни тысяч) уводил план в полный проход
-  -- журнала с хэш-соединением — maintain в ~6 раз медленнее в части прогонов (разбор замера vs-101, 02.11.2026).
+  -- журнала с хэш-соединением — maintain в ~6 раз медленнее в части прогонов (разбор замера против 1.0.1, 02.11.2026).
   -- Курсор — диапазоном по индексу и в общем плане: >= coalesce и is distinct from — то же, что cur is null or l.id > cur
   with pol as materialized (
     select x.data->>'name' as cls, x.tenant as ct, p_now - @SCHEMA@.history_iv(h.p->>'all') as edge,
@@ -847,8 +838,7 @@ end $$;
 -- прореживания, только от администраторской роли (admin_role; тесты): иначе одним вызовом можно было бы проредить всю
 -- историю, а роль владельца и так может стирать журнал. p_cleanup —
 -- удалять ли истёкшие сессии, коды и строки-замки: библиотека передаёт true только в первой пачке вызова, иначе каждая
--- из ≤100 пачек заново просматривала бы secret (план 2.0, 7.3 №4); прежний вызов без третьего аргумента чистит, как раньше.
-drop function if exists @SCHEMA@.maintain(timestamptz, int);
+-- из ≤100 пачек заново просматривала бы secret (план 2.0, 7.3 №4); вызов без третьего аргумента чистит в каждой пачке.
 create or replace function @SCHEMA@.maintain(p_now timestamptz default null, p_limit int default 10000,
   p_cleanup boolean default true) returns jsonb
 language plpgsql volatile security definer
@@ -1096,7 +1086,7 @@ begin
       -- хэш каждой версии журнала — заново из её содержимого той же функцией, что у колонки hash (ревью): владелец,
       -- подменивший тело version_hash или snapshot, переписавший строки и вернувший тело, оставляет хэши, которых нынешняя
       -- функция не даёт, а стыки и головы цепочек прежние — ни цепочки, ни якорь подмену не видят. Формула (10-core.sql) с
-      -- 1.0.0 не менялась: версии, записанные прежними выпусками, пересчёт не выдаёт (тест upgrade)
+      -- 1.0.0 не менялась: версии, записанные прежними выпусками, пересчёт не выдаёт
       select jsonb_build_object('id', l.id, 'rev', l.rev, 'key', 'sql-time.verify_hash_recomputed', 'params', '{}'::jsonb)
         from @SCHEMA@.log l
         where l.hash is distinct from @SCHEMA@.version_hash(l.prev_hash,
@@ -1224,16 +1214,12 @@ end $$;
 
 -- Точка подписки «с этого момента»: курсор — горизонт завершённых транзакций, снимок — чтобы не
 -- отдавать транзакции, зафиксированные до подписки, но ещё не ушедшие за горизонт.
-drop function if exists @SCHEMA@.watch_head();
 create or replace function @SCHEMA@.watch_head(out tx xid8, out seq bigint, out snap pg_snapshot)
 language sql stable
 set search_path = pg_catalog, @SCHEMA@, pg_temp
 as $$
   select pg_snapshot_xmin(s), 0::bigint, s from pg_current_snapshot() s
 $$;
--- до исправления подписки «now»: без снимка; до ревью безопасности №3 — без p_leaving
-drop function if exists @SCHEMA@.watch_read(xid8, bigint, timestamptz, text[], int);
-drop function if exists @SCHEMA@.watch_read(xid8, bigint, timestamptz, text[], int, pg_snapshot);
 
 do $$
 declare f text;

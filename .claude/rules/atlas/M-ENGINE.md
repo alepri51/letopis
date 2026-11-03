@@ -25,7 +25,8 @@ synced: f20b1cf
 - Сигнал — только через `signal()` или `signal_raw()`; `pg_notify` напрямую не зовут ни функции, ни загрузчик.
 
 **Что ещё менять вместе**
-- Колонка или ограничение существующей таблицы (`create table if not exists` их не добавит) → миграция в `lib/sql/migrate/` (номер файла — новая ревизия), `ddl_revision` в `99-revision.sql`, `DDL_REVISION` в `lib/src/types.ts` (сверяет `check-docs`), тест `upgrade`. Индексы и функции догоняет повторный накат.
+- Колонка или ограничение существующей таблицы (`create table if not exists` их не добавит) → миграция в `lib/sql/migrate/` (номер файла — новая ревизия, правило — README каталога), `ddl_revision` в `99-revision.sql`, `DDL_REVISION` в `lib/src/types.ts` (сверяет `check-docs`), тест наката с прошлого выпуска 2.x (M-TESTS; тест `upgrade` со схемами 1.x снят в 2.0.0 — схему 1.x 2.0 не обновляет). Индексы и функции догоняет повторный накат.
+- Файлы ядра описывают только нынешнюю ревизию (2.0.0 сняла исторические `drop … if exists` ревизий 1.x): `drop … if exists` — лишь там, где без него не пройдёт повторный накат той же ревизии (политики RLS в `50-acl.sql`). Смена сигнатуры функции → `drop function if exists` прежней в том же файле, иначе повторный накат оставит лишнюю перегрузку (свежая установка её не покажет — только накат на схему прежнего выпуска, M-TESTS).
 - Колонка снимка версии → `snapshot()`, обе таблицы и все вставки в журнал: триггеры, `log_version`, `88-derived.sql`, `90-time.sql`, `95-seed.system.sql`, `lib/src/load.ts`. Колонка журнала → грант на `log` по колонкам и тест «права по каталогу» (`roles`).
 - Проверки смены класса — в `trg_entity_bu` (без ключа) и в `reclass`; уровни каскада — в `trg_entity_ad` и `delete_preview` (общее правило `ref_action`).
 - Новый код ошибки → `error_catalog()`, таблица в `lib/sql/README.md`, `cd lib && npm run api:contract`.
@@ -40,7 +41,7 @@ synced: f20b1cf
 - Строки-замки: семейств заводят заранее `class_admit` (`family_rows`) и `seed_system`; `lock_try` берут `maintain` (`90-time.sql`) и проектор (`lib/src/project.ts`). Строки семейств, чей корень удалён, убирает `maintain()` по имени (`family_name`: схема, арендатор корня, имя корня) — формат имени менять вместе с разбором в `maintain`; пропавшую строку `lock_row` и `family_lock` заводят заново (план 2.0, 7.7 №8).
 
 **Проверка**
-- `cd lib && npx tsx --test --test-force-exit test/<имя>.test.ts`: `engine-attacks` (атаки №…), `engine-races`, `engine-write`, `engine-class`, `write-races`, `security-final`, `hash`, `roles`, `upgrade`, `aggregate`, `projector`, `messages` (ключ и параметры в DETAIL, текст сырого SQL).
+- `cd lib && npx tsx --test --test-force-exit test/<имя>.test.ts`: `engine-attacks` (атаки №…), `engine-races`, `engine-write`, `engine-class`, `write-races`, `security-final`, `hash`, `roles`, `up` (ревизия и отказ схеме 1.x), `aggregate`, `projector`, `messages` (ключ и параметры в DETAIL, текст сырого SQL).
 
 **Точки входа**
 - `lib/sql/60-write.sql:trg_entity_bi` — вставка, сверка надгробия класса

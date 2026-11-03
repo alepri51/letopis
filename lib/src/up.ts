@@ -6,9 +6,9 @@
  * неё только на время явного `set role`. Повторный накат ничего не меняет.
  *
  * up() — оркестратор без Docker: ждёт базу (удалённую — до таймаута), создаёт её, проверяет версию
- * PostgreSQL (18+) и кодировку UTF8, ставит схему (fresh — заново), обновляет отставшую (upgrade:
+ * PostgreSQL (18+) и кодировку UTF8, ставит схему (fresh — заново), обновляет отставшую ревизию 2.x (upgrade:
  * миграции lib/sql/migrate/ и повторный накат), кладёт сиды, выдаёт или регистрирует сервисный ключ и
- * выполняет ANALYZE только для таблиц без статистики.
+ * выполняет ANALYZE только для таблиц без статистики. Схему letopis 1.x не трогает: 2.0 ставится только заново.
  */
 import { readFile, readdir } from 'node:fs/promises';
 import { createRequire } from 'node:module';
@@ -26,6 +26,22 @@ import { SIGNAL_MODES, type SignalMode } from './signals.js';
 
 export const SYSTEM_ID = '2eba6d0a-1edd-4bb6-a85a-a703dab49035';
 export const SCHEMA_VERSION = 'v2';
+
+/**
+ * Первая ревизия движка 2.0 (план 2.0, редакция 2): схема ниже неё — letopis 1.x или схема без штампа ревизии. Её
+ * `up()` не обновляет, а `connect()` к ней не подключается: 2.0 ставится только заново (`up({ fresh: true })`), данные
+ * 1.x не переносятся. Накат миграций `up({ upgrade })` — в пределах 2.x, от этой ревизии до `DDL_REVISION`.
+ */
+export const FIRST_REVISION = 8;
+
+/**
+ * Отказ на схеме letopis 1.x (план 2.0, 7.10 №5): ревизия из комментария схемы ниже `FIRST_REVISION` — 7 и ниже у 1.x,
+ * 0 — штампа ревизии нет. `up()` зовёт её до любых изменений (до общей части `install()`), `connect()` — до входа по
+ * ключу: функции схемы 1.x не вызываются.
+ */
+export function refuse1x(schema: string, rev: number): void {
+  if (rev < FIRST_REVISION) throw lerr('boot.schema_1x', { schema, rev, first: FIRST_REVISION });
+}
 
 export interface InstallOptions {
   /** Полное имя схемы с версией, например `v2.salon`. */
@@ -164,10 +180,10 @@ export async function stampDrift(schema: string, comment: string): Promise<strin
   const code = await engineStamp().catch(() => null); // файлов ядра рядом со сборкой нет — сверять не с чем
   if (!code || /\bsql=([0-9a-f]+)/.exec(comment)?.[1] === code.sql) return null;
   const was = /\bengine=(\S+)/.exec(comment)?.[1];
-  // схему обновила версия новее пакета — или функции поставила версия до 1.4.0 (штампа нет), другая сборка той же версии,
-  // другая версия
+  // схему обновила версия новее пакета — или в штампе нет версии (его правили руками: штамп ревизии 2.x up() пишет
+  // всегда с версией), другая сборка той же версии, другая версия
   const key: MsgKey = was && compareVersions(was, code.version) > 0 ? 'boot.stamp_newer'
-    : !was ? 'boot.stamp_before_140' : was === code.version ? 'boot.stamp_other_build' : 'boot.stamp_other_version';
+    : !was ? 'boot.stamp_unknown' : was === code.version ? 'boot.stamp_other_build' : 'boot.stamp_other_version';
   return 'letopis: ' + lmsg(key, { schema, version: code.version, ...(was ? { was } : {}) });
 }
 
@@ -382,7 +398,10 @@ export interface UpOptions extends Omit<InstallOptions, 'schema' | 'upTo' | 'mig
   schema: string;
   /** Удалить схему и поставить заново. ДАННЫЕ СХЕМЫ ТЕРЯЮТСЯ. */
   fresh?: boolean;
-  /** Обновить схему отставшей ревизии: миграции и повторный накат; данные сохраняются. */
+  /**
+   * Обновить схему отставшей ревизии 2.x: миграции и повторный накат; данные сохраняются. Схему letopis 1.x (ревизия 7
+   * и ниже) не обновляет: 2.0 ставится только заново (`fresh`).
+   */
   upgrade?: boolean;
   /** Без сообщений в консоль. */
   quiet?: boolean;
@@ -504,7 +523,7 @@ export function checkServer(versionNum: number, encoding: string): string[] {
   return warnings;
 }
 
-/** Ревизия движка схемы по комментарию 'letopis ddl_revision=N'; схемы нет — null. */
+/** Ревизия движка схемы по комментарию 'letopis ddl_revision=N'; схемы нет — null, штампа ревизии нет — 0. */
 export async function schemaRevision(sql: Pick<postgres.Sql, 'unsafe'>, schema: string): Promise<number | null> {
   const [r] = await sql.unsafe(`select obj_description(n.oid, 'pg_namespace') as c from pg_namespace n where n.nspname = $1`, [schema]);
   if (!r) return null;
@@ -514,7 +533,9 @@ export async function schemaRevision(sql: Pick<postgres.Sql, 'unsafe'>, schema: 
 /**
  * Ставит или обновляет установку letopis в схеме. Если схема уже есть и её ревизия та же, что у пакета, `up()` выполняет
  * повторный накат: заново ставит функции, не трогая данные, — поэтому его можно вызывать при каждом запуске приложения.
- * Схему отставшей ревизии `up()` обновляет только с `upgrade: true`, а на схеме новее пакета отказывает.
+ * Схему отставшей ревизии 2.x `up()` обновляет только с `upgrade: true`, а на схеме новее пакета отказывает. Схему
+ * letopis 1.x (ревизия 7 и ниже или без штампа ревизии) не трогает и отказывает (`invalid_data`): 2.0 ставится только
+ * заново — `up({ fresh: true })`, данные 1.x не переносятся.
  */
 export async function up(opts: UpOptions): Promise<UpResult> {
   checkOptions('up', opts, UP_OPTIONS);
@@ -556,6 +577,9 @@ export async function up(opts: UpOptions): Promise<UpResult> {
     if (before !== null && before > DDL_REVISION) {
       throw new Error(`letopis.up: ${lmsg('boot.schema_newer', { schema, rev: before, known: DDL_REVISION })}`);
     }
+    // схема letopis 1.x — отказ до любых изменений, с upgrade тоже: 2.0 ставится только заново (план 2.0, 7.10 №5)
+    if (before !== null) refuse1x(schema, before);
+    // отставшая ревизия 2.x — только с upgrade (миграции lib/sql/migrate/)
     if (before !== null && before < DDL_REVISION && !opts.upgrade) {
       throw new Error(`letopis.up: ${lmsg('boot.schema_older', { schema, rev: before, want: DDL_REVISION })}`);
     }

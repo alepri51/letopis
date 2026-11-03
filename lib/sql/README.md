@@ -70,4 +70,8 @@
 
 ## Порядок файлов
 
-`10-core` → `15-errors` → `20-context` → `30-validate` → `40-class` → `50-acl` → `60-write` → `70-read` → `75-history` → `80-auth` → `88-derived` → `90-time` → `95-seed.system` → `99-revision`. Миграции между ревизиями — `migrate/NNNN-*.sql` (номер — ревизия, к которой ведёт), их применяет `up({ upgrade: true })` до повторного наката.
+`10-core` → `15-errors` → `20-context` → `30-validate` → `40-class` → `50-acl` → `60-write` → `70-read` → `75-history` → `80-auth` → `88-derived` → `90-time` → `95-seed.system` → `99-revision`. Миграции между ревизиями 2.x — `migrate/NNNN-*.sql` (номер — ревизия, к которой ведёт; правило — `migrate/README.md`), их применяет `up({ upgrade: true })` до повторного наката. У 2.0 (ревизия 8) миграций нет: схему letopis 1.x 2.0 не обновляет, а ставит заново (`up({ fresh: true })`).
+
+Файлы описывают только нынешнюю ревизию: `drop … if exists` в них — лишь там, где без него не пройдёт повторный накат
+той же ревизии (политики RLS в `50-acl.sql`: у `create policy` нет `or replace`). Смена сигнатуры функции в пределах
+ревизии — `drop function if exists` прежней в том же файле, иначе повторный накат оставит лишнюю перегрузку.

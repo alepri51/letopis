@@ -99,10 +99,6 @@
     "@modelcontextprotocol/client": "^2.4.0",
     "@modelcontextprotocol/server": "^2.4.0",
     "@types/node": "^22.20.5",
-    "letopis-1": "npm:letopis@1.0.1",
-    "letopis-11": "npm:letopis@1.1.0",
-    "letopis-141": "npm:letopis@1.4.1",
-    "letopis-142": "npm:letopis@1.4.2",
     "tsx": "^4.23.15",
     "typescript": "~5.9.3",
     "zod": "4.6.5"

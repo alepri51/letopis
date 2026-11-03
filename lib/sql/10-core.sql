@@ -94,10 +94,8 @@ create table if not exists @SCHEMA@.log (
   constraint log_id_rev unique (id, rev)
 );
 -- срез журнала по классу (asOf, withDeleted) — по арендатору (доработки после точки Б): цена запроса не растёт с
--- журналом других арендаторов с тем же именем класса. Прежний log_class_at (class, at) снимается при накате; на
--- большой установке новый индекс можно построить заранее — create index concurrently log_class_tenant_at …
+-- журналом других арендаторов с тем же именем класса
 create index if not exists log_class_tenant_at on @SCHEMA@.log (class, tenant, at);
-drop index if exists @SCHEMA@.log_class_at;
 create index if not exists log_tx_seq on @SCHEMA@.log (tx, seq);
 -- versions({ follow: true }): переход по связи старого и нового id при reclass и rekey (этап 6)
 create index if not exists log_moved on @SCHEMA@.log (moved) where moved is not null;
@@ -108,8 +106,8 @@ create index if not exists log_ends on @SCHEMA@.log using gin (@SCHEMA@.link_ids
 alter table @SCHEMA@.log set (autovacuum_vacuum_scale_factor = 0.02, autovacuum_analyze_scale_factor = 0.02);
 
 -- account — строка entity (аккаунт; у служебных строк KEY, LOCK, PROJECTOR — System): удалённый аккаунт уносит свои строки
--- каскадом внешнего ключа — сессии, хэши паролей и ключей, секреты TOTP, внешние учётные записи (ревизия 7; в схему
--- прежней ревизии ключ добавляет миграция 0007). Строка Account у System не удаляется (trg_entity_bd_account, 60-write.sql)
+-- каскадом внешнего ключа — сессии, хэши паролей и ключей, секреты TOTP, внешние учётные записи (ревизия 7). Строка
+-- Account у System не удаляется (trg_entity_bd_account, 60-write.sql)
 create table if not exists @SCHEMA@.secret (
   id          uuid primary key default gen_random_uuid(),
   account     uuid not null constraint secret_account_fkey references @SCHEMA@.entity (id) on delete cascade,
