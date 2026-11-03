@@ -687,17 +687,47 @@ set search_path = pg_catalog, @SCHEMA@, pg_temp
 as $$
 declare
   acc uuid;
+  knd text;
+  live boolean;
 begin
   perform @SCHEMA@.acl_require('auth.credential');
-  select s.account into acc from @SCHEMA@.secret s where s.id = p_id and s.kind not in ('SESSION', 'KEY', 'LOCK') and s.deleted_at is null;
+  -- строка креда — под блокировкой, как при отзыве (auth_revoke_credential): вход по этому ключу, начатый раньше,
+  -- отключение дожидается и гасит его сессию ниже; начатый позже — ждёт и видит enabled = false (3.0.0, ревизия 11)
+  select s.account, s.kind,
+         (s.expires_at is null or s.expires_at > clock_timestamp()) and coalesce((s.meta->>'enabled')::boolean, true)
+  into acc, knd, live
+  from @SCHEMA@.secret s where s.id = p_id and s.kind not in ('SESSION', 'KEY', 'LOCK') and s.deleted_at is null
+  for update;
   if acc is null then
     return false;
   end if;
   perform @SCHEMA@.auth_guard(acc);
+  if p_enabled is false and live and knd in ('APIKEY', 'KEYSECRET') and @SCHEMA@.auth_is_service(acc) then
+    -- последний действующий ключ сервиса не отключается, как и не отзывается
+    perform 1 from @SCHEMA@.secret s
+    where s.account = acc and s.kind in ('APIKEY', 'KEYSECRET') and s.deleted_at is null
+    for update;
+    if not exists (select 1 from @SCHEMA@.secret s
+                   where s.account = acc and s.kind in ('APIKEY', 'KEYSECRET') and s.deleted_at is null and s.id <> p_id
+                     and (s.expires_at is null or s.expires_at > clock_timestamp()) and coalesce((s.meta->>'enabled')::boolean, true)) then
+      perform @SCHEMA@.lt_fail('sql-access.last_service_key');
+    end if;
+  end if;
   update @SCHEMA@.secret s
      set meta = s.meta || jsonb_strip_nulls(jsonb_build_object('confirmed', p_confirmed, 'enabled', p_enabled))
    where s.id = p_id;
-  return found;
+  if not found then
+    return false;
+  end if;
+  -- отключённый кред не должен оставлять действующих сессий: ключ — свои (auth_kill_cred), прочие — сессии аккаунта
+  if p_enabled is false then
+    if knd in ('APIKEY', 'KEYSECRET') then
+      perform @SCHEMA@.auth_kill_cred(acc, p_id, knd, null);
+    else
+      perform @SCHEMA@.auth_kill(acc, null);
+    end if;
+  end if;
+  return true;
 end $$;
 
 -- Продление текущей сессии (библиотека — не чаще раза в минуту, §2.9). Новый срок — от сейчас.
