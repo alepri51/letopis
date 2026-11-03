@@ -11,11 +11,11 @@
       "password": "Ромашка-2026!"
     },
     "up": {
-      "serviceKey": "lts_ca06a1d6b85ceb763573a3a85bbb2bdbcc97ed662d4b662ac1b40d835c99a57c",
+      "serviceKey": "lts_151677c8ea2987e0ae62048ded596f73bde3742bdb53b2d24e149b7cd9acf7fd",
       "tenant": {
         "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
         "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "709ed2b20fe8573f04bef8d4a81c7e79b49a9269eb25d9f667098357c2b1a93c",
+        "token": "5d21de93df859dc58ee9a98018627bd81122a51f88c47af7aa820b1ddc59470a",
         "created": true
       }
     }
@@ -46,9 +46,9 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "5f4cb36e-9e58-5f9c-927b-976eb44ce90c",
+          "agent": "27f69f84-e26f-50b5-91ef-102c72541d96",
           "reason": null,
-          "at": "2026-11-03 17:49:06.315551+00"
+          "at": "2026-11-03 19:06:29.371891+00"
         }
       ],
       "removed": [],
@@ -81,9 +81,9 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "5f4cb36e-9e58-5f9c-927b-976eb44ce90c",
+          "agent": "27f69f84-e26f-50b5-91ef-102c72541d96",
           "reason": null,
-          "at": "2026-11-03 17:49:06.315551+00"
+          "at": "2026-11-03 19:06:29.371891+00"
         }
       ],
       "removed": [],
@@ -119,9 +119,9 @@
           "tags": [],
           "op": "update",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "5f4cb36e-9e58-5f9c-927b-976eb44ce90c",
+          "agent": "27f69f84-e26f-50b5-91ef-102c72541d96",
           "reason": "debit op-2",
-          "at": "2026-11-03 17:49:06.478705+00"
+          "at": "2026-11-03 19:06:29.502519+00"
         },
         {
           "id": "ac2302d5-fd59-5902-9ad9-cb6bf0469925",
@@ -140,9 +140,9 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "5f4cb36e-9e58-5f9c-927b-976eb44ce90c",
+          "agent": "27f69f84-e26f-50b5-91ef-102c72541d96",
           "reason": "debit op-2",
-          "at": "2026-11-03 17:49:06.4635+00"
+          "at": "2026-11-03 19:06:29.49017+00"
         }
       ],
       "removed": [],
@@ -177,7 +177,7 @@
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
           "agent": null,
           "reason": "debit op-3",
-          "at": "2026-11-03 17:49:06.56596+00"
+          "at": "2026-11-03 19:06:29.577607+00"
         },
         {
           "id": "ac2302d5-fd59-5902-9ad9-cb6bf0469925",
@@ -196,9 +196,9 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "5f4cb36e-9e58-5f9c-927b-976eb44ce90c",
+          "agent": "27f69f84-e26f-50b5-91ef-102c72541d96",
           "reason": "debit op-2",
-          "at": "2026-11-03 17:49:06.4635+00"
+          "at": "2026-11-03 19:06:29.49017+00"
         },
         {
           "id": "94f2bba0-5025-5e78-b0eb-3f85375bc289",
@@ -219,7 +219,7 @@
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
           "agent": null,
           "reason": "debit op-3",
-          "at": "2026-11-03 17:49:06.539665+00"
+          "at": "2026-11-03 19:06:29.555641+00"
         }
       ],
       "removed": [],
@@ -257,7 +257,7 @@
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
           "agent": null,
           "reason": "debit op-3",
-          "at": "2026-11-03 17:49:06.56596+00"
+          "at": "2026-11-03 19:06:29.577607+00"
         },
         {
           "id": "ac2302d5-fd59-5902-9ad9-cb6bf0469925",
@@ -276,9 +276,9 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "5f4cb36e-9e58-5f9c-927b-976eb44ce90c",
+          "agent": "27f69f84-e26f-50b5-91ef-102c72541d96",
           "reason": "debit op-2",
-          "at": "2026-11-03 17:49:06.4635+00"
+          "at": "2026-11-03 19:06:29.49017+00"
         },
         {
           "id": "94f2bba0-5025-5e78-b0eb-3f85375bc289",
@@ -299,7 +299,7 @@
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
           "agent": null,
           "reason": "debit op-3",
-          "at": "2026-11-03 17:49:06.539665+00"
+          "at": "2026-11-03 19:06:29.555641+00"
         }
       ],
       "removed": [],

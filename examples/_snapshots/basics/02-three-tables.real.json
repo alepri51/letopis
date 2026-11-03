@@ -11,11 +11,11 @@
       "password": "Ромашка-2026!"
     },
     "up": {
-      "serviceKey": "lts_987ae818c5748da93a02d446729d012fb81386e57abc0a24f3788bc8ff09d249",
+      "serviceKey": "lts_a3cf9cbe53cb4f27bc40e32254d381ea58e95a0412e7a04029e07450b3088b36",
       "tenant": {
         "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
         "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "666045be37cabddba21d3946923680ba31913a1a9698ba14ea8b557f94fece9a",
+        "token": "52bfa3b15d94bfb7f5920f5cfebfd875d0af26ff957c74e42ac71e9efe631c53",
         "created": true
       }
     }
@@ -115,7 +115,7 @@
         "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
         "agent": null,
         "reason": null,
-        "at": "2026-11-03 17:48:15.75194+00"
+        "at": "2026-11-03 19:05:28.303669+00"
       },
       {
         "id": "ddf164b8-cc60-5500-a377-c4fd4b7a6817",
@@ -268,7 +268,7 @@
         "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
         "agent": null,
         "reason": null,
-        "at": "2026-11-03 17:48:15.762279+00"
+        "at": "2026-11-03 19:05:28.32276+00"
       },
       {
         "id": "4e09c113-fbc8-5cc0-8795-27e521aece0a",
@@ -406,7 +406,7 @@
         "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
         "agent": null,
         "reason": null,
-        "at": "2026-11-03 17:48:15.766249+00"
+        "at": "2026-11-03 19:05:28.335579+00"
       },
       {
         "id": "73bf3192-9d1c-55cd-a85c-ddecce5bedb8",
@@ -676,7 +676,7 @@
         "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
         "agent": null,
         "reason": null,
-        "at": "2026-11-03 17:48:15.771548+00"
+        "at": "2026-11-03 19:05:28.340282+00"
       },
       {
         "id": "f8ea2a20-5167-5daa-be31-f27111d0adcb",
@@ -898,7 +898,7 @@
         "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
         "agent": null,
         "reason": null,
-        "at": "2026-11-03 17:48:15.777692+00"
+        "at": "2026-11-03 19:05:28.344153+00"
       }
     ],
     "log": [],
@@ -1023,7 +1023,7 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-03 17:48:15.75194+00"
+          "at": "2026-11-03 19:05:28.303669+00"
         },
         {
           "id": "ddf164b8-cc60-5500-a377-c4fd4b7a6817",
@@ -1176,7 +1176,7 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-03 17:48:15.762279+00"
+          "at": "2026-11-03 19:05:28.32276+00"
         },
         {
           "id": "4e09c113-fbc8-5cc0-8795-27e521aece0a",
@@ -1314,7 +1314,7 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-03 17:48:15.766249+00"
+          "at": "2026-11-03 19:05:28.335579+00"
         },
         {
           "id": "73bf3192-9d1c-55cd-a85c-ddecce5bedb8",
@@ -1584,7 +1584,7 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-03 17:48:15.771548+00"
+          "at": "2026-11-03 19:05:28.340282+00"
         },
         {
           "id": "f8ea2a20-5167-5daa-be31-f27111d0adcb",
@@ -1806,7 +1806,7 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-03 17:48:15.777692+00"
+          "at": "2026-11-03 19:05:28.344153+00"
         }
       ],
       "removed": [],
@@ -1817,7 +1817,7 @@
     {
       "result": {
         "account": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "785489410bb75206ec1295cd6a6fe21703880f0f4c045c451d9c1f56d4071925"
+        "token": "909df15d72a12d1d96a3176f5a6d495b15e4428f4a2a601846a4ef351c5692ae"
       },
       "error": null,
       "entity": [
@@ -1914,7 +1914,7 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-03 17:48:15.75194+00"
+          "at": "2026-11-03 19:05:28.303669+00"
         },
         {
           "id": "ddf164b8-cc60-5500-a377-c4fd4b7a6817",
@@ -2067,7 +2067,7 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-03 17:48:15.762279+00"
+          "at": "2026-11-03 19:05:28.32276+00"
         },
         {
           "id": "4e09c113-fbc8-5cc0-8795-27e521aece0a",
@@ -2205,7 +2205,7 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-03 17:48:15.766249+00"
+          "at": "2026-11-03 19:05:28.335579+00"
         },
         {
           "id": "73bf3192-9d1c-55cd-a85c-ddecce5bedb8",
@@ -2475,7 +2475,7 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-03 17:48:15.771548+00"
+          "at": "2026-11-03 19:05:28.340282+00"
         },
         {
           "id": "f8ea2a20-5167-5daa-be31-f27111d0adcb",
@@ -2697,7 +2697,7 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-03 17:48:15.777692+00"
+          "at": "2026-11-03 19:05:28.344153+00"
         }
       ],
       "removed": [],
@@ -2712,12 +2712,12 @@
             "methods": [
               "PASSWORD"
             ],
-            "service": "9d0d375f-ebce-5732-8fc9-cf3c4ae0bc02",
-            "login_at": "2026-11-03T17:48:16.317141+00:00"
+            "service": "784acaa6-f3c2-500f-901d-0ae288402eab",
+            "login_at": "2026-11-03T19:05:29.246081+00:00"
           },
-          "material": "36a2b0b38098694fb2aa45fb586aa3d1d7002c47ec86549960e01ef80dc16941",
-          "expires_at": "2026-11-10 17:48:16.317154+00",
-          "created_at": "2026-11-03 17:48:16.317156+00",
+          "material": "24b56e128b6b3d39ab5c3a9e6d2d917bfaf054032cf0c1f291ba30b7c53b9186",
+          "expires_at": "2026-11-10 19:05:29.246087+00",
+          "created_at": "2026-11-03 19:05:29.246088+00",
           "deleted_at": null
         }
       ],
@@ -2820,7 +2820,7 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-03 17:48:15.75194+00"
+          "at": "2026-11-03 19:05:28.303669+00"
         },
         {
           "id": "ddf164b8-cc60-5500-a377-c4fd4b7a6817",
@@ -2973,7 +2973,7 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-03 17:48:15.762279+00"
+          "at": "2026-11-03 19:05:28.32276+00"
         },
         {
           "id": "4e09c113-fbc8-5cc0-8795-27e521aece0a",
@@ -3111,7 +3111,7 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-03 17:48:15.766249+00"
+          "at": "2026-11-03 19:05:28.335579+00"
         },
         {
           "id": "73bf3192-9d1c-55cd-a85c-ddecce5bedb8",
@@ -3381,7 +3381,7 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-03 17:48:15.771548+00"
+          "at": "2026-11-03 19:05:28.340282+00"
         },
         {
           "id": "f8ea2a20-5167-5daa-be31-f27111d0adcb",
@@ -3603,7 +3603,7 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-03 17:48:15.777692+00"
+          "at": "2026-11-03 19:05:28.344153+00"
         },
         {
           "id": "9cfbe0d3-3a44-596e-987b-931502c993db",
@@ -3690,9 +3690,9 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "9d0d375f-ebce-5732-8fc9-cf3c4ae0bc02",
+          "agent": "784acaa6-f3c2-500f-901d-0ae288402eab",
           "reason": null,
-          "at": "2026-11-03 17:48:16.356373+00"
+          "at": "2026-11-03 19:05:29.283224+00"
         }
       ],
       "removed": [],
@@ -3782,10 +3782,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "9d0d375f-ebce-5732-8fc9-cf3c4ae0bc02",
+          "agent": "784acaa6-f3c2-500f-901d-0ae288402eab",
           "reason": null,
-          "at": "2026-11-03 17:48:16.356373+00",
-          "tx": "3878233"
+          "at": "2026-11-03 19:05:29.283224+00",
+          "tx": "3880356"
         }
       ],
       "secret": [
@@ -3798,12 +3798,12 @@
             "methods": [
               "PASSWORD"
             ],
-            "service": "9d0d375f-ebce-5732-8fc9-cf3c4ae0bc02",
-            "login_at": "2026-11-03T17:48:16.317141+00:00"
+            "service": "784acaa6-f3c2-500f-901d-0ae288402eab",
+            "login_at": "2026-11-03T19:05:29.246081+00:00"
           },
-          "material": "36a2b0b38098694fb2aa45fb586aa3d1d7002c47ec86549960e01ef80dc16941",
-          "expires_at": "2026-11-10 17:48:16.317154+00",
-          "created_at": "2026-11-03 17:48:16.317156+00",
+          "material": "24b56e128b6b3d39ab5c3a9e6d2d917bfaf054032cf0c1f291ba30b7c53b9186",
+          "expires_at": "2026-11-10 19:05:29.246087+00",
+          "created_at": "2026-11-03 19:05:29.246088+00",
           "deleted_at": null
         }
       ],
@@ -3814,8 +3814,8 @@
     {
       "result": [
         {
-          "at": "2026-11-03T17:48:16.392272+00:00",
-          "id": "16dd5bfe-dd8a-5b2b-8f2b-3178e810fb2b",
+          "at": "2026-11-03T19:05:29.317325+00:00",
+          "id": "2588b619-4ed3-579a-8f90-22dbf45acfa1",
           "op": "create",
           "rev": 1,
           "data": {
@@ -3827,7 +3827,7 @@
           "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "agent": "9d0d375f-ebce-5732-8fc9-cf3c4ae0bc02"
+          "agent": "784acaa6-f3c2-500f-901d-0ae288402eab"
         }
       ],
       "error": null,
@@ -3925,7 +3925,7 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-03 17:48:15.75194+00"
+          "at": "2026-11-03 19:05:28.303669+00"
         },
         {
           "id": "ddf164b8-cc60-5500-a377-c4fd4b7a6817",
@@ -4078,7 +4078,7 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-03 17:48:15.762279+00"
+          "at": "2026-11-03 19:05:28.32276+00"
         },
         {
           "id": "4e09c113-fbc8-5cc0-8795-27e521aece0a",
@@ -4216,7 +4216,7 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-03 17:48:15.766249+00"
+          "at": "2026-11-03 19:05:28.335579+00"
         },
         {
           "id": "73bf3192-9d1c-55cd-a85c-ddecce5bedb8",
@@ -4486,7 +4486,7 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-03 17:48:15.771548+00"
+          "at": "2026-11-03 19:05:28.340282+00"
         },
         {
           "id": "f8ea2a20-5167-5daa-be31-f27111d0adcb",
@@ -4708,7 +4708,7 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-03 17:48:15.777692+00"
+          "at": "2026-11-03 19:05:28.344153+00"
         },
         {
           "id": "9cfbe0d3-3a44-596e-987b-931502c993db",
@@ -4795,12 +4795,12 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "9d0d375f-ebce-5732-8fc9-cf3c4ae0bc02",
+          "agent": "784acaa6-f3c2-500f-901d-0ae288402eab",
           "reason": null,
-          "at": "2026-11-03 17:48:16.356373+00"
+          "at": "2026-11-03 19:05:29.283224+00"
         },
         {
-          "id": "16dd5bfe-dd8a-5b2b-8f2b-3178e810fb2b",
+          "id": "2588b619-4ed3-579a-8f90-22dbf45acfa1",
           "class": "Note",
           "rev": 1,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -4812,9 +4812,9 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "9d0d375f-ebce-5732-8fc9-cf3c4ae0bc02",
+          "agent": "784acaa6-f3c2-500f-901d-0ae288402eab",
           "reason": null,
-          "at": "2026-11-03 17:48:16.392272+00"
+          "at": "2026-11-03 19:05:29.317325+00"
         }
       ],
       "removed": [],
@@ -4904,14 +4904,14 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "9d0d375f-ebce-5732-8fc9-cf3c4ae0bc02",
+          "agent": "784acaa6-f3c2-500f-901d-0ae288402eab",
           "reason": null,
-          "at": "2026-11-03 17:48:16.356373+00",
-          "tx": "3878233"
+          "at": "2026-11-03 19:05:29.283224+00",
+          "tx": "3880356"
         },
         {
           "seq": "35",
-          "id": "16dd5bfe-dd8a-5b2b-8f2b-3178e810fb2b",
+          "id": "2588b619-4ed3-579a-8f90-22dbf45acfa1",
           "rev": 1,
           "class": "Note",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -4922,10 +4922,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "9d0d375f-ebce-5732-8fc9-cf3c4ae0bc02",
+          "agent": "784acaa6-f3c2-500f-901d-0ae288402eab",
           "reason": null,
-          "at": "2026-11-03 17:48:16.392272+00",
-          "tx": "3878237"
+          "at": "2026-11-03 19:05:29.317325+00",
+          "tx": "3880360"
         }
       ],
       "secret": [
@@ -4938,12 +4938,12 @@
             "methods": [
               "PASSWORD"
             ],
-            "service": "9d0d375f-ebce-5732-8fc9-cf3c4ae0bc02",
-            "login_at": "2026-11-03T17:48:16.317141+00:00"
+            "service": "784acaa6-f3c2-500f-901d-0ae288402eab",
+            "login_at": "2026-11-03T19:05:29.246081+00:00"
           },
-          "material": "36a2b0b38098694fb2aa45fb586aa3d1d7002c47ec86549960e01ef80dc16941",
-          "expires_at": "2026-11-10 17:48:16.317154+00",
-          "created_at": "2026-11-03 17:48:16.317156+00",
+          "material": "24b56e128b6b3d39ab5c3a9e6d2d917bfaf054032cf0c1f291ba30b7c53b9186",
+          "expires_at": "2026-11-10 19:05:29.246087+00",
+          "created_at": "2026-11-03 19:05:29.246088+00",
           "deleted_at": null
         }
       ],

@@ -11,11 +11,11 @@
       "password": "Ромашка-2026!"
     },
     "up": {
-      "serviceKey": "lts_44d1b1f6df55045f04bf870c7557acf575e624205b95ed1e241eaeaf1d2e07a2",
+      "serviceKey": "lts_e383261943390c81d6d978fe7d5e516f097c64b1502136cde90430228f8070f6",
       "tenant": {
         "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
         "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "cc08a5e73e39cac21a7ae84fffa570983e8e983a84da4f5544dcf9c368ab39e1",
+        "token": "227c7ed1aba8b53c4e2d32ee10ea518db795ff13e27839af07a15cc3c4b9c446",
         "created": true
       }
     }
@@ -29,7 +29,7 @@
     {
       "result": [
         {
-          "at": "2026-11-03T17:49:36.094828+00:00",
+          "at": "2026-11-03T19:07:03.565473+00:00",
           "id": "7086931d-8668-5648-9098-3adb44b163fc",
           "op": "create",
           "rev": 1,
@@ -46,7 +46,7 @@
           "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "agent": "1723a75b-10e8-5c19-92d9-1a505116dff3"
+          "agent": "177a2e5e-fecf-5329-8716-c3cdf39c3d76"
         }
       ],
       "error": null,
@@ -64,9 +64,9 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "1723a75b-10e8-5c19-92d9-1a505116dff3",
+          "agent": "177a2e5e-fecf-5329-8716-c3cdf39c3d76",
           "reason": null,
-          "at": "2026-11-03 17:49:36.061316+00"
+          "at": "2026-11-03 19:07:03.529964+00"
         },
         {
           "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
@@ -85,12 +85,12 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "1723a75b-10e8-5c19-92d9-1a505116dff3",
+          "agent": "177a2e5e-fecf-5329-8716-c3cdf39c3d76",
           "reason": null,
-          "at": "2026-11-03 17:49:36.068631+00"
+          "at": "2026-11-03 19:07:03.537784+00"
         },
         {
-          "id": "fead0400-e7b0-5cd4-ad43-576dc3aa785e",
+          "id": "63ff1d7d-022f-582f-986d-5c4174ff9d38",
           "class": "Customer",
           "rev": 1,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -103,9 +103,9 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "1723a75b-10e8-5c19-92d9-1a505116dff3",
+          "agent": "177a2e5e-fecf-5329-8716-c3cdf39c3d76",
           "reason": null,
-          "at": "2026-11-03 17:49:36.079868+00"
+          "at": "2026-11-03 19:07:03.550061+00"
         },
         {
           "id": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
@@ -115,7 +115,7 @@
           "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
           "links": {
             "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
-            "Customer": "fead0400-e7b0-5cd4-ad43-576dc3aa785e"
+            "Customer": "63ff1d7d-022f-582f-986d-5c4174ff9d38"
           },
           "data": {
             "number": "A-1",
@@ -124,9 +124,9 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "1723a75b-10e8-5c19-92d9-1a505116dff3",
+          "agent": "177a2e5e-fecf-5329-8716-c3cdf39c3d76",
           "reason": null,
-          "at": "2026-11-03 17:49:36.087235+00"
+          "at": "2026-11-03 19:07:03.556881+00"
         },
         {
           "id": "7086931d-8668-5648-9098-3adb44b163fc",
@@ -145,9 +145,9 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "1723a75b-10e8-5c19-92d9-1a505116dff3",
+          "agent": "177a2e5e-fecf-5329-8716-c3cdf39c3d76",
           "reason": null,
-          "at": "2026-11-03 17:49:36.094828+00"
+          "at": "2026-11-03 19:07:03.565473+00"
         }
       ],
       "removed": [],
@@ -165,10 +165,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "1723a75b-10e8-5c19-92d9-1a505116dff3",
+          "agent": "177a2e5e-fecf-5329-8716-c3cdf39c3d76",
           "reason": null,
-          "at": "2026-11-03 17:49:36.061316+00",
-          "tx": "3879970"
+          "at": "2026-11-03 19:07:03.529964+00",
+          "tx": "3882088"
         },
         {
           "seq": "42",
@@ -187,14 +187,14 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "1723a75b-10e8-5c19-92d9-1a505116dff3",
+          "agent": "177a2e5e-fecf-5329-8716-c3cdf39c3d76",
           "reason": null,
-          "at": "2026-11-03 17:49:36.068631+00",
-          "tx": "3879972"
+          "at": "2026-11-03 19:07:03.537784+00",
+          "tx": "3882090"
         },
         {
           "seq": "43",
-          "id": "fead0400-e7b0-5cd4-ad43-576dc3aa785e",
+          "id": "63ff1d7d-022f-582f-986d-5c4174ff9d38",
           "rev": 1,
           "class": "Customer",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -206,10 +206,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "1723a75b-10e8-5c19-92d9-1a505116dff3",
+          "agent": "177a2e5e-fecf-5329-8716-c3cdf39c3d76",
           "reason": null,
-          "at": "2026-11-03 17:49:36.079868+00",
-          "tx": "3879974"
+          "at": "2026-11-03 19:07:03.550061+00",
+          "tx": "3882092"
         },
         {
           "seq": "44",
@@ -219,7 +219,7 @@
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
           "links": {
             "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
-            "Customer": "fead0400-e7b0-5cd4-ad43-576dc3aa785e"
+            "Customer": "63ff1d7d-022f-582f-986d-5c4174ff9d38"
           },
           "data": {
             "number": "A-1",
@@ -228,10 +228,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "1723a75b-10e8-5c19-92d9-1a505116dff3",
+          "agent": "177a2e5e-fecf-5329-8716-c3cdf39c3d76",
           "reason": null,
-          "at": "2026-11-03 17:49:36.087235+00",
-          "tx": "3879976"
+          "at": "2026-11-03 19:07:03.556881+00",
+          "tx": "3882094"
         },
         {
           "seq": "45",
@@ -250,10 +250,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "1723a75b-10e8-5c19-92d9-1a505116dff3",
+          "agent": "177a2e5e-fecf-5329-8716-c3cdf39c3d76",
           "reason": null,
-          "at": "2026-11-03 17:49:36.094828+00",
-          "tx": "3879976"
+          "at": "2026-11-03 19:07:03.565473+00",
+          "tx": "3882094"
         }
       ],
       "secret": [],
@@ -287,9 +287,9 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "1723a75b-10e8-5c19-92d9-1a505116dff3",
+          "agent": "177a2e5e-fecf-5329-8716-c3cdf39c3d76",
           "reason": null,
-          "at": "2026-11-03 17:49:36.061316+00"
+          "at": "2026-11-03 19:07:03.529964+00"
         },
         {
           "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
@@ -308,12 +308,12 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "1723a75b-10e8-5c19-92d9-1a505116dff3",
+          "agent": "177a2e5e-fecf-5329-8716-c3cdf39c3d76",
           "reason": null,
-          "at": "2026-11-03 17:49:36.068631+00"
+          "at": "2026-11-03 19:07:03.537784+00"
         },
         {
-          "id": "fead0400-e7b0-5cd4-ad43-576dc3aa785e",
+          "id": "63ff1d7d-022f-582f-986d-5c4174ff9d38",
           "class": "Customer",
           "rev": 1,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -326,9 +326,9 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "1723a75b-10e8-5c19-92d9-1a505116dff3",
+          "agent": "177a2e5e-fecf-5329-8716-c3cdf39c3d76",
           "reason": null,
-          "at": "2026-11-03 17:49:36.079868+00"
+          "at": "2026-11-03 19:07:03.550061+00"
         },
         {
           "id": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
@@ -338,7 +338,7 @@
           "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
           "links": {
             "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
-            "Customer": "fead0400-e7b0-5cd4-ad43-576dc3aa785e"
+            "Customer": "63ff1d7d-022f-582f-986d-5c4174ff9d38"
           },
           "data": {
             "number": "A-1",
@@ -347,9 +347,9 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "1723a75b-10e8-5c19-92d9-1a505116dff3",
+          "agent": "177a2e5e-fecf-5329-8716-c3cdf39c3d76",
           "reason": null,
-          "at": "2026-11-03 17:49:36.087235+00"
+          "at": "2026-11-03 19:07:03.556881+00"
         },
         {
           "id": "7086931d-8668-5648-9098-3adb44b163fc",
@@ -368,9 +368,9 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "1723a75b-10e8-5c19-92d9-1a505116dff3",
+          "agent": "177a2e5e-fecf-5329-8716-c3cdf39c3d76",
           "reason": null,
-          "at": "2026-11-03 17:49:36.094828+00"
+          "at": "2026-11-03 19:07:03.565473+00"
         }
       ],
       "removed": [],
@@ -388,10 +388,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "1723a75b-10e8-5c19-92d9-1a505116dff3",
+          "agent": "177a2e5e-fecf-5329-8716-c3cdf39c3d76",
           "reason": null,
-          "at": "2026-11-03 17:49:36.061316+00",
-          "tx": "3879970"
+          "at": "2026-11-03 19:07:03.529964+00",
+          "tx": "3882088"
         },
         {
           "seq": "42",
@@ -410,14 +410,14 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "1723a75b-10e8-5c19-92d9-1a505116dff3",
+          "agent": "177a2e5e-fecf-5329-8716-c3cdf39c3d76",
           "reason": null,
-          "at": "2026-11-03 17:49:36.068631+00",
-          "tx": "3879972"
+          "at": "2026-11-03 19:07:03.537784+00",
+          "tx": "3882090"
         },
         {
           "seq": "43",
-          "id": "fead0400-e7b0-5cd4-ad43-576dc3aa785e",
+          "id": "63ff1d7d-022f-582f-986d-5c4174ff9d38",
           "rev": 1,
           "class": "Customer",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -429,10 +429,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "1723a75b-10e8-5c19-92d9-1a505116dff3",
+          "agent": "177a2e5e-fecf-5329-8716-c3cdf39c3d76",
           "reason": null,
-          "at": "2026-11-03 17:49:36.079868+00",
-          "tx": "3879974"
+          "at": "2026-11-03 19:07:03.550061+00",
+          "tx": "3882092"
         },
         {
           "seq": "44",
@@ -442,7 +442,7 @@
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
           "links": {
             "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
-            "Customer": "fead0400-e7b0-5cd4-ad43-576dc3aa785e"
+            "Customer": "63ff1d7d-022f-582f-986d-5c4174ff9d38"
           },
           "data": {
             "number": "A-1",
@@ -451,10 +451,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "1723a75b-10e8-5c19-92d9-1a505116dff3",
+          "agent": "177a2e5e-fecf-5329-8716-c3cdf39c3d76",
           "reason": null,
-          "at": "2026-11-03 17:49:36.087235+00",
-          "tx": "3879976"
+          "at": "2026-11-03 19:07:03.556881+00",
+          "tx": "3882094"
         },
         {
           "seq": "45",
@@ -473,10 +473,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "1723a75b-10e8-5c19-92d9-1a505116dff3",
+          "agent": "177a2e5e-fecf-5329-8716-c3cdf39c3d76",
           "reason": null,
-          "at": "2026-11-03 17:49:36.094828+00",
-          "tx": "3879976"
+          "at": "2026-11-03 19:07:03.565473+00",
+          "tx": "3882094"
         }
       ],
       "secret": [],
@@ -504,9 +504,9 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "1723a75b-10e8-5c19-92d9-1a505116dff3",
+          "agent": "177a2e5e-fecf-5329-8716-c3cdf39c3d76",
           "reason": null,
-          "at": "2026-11-03 17:49:36.061316+00"
+          "at": "2026-11-03 19:07:03.529964+00"
         },
         {
           "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
@@ -525,9 +525,9 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "1723a75b-10e8-5c19-92d9-1a505116dff3",
+          "agent": "177a2e5e-fecf-5329-8716-c3cdf39c3d76",
           "reason": null,
-          "at": "2026-11-03 17:49:36.068631+00"
+          "at": "2026-11-03 19:07:03.537784+00"
         },
         {
           "id": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
@@ -537,7 +537,7 @@
           "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
           "links": {
             "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
-            "Customer": "b01ae716-eac8-586b-97af-ea301adf6320"
+            "Customer": "9a0ded26-1579-5c23-b35c-2b7a02be905c"
           },
           "data": {
             "number": "A-1",
@@ -546,9 +546,9 @@
           "tags": [],
           "op": "update",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "1723a75b-10e8-5c19-92d9-1a505116dff3",
+          "agent": "177a2e5e-fecf-5329-8716-c3cdf39c3d76",
           "reason": "Ольга стала VIP",
-          "at": "2026-11-03 17:49:36.180528+00"
+          "at": "2026-11-03 19:07:03.639793+00"
         },
         {
           "id": "7086931d-8668-5648-9098-3adb44b163fc",
@@ -567,12 +567,12 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "1723a75b-10e8-5c19-92d9-1a505116dff3",
+          "agent": "177a2e5e-fecf-5329-8716-c3cdf39c3d76",
           "reason": null,
-          "at": "2026-11-03 17:49:36.094828+00"
+          "at": "2026-11-03 19:07:03.565473+00"
         },
         {
-          "id": "b01ae716-eac8-586b-97af-ea301adf6320",
+          "id": "9a0ded26-1579-5c23-b35c-2b7a02be905c",
           "class": "Vip",
           "rev": 1,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -586,14 +586,14 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "1723a75b-10e8-5c19-92d9-1a505116dff3",
+          "agent": "177a2e5e-fecf-5329-8716-c3cdf39c3d76",
           "reason": "Ольга стала VIP",
-          "at": "2026-11-03 17:49:36.158182+00"
+          "at": "2026-11-03 19:07:03.624504+00"
         }
       ],
       "removed": [
         {
-          "id": "fead0400-e7b0-5cd4-ad43-576dc3aa785e",
+          "id": "63ff1d7d-022f-582f-986d-5c4174ff9d38",
           "class": "Customer",
           "rev": 1,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -606,9 +606,9 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "1723a75b-10e8-5c19-92d9-1a505116dff3",
+          "agent": "177a2e5e-fecf-5329-8716-c3cdf39c3d76",
           "reason": null,
-          "at": "2026-11-03 17:49:36.079868+00"
+          "at": "2026-11-03 19:07:03.550061+00"
         }
       ],
       "log": [
@@ -625,10 +625,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "1723a75b-10e8-5c19-92d9-1a505116dff3",
+          "agent": "177a2e5e-fecf-5329-8716-c3cdf39c3d76",
           "reason": null,
-          "at": "2026-11-03 17:49:36.061316+00",
-          "tx": "3879970"
+          "at": "2026-11-03 19:07:03.529964+00",
+          "tx": "3882088"
         },
         {
           "seq": "42",
@@ -647,14 +647,14 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "1723a75b-10e8-5c19-92d9-1a505116dff3",
+          "agent": "177a2e5e-fecf-5329-8716-c3cdf39c3d76",
           "reason": null,
-          "at": "2026-11-03 17:49:36.068631+00",
-          "tx": "3879972"
+          "at": "2026-11-03 19:07:03.537784+00",
+          "tx": "3882090"
         },
         {
           "seq": "43",
-          "id": "fead0400-e7b0-5cd4-ad43-576dc3aa785e",
+          "id": "63ff1d7d-022f-582f-986d-5c4174ff9d38",
           "rev": 1,
           "class": "Customer",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -666,10 +666,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "1723a75b-10e8-5c19-92d9-1a505116dff3",
+          "agent": "177a2e5e-fecf-5329-8716-c3cdf39c3d76",
           "reason": null,
-          "at": "2026-11-03 17:49:36.079868+00",
-          "tx": "3879974"
+          "at": "2026-11-03 19:07:03.550061+00",
+          "tx": "3882092"
         },
         {
           "seq": "44",
@@ -679,7 +679,7 @@
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
           "links": {
             "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
-            "Customer": "fead0400-e7b0-5cd4-ad43-576dc3aa785e"
+            "Customer": "63ff1d7d-022f-582f-986d-5c4174ff9d38"
           },
           "data": {
             "number": "A-1",
@@ -688,10 +688,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "1723a75b-10e8-5c19-92d9-1a505116dff3",
+          "agent": "177a2e5e-fecf-5329-8716-c3cdf39c3d76",
           "reason": null,
-          "at": "2026-11-03 17:49:36.087235+00",
-          "tx": "3879976"
+          "at": "2026-11-03 19:07:03.556881+00",
+          "tx": "3882094"
         },
         {
           "seq": "45",
@@ -710,14 +710,14 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "1723a75b-10e8-5c19-92d9-1a505116dff3",
+          "agent": "177a2e5e-fecf-5329-8716-c3cdf39c3d76",
           "reason": null,
-          "at": "2026-11-03 17:49:36.094828+00",
-          "tx": "3879976"
+          "at": "2026-11-03 19:07:03.565473+00",
+          "tx": "3882094"
         },
         {
           "seq": "46",
-          "id": "b01ae716-eac8-586b-97af-ea301adf6320",
+          "id": "9a0ded26-1579-5c23-b35c-2b7a02be905c",
           "rev": 1,
           "class": "Vip",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -730,10 +730,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "1723a75b-10e8-5c19-92d9-1a505116dff3",
+          "agent": "177a2e5e-fecf-5329-8716-c3cdf39c3d76",
           "reason": "Ольга стала VIP",
-          "at": "2026-11-03 17:49:36.158182+00",
-          "tx": "3879984"
+          "at": "2026-11-03 19:07:03.624504+00",
+          "tx": "3882102"
         },
         {
           "seq": "47",
@@ -743,7 +743,7 @@
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
           "links": {
             "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
-            "Customer": "b01ae716-eac8-586b-97af-ea301adf6320"
+            "Customer": "9a0ded26-1579-5c23-b35c-2b7a02be905c"
           },
           "data": {
             "number": "A-1",
@@ -752,14 +752,14 @@
           "tags": [],
           "op": "update",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "1723a75b-10e8-5c19-92d9-1a505116dff3",
+          "agent": "177a2e5e-fecf-5329-8716-c3cdf39c3d76",
           "reason": "Ольга стала VIP",
-          "at": "2026-11-03 17:49:36.180528+00",
-          "tx": "3879984"
+          "at": "2026-11-03 19:07:03.639793+00",
+          "tx": "3882102"
         },
         {
           "seq": "48",
-          "id": "fead0400-e7b0-5cd4-ad43-576dc3aa785e",
+          "id": "63ff1d7d-022f-582f-986d-5c4174ff9d38",
           "rev": 2,
           "class": "Customer",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -771,10 +771,10 @@
           "tags": [],
           "op": "delete",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "1723a75b-10e8-5c19-92d9-1a505116dff3",
+          "agent": "177a2e5e-fecf-5329-8716-c3cdf39c3d76",
           "reason": "Ольга стала VIP",
-          "at": "2026-11-03 17:49:36.218792+00",
-          "tx": "3879984"
+          "at": "2026-11-03 19:07:03.675684+00",
+          "tx": "3882102"
         }
       ],
       "secret": [],
@@ -809,9 +809,9 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "1723a75b-10e8-5c19-92d9-1a505116dff3",
+          "agent": "177a2e5e-fecf-5329-8716-c3cdf39c3d76",
           "reason": null,
-          "at": "2026-11-03 17:49:36.061316+00"
+          "at": "2026-11-03 19:07:03.529964+00"
         },
         {
           "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
@@ -830,9 +830,9 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "1723a75b-10e8-5c19-92d9-1a505116dff3",
+          "agent": "177a2e5e-fecf-5329-8716-c3cdf39c3d76",
           "reason": null,
-          "at": "2026-11-03 17:49:36.068631+00"
+          "at": "2026-11-03 19:07:03.537784+00"
         },
         {
           "id": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
@@ -842,7 +842,7 @@
           "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
           "links": {
             "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
-            "Customer": "b01ae716-eac8-586b-97af-ea301adf6320"
+            "Customer": "9a0ded26-1579-5c23-b35c-2b7a02be905c"
           },
           "data": {
             "number": "A-1",
@@ -851,9 +851,9 @@
           "tags": [],
           "op": "update",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "1723a75b-10e8-5c19-92d9-1a505116dff3",
+          "agent": "177a2e5e-fecf-5329-8716-c3cdf39c3d76",
           "reason": "Ольга стала VIP",
-          "at": "2026-11-03 17:49:36.180528+00"
+          "at": "2026-11-03 19:07:03.639793+00"
         },
         {
           "id": "7086931d-8668-5648-9098-3adb44b163fc",
@@ -872,12 +872,12 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "1723a75b-10e8-5c19-92d9-1a505116dff3",
+          "agent": "177a2e5e-fecf-5329-8716-c3cdf39c3d76",
           "reason": null,
-          "at": "2026-11-03 17:49:36.094828+00"
+          "at": "2026-11-03 19:07:03.565473+00"
         },
         {
-          "id": "b01ae716-eac8-586b-97af-ea301adf6320",
+          "id": "9a0ded26-1579-5c23-b35c-2b7a02be905c",
           "class": "Vip",
           "rev": 1,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -891,9 +891,9 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "1723a75b-10e8-5c19-92d9-1a505116dff3",
+          "agent": "177a2e5e-fecf-5329-8716-c3cdf39c3d76",
           "reason": "Ольга стала VIP",
-          "at": "2026-11-03 17:49:36.158182+00"
+          "at": "2026-11-03 19:07:03.624504+00"
         }
       ],
       "removed": [],
@@ -911,10 +911,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "1723a75b-10e8-5c19-92d9-1a505116dff3",
+          "agent": "177a2e5e-fecf-5329-8716-c3cdf39c3d76",
           "reason": null,
-          "at": "2026-11-03 17:49:36.061316+00",
-          "tx": "3879970"
+          "at": "2026-11-03 19:07:03.529964+00",
+          "tx": "3882088"
         },
         {
           "seq": "42",
@@ -933,14 +933,14 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "1723a75b-10e8-5c19-92d9-1a505116dff3",
+          "agent": "177a2e5e-fecf-5329-8716-c3cdf39c3d76",
           "reason": null,
-          "at": "2026-11-03 17:49:36.068631+00",
-          "tx": "3879972"
+          "at": "2026-11-03 19:07:03.537784+00",
+          "tx": "3882090"
         },
         {
           "seq": "43",
-          "id": "fead0400-e7b0-5cd4-ad43-576dc3aa785e",
+          "id": "63ff1d7d-022f-582f-986d-5c4174ff9d38",
           "rev": 1,
           "class": "Customer",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -952,10 +952,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "1723a75b-10e8-5c19-92d9-1a505116dff3",
+          "agent": "177a2e5e-fecf-5329-8716-c3cdf39c3d76",
           "reason": null,
-          "at": "2026-11-03 17:49:36.079868+00",
-          "tx": "3879974"
+          "at": "2026-11-03 19:07:03.550061+00",
+          "tx": "3882092"
         },
         {
           "seq": "44",
@@ -965,7 +965,7 @@
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
           "links": {
             "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
-            "Customer": "fead0400-e7b0-5cd4-ad43-576dc3aa785e"
+            "Customer": "63ff1d7d-022f-582f-986d-5c4174ff9d38"
           },
           "data": {
             "number": "A-1",
@@ -974,10 +974,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "1723a75b-10e8-5c19-92d9-1a505116dff3",
+          "agent": "177a2e5e-fecf-5329-8716-c3cdf39c3d76",
           "reason": null,
-          "at": "2026-11-03 17:49:36.087235+00",
-          "tx": "3879976"
+          "at": "2026-11-03 19:07:03.556881+00",
+          "tx": "3882094"
         },
         {
           "seq": "45",
@@ -996,14 +996,14 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "1723a75b-10e8-5c19-92d9-1a505116dff3",
+          "agent": "177a2e5e-fecf-5329-8716-c3cdf39c3d76",
           "reason": null,
-          "at": "2026-11-03 17:49:36.094828+00",
-          "tx": "3879976"
+          "at": "2026-11-03 19:07:03.565473+00",
+          "tx": "3882094"
         },
         {
           "seq": "46",
-          "id": "b01ae716-eac8-586b-97af-ea301adf6320",
+          "id": "9a0ded26-1579-5c23-b35c-2b7a02be905c",
           "rev": 1,
           "class": "Vip",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -1016,10 +1016,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "1723a75b-10e8-5c19-92d9-1a505116dff3",
+          "agent": "177a2e5e-fecf-5329-8716-c3cdf39c3d76",
           "reason": "Ольга стала VIP",
-          "at": "2026-11-03 17:49:36.158182+00",
-          "tx": "3879984"
+          "at": "2026-11-03 19:07:03.624504+00",
+          "tx": "3882102"
         },
         {
           "seq": "47",
@@ -1029,7 +1029,7 @@
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
           "links": {
             "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
-            "Customer": "b01ae716-eac8-586b-97af-ea301adf6320"
+            "Customer": "9a0ded26-1579-5c23-b35c-2b7a02be905c"
           },
           "data": {
             "number": "A-1",
@@ -1038,14 +1038,14 @@
           "tags": [],
           "op": "update",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "1723a75b-10e8-5c19-92d9-1a505116dff3",
+          "agent": "177a2e5e-fecf-5329-8716-c3cdf39c3d76",
           "reason": "Ольга стала VIP",
-          "at": "2026-11-03 17:49:36.180528+00",
-          "tx": "3879984"
+          "at": "2026-11-03 19:07:03.639793+00",
+          "tx": "3882102"
         },
         {
           "seq": "48",
-          "id": "fead0400-e7b0-5cd4-ad43-576dc3aa785e",
+          "id": "63ff1d7d-022f-582f-986d-5c4174ff9d38",
           "rev": 2,
           "class": "Customer",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -1057,10 +1057,10 @@
           "tags": [],
           "op": "delete",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "1723a75b-10e8-5c19-92d9-1a505116dff3",
+          "agent": "177a2e5e-fecf-5329-8716-c3cdf39c3d76",
           "reason": "Ольга стала VIP",
-          "at": "2026-11-03 17:49:36.218792+00",
-          "tx": "3879984"
+          "at": "2026-11-03 19:07:03.675684+00",
+          "tx": "3882102"
         }
       ],
       "secret": [],

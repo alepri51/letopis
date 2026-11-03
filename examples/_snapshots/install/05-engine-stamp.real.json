@@ -11,11 +11,11 @@
       "password": "Ромашка-2026!"
     },
     "up": {
-      "serviceKey": "lts_c0e5dce7a35fdde62fb76aa3acdbf7c8dd2cee28fac86d5da4b9c6787fcad672",
+      "serviceKey": "lts_1452493c2569dd68e6b448b8aa47937166ed5993df6ed57fe794d3b26906bf9a",
       "tenant": {
         "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
         "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "6ac1c1cd5fe494f74d37f042320832bb5f871465e2ee1968da171177460e7870",
+        "token": "3fb6d74af4be4c02d0f1bd70070144c2f2889643cb1cc0d32b055b04fbc60438",
         "created": true
       }
     }
@@ -27,7 +27,7 @@
   },
   "steps": [
     {
-      "result": "letopis ddl_revision=10 engine=3.0.0 sql=48624e67ed3e02f5",
+      "result": "letopis ddl_revision=11 engine=3.0.0 sql=77bbd56005c80169",
       "error": null,
       "entity": [],
       "removed": [],
@@ -58,9 +58,9 @@
     {
       "result": {
         "connect() предупредил": [
-          "letopis: движок схемы v2.g_install_05_engine_stamp ревизии 11 новее библиотеки (она знает 10) — обновите пакет letopis"
+          "letopis: движок схемы v2.g_install_05_engine_stamp ревизии 12 новее библиотеки (она знает 11) — обновите пакет letopis"
         ],
-        "up() отказал": "letopis.up: схема v2.g_install_05_engine_stamp ревизии 11, а библиотека знает только 10 — обновите пакет"
+        "up() отказал": "letopis.up: схема v2.g_install_05_engine_stamp ревизии 12, а библиотека знает только 11 — обновите пакет"
       },
       "error": null,
       "entity": [],

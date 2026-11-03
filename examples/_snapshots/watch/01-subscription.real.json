@@ -11,11 +11,11 @@
       "password": "Ромашка-2026!"
     },
     "up": {
-      "serviceKey": "lts_e7b56a40489be19db0f2effadc47f4751c526434edb188abf565b72a5afd7f28",
+      "serviceKey": "lts_1587f813bbdd3bb6e2a86c37d1db9e02efd2654a3d238ca67a6f580a33533a65",
       "tenant": {
         "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
         "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "bdcae8d39bbb10ba4b458fff0379800bb981a488d510db160ab28fa9c4a45ee8",
+        "token": "7152fcf5e1a30de6ea7f75b7bd8222f5198f4b921baef5a76a6a0dcfbda6ef16",
         "created": true
       }
     }
@@ -62,7 +62,7 @@
     {
       "result": [
         {
-          "at": "2026-11-03T17:49:28.712685+00:00",
+          "at": "2026-11-03T19:06:54.734203+00:00",
           "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
           "op": "update",
           "rev": 2,
@@ -79,7 +79,7 @@
           "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "agent": "0e23af2c-b765-5a6a-b418-b42cf4f291d4"
+          "agent": "76ea99e5-502d-565e-b4a2-e3268120cafb"
         }
       ],
       "error": null,

@@ -992,7 +992,7 @@ const LOG_EVENTS: readonly string[]
 ### DDL_REVISION {#export-ddl-revision}
 
 ```ts
-const DDL_REVISION = 10
+const DDL_REVISION = 11
 ```
 
 Ревизия схемы, которую знает эта версия пакета, — номер версии SQL-части letopis (таблиц и функций в схеме установки). После `up()` у схемы та же ревизия (`r.revision`); схему отставшей ревизии 2.x `up()` обновляет только с `upgrade: true`, а `connect()` о ней предупреждает.

@@ -150,7 +150,7 @@
           "key": null
         },
         {
-          "level": "error",
+          "level": "warn",
           "event": "error",
           "op": "rows",
           "rows": null,

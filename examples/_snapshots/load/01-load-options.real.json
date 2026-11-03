@@ -11,11 +11,11 @@
       "password": "Ромашка-2026!"
     },
     "up": {
-      "serviceKey": "lts_bebc127de9af544f0c9feb06aef6e9413d8500efd85a2f392d16a44db8efad2b",
+      "serviceKey": "lts_2a2d6398f53c6fff1605daf2e5fc2478068ef72882d79cca25b4eedaea6bdbc0",
       "tenant": {
         "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
         "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "e5b3a8adcc8eedf8dce00c000be6e9cc8367ac7c0068367deded973ea88b359d",
+        "token": "df4074f8072c86de90baeda1f8274272523411390a1c1f3e1e3a4c10899d5cb0",
         "created": true
       }
     }
@@ -52,7 +52,7 @@
         },
         "external": 0,
         "portions": 1,
-        "ms": 237.77070000000094
+        "ms": 215.50759999999718
       },
       "error": null,
       "entity": [],
@@ -101,7 +101,7 @@
         "byClass": {},
         "external": 1,
         "portions": 1,
-        "ms": 31.33060000000114
+        "ms": 18.329200000000128
       },
       "error": null,
       "entity": [],
@@ -151,7 +151,7 @@
         },
         "external": 0,
         "portions": 2,
-        "ms": 474.77500000000146
+        "ms": 467.5124999999971
       },
       "error": null,
       "entity": [],
@@ -175,7 +175,7 @@
           },
           "external": 0,
           "portions": 1,
-          "ms": 228.6198000000004
+          "ms": 226.67020000000048
         },
         "автор": "3defbabb-a94d-5359-8463-dc947de193e1"
       },

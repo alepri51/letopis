@@ -56,7 +56,7 @@
     {
       "result": {
         "upgraded": false,
-        "revision": 10,
+        "revision": 11,
         "migrations": []
       },
       "error": null,
@@ -85,7 +85,7 @@
         "reinstalled": 2,
         "tenantCreated": 1,
         "revisions": [
-          10
+          11
         ]
       },
       "error": null,
