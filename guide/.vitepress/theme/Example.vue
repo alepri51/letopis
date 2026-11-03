@@ -1,10 +1,10 @@
 <script setup lang="ts">
 /**
  * Пошаговый плеер исполняемого примера.
- * Данные — снимок прогона на настоящей базе (`snapshots/<id>.json`, пишет `npm run examples`):
+ * Данные — снимок прогона на настоящей базе (`examples/_snapshots/<id>.json`, пишет `cd examples && npm run snapshots`):
  * код шага, его результат или ошибка и таблицы entity, log, secret после шага с подсветкой изменений.
  * В снимке вместо uuid, времени и токенов — метки; настоящие значения того же прогона лежат рядом
- * (`snapshots/<id>.real.json`) и показываются на вкладке «Реальная таблица». Файла может не быть — тогда вкладки нет.
+ * (`examples/_snapshots/<id>.real.json`) и показываются на вкладке «Реальная таблица». Файла может не быть — тогда вкладки нет.
  */
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
 import Sandbox from './Sandbox.vue';
@@ -60,10 +60,10 @@ interface Real {
 // sandbox — открыть редактор песочницы сразу (страница «Песочница»)
 const props = defineProps<{ id: string; sandbox?: boolean }>();
 // снимки с метками; *.real.json грузятся отдельно, иначе каждый попал бы и в этот список
-const files = import.meta.glob<{ default: Snapshot }>(['../../snapshots/**/*.json', '!../../snapshots/**/*.real.json']);
-const realFiles = import.meta.glob<{ default: Real }>('../../snapshots/**/*.real.json');
+const files = import.meta.glob<{ default: Snapshot }>(['../../../examples/_snapshots/**/*.json', '!../../../examples/_snapshots/**/*.real.json']);
+const realFiles = import.meta.glob<{ default: Real }>('../../../examples/_snapshots/**/*.real.json');
 // самостоятельный вариант примера — без каркаса сайта (собирает .vitepress/standalone.ts при сборке)
-const standaloneFiles = import.meta.glob<string>('../../examples/**/*.ts', { query: '?standalone', import: 'default' });
+const standaloneFiles = import.meta.glob<string>(['../../../examples/*/*.ts', '!../../../examples/_*/**'], { query: '?standalone', import: 'default' });
 const snap = shallowRef<Snapshot | null>(null);
 // настоящие значения показанного снимка (null — их нет: старый снимок или песочница их не прислала)
 const real = shallowRef<Real | null>(null);
@@ -98,7 +98,7 @@ const fits = (s: Snapshot, r: Real | null | undefined): Real | null =>
 // раскрытым самостоятельным скриптом уже в HTML страницы, а пошаговый плеер — по кнопке (byButton).
 const root = ref<HTMLElement | null>(null);
 const anchorId = `ex-${props.id.replace(/[^a-z0-9]+/gi, '-')}`;
-const realKey = `../../snapshots/${props.id}.real.json`;
+const realKey = `../../../examples/_snapshots/${props.id}.real.json`;
 const hasReal = !!realFiles[realKey];
 let watcher: IntersectionObserver | null = null;
 let started = false;
@@ -109,7 +109,7 @@ async function loadSnap() {
   if (started) return;
   started = true;
   watcher?.disconnect();
-  const s = await files[`../../snapshots/${props.id}.json`]().then((m) => m.default);
+  const s = await files[`../../../examples/_snapshots/${props.id}.json`]().then((m) => m.default);
   // «Весь код примера» из превью (его вставляет preview.ts при сборке): текст уже на странице, а если читатель открыл
   // блок, пока грузился снимок, — он остаётся открытым и в плеере
   const pre = root.value?.querySelector('.lt-ex-pre-source');
@@ -137,7 +137,7 @@ watch(tab, (t) => { if (t === 'real') void loadRecordedReal(); });
 
 onMounted(() => {
   narrow.value = window.matchMedia('(max-width: 640px)').matches;
-  if (!files[`../../snapshots/${props.id}.json`]) {
+  if (!files[`../../../examples/_snapshots/${props.id}.json`]) {
     missing.value = true;
     return;
   }
@@ -160,7 +160,7 @@ onBeforeUnmount(() => watcher?.disconnect());
 
 watch(showSource, async (v) => {
   if (!v || standaloneText.value !== null) return;
-  const load = standaloneFiles[`../../examples/${props.id}.ts`];
+  const load = standaloneFiles[`../../../examples/${props.id}.ts`];
   standaloneText.value = load ? await load().catch(() => '') : '';
 });
 async function copyStandalone() {

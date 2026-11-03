@@ -9,7 +9,7 @@
     "preview": "vitepress preview --host 127.0.0.1 --port 4173",
     "serve": "node server.mjs",
     "sandbox": "node -e \"process.env.SANDBOX='1'; import('./server.mjs')\"",
-    "examples": "tsx scripts/run-examples.ts",
+    "examples": "npm --prefix ../examples run snapshots --",
     "coverage": "tsx scripts/coverage.ts",
     "typecheck": "tsc --noEmit"
   },

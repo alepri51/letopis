@@ -1,0 +1,26 @@
+{
+  "name": "letopis-examples",
+  "private": true,
+  "type": "module",
+  "description": "letopis — исполняемые примеры документации: каждый файл <глава>/<NN>-<имя>.ts запускается сам; раннер пишет и сверяет снимки их вывода (_snapshots/), сайт guide/ их только читает",
+  "scripts": {
+    "snapshots": "tsx run.ts",
+    "check": "tsx run.ts --check",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "^0.5.8",
+    "@electric-sql/pglite-socket": "^0.2.11",
+    "@modelcontextprotocol/client": "^2.4.0",
+    "@modelcontextprotocol/server": "^2.4.0",
+    "letopis": "file:../lib",
+    "postgres": "^3.4.9",
+    "shiki": "^2.5.0",
+    "tsx": "^4.23.15",
+    "typescript": "~5.9.3",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6"
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "types": [
+      "node"
+    ],
+    "baseUrl": ".",
+    "paths": {
+      "letopis": [
+        "../lib/src/index.ts"
+      ],
+      "letopis/model": [
+        "../lib/src/model.ts"
+      ],
+      "letopis/mcp": [
+        "../lib/src/mcp.ts"
+      ]
+    }
+  },
+  "include": [
+    "*.ts",
+    "*/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "_snapshots",
+    ".sandbox-*"
+  ]
+}

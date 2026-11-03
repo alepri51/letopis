@@ -7,8 +7,9 @@
  *   cd guide && npx tsx scripts/gen-nuances.ts        (--check — только сверить, код 1 при расхождении)
  */
 import { readFile, readdir, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import nuances, { TOPICS, type Nuance, type Topic } from '../coverage/nuances.ts';
+import { exampleFiles } from './examples.ts';
 
 const ROOT = new URL('..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
 const TITLES: Record<string, string> = {
@@ -39,16 +40,14 @@ for (const rel of (await readdir(join(ROOT, 'pages'), { recursive: true })).map(
 
 // какие примеры показывают нюанс: id примера и его заголовок
 const where = new Map<string, { id: string; dir: string; title: string }[]>();
-for (const dir of (await readdir(join(ROOT, 'examples'))).sort()) {
-  for (const f of (await readdir(join(ROOT, 'examples', dir))).sort()) {
-    if (!f.endsWith('.ts')) continue;
-    const src = await readFile(join(ROOT, 'examples', dir, f), 'utf8');
-    const id = `${dir}/${f.replace(/\.ts$/, '')}`;
-    const title = src.match(/example\(\{\s*title:\s*'((?:[^'\\]|\\.)*)'/)?.[1].replace(/\\'/g, "'") ?? id;
-    for (const m of new Set([...src.matchAll(/'nuance\.([a-z0-9-]+)'/g)].map((x) => x[1]))) {
-      if (!where.has(m)) where.set(m, []);
-      where.get(m)!.push({ id, dir, title });
-    }
+for (const file of exampleFiles()) {
+  const dir = basename(dirname(file));
+  const src = await readFile(file, 'utf8');
+  const id = `${dir}/${basename(file).replace(/\.ts$/, '')}`;
+  const title = src.match(/example\(\{\s*title:\s*'((?:[^'\\]|\\.)*)'/)?.[1].replace(/\\'/g, "'") ?? id;
+  for (const m of new Set([...src.matchAll(/'nuance\.([a-z0-9-]+)'/g)].map((x) => x[1]))) {
+    if (!where.has(m)) where.set(m, []);
+    where.get(m)!.push({ id, dir, title });
   }
 }
 const short = (s: string) => (s.length > 70 ? `${s.slice(0, 69).trimEnd()}…` : s);

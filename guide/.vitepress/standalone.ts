@@ -1,13 +1,14 @@
 /**
  * Самостоятельный вариант исполняемого примера: тот же код без каркаса сайта.
  *
- * Пример сайта (`examples/<глава>/<NN>-<имя>.ts`) написан для раннера: `example({ steps })` из `kit/example.ts`, шаги
- * получают от раннера `ctx` (db, svc, connect, dsn…), помощники лежат в `kit/`. Здесь из него собирается обычный
- * скрипт: импорты слиты, код помощников `kit/*.ts` вставлен целиком, `ctx` собран явно — `up()`, `connect()`,
- * `svc.as()`, как делает раннер (`scripts/runner.ts`), — а шаги идут подряд, каждый печатает свой результат.
- * Код шагов — ровно тот же, что в файле примера (вместе со строками `// скрыть`).
+ * Пример (`examples/<глава>/<NN>-<имя>.ts` в корне репозитория) написан для раннера: `example({ steps })` из
+ * `examples/_shared/example.ts`, шаги получают от раннера `ctx` (db, svc, connect, dsn…), помощники лежат в
+ * `examples/_shared/`. Здесь из него собирается обычный скрипт: импорты слиты, код помощников `_shared/*.ts` вставлен
+ * целиком, `ctx` собран явно — `up()`, `connect()`, `svc.as()`, как делает раннер (`examples/_runner/runner.ts`), — а
+ * шаги идут подряд, каждый печатает свой результат. Код шагов — ровно тот же, что в файле примера (вместе со строками
+ * `// скрыть`).
  *
- * Плеер (`theme/Example.vue`) получает текст через `import.meta.glob('…/examples/**\/*.ts', { query: '?standalone' })`:
+ * Плеер (`theme/Example.vue`) получает текст через `import.meta.glob('…/examples/*\/*.ts', { query: '?standalone' })`:
  * модуль с таким запросом отдаёт плагин `standalonePlugin` (подключён в `config.ts`).
  */
 import { readFileSync } from 'node:fs';
@@ -18,7 +19,7 @@ import type { Plugin } from 'vite';
 interface Named { name: string; as?: string; type: boolean }
 interface Imports { order: string[]; byModule: Map<string, { def?: string; ns?: string; named: Named[]; typeOnly: boolean }> }
 
-const KIT_EXAMPLE = 'kit/example.ts';
+const KIT_EXAMPLE = '_shared/example.ts';
 
 function addImport(acc: Imports, decl: ts.ImportDeclaration, sf: ts.SourceFile, spec: string): void {
   if (!acc.byModule.has(spec)) {
@@ -97,10 +98,13 @@ function stringOf(e: ts.Expression | undefined, sf: ts.SourceFile): string {
 
 const lf = (s: string) => s.replace(/\r\n/g, '\n');
 
-export function standalone(file: string, root: string): string {
+/** file — пример; guide — каталог guide/ (примеры — в соседнем корневом examples/). */
+export function standalone(file: string, guide: string): string {
+  // все пути — от examples/: id примера, помощники _shared/, внутренние модули репозитория (../lib/…)
+  const root = join(guide, '..', 'examples');
   const src = lf(readFileSync(file, 'utf8'));
   const sf = ts.createSourceFile(file, src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
-  const id = relative(join(root, 'examples'), file).replace(/\\/g, '/').replace(/\.ts$/, '');
+  const id = relative(root, file).replace(/\\/g, '/').replace(/\.ts$/, '');
   const imports: Imports = { order: [], byModule: new Map() };
   const kits: string[] = [];
   const prelude: string[] = [];
@@ -110,7 +114,7 @@ export function standalone(file: string, root: string): string {
     if (!spec.startsWith('.')) return null;
     const abs = resolve(dirname(base), spec);
     const rel = relative(root, abs).replace(/\\/g, '/');
-    return rel.startsWith('kit/') ? { abs, rel } : null;
+    return rel.startsWith('_shared/') ? { abs, rel } : null;
   };
 
   for (const st of sf.statements) {
@@ -133,7 +137,7 @@ export function standalone(file: string, root: string): string {
   }
   if (!def) return `// examples/${id}.ts: не найден вызов example({ … })\n`;
 
-  // помощники kit/*.ts — целиком, без export; их импорты сливаются с импортами примера
+  // помощники _shared/*.ts — целиком, без export; их импорты сливаются с импортами примера
   const kitCode: string[] = [];
   for (const abs of kits) {
     const ksrc = lf(readFileSync(abs, 'utf8'));
@@ -148,7 +152,7 @@ export function standalone(file: string, root: string): string {
       }
       body.push(statementText(st, ksrc, ksf));
     }
-    kitCode.push(`// ---------- помощник сайта kit/${relative(join(root, 'kit'), abs).replace(/\\/g, '/')} ----------\n${body.join('').trim()}`);
+    kitCode.push(`// ---------- помощник сайта _shared/${relative(join(root, '_shared'), abs).replace(/\\/g, '/')} ----------\n${body.join('').trim()}`);
   }
 
   const title = stringOf(prop(def, 'title', sf)?.initializer, sf);
@@ -266,7 +270,7 @@ export function standalone(file: string, root: string): string {
 
   const head = [
     `// «${title}» — самостоятельный вариант примера сайта (файл examples/${id}.ts).`,
-    '// Каркас сайта убран: example() и ctx раннера заменены обычным кодом, помощники kit/… вставлены целиком,',
+    '// Каркас сайта убран: example() и ctx раннера заменены обычным кодом, помощники _shared/… вставлены целиком,',
     '// шаги идут подряд и печатают результат. Запуск: npm install letopis zod postgres, затем npx tsx example.ts.',
   ];
   if (!tenant) head.push('// APP_DSN — роль приложения из группы letopis_app (пример ставит схему сам и ею подключается).');
@@ -287,7 +291,7 @@ export function standalone(file: string, root: string): string {
 }
 
 /** Vite: `examples/….ts?standalone` — модуль с самостоятельным вариантом примера строкой. */
-export function standalonePlugin(root: string): Plugin {
+export function standalonePlugin(guide: string): Plugin {
   return {
     name: 'letopis-standalone-example',
     enforce: 'pre',
@@ -295,7 +299,7 @@ export function standalonePlugin(root: string): Plugin {
       const [path, query] = id.split('?');
       if (query !== 'standalone') return null;
       this.addWatchFile(path);
-      return `export default ${JSON.stringify(standalone(path, root))};`;
+      return `export default ${JSON.stringify(standalone(path, guide))};`;
     },
   };
 }

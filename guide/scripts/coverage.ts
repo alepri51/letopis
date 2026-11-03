@@ -15,11 +15,12 @@
  * Пример объявляет, что покрывает, в `covers`. Неизвестный пункт в `covers` (опечатка) — всегда ошибка.
  * С `--strict` ошибка и непокрытый пункт (так будет к концу работы, этап 5).
  */
-import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join, dirname, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 import nuances from '../coverage/nuances.ts';
+import { EXAMPLES, exampleFiles } from './examples.ts';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const LIB = join(ROOT, '..', 'lib');
@@ -98,18 +99,11 @@ add('инструменты MCP', 'mcptool', new Set([...mcpTs.matchAll(/'(letop
 // ---------- нюансы ----------
 add('нюансы', 'nuance', nuances.map((n) => n.id));
 
-// ---------- что объявили примеры ----------
-function walk(dir: string): string[] {
-  if (!existsSync(dir)) return [];
-  return readdirSync(dir).sort().flatMap((n) => {
-    const p = join(dir, n);
-    return statSync(p).isDirectory() ? walk(p) : n.endsWith('.ts') ? [p] : [];
-  });
-}
+// ---------- что объявили примеры (examples/<глава>/*.ts) ----------
 const covered = new Map<string, string[]>(); // пункт → примеры
 const unknown: string[] = [];
-for (const file of walk(join(ROOT, 'examples'))) {
-  const id = relative(join(ROOT, 'examples'), file).split(sep).join('/').replace(/\.ts$/, '');
+for (const file of exampleFiles()) {
+  const id = relative(EXAMPLES, file).split(sep).join('/').replace(/\.ts$/, '');
   const src = readFileSync(file, 'utf8');
   const sf = ts.createSourceFile(file, src, ts.ScriptTarget.Latest, true);
   const visit = (node: ts.Node): void => {

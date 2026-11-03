@@ -4,8 +4,10 @@ import { defineConfig } from 'vitepress';
 import { withPreviews } from './preview';
 import { standalonePlugin } from './standalone';
 
-// каталог guide/: снимки примеров (превью в разметке) и исходники примеров (самостоятельный вариант)
+// каталог guide/; примеры и их снимки (превью в разметке, самостоятельный вариант) — в корневом examples/, сайт их
+// только читает
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const EXAMPLES = join(ROOT, '..', 'examples');
 
 // Сайт только на русском и только локально (решение владельца от 29.10.2026).
 export default defineConfig({
@@ -20,7 +22,8 @@ export default defineConfig({
   // песочница: dev-сервер (5173) отправляет /api на сервер сайта с включённой песочницей (`npm run sandbox`, 8080)
   // ?standalone — самостоятельный вариант примера для кнопки «Весь код примера» (.vitepress/standalone.ts)
   vite: {
-    server: { proxy: { '/api': { target: 'http://127.0.0.1:8080', changeOrigin: true } } },
+    // dev-сервер отдаёт файлы вне guide/ только из разрешённых каталогов: примеры и снимки — в ../examples
+    server: { proxy: { '/api': { target: 'http://127.0.0.1:8080', changeOrigin: true } }, fs: { allow: [ROOT, EXAMPLES] } },
     plugins: [standalonePlugin(ROOT)],
   },
   markdown: {
@@ -65,6 +68,7 @@ export default defineConfig({
           { text: '11. Подписка, кэш, сигналы', link: '/watch/' },
           { text: '12. Массовая загрузка', link: '/load/' },
           { text: '13. Эксплуатация', link: '/ops/' },
+          { text: 'Логирование', link: '/logging/' },
           { text: '14. ИИ-агенты: MCP', link: '/mcp/' },
           { text: '15. Ошибки', link: '/errors/' },
           { text: '16. Все нюансы', link: '/nuances/' },
@@ -85,6 +89,7 @@ export default defineConfig({
           { text: 'Подписка и кэш', link: '/reference/watch' },
           { text: 'Загрузка', link: '/reference/load' },
           { text: 'Установка и подключение', link: '/reference/setup' },
+          { text: 'createTenant: арендатор', link: '/reference/setup#export-createtenant' },
           { text: 'Модели: letopis/model', link: '/reference/model' },
           { text: 'Служебные экспорты', link: '/reference/utils' },
           { text: 'MCP: letopis/mcp', link: '/reference/mcp' },

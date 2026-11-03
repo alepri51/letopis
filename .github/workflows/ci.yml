@@ -59,10 +59,10 @@ jobs:
           LETOPIS_PKG_LIVE: '0'
         run: npm run check:package
 
-  # Документация для людей (guide/, только локально, решение владельца от 29.10.2026). Здесь —
-  # статические сверки: typecheck примеров, ER-схемы из реестра (нужна база — сервис postgres:18),
-  # матрица покрытия, страницы нюансов, ошибок и справочника. Примеры со снимками, песочница и сборка
-  # сайта — локально (prerelease). Идёт параллельно заданию test.
+  # Документация для людей (guide/, только локально, решение владельца от 29.10.2026) и её исполняемые примеры
+  # (examples/ в корне: сайт их только читает). Здесь — статические сверки: typecheck примеров и скриптов сайта,
+  # ER-схемы из реестра (нужна база — сервис postgres:18), матрица покрытия, страницы нюансов, ошибок и справочника.
+  # Примеры со снимками, песочница и сборка сайта — локально (prerelease). Идёт параллельно заданию test.
   guide:
     runs-on: ubuntu-latest
     services:
@@ -84,14 +84,20 @@ jobs:
           cache-dependency-path: |
             lib/package-lock.json
             guide/package-lock.json
+            examples/package-lock.json
 
-      # Примеры подключают letopis исходниками lib/src: нужны зависимости и библиотеки, и сайта.
+      # Примеры и скрипты сайта подключают letopis исходниками lib/src: нужны зависимости библиотеки, сайта и примеров.
       - name: Install
         run: |
           npm ci --prefix lib
           npm ci --prefix guide
+          npm ci --prefix examples
 
       - name: Typecheck examples
+        working-directory: examples
+        run: npm run typecheck
+
+      - name: Typecheck guide scripts
         working-directory: guide
         run: npm run typecheck
 

@@ -31,9 +31,7 @@
     }
   },
   "include": [
-    "kit",
     "scripts",
-    "examples",
     "coverage"
   ]
 }

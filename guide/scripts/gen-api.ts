@@ -10,7 +10,7 @@
  * опции (ConnectOptions, UpOptions, …), экспорты точек входа (lib/api-contract.json), команды CLI (USAGE в
  * lib/src/cli.ts), инструменты MCP (lib/src/mcp.ts). Сигнатуры и типы — TypeScript Compiler API, описания — JSDoc; чего
  * в JSDoc нет — coverage/api-docs.ts (ключ — id пункта, как в covers примеров). Ссылки на примеры — по covers примеров
- * guide/examples/**.
+ * examples/<глава>/*.ts.
  */
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, sep } from 'node:path';
@@ -18,6 +18,7 @@ import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 import docs, { type ApiDoc, type ParamDoc } from '../coverage/api-docs.ts';
 import { operatorTable } from '../../lib/src/ops.ts';
+import { EXAMPLES, exampleFiles } from './examples.ts';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const LIB = join(ROOT, '..', 'lib');
@@ -455,8 +456,8 @@ for (const file of walk(join(ROOT, 'pages'), '.md')) {
   }
 }
 const examples = new Map<string, { title: string; link: string }[]>(); // пункт covers → примеры
-for (const file of walk(join(ROOT, 'examples'), '.ts')) {
-  const exId = norm(relative(join(ROOT, 'examples'), file)).replace(/\.ts$/, '');
+for (const file of exampleFiles()) {
+  const exId = norm(relative(EXAMPLES, file)).replace(/\.ts$/, '');
   const sf = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true);
   let title = exId;
   const covers: string[] = [];
@@ -494,7 +495,7 @@ const PAGES: Page[] = [
       { title: 'Шаг', ids: ['chain.step'] },
       { title: 'Модификаторы', intro: 'Модификатор уточняет цепочку и возвращает её продолжение: сколько строк, в каком порядке, на какой момент.', ids: ['chain.limit', 'chain.offset', 'chain.sort', 'chain.after', 'chain.asOf', 'chain.withDeleted', 'chain.deep', 'chain.exact', 'chain.alias', 'chain.tags', 'chain.owner', 'chain.entity', 'chain.forUpdate', 'chain.cache'] },
       { title: 'Терминалы', intro: 'Терминал исполняет цепочку и возвращает результат. После глагола записи терминал исполняет план записи и возвращает записанные строки.', ids: ['chain.rows', 'chain.first', 'chain.ids', 'chain.count', 'chain.paths', 'chain.versions', 'chain.sum', 'chain.avg', 'chain.min', 'chain.max', 'chain.countBy'] },
-      { title: 'Глаголы записи', intro: 'Глагол ставит запись в план. Исполняет план терминал (`rows()`, `first()`, `ids()`, `count()`). `update()` и `delete({ confirm: true })` правят только цели, которые сузили фильтр, id, `tags()`, `owner()` или `limit()` хотя бы одного шага; все строки шага — явно, опцией `{ all: true }`, иначе `invalid_query` до записи.', ids: ['chain.create', 'chain.update', 'chain.upsert', 'chain.delete', 'chain.restore'] },
+      { title: 'Глаголы записи', intro: 'Глагол ставит запись в план. Исполняет план терминал (`rows()`, `first()`, `ids()`, `count()`). `update()` и `delete({ confirm: true, expect })` правят только цели, которые сузили фильтр, id, `tags()`, `owner()` или `limit()` хотя бы одного шага; все строки шага — явно, опцией `{ all: true }`, иначе `invalid_query` до записи. Подтверждённое удаление идёт только с `expect` — предпросмотром, который видел пользователь, а `restore()` — только с `expect` (надгробиями); без сверки — осознанно, `{ all: true }`.', ids: ['chain.create', 'chain.update', 'chain.upsert', 'chain.delete', 'chain.restore'] },
       { title: 'Шаги ролей', intro: 'После глагола записи шаг роли без вызова задаёт конец: `.Роль.set(…)`, `.Роль.unset()`, у множественного конца ещё `.add(…)` и `.remove(…)`.', ids: ['chain.set', 'chain.unset', 'chain.add', 'chain.remove'] },
     ],
   },

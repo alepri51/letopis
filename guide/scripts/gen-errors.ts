@@ -4,9 +4,10 @@
  *   cd guide && npx tsx scripts/gen-errors.ts        (--check — только сверить, код 1 при расхождении)
  */
 import { readFile, readdir, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { codes } from '../../lib/src/messages/codes.ts';
 import { MESSAGES, type MsgKey } from '../../lib/src/messages/index.ts';
+import { exampleFiles } from './examples.ts';
 
 const ROOT = new URL('..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
 const TITLES: Record<string, string> = {
@@ -22,12 +23,11 @@ const NOTE: Record<string, string> = {
 const SIGN = new Map(Object.values(codes).map((m) => [m.code as string, { meaning: m.ru, todo: m.hint }]));
 
 const where = new Map<string, Set<string>>();
-for (const dir of await readdir(join(ROOT, 'examples'))) {
-  for (const f of await readdir(join(ROOT, 'examples', dir))) {
-    for (const m of (await readFile(join(ROOT, 'examples', dir, f), 'utf8')).matchAll(/'error\.([a-z_]+)'/g)) {
-      if (!where.has(m[1])) where.set(m[1], new Set());
-      where.get(m[1])!.add(dir);
-    }
+for (const file of exampleFiles()) {
+  const dir = basename(dirname(file));
+  for (const m of (await readFile(file, 'utf8')).matchAll(/'error\.([a-z_]+)'/g)) {
+    if (!where.has(m[1])) where.set(m[1], new Set());
+    where.get(m[1])!.add(dir);
   }
 }
 const unknown = [...where.keys(), ...Object.keys(NOTE)].filter((c) => !SIGN.has(c));
@@ -39,9 +39,12 @@ const KEYS: [MsgKey, string][] = [
   ['write.partial_without_expect', 'delete'], ['write.preview_changed', 'delete'],
   ['write.expect_without_confirm', 'delete'], ['write.bad_expect', 'delete'],
   ['api.unknown_step', 'auth'], ['api.unknown_step_no_classes', 'auth'], ['api.chain_not_rows', 'errors'],
-  ['query.bad_uuid', 'errors'], ['api.db_bad_value', 'errors'], ['api.validation_failed_end', 'write'],
+  ['query.bad_uuid', 'errors'], ['api.db_bad_value', 'errors'],
   ['model.transform_unsupported', 'models'], ['api.begin_arg', 'errors'], ['api.for_update_unsupported', 'errors'],
   ['api.token_not_active', 'auth'],
+  ['write.confirm_without_expect', 'delete'], ['write.restore_without_expect', 'delete'],
+  ['api.create_tenant_admin', 'access'], ['api.versions_terminal', 'history'], ['write.link_in_data', 'write'],
+  ['sql-core.impersonation_no_account', 'auth'],
 ];
 const cell = (t: string) => t.replace(/\|/g, '\\|');
 const keyRows = KEYS.map(([k, d]) => {
@@ -70,7 +73,7 @@ const page = `# Ошибки
 
 Текст \`invalid_data\` называет первое нарушение — «…класса Product: price — нарушено правило minimum (всего нарушений: N, все — err.issues)»; полный список — в \`err.issues\` (путь \`path\`, правило \`keyword\`, сообщение \`message\`).
 
-- **Конец связи передан полем данных.** \`db.Item(item).Loan().create({ issuedAt, Member: id })\` — для базы \`Member\` лишний ключ: текст «данные — лишний ключ Member», в \`issues\` правило \`additionalProperties\` с пустым путём, подсказка \`err.hint\` — «конец — из пути или .Роль.set()». Конец задают вызовом роли после глагола: \`create({ issuedAt }).Member.set(id)\` — [пример](../write/#ex-write-02-ends-and-slots).
+- **Конец связи передан полем данных.** \`db.Item(item).Loan().create({ issuedAt, Member: id })\` — \`Member\` не поле, а конец класса: отказ до записи с ключом \`write.link_in_data\` и текстом «create() у Loan: Member — связь, а не поле данных; конец задают путь цепочки или слот после глагола: .Member.set(id)»; в \`issues\` — правило \`additionalProperties\` с пустым путём. Конец задают путём цепочки или вызовом роли после глагола: \`create({ issuedAt }).Member.set(id)\` — [пример](../write/#ex-write-02-ends-and-slots).
 - **Значение не подходит под правило поля** (\`enum\`, \`minLength\`, \`pattern\` и другие) — путь к полю в \`issues[].path\`, правило в \`issues[].keyword\`; у \`enum\` сообщение перечисляет допустимые значения, у \`minLength\` и \`maxLength\` — называет границу: «длина строки меньше 3», «длина строки больше 80».
 
 ## Отказы по ключу: \`err.key\`
