@@ -11,11 +11,11 @@
       "password": "Ромашка-2026!"
     },
     "up": {
-      "serviceKey": "lts_82530a0c995668d8c42f575d5a7a75e4628bf5f4f4dd6ea60135e33b9f55dbf1",
+      "serviceKey": "lts_2069039d799c9f4f5b5824ffbbd7c4c465bc63472c03bfc272dd39c0d2bc8b04",
       "tenant": {
         "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
         "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "7ce5f8ae30b01eadc79d648fd921caff3d37fb13d7b48dfca4cc35e093fbc91f",
+        "token": "b0cce413dbabc3fdb0228f4ac6c608683ef33034e7136238e38c2fb0fa92723b",
         "created": true
       }
     }
@@ -27,7 +27,7 @@
   },
   "steps": [
     {
-      "result": "letopis ddl_revision=8 engine=2.0.0-alpha.0 sql=bca368a9f518ce96",
+      "result": "letopis ddl_revision=8 engine=2.0.0 sql=bca368a9f518ce96",
       "error": null,
       "entity": [],
       "removed": [],
@@ -37,7 +37,7 @@
     },
     {
       "result": [
-        "letopis: функции схемы v2.g_install_05_engine_stamp поставила неизвестная версия letopis (в штампе нет версии движка), библиотека — 2.0.0-alpha.0: обновите схему — вызовите up({ schema: 'v2.g_install_05_engine_stamp' })"
+        "letopis: функции схемы v2.g_install_05_engine_stamp поставила неизвестная версия letopis (в штампе нет версии движка), библиотека — 2.0.0: обновите схему — вызовите up({ schema: 'v2.g_install_05_engine_stamp' })"
       ],
       "error": null,
       "entity": [],
