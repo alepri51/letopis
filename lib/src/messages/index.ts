@@ -11,7 +11,7 @@
  *      time — watch, admin, cache, signals;  access — auth, acl;  model — model, registry, sync, cli, validate,
  *      jsonschema, uuid;  boot — up, pglite;  mcp — mcp, describe;
  *      sql-core — sql/10, 15, 20, 30, 40;  sql-write — sql/60;  sql-access — sql/50, 80;
- *      sql-time — sql/70, 75, 90, 95, 99 и sql/migrate.
+ *      sql-time — sql/70, 90, 95, 99 и sql/migrate.
  *    codes.ts — запись на каждый код: заголовок и подсказка. Новый код — ещё ErrorCode (types.ts), для кода базы —
  *    LT_NAMES (errors.ts) и error_catalog(), и строка таблицы «Ошибки» README с якорем `<a id="код"></a>`.
  * 2. Ключ — `<раздел>.<snake_case>`: что случилось, а не где (api.unknown_step, query.sort_field). Одно место — один

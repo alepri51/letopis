@@ -20,6 +20,9 @@
   - уникальность — только ключ.
 - Арендатор = аккаунт. Строки принадлежат арендатору **сессии**; чужие → не видны.
 - Права включены всегда и по умолчанию **запрещают**.
+- Строгий режим 2.0: строгие типы по моделям (`connect({ models })`, имена во время выполнения — `loose(db)`);
+  `update()` и `delete({ confirm: true })` без сужения целей и `after()` перед `count()` и агрегатами → `invalid_query`;
+  неизвестная опция → `invalid_data` с похожими именами.
 
 ## Рабочий цикл
 
@@ -45,7 +48,7 @@ const r = await up({ dsn: ADMIN, schema: 'myapp',                  // схема
   - `fresh` → пересоздать схему;
   - `upgrade` → накатить миграции 2.x (схему 1.x не обновляет);
   - `seeds` → имя сида пакета (например, `'booking'` — демо-домен) или путь к своему `.sql`;
-  - ещё `serviceKey`, `quiet`;
+  - ещё `serviceKey`, `quiet`, `waitTimeoutMs`, `owner`, `app`, `migrationsDir`, `sql` (готовый пул вместо `dsn`);
   - `pglite: true` → база для разработки без PostgreSQL; затем `connect({ dsn: r.pglite.dsn, listen: false, max: 1,
     allowBypassRls: true, … })` — подключение суперпользователя, RLS на нём не действует.
 - `signals` — что видно в сигналах `NOTIFY` любой роли, способной подключиться к базе. Канал — полное имя схемы
@@ -97,8 +100,8 @@ const login = await svc.auth.verifyPassword({ identifier: 'salon@example.com', p
 const db = await connect({ dsn: APP, schema: 'v2.myapp', token: login!.token })
 db.tenant          // арендатор сессии: по умолчанию собственный арендатор аккаунта (здесь SALON)
 ```
-- `connect({ dsn | sql, schema: 'v2.имя', token | apiKey, max, listen, cache, onQuery, slowMs, maintain,
-  allowBypassRls, models })`. `schema` — **полное** имя с `v2.`.
+- `connect({ dsn | sql, schema: 'v2.имя', token | apiKey | service, admin, max, listen, cache, onQuery, slowMs,
+  maintain, refreshSession, allowBypassRls, owner, notifyIntervalMs, models })`. `schema` — **полное** имя с `v2.`.
   - неизвестная опция (и у `up`, `db.load`, `db.watch`, `createMcpServer`) → `invalid_data` с похожими именами.
   - администраторское подключение (`allowBypassRls`) → печатает предупреждение «RLS не действует» — так и должно
     быть.
@@ -238,10 +241,10 @@ await db.Wallet(or({ number: 'W-1' }, { number: 'W-2' })).ids()
   - ещё `.tags()`, `.owner()`, `.alias(имя)`, `db.entity(row)`.
 - `after(cursorOf(строка, поле))`:
   - требует `sort()` по тому же полю;
-  - листает `rows()`, `versions()` и `paths()` (курсор пути — `cursorOf(путь, поле)`, ключи пути — в порядке шагов);
+  - листает `rows()`, `ids()`, `versions()` и `paths()` (курсор пути — `cursorOf(путь, поле)`, ключи пути — в порядке шагов);
   - перед `count()` и агрегатами → `invalid_query` (они считают по всем объектам шага).
 
-Операторы фильтра и их ключи в JSON-фильтре MCP (инструмент `letopis_query`, п. 14):
+Операторы фильтра и их ключи в JSON-фильтре MCP (инструмент `letopis_query`, п. 11):
 
 <!-- ops -->
 | TypeScript | MCP | Смысл |
@@ -289,7 +292,7 @@ const adm = await connect({ dsn: ADMIN, schema: 'v2.myapp', token: login!.token,
 const rep = await adm.load({
   Shop: [{ name: 'Север' }],
   Wallet: [{ number: 'W-9', Shop: { $key: ['Север'] } }],     // ссылка: id | { $key: [...] } | { $ext }
-}, { existing: 'skip' })   // duplicates 'error'|'first'|'last', existing 'error'|'skip'|'update', commitEvery, withHistory, tenant, as
+}, { existing: 'skip' })   // duplicates 'error'|'first'|'last', existing 'error'|'skip'|'update', batch, commitEvery, withHistory, class, tenant, agent, as, initial
 // rep: { rows, loaded, updated, skipped, duplicates, byClass, external, portions, ms }
 ```
 - Первая заливка — `adm.load(rows, { initial: true })`, `letopis load --initial`:
@@ -361,7 +364,7 @@ const canDelete = await olga.acl.checkData('Wallet', 'DELETE')    // { allow: fa
 
 <!-- run -->
 ```ts
-const sub = db.watch({ from: 'start', classes: ['Wallet'] })  // from: 'now' (по умолчанию) | 'start' | курсор; pollMs; уход из classes — op 'delete'
+const sub = db.watch({ from: 'start', classes: ['Wallet'] })  // from: 'now' (по умолчанию) | 'start' | курсор; pollMs; batch
 const lagMs = await sub.lag()                                  // отставание, мс
 await db.Wallet(w).update({ balance: inc(1) }).rows()
 let cursor = ''
@@ -387,6 +390,7 @@ const history = await db.Wallet(w).versions()                         // все 
   `db.batch(имя, { reason })`; пустые `agent` и `reason` → опускаются.
 - Журнал хранит каждую версию: прореживания, обрезки и стирания истории объекта нет.
 - Класс с `history: false` → не даёт `versions`, `asOf`, `restore` и событий подписки.
+- Класс с историей строк не удаляется (`invalid_class`): класс, который придётся удалять, заводят с `history: false`.
 
 ### 11. Агенты и MCP
 
@@ -425,8 +429,9 @@ const server = await createMcpServer(await svc.as(userId))   // letopis_model, l
 
 ### Эксплуатация
 
-- `db.maintain()` и `connect({ maintain: '1h' })` → истёкшие сессии и коды, строки-замки удалённых классов; журнал не
-  трогает.
+- `db.maintain()` (без опций) и `connect({ maintain: '1h' })` → одной транзакцией: истёкшие и погашенные сессии,
+  одноразовые коды, строки-замки удалённых классов, проверка очереди сигналов; отчёт `{ skipped, sessions, codes,
+  queue }` (`skipped` — обслуживает другой процесс); журнал не трогает.
 - Закрыть подключения — по одному разу; подключения из `svc.as()` делят пул с `svc`:
 
 <!-- run -->
@@ -434,7 +439,7 @@ const server = await createMcpServer(await svc.as(userId))   // letopis_model, l
 await adm.close(); await db.close(); await svc.close()
 ```
 
-## Грабли 1.0
+## Грабли 2.0
 
 1. **`create` занятого ключа — ошибка `exists`** (`err.detail.id`), а не перезапись.
    - заменить целиком → `upsert`, и только у класса с ключом (иначе `no_key`);

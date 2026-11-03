@@ -1,7 +1,7 @@
-# SQL ядра letopis 1.0
+# SQL ядра letopis 2.0
 
 Файлы накатываются установщиком (`lib/src/up.ts`, функция `install`) по возрастанию номера; каждый можно применить повторно.
-Спецификация — `reports/PLAN-LETOPIS-1.0.md`, §2 и этап 1.
+Спецификация — `reports/PLAN-LETOPIS-1.0.md` (§2 и этап 1); что снято и изменено в 2.0 — `reports/PLAN-LETOPIS-2.0.md`.
 
 ## Подстановки при накате
 
@@ -10,10 +10,11 @@
 | `@SCHEMA@` | имя схемы в кавычках, например `"v2.salon"` |
 | `@SCHEMA_NAME@` | имя схемы как строковый литерал без кавычек идентификатора, например `v2.salon` |
 | `@OWNER@` | роль-владелец, по умолчанию `letopis_owner` |
+| `@OWNER_NAME@` | имя роли-владельца строковым литералом без кавычек идентификатора, например `letopis_owner` (условия триггеров, `pg_has_role`) |
 | `@APP@` | роль приложения, по умолчанию `letopis_app` |
 | `@PGCRYPTO@` | схема, где установлен pgcrypto (`pg_extension.extnamespace`) |
 | `@SYSTEM@` | id системного арендатора System: `2eba6d0a-1edd-4bb6-a85a-a703dab49035` (как в 0.21) |
-| `@RESERVED_NAMES@` | методы цепочки — `RESERVED_CLASS_NAMES` из `lib/src/types.ts`, литералами через запятую |
+| `@RESERVED_NAMES@` | методы цепочки, корня `db` и батча — `RESERVED_CLASS_NAMES` из `lib/src/types.ts`, литералами через запятую |
 | `@MESSAGES@` | каталог сообщений базы — разделы `sql-*` каталога `lib/src/messages` (план 2.0, этап 3, п. 3): литерал JSON «ключ → `{ name, ru }`» для `message_catalog()` в `15-errors.sql` |
 | `@SIGNALS@` | режим сигналов `class`, `tenant`, `opaque` или `none` (план 1.1, §2.2): опция `up({ signals })`, иначе сохранённый в `meta.signals` строки ключа `secret`, иначе `class` — константа установки |
 | `@ENGINE_VERSION@` | версия пакета (`lib/package.json`) — штамп движка в комментарии схемы (`99-revision.sql`) |
@@ -38,8 +39,8 @@
 `DETAIL` не было и до каталога (`raise` без `detail`): в `DETAIL` признак `nodetail`, у ошибки `detail` нет.
 Свой SQLSTATE — `lt_raise(код, ключ, параметры, detail)`. Функции, которые исполняет приложение (`inc`, `links_patch`),
 бросают `raise` сами: текст — `lt_text(ключ, параметры)`, она и `message_catalog()` выданы приложению; `DETAIL` без своих
-полей — с `'nodetail', true`. Все места переведены на ключи: у прежней перегрузки `lt_fail(имя, текст, detail)` вызовов
-нет, а `lt_raise(код, имя, текст, detail)` — механизм новых перегрузок (единственный `raise`). Внутренняя ошибка —
+полей — с `'nodetail', true`. Все места переведены на ключи: у прежней перегрузки `lt_fail(имя, текст, detail)` других
+вызовов, кроме перегрузки по ключу, нет, а `lt_raise(код, имя, текст, detail)` — механизм новых перегрузок (единственный `raise`). Внутренняя ошибка —
 `lt_raise('XX000', ключ, …)` с кодом `internal`; строки отказа ужесточения и нарушения данных несут `key` и `params`, а
 текст `problem` и `message` собирает `lt_text`. Литеральный текст в `raise` и в `problem` ловит `check:docs`
 (`literals`).
