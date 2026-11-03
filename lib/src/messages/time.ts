@@ -1,5 +1,5 @@
 /**
- * Раздел time: watch.ts, admin.ts, cache.ts, signals.ts — подписка, verify, maintain, кэш, сигналы.
+ * Раздел time: watch.ts, admin.ts, cache.ts, signals.ts — подписка, maintain, кэш, сигналы.
  */
 import type { Section } from './types.js';
 
@@ -7,7 +7,7 @@ export const time = {
   // admin.ts, maintain(): внутри db.begin()
   'time.maintain_in_tx': {
     code: 'invalid_query',
-    ru: 'maintain() — пачками в своих транзакциях, не внутри db.begin()',
+    ru: 'maintain() идёт своей транзакцией, не внутри db.begin()',
   },
   // admin.ts, queueWarning: очередь сигналов PostgreSQL заполнена больше чем наполовину — предупреждение maintain();
   // pct — проценты целым числом; код записи не печатается
