@@ -193,10 +193,31 @@ function paramsOf(node: ts.SignatureDeclaration): Param[] {
           def: md.def,
         });
       }
+    } else if (type && ts.isTypeReferenceNode(type) && EXPAND_OPTIONS.has(type.typeName.getText())) {
+      // Именованный тип опций (объединение форм) — поля всех форм, как у литерала типа.
+      const t = checker.getTypeAtLocation(type);
+      const seen = new Set<string>();
+      for (const part of t.isUnion() ? t.types : [t]) {
+        for (const sym of checker.getPropertiesOfType(part)) {
+          if (seen.has(sym.name)) continue;
+          seen.add(sym.name);
+          const decl = sym.declarations?.[0];
+          const md = decl ? jsdocOf(decl) : { text: '', params: {} as Record<string, string> };
+          out.push({
+            name: `${name}.${sym.name}`,
+            type: checker.typeToString(checker.getTypeOfSymbolAtLocation(sym, p)),
+            optional: true,
+            doc: md.text || undefined,
+            def: (md as { def?: string }).def,
+          });
+        }
+      }
     }
   }
   return out;
 }
+/** Именованные типы опций, поля которых раскрываются в параметры (`opts.confirm` и т.д.). */
+const EXPAND_OPTIONS = new Set(['DeleteOptions', 'RestoreOptions']);
 /** Член интерфейса, литерала типа или класса → пункт. */
 function memberItem(id: string, title: string, m: ts.Node): Item {
   const name = (m as ts.NamedDeclaration).name!.getText();
@@ -573,6 +594,7 @@ const PAGES: Page[] = [
       { title: 'Проверка данных', ids: ['export.compileValidator', 'export.applyDefaults'] },
       { title: 'Реестр классов', ids: ['export.Registry', 'registry.*'] },
       { title: 'Пароли и коды', ids: ['export.hashPassword', 'export.verifyHash', 'export.totpCode'] },
+      { title: 'Логирование', intro: 'Каталог событий журнала: имя, уровень, описание. Как включить журнал — `connect({ log, logLevel })`, `LETOPIS_LOG`, `--log`; глава «Логирование».', ids: ['export.LOG_EVENTS'] },
       { title: 'Константы', ids: ['export.DDL_REVISION', 'export.RESERVED_CLASS_NAMES', 'export.CHAIN_METHODS', 'export.DB_METHODS'] },
     ],
   },

@@ -11,11 +11,11 @@
       "password": "Ромашка-2026!"
     },
     "up": {
-      "serviceKey": "lts_82d402773e39963f4886dac0e8b0c4b115ebaa6c28d205be8b039a06b3c3a8aa",
+      "serviceKey": "lts_f4fa3ad10aa7e0b41f6eae87d139a3c0400e805cc5d9ebdcb635a4d692dbb725",
       "tenant": {
         "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
         "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "1d879cabe462db88d4219409773ba8dd690fc3d524d2be612d828a3e8a3e3f53",
+        "token": "ba358d27b3bf762718284f1dcb83d7221474b2bbc32fdf75d7b3266be06464d8",
         "created": true
       }
     }
@@ -28,7 +28,7 @@
   "steps": [
     {
       "result": {
-        "at": "2026-11-03T15:07:15.473208+00:00",
+        "at": "2026-11-03T17:49:09.756587+00:00",
         "id": "7059d160-3cdb-5650-ae26-befb9e94b84e",
         "op": "create",
         "rev": 1,
@@ -42,7 +42,7 @@
         "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
         "author": "3defbabb-a94d-5359-8463-dc947de193e1",
         "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-        "agent": "e9cd9725-f1c8-514d-b0d8-03fcc9261942"
+        "agent": "269e67b3-ae19-54c8-8c4b-de01abdeeb54"
       },
       "error": null,
       "entity": [
@@ -60,9 +60,9 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "e9cd9725-f1c8-514d-b0d8-03fcc9261942",
+          "agent": "269e67b3-ae19-54c8-8c4b-de01abdeeb54",
           "reason": null,
-          "at": "2026-11-03 15:07:15.473208+00"
+          "at": "2026-11-03 17:49:09.756587+00"
         }
       ],
       "removed": [],
@@ -97,7 +97,7 @@
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
           "agent": null,
           "reason": "списание 400",
-          "at": "2026-11-03 15:07:15.585542+00"
+          "at": "2026-11-03 17:49:09.85316+00"
         }
       ],
       "removed": [],
@@ -130,9 +130,9 @@
           "tags": [],
           "op": "update",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "e9cd9725-f1c8-514d-b0d8-03fcc9261942",
+          "agent": "269e67b3-ae19-54c8-8c4b-de01abdeeb54",
           "reason": "списание 400",
-          "at": "2026-11-03 15:07:15.773617+00"
+          "at": "2026-11-03 17:49:10.020134+00"
         }
       ],
       "removed": [],
@@ -165,9 +165,9 @@
           "tags": [],
           "op": "update",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "e9cd9725-f1c8-514d-b0d8-03fcc9261942",
+          "agent": "269e67b3-ae19-54c8-8c4b-de01abdeeb54",
           "reason": "списание 400",
-          "at": "2026-11-03 15:07:15.973277+00"
+          "at": "2026-11-03 17:49:10.279588+00"
         }
       ],
       "removed": [],

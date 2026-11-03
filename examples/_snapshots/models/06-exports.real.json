@@ -11,11 +11,11 @@
       "password": "Ромашка-2026!"
     },
     "up": {
-      "serviceKey": "lts_a3f65c804516e916cb86fd1b95cbb6fd4b10b567005427733cb78bb5ec4a6e98",
+      "serviceKey": "lts_c80874142cd0893d1a91af9a0480b095ff1f621f3b47457da2d9ca91c29b32b3",
       "tenant": {
         "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
         "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "3bc347bf4af6fc786f26938c6a328ff60ba9992f6e6cfd8c7f9172906c24d6ba",
+        "token": "5cafe27d3c255b4d851fec1589ffb0e99466c29b14ad27d7f04fbb9066e3f54b",
         "created": true
       }
     }
@@ -130,7 +130,7 @@
         "методов db": 22,
         "зарезервировано имён": 59,
         "среди них where?": false,
-        "ревизия движка": 9
+        "ревизия движка": 10
       },
       "error": null,
       "entity": [],

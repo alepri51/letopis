@@ -422,8 +422,8 @@ function onKey(e: KeyboardEvent) {
             </div>
             <template v-if="codeView === 'standalone'">
               <p class="lt-ex-source-note">
-                Тот же пример без каркаса сайта: вместо <code>example()</code> из <code>kit/example.ts</code> и <code>ctx</code> раннера —
-                обычные <code>up()</code>, <code>connect()</code> и <code>svc.as()</code>, помощники <code>kit/…</code> (например, <code>seedShop</code>) вставлены целиком,
+                Тот же пример без каркаса сайта: вместо <code>example()</code> из <code>_shared/example.ts</code> и <code>ctx</code> раннера —
+                обычные <code>up()</code>, <code>connect()</code> и <code>svc.as()</code>, помощники <code>_shared/…</code> (например, <code>seedShop</code>) вставлены целиком,
                 шаги идут подряд. Скопируйте в файл, задайте <code>ADMIN_DSN</code> и запустите <code>npx tsx example.ts</code>.
               </p>
               <div class="lt-ex-source-bar">
@@ -435,9 +435,9 @@ function onKey(e: KeyboardEvent) {
             </template>
             <template v-else>
               <p class="lt-ex-source-note">
-                Файл <code>examples/{{ id }}.ts</code> целиком — для раннера сайта: <code>example({ steps })</code> из <code>kit/example.ts</code> — только каркас,
+                Файл <code>examples/{{ id }}.ts</code> целиком — для раннера сайта: <code>example({ steps })</code> из <code>_shared/example.ts</code> — только каркас,
                 каждый шаг — функция <code>run</code>, которой раннер передаёт <code>ctx</code> (<code>db</code>, <code>svc</code>, <code>connect</code>, <code>dsn</code>…; что чему равно — в блоке «Дано» шага).
-                <code>connect</code> в <code>ctx</code> — тот же <code>connect</code> из <code>letopis</code>; помощники <code>kit/…</code> — на вкладке «Скрипт для своего проекта».
+                <code>connect</code> в <code>ctx</code> — тот же <code>connect</code> из <code>letopis</code>; помощники <code>_shared/…</code> — на вкладке «Скрипт для своего проекта».
               </p>
               <div v-if="snap.sourceHtml" class="lt-ex-code" v-html="snap.sourceHtml" />
               <pre v-else class="lt-ex-plain">{{ snap.source }}</pre>

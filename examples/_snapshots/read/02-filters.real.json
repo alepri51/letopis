@@ -11,11 +11,11 @@
       "password": "Ромашка-2026!"
     },
     "up": {
-      "serviceKey": "lts_f7422065b62c25accf758ae3c6bfaa2d1ce84719dc915bf54ffa7705beefe233",
+      "serviceKey": "lts_dc253b4c10e46f572ba03c7a9350230ede2ba09feba716007333cd89fd67252b",
       "tenant": {
         "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
         "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "5e8d7af4ca2f4cc0265096383d6d33c107f4277c5e69be0e503a15f86946ad07",
+        "token": "e9c869028b80a3cdf6422b2450eaabbfb92d92cafe0057a0a880830fae5859b4",
         "created": true
       }
     }

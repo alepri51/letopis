@@ -6,7 +6,7 @@ outline: [2, 2]
 
 # Справочник API
 
-Все методы и функции letopis: сигнатура с типами, что делает, параметры и опции (тип, значение по умолчанию, смысл), что возвращает, какие коды ошибок бросает и где на сайте живой пример. Пунктов — 182, опций — 70.
+Все методы и функции letopis: сигнатура с типами, что делает, параметры и опции (тип, значение по умолчанию, смысл), что возвращает, какие коды ошибок бросает и где на сайте живой пример. Пунктов — 183, опций — 76.
 
 Справочник собран из исходников пакета: сигнатуры и типы — из кода, описания — из комментариев к коду и дополнений сайта. Коды ошибок — в главе [Ошибки](../errors/), объявления типов — на странице [Типы](./types).
 
@@ -62,7 +62,7 @@ outline: [2, 2]
 
 Функции и константы пакета `letopis`, которые не относятся к подключению: операторы фильтров, id, ошибки, проверка данных, пароли.
 
-[ne()](./utils#export-ne) · [gt()](./utils#export-gt) · [gte()](./utils#export-gte) · [lt()](./utils#export-lt) · [lte()](./utils#export-lte) · [between()](./utils#export-between) · [inList()](./utils#export-inlist) · [like()](./utils#export-like) · [ilike()](./utils#export-ilike) · [starts()](./utils#export-starts) · [ends()](./utils#export-ends) · [has()](./utils#export-has) · [hasAny()](./utils#export-hasany) · [hasAll()](./utils#export-hasall) · [exists()](./utils#export-exists) · [isNull()](./utils#export-isnull) · [not()](./utils#export-not) · [or()](./utils#export-or) · [isOp()](./utils#export-isop) · [inc()](./utils#export-inc) · [isInc()](./utils#export-isinc) · [cursorOf()](./utils#export-cursorof) · [idOf()](./utils#export-idof) · [uuidv5()](./utils#export-uuidv5) · [v5Name()](./utils#export-v5name) · [v5Id()](./utils#export-v5id) · [LetopisError](./utils#export-letopiserror) · [ValidationError](./utils#export-validationerror) · [fromDbError()](./utils#export-fromdberror) · [compileValidator()](./utils#export-compilevalidator) · [applyDefaults()](./utils#export-applydefaults) · [Registry](./utils#export-registry) · [db.registry.load()](./utils#registry-load) · [db.registry.has()](./utils#registry-has) · [db.registry.find()](./utils#registry-find) · [db.registry.resolve()](./utils#registry-resolve) · [db.registry.all()](./utils#registry-all) · [db.registry.family()](./utils#registry-family) · [db.registry.leafType()](./utils#registry-leaftype) · [hashPassword()](./utils#export-hashpassword) · [verifyHash()](./utils#export-verifyhash) · [totpCode()](./utils#export-totpcode) · [DDL_REVISION](./utils#export-ddl-revision) · [RESERVED_CLASS_NAMES](./utils#export-reserved-class-names) · [CHAIN_METHODS](./utils#export-chain-methods) · [DB_METHODS](./utils#export-db-methods)
+[ne()](./utils#export-ne) · [gt()](./utils#export-gt) · [gte()](./utils#export-gte) · [lt()](./utils#export-lt) · [lte()](./utils#export-lte) · [between()](./utils#export-between) · [inList()](./utils#export-inlist) · [like()](./utils#export-like) · [ilike()](./utils#export-ilike) · [starts()](./utils#export-starts) · [ends()](./utils#export-ends) · [has()](./utils#export-has) · [hasAny()](./utils#export-hasany) · [hasAll()](./utils#export-hasall) · [exists()](./utils#export-exists) · [isNull()](./utils#export-isnull) · [not()](./utils#export-not) · [or()](./utils#export-or) · [isOp()](./utils#export-isop) · [inc()](./utils#export-inc) · [isInc()](./utils#export-isinc) · [cursorOf()](./utils#export-cursorof) · [idOf()](./utils#export-idof) · [uuidv5()](./utils#export-uuidv5) · [v5Name()](./utils#export-v5name) · [v5Id()](./utils#export-v5id) · [LetopisError](./utils#export-letopiserror) · [ValidationError](./utils#export-validationerror) · [fromDbError()](./utils#export-fromdberror) · [compileValidator()](./utils#export-compilevalidator) · [applyDefaults()](./utils#export-applydefaults) · [Registry](./utils#export-registry) · [db.registry.load()](./utils#registry-load) · [db.registry.has()](./utils#registry-has) · [db.registry.find()](./utils#registry-find) · [db.registry.resolve()](./utils#registry-resolve) · [db.registry.all()](./utils#registry-all) · [db.registry.family()](./utils#registry-family) · [db.registry.leafType()](./utils#registry-leaftype) · [hashPassword()](./utils#export-hashpassword) · [verifyHash()](./utils#export-verifyhash) · [totpCode()](./utils#export-totpcode) · [LOG_EVENTS](./utils#export-log-events) · [DDL_REVISION](./utils#export-ddl-revision) · [RESERVED_CLASS_NAMES](./utils#export-reserved-class-names) · [CHAIN_METHODS](./utils#export-chain-methods) · [DB_METHODS](./utils#export-db-methods)
 
 ## [MCP: letopis/mcp](./mcp)
 
@@ -78,4 +78,4 @@ outline: [2, 2]
 
 ## [Типы](./types)
 
-78 экспортированных типов с объявлениями.
+87 экспортированных типов с объявлениями.

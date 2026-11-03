@@ -424,13 +424,14 @@ interface ChainCore {
   /**
    * Удаляет цели шага; строки, которые на них ссылаются, база удаляет вместе с ними, отвязывает или не даёт удалить цель —
    * как задано в `onDelete` их ссылок. Без `{ confirm: true }` — предпросмотр удаления: ничего не удаляется, терминал
-   * вернёт все строки, которых оно коснулось бы, у каждой `$action` — что с ней будет. С `{ confirm: true }` цели сужают
-   * фильтр, id, `tags()`, `owner()` или `limit()` хотя бы у одного шага, иначе `invalid_query`; удаление всех строк —
-   * `{ confirm: true, all: true }`. С `{ confirm: true, expect: превью }` удаляется ровно показанное: в транзакции удаления
-   * превью строится заново и сравнивается с `expect` по `id`, `rev` и `$action`; расхождение — `conflict` (ничего не
-   * удалено, новое превью — `err.detail.preview`).
+   * вернёт все строки, которых оно коснулось бы, у каждой `$action` — что с ней будет. `{ confirm: true, expect: превью }`
+   * удаляет ровно показанное: в транзакции удаления превью строится заново и сравнивается с `expect` по `id`, `rev` и
+   * `$action`; расхождение — `conflict` (ничего не удалено, новое превью — `err.detail.preview`); цели сужают фильтр, id,
+   * `tags()`, `owner()` или `limit()` хотя бы у одного шага, иначе `invalid_query`. `{ confirm: true }` без `expect` —
+   * `invalid_query` (`write.confirm_without_expect`); осознанно удалить текущий состав целей без сверки (и без фильтра —
+   * все строки) — `{ confirm: true, all: true }`.
    */
-  delete(opts?: { confirm?: boolean; all?: boolean; reason?: string; expect?: readonly Expected[] }): Chain;
+  delete(opts?: DeleteOptions): Chain;
   /** Чтение с блокировкой строк последнего шага до конца db.begin() (rows, first, ids). */
   forUpdate(): Chain;
   /**
@@ -439,9 +440,11 @@ interface ChainCore {
    * каждой — та же; иначе ничего не восстановлено: уже восстановлена — `not_deleted` (`write.restore_already`), id занял
    * новый объект — `not_deleted` (`write.restore_id_taken`), прочее (удалена снова, менялась) — `conflict`
    * (`write.restore_stale`); причины по целям — `err.detail.stale`. `{ expect, partial: true }` — восстановить то, что
-   * можно: остальные цели приходят строками `{ …строка, $action: 'skip', $why }`.
+   * можно: остальные цели приходят строками `{ …строка, $action: 'skip', $why }`. Без `expect` — `invalid_query`
+   * (`write.restore_without_expect`), и для явных id; осознанно вернуть все удалённые цели шага без сверки —
+   * `{ all: true }`.
    */
-  restore(opts?: { reason?: string; expect?: readonly Expected[]; partial?: boolean }): Chain;
+  restore(opts: RestoreOptions): Chain;
   /** Кэш результатов: ответ хранится в памяти процесса ttl секунд (по умолчанию 60). */
   cache(opts?: { ttl?: number }): Chain;
 }
@@ -555,7 +558,7 @@ interface ClassMeta { [key: string]: unknown }
 ## ConnectOptions {#type-connectoptions}
 
 ```ts
-interface ConnectOptions {
+interface ConnectOptions extends LogOptions {
   /** Строка подключения; либо готовый пул postgres.js в `sql`. */
   dsn?: string;
   sql?: postgres.Sql;
@@ -735,6 +738,20 @@ interface DbCore {
 type DbTx = Db;
 ```
 
+## DeleteOptions {#type-deleteoptions}
+
+```ts
+/**
+ * Опции delete() (3.0): без confirm — превью; `{ confirm: true, expect }` — удалить ровно показанное превью;
+ * `{ confirm: true, all: true }` — осознанно удалить текущий состав целей без сверки (и без фильтра). `{ confirm: true }`
+ * без expect и all — invalid_query (write.confirm_without_expect).
+ */
+type DeleteOptions =
+  | { confirm?: false; all?: boolean; expect?: undefined; reason?: string }
+  | { confirm: true; expect: readonly Expected[]; all?: boolean; reason?: string }
+  | { confirm: true; all: true; expect?: readonly Expected[]; reason?: string };
+```
+
 ## EndInfo {#type-endinfo}
 
 ```ts
@@ -759,7 +776,8 @@ interface EndInfo {
 interface Expected {
   id: string;
   rev: number;
-  $action?: 'delete' | 'unset' | 'restrict';
+  /** У строки превью — что с ней будет; строку ответа (с любым $action) можно передать как есть. */
+  $action?: Row['$action'];
 }
 ```
 
@@ -941,6 +959,64 @@ interface LoadReport {
 }
 ```
 
+## LogEvent {#type-logevent}
+
+```ts
+/** Событие логирования (каталог событий — lib/src/messages/log.ts). Поля без значения в событии отсутствуют. */
+interface LogEvent {
+  /** Время события, ISO 8601 (UTC). */
+  ts: string;
+  level: Exclude<LogLevel, 'off'>;
+  /** Имя события: connect, read, write, delete, error, sql и др. */
+  event: string;
+  /** Операция: терминал или глагол цепочки, метод db, auth, acl, инструмент MCP. */
+  op?: string;
+  /** Длительность операции, мс (с точностью до 0,1). */
+  ms?: number;
+  /** Арендатор сессии фасада. */
+  tenant?: string;
+  /** Аккаунт фасада: аккаунт сессии или тот, от чьего имени действует db.as(). */
+  account?: string;
+  /** Метка транзакции db.begin() или db.transaction(). */
+  tx?: string;
+  /** Цепочка в читаемом виде: `Shop({"name":"A"}).Product.limit(10).rows()`; данные записи — только именами полей. */
+  chain?: string;
+  /** Строк в ответе или затронуто. */
+  rows?: number;
+  /** Код ошибки letopis (или SQLSTATE ошибки базы) — у error. */
+  code?: string;
+  /** Ключ каталога сообщений — у error и warning. */
+  key?: string;
+  /** Текст ошибки или предупреждения. */
+  msg?: string;
+  /** Подробности события; секреты замаскированы. */
+  detail?: Record<string, unknown>;
+  /** Причина ошибки (исходная ошибка базы и т. п.) — у error. */
+  cause?: { name?: string; message: string; code?: string };
+}
+```
+
+## LogEventName {#type-logeventname}
+
+```ts
+/** Имя события логирования. */
+type LogEventName = keyof typeof LOG_EVENTS;
+```
+
+## LogFn {#type-logfn}
+
+```ts
+/** Логгер-функция. */
+type LogFn = (event: LogEvent) => unknown;
+```
+
+## Logger {#type-logger}
+
+```ts
+/** Логгер: функция или объект с методами уровней. */
+type Logger = LogFn | LogObject;
+```
+
 ## LoginOptions {#type-loginoptions}
 
 ```ts
@@ -958,6 +1034,43 @@ interface LoginOptions {
 interface LoginResult {
   account: string;
   token: string;
+}
+```
+
+## LogLevel {#type-loglevel}
+
+```ts
+/** Порог логирования: события этого уровня и выше; `'off'` — ничего. */
+type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'off';
+```
+
+## LogObject {#type-logobject}
+
+```ts
+/** Логгер-объект: pino, console и подобные — вызов `logger[уровень](событие, событие.event)`. */
+interface LogObject {
+  debug?(event: LogEvent, msg: string): unknown;
+  info?(event: LogEvent, msg: string): unknown;
+  warn?(event: LogEvent, msg: string): unknown;
+  error?(event: LogEvent, msg: string): unknown;
+  log?(event: LogEvent, msg: string): unknown;
+}
+```
+
+## LogOptions {#type-logoptions}
+
+```ts
+/** Опции логирования connect() и up(). */
+interface LogOptions {
+  /**
+   * Логгер: функция `(событие) => void` или объект с методами `debug`, `info`, `warn`, `error` (pino, console). Без него
+   * и с переменной окружения `LETOPIS_LOG=<уровень>` события идут JSON-строками в stderr.
+   */
+  log?: Logger;
+  /** Порог: `'debug' | 'info' | 'warn' | 'error' | 'off'`, по умолчанию `'info'` (или уровень из `LETOPIS_LOG`). */
+  logLevel?: LogLevel;
+  /** Ещё имена полей, значения которых маскируются в событиях (пароли, токены и ключи маскируются всегда). */
+  redact?: readonly string[];
 }
 ```
 
@@ -1124,6 +1237,19 @@ interface QueryEvent {
   /** ms > slowMs. */
   slow: boolean;
 }
+```
+
+## RestoreOptions {#type-restoreoptions}
+
+```ts
+/**
+ * Опции restore() (3.0): `{ expect }` — надгробия, которые видел пользователь (ответ delete() или withDeleted()), с
+ * `partial: true` — что можно; `{ all: true }` — осознанно вернуть все удалённые цели шага без сверки. Без expect и all —
+ * invalid_query (write.restore_without_expect), и для явных id.
+ */
+type RestoreOptions =
+  | { expect: readonly Expected[]; partial?: boolean; all?: boolean; reason?: string }
+  | { all: true; expect?: undefined; partial?: false; reason?: string };
 ```
 
 ## Row {#type-row}
@@ -1385,15 +1511,20 @@ type TypedChain<C, M extends readonly AnyModelLike[]> = Omit<ChainCore, Retyped>
   /** Без фильтра, id, `tags()`, `owner()` и `limit()` у шагов — `invalid_query`; правка всех строк — `{ all: true }`. */
   update(patch?: PatchOf<DataOf<C>>, opts?: { rev?: number; all?: boolean; reason?: string }): TypedChain<C, M>;
   upsert(data: Partial<DataOf<C>>, opts?: { reason?: string }): TypedChain<C, M>;
-  /** С `{ confirm: true }` без фильтра, id, `tags()`, `owner()` и `limit()` у шагов — `invalid_query`; всех — `{ all: true }`. */
-  delete(opts?: { confirm?: boolean; all?: boolean; reason?: string; expect?: readonly Expected[] }): TypedChain<C, M>;
+  /**
+   * Без опций — превью. `{ confirm: true, expect: превью }` — удалить ровно показанное (цели сужены фильтром, id, `tags()`,
+   * `owner()` или `limit()`); `{ confirm: true }` без `expect` — `invalid_query` (`write.confirm_without_expect`);
+   * осознанно удалить текущий состав без сверки — `{ confirm: true, all: true }`.
+   */
+  delete(opts?: DeleteOptions): TypedChain<C, M>;
   forUpdate(): TypedChain<C, M>;
   /**
    * `{ expect }` — надгробия `{ id, rev }`: восстановить ровно то, что ушло удалением; расхождение — отказ по смыслу
    * (`write.restore_already`, `write.restore_id_taken`, `write.restore_stale`). `{ expect, partial: true }` — что можно, а
-   * остальное — строки `$action: 'skip'` с причиной `$why`.
+   * остальное — строки `$action: 'skip'` с причиной `$why`. Без `expect` — `invalid_query` (`write.restore_without_expect`);
+   * осознанно вернуть все удалённые цели шага без сверки — `{ all: true }`.
    */
-  restore(opts?: { reason?: string; expect?: readonly Expected[]; partial?: boolean }): TypedChain<C, M>;
+  restore(opts: RestoreOptions): TypedChain<C, M>;
   cache(opts?: { ttl?: number }): TypedChain<C, M>;
 } & HopsOf<C, M>;
 ```
@@ -1413,7 +1544,7 @@ type TypedDb<M extends readonly AnyModelLike[]> = string extends M[number]['name
 ## UpOptions {#type-upoptions}
 
 ```ts
-interface UpOptions extends Omit<InstallOptions, 'schema' | 'upTo' | 'migrateFrom'> {
+interface UpOptions extends Omit<InstallOptions, 'schema' | 'upTo' | 'migrateFrom'>, LogOptions {
   /** Администраторская строка подключения (роль-установщик). */
   dsn?: string;
   /** Готовый пул postgres.js вместо dsn (база уже существует). */

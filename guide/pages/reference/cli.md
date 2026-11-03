@@ -155,6 +155,7 @@ letopis maintain --dsn <строка> --schema <v2.имя> [--token <токен>
 ```sh
 letopis mcp --dsn <строка> --schema <v2.имя> --token <токен пользователя> [--write]
   (или LETOPIS_DSN, LETOPIS_SCHEMA, LETOPIS_TOKEN; ключ сервиса --api-key не принимается)
+у любой команды: --log[=debug|info|warn|error|off] — события JSON-строками в stderr (без значения — info)
 ```
 
 Сервер MCP по stdio для клиентов MCP (Claude Desktop, Claude Code, Cursor) от имени одного пользователя — тот же сервер, что `createMcpServer()`. Нужен пакет `@modelcontextprotocol/server`. Строку подключения, схему и токен клиент передаёт флагами или переменными окружения `LETOPIS_DSN`, `LETOPIS_SCHEMA` и `LETOPIS_TOKEN`; флаг важнее переменной.
@@ -169,6 +170,7 @@ letopis mcp --dsn <строка> --schema <v2.имя> --token <токен пол
 | `--schema` | `<v2.имя>` | обязательный | Схема установки: полное имя вида `v2.shop` (или `LETOPIS_SCHEMA`). |
 | `--token` | `<токен пользователя>` | обязательный | Токен сессии пользователя (или `LETOPIS_TOKEN`). Его выпускает приложение: `auth.sessionFor(пользователь, { ttl })`. |
 | `--write` | `флаг` | только чтение | Включить инструмент записи `letopis_write`. |
+| `--log` | `флаг` | обязательный | Журнал событий JSON-строками в stderr: `--log` (уровень `info`) или `--log=debug\|info\|warn\|error\|off`; есть у любой команды. stdout остаётся протоколу MCP. |
 
 **Возвращает:** Обслуживает клиента по stdio и завершается с кодом 0, когда клиент закрывает stdin. Без токена или с `--api-key` — текст причины в stderr и код 2; без строки подключения или схемы — подсказка по командам и код 2; отказ подключению — текст в stderr и код 1.
 
