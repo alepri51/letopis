@@ -6,7 +6,7 @@ outline: [2, 3]
 
 # Модели: letopis/model
 
-Модель описывается в коде: `hub` — класс-объект, `link` — класс-связь, `one` и `many` — концы. `syncModels` записывает модель в базу, `generateTypes` возвращает текст типов для TypeScript.
+Модель описывается в коде: `hub` — класс-объект, `link` — класс-связь, `one` и `many` — концы. `syncModels` записывает модель в базу, `generateTypes` возвращает текст типов для TypeScript. Классы, концы и JSON Schema импортируются из `letopis/model`, а `syncModels`, `generateTypes` и `schemaToTs` — из `letopis`.
 
 **Что здесь:** [Классы и концы](#классы-и-концы) · [Модель в базе и типы](#модель-в-базе-и-типы) · [JSON Schema](#json-schema). У каждого пункта — сигнатура с типами, что делает, параметры и опции (тип, значение по умолчанию), что возвращает, коды ошибок и переходы к живым примерам сайта.
 
@@ -28,6 +28,8 @@ hub<N extends string, const D extends ClassDef<z.ZodRawShape, EndsInput, AnyMode
 hub<N extends string, S extends z.ZodRawShape>(name: N, shape: S): ModelOf<N, {}, S>
 ```
 
+**Импорт:** `import { hub } from 'letopis/model'`
+
 Описывает класс объектов (хаб): поля, ключ, концы и свойства класса. Класс-связь объектов со своими данными описывает `link()`.
 
 Модель — описание класса в коде: `syncModels()` (или `letopis sync`) записывает его в базу строкой `Class`. Формы вызова две. Полная — `hub(имя, { fields, ends, key, … })`. Короткая — `hub(имя, поля, опции)`: вторым аргументом идут поля (объект типов Zod), третьим — остальное описание. Типы TypeScript полностью выводит только полная форма: в короткой модель несёт типы лишь своих полей — без полей предка (`extends`) и без концов. Свойства описания — в таблице ниже; `link()` принимает то же описание.
@@ -37,6 +39,8 @@ hub<N extends string, S extends z.ZodRawShape>(name: N, shape: S): ModelOf<N, {}
 | Параметр | Тип | По умолчанию | Описание |
 |---|---|---|---|
 | `name` | `string` | обязательный | Имя класса: латинские или русские буквы, цифры и `_`, первый знак — не цифра, до 63 знаков. Этим именем называют шаг цепочки: `db.Shop()`. Имя метода цепочки или корня (`count`, `sort`, `sql` и другие — список `RESERVED_CLASS_NAMES`) занято: шаг с таким именем до класса не дошёл бы, поэтому `hub()` его отклоняет. |
+| `shape` | `z.ZodRawShape` | нет — полная форма с `def` | Короткая форма `hub(имя, поля, опции?)`: поля класса — объект `{ поле: z… }` (то же, что `fields` полной формы). Обязателен в короткой форме, в полной его место занимает `def`. |
+| `opts` | `ClassOpts` | нет: класс только с полями | Короткая форма: остальные свойства `ClassDef` без `fields` — `ends`, `key`, `extends`, `alias` и прочие. |
 | `def` | `ClassDef<z.ZodRawShape, EndsInput, AnyModel \| undefined>` | нет: класс без полей, концов и ключа | Описание класса `ClassDef` — свойства в таблице ниже. |
 
 **Опции `ClassDef`**
@@ -44,18 +48,18 @@ hub<N extends string, S extends z.ZodRawShape>(name: N, shape: S): ModelOf<N, {}
 | Опция | Тип | По умолчанию | Описание |
 |---|---|---|---|
 | <span id="class-alias"></span>`alias` | `string` | нет | Второе имя класса: им тоже можно назвать шаг цепочки, например по-русски (`db.Товар()`). Алиас не может совпадать с именем или алиасом другого класса и не наследуется. Сменить алиас существующего класса может только тот, у кого есть права `READ`, `WRITE` и `DELETE` без условий на все строки класса и его потомков.<br>Примеры: [Наследование, абстрактный класс и алиас](../models/#наследование-и-алиасы) |
-| <span id="class-extends"></span>`extends` | `P` | нет | Модель класса-предка: потомок получает его поля, концы и ключ, а также `history`, `ownerDefault`, `cache` и `meta`; своё поле или конец с тем же именем заменяет унаследованное целиком. Шаг цепочки по предку находит и строки потомков (`.exact()` — только сам класс). Предок должен быть в базе раньше потомка: `syncModels()` сам записывает его первым.<br>Примеры: [Наследование, абстрактный класс и алиас](../models/#наследование-и-алиасы) |
+| <span id="class-extends"></span>`extends` | `AnyModel` | нет | Модель класса-предка: потомок получает его поля, концы и ключ, а также `history`, `ownerDefault`, `cache` и `meta`; своё поле или конец с тем же именем заменяет унаследованное целиком. Шаг цепочки по предку находит и строки потомков (`.exact()` — только сам класс). Предок должен быть в базе раньше потомка: `syncModels()` сам записывает его первым.<br>Примеры: [Наследование, абстрактный класс и алиас](../models/#наследование-и-алиасы) |
 | <span id="class-abstract"></span>`abstract` | `boolean` | `false` | `true` — у класса не бывает своих строк, только у потомков: запись строки такого класса — `invalid_class`. Не наследуется.<br>Примеры: [Наследование, абстрактный класс и алиас](../models/#наследование-и-алиасы) |
-| <span id="class-ends"></span>`ends` | `E` | нет концов | Концы ведут на другие объекты. Их задают объектом, где имя свойства — роль (имя конца), а значение — `one(…)`, `many(…)` или сама модель (`{ Shop }` — то же, что `one(Shop)`). Имя роли — по правилам имени класса, и во всей схеме роль с этим именем ведёт на один и тот же класс. Концы наследуются: свой конец с той же ролью заменяет конец предка.<br>Примеры: [Модель магазина: классы, концы, ключи](../models/#пример-модель-магазина) |
-| <span id="class-fields"></span>`fields` | `z.ZodObject<S> \| S` | нет своих полей | Поля данных: объект Zod (`z.object({ … })`) или просто объект типов Zod. В короткой форме `hub(имя, поля, опции)` поля идут вторым аргументом. Имя поля не может начинаться с `$`, а лишние поля на верхнем уровне данных база отклоняет. Поля наследуются: своё поле с тем же именем заменяет поле предка целиком.<br>Примеры: [Концы шагами ролей: set, unset, add, remove; entity(), cache(); await цепочки — не запрос](../write/#концы-из-пути-цепочки-и-вызовами-роль-set-add-remove) |
+| <span id="class-ends"></span>`ends` | `Record<роль, End \| AnyModel>` | нет концов | Концы ведут на другие объекты. Их задают объектом, где имя свойства — роль (имя конца), а значение — `one(…)`, `many(…)` или сама модель (`{ Shop }` — то же, что `one(Shop)`). Имя роли — по правилам имени класса, и во всей схеме роль с этим именем ведёт на один и тот же класс. Концы наследуются: свой конец с той же ролью заменяет конец предка.<br>Примеры: [Модель магазина: классы, концы, ключи](../models/#пример-модель-магазина) |
+| <span id="class-fields"></span>`fields` | `z.ZodObject \| Record<поле, z.ZodType>` | нет своих полей | Поля данных: объект Zod (`z.object({ … })`) или просто объект типов Zod. В короткой форме `hub(имя, поля, опции)` поля идут вторым аргументом. Имя поля не может начинаться с `$`, а лишние поля на верхнем уровне данных база отклоняет. Поля наследуются: своё поле с тем же именем заменяет поле предка целиком.<br>Примеры: [Концы шагами ролей: set, unset, add, remove; entity(), cache(); await цепочки — не запрос](../write/#концы-из-пути-цепочки-и-вызовами-роль-set-add-remove) |
 | <span id="class-key"></span>`key` | `readonly string[]` | ключ предка; без предка — ключа нет, id выдаёт база | Поля и роли, из которых вычисляется id: UUID v5 из арендатора, класса и значений ключа, поэтому второй объект с тем же ключом база не создаст. В ключ входят только обязательные строковые поля (поле со значением по умолчанию тоже подходит) и обязательные одиночные концы. Ключ наследуется; `[]` — класс без ключа, даже если ключ есть у предка. Ключ класса, в котором уже есть строки, не сменить: правку описания с другим ключом база отклонит (`tightening_conflict`). Значения ключа у строки тоже неизменны (`immutable_key`): объект с другим ключом — новый объект.<br>Примеры: [Модель магазина: классы, концы, ключи](../models/#пример-модель-магазина) |
-| <span id="class-ondelete"></span>`onDelete` | `Partial<Record<keyof E & string, OnDelete>>` | `restrict` у каждого конца | Действие при удалении цели для собственных концов класса по ролям: `{ Customer: 'unset' }` — то же, что `.onDelete('unset')` у конца. `restrict` — запретить удаление цели, пока на неё ссылаются; `cascade` — удалить вместе с целью и эту строку; `unset` — очистить конец (только у необязательного одиночного конца и у списка без `min`).<br>Примеры: [Модель магазина: классы, концы, ключи](../models/#пример-модель-магазина) |
+| <span id="class-ondelete"></span>`onDelete` | `Partial<Record<роль, OnDelete>>` | `restrict` у каждого конца | Действие при удалении цели для собственных концов класса по ролям: `{ Customer: 'unset' }` — то же, что `.onDelete('unset')` у конца. `restrict` — запретить удаление цели, пока на неё ссылаются; `cascade` — удалить вместе с целью и эту строку; `unset` — очистить конец (только у необязательного одиночного конца и у списка без `min`).<br>Примеры: [Модель магазина: классы, концы, ключи](../models/#пример-модель-магазина) |
 | <span id="class-history"></span>`history` | `boolean` | `true` | Вести ли журнал версий (по умолчанию да). `true` — журнал хранит каждую версию строк класса; стирает версии только удаление арендатора (`db.auth.purgeAccount`). `false` — журнала нет: нет версий, среза на дату, восстановления и событий подписки, зато запись дешевле. Наследуется. Сменить `history` у существующего класса может только тот, у кого есть права `READ` и `DELETE` без условий на все строки класса и его потомков. Историю строк не стереть: класс, у которого она есть, не удаляется — класс, который придётся удалять, заводят с `history: false`.<br>Примеры: [Настройки класса: без истории, владелец-автор, метаданные](../models/#настроики-класса) |
 | <span id="class-ownerdefault"></span>`ownerDefault` | `'tenant' \| 'actor'` | `'tenant'` | Кто становится владельцем новой строки (`row.owner`): `'tenant'` — арендатор, `'actor'` — пользователь, который её записал. `'actor'` пригодится для правила «каждый видит свои записи». Наследуется.<br>Примеры: [Настройки класса: без истории, владелец-автор, метаданные](../models/#настроики-класса) |
 | <span id="class-cache"></span>`cache` | `{ ttl?: number }` | нет: без `.cache()` чтения не кэшируются | Кэшировать чтения класса, даже если в цепочке нет `.cache()`: ответ хранится в памяти процесса `ttl` секунд, без `ttl` — срок кэша подключения (по умолчанию 60 с). Действует, только если все классы, которые читает цепочка (с потомками), помечены `cache`; срок — наименьший из них. Наследуется.<br>Примеры: [Концы шагами ролей: set, unset, add, remove; entity(), cache(); await цепочки — не запрос](../write/#концы-из-пути-цепочки-и-вызовами-роль-set-add-remove) |
 | <span id="class-meta"></span>`meta` | `ClassMeta` | нет | Свободные метаданные для приложения: название, иконка, цвет, порядок в меню. База их хранит, но не толкует; размер — до 64 КБ. Наследуются по ключам, `null` убирает унаследованное значение. Видны всем, у кого есть сессия: в `db.registry` и в ответе инструмента MCP `letopis_model`. Тип задают расширением интерфейса `ClassMeta`.<br>Примеры: [Модель магазина: классы, концы, ключи](../models/#пример-модель-магазина) · [Настройки класса: без истории, владелец-автор, метаданные](../models/#настроики-класса) |
 
-**Возвращает:** `ModelOf<N, D, ShapeOf<D['fields']>>` — Модель класса. Её передают в `syncModels()`, в `ends` других классов, в `extends` потомков и в `connect({ models })` для строгих типов цепочек. Тип данных строки — `Infer<typeof Модель>`.
+**Возвращает:** `ModelOf<N, {}, S>` — Модель класса. Её передают в `syncModels()`, в `ends` других классов, в `extends` потомков и в `connect({ models })` для строгих типов цепочек. Тип данных строки — `Infer<typeof Модель>`.
 
 **Ошибки** ([все коды](../errors/)):
 
@@ -79,6 +83,8 @@ link<N extends string, const D extends ClassDef<z.ZodRawShape, EndsInput, AnyMod
 link<N extends string, S extends z.ZodRawShape>(name: N, shape: S): ModelOf<N, {}, S>
 ```
 
+**Импорт:** `import { link } from 'letopis/model'`
+
 Связь — отношение между объектами со своими данными (бронь, навык).
 
 Например, строка заказа ссылается концами на заказ и товар и хранит количество и цену. Описание и формы вызова — те же, что у `hub()` (таблица свойств — под `hub()`). Шаг цепочки от объекта к связи находит связи, которые ссылаются на этот объект: от заказа — его строки. Имя связи не может совпадать с именем метода цепочки (`count`, `sort`, `set` и другие): такую связь база не примет при записи модели (`invalid_class`).
@@ -88,9 +94,11 @@ link<N extends string, S extends z.ZodRawShape>(name: N, shape: S): ModelOf<N, {
 | Параметр | Тип | По умолчанию | Описание |
 |---|---|---|---|
 | `name` | `string` | обязательный | Имя класса — по тем же правилам, что у `hub()`, и не имя метода цепочки. |
+| `shape` | `z.ZodRawShape` | нет — полная форма с `def` | Короткая форма `link(имя, поля, опции?)`: поля класса — объект `{ поле: z… }`, как у `hub()`. Обязателен в короткой форме, в полной его место занимает `def`. |
+| `opts` | `ClassOpts` | нет: класс только с полями | Короткая форма: остальные свойства `ClassDef` без `fields` — как у `hub()`. |
 | `def` | `ClassDef<z.ZodRawShape, EndsInput, AnyModel \| undefined>` | нет: класс без полей, концов и ключа | Описание класса `ClassDef` — как у `hub()`. |
 
-**Возвращает:** `ModelOf<N, D, ShapeOf<D['fields']>>` — Модель класса — как у `hub()`.
+**Возвращает:** `ModelOf<N, {}, S>` — Модель класса — как у `hub()`.
 
 **Ошибки** ([все коды](../errors/)):
 
@@ -103,6 +111,8 @@ link<N extends string, S extends z.ZodRawShape>(name: N, shape: S): ModelOf<N, {
 ```ts
 one<const T extends readonly Target[]>(...targets: T): End<false, true, TargetName<T[number]>>
 ```
+
+**Импорт:** `import { one } from 'letopis/model'`
 
 Одиночный конец; несколько классов — союз: `one(Service, Product)`. По умолчанию обязательный.
 
@@ -131,6 +141,8 @@ many<const T extends Target | readonly Target[], const O extends { min?: number;
 ): End<true, MinRequired<O>, TargetName<T extends readonly (infer X)[] ? X : T>>
 ```
 
+**Импорт:** `import { many } from 'letopis/model'`
+
 Множественный конец: список целей в одном конце. Обязателен при `min` больше нуля — `unset()` у него в цепочке типизированного подключения нет.
 
 В строке ответа такой конец — список id целей. Одну цель нельзя поставить в список дважды: такая запись — ошибка `invalid_data`.
@@ -156,7 +168,7 @@ many<const T extends Target | readonly Target[], const O extends { min?: number;
 ### End {#model-end}
 
 ```ts
-class End {
+class End<Many extends boolean = boolean, Required extends boolean = boolean, T extends string = string> {
   constructor(
     targets: readonly Target[],
     opts: { many: Many; required: Required; min?: number; max?: number; onDelete?: OnDelete; meta?: Record<string, unknown> },
@@ -168,8 +180,14 @@ class End {
   readonly max?: number;
   readonly onDeleteRule?: OnDelete;
   readonly metaData?: Record<string, unknown>;
+  optional(): End<Many, false, T>;
+  onDelete(rule: OnDelete): End<Many, Required, T>;
+  meta(meta: Record<string, unknown>): End<Many, Required, T>;
+  classNames(): string[];
 }
 ```
+
+**Импорт:** `import { End } from 'letopis/model'`
 
 Конец класса: `one(X)`, `one(A, B)`, `many(X, { min, max })`. `T` — имена классов целей (только для типов).
 
@@ -192,13 +210,13 @@ class End {
 
 - `invalid_class` — список `targets` пуст.
 
-**Примеры:** [Опции up(): свой пул, роли, миграции, первый арендатор, режим сигналов none](../install/#опции-up)
-
 ### конец.targets {#end-targets}
 
 ```ts
 readonly targets: readonly Target[]
 ```
+
+**Откуда:** конец создают `one()` и `many()` (`import { one, many } from 'letopis/model'`).
 
 Классы целей в том виде, в каком их передали в `one()` или `many()`: модели или имена классов строкой. Имена всех целей отдаёт `classNames()`.
 
@@ -210,6 +228,8 @@ readonly targets: readonly Target[]
 readonly many: Many
 ```
 
+**Откуда:** конец создают `one()` и `many()` (`import { one, many } from 'letopis/model'`).
+
 `true` — конец-список (`many()`), `false` — одиночный конец (`one()`).
 
 **Примеры:** [Модель магазина: классы, концы, ключи](../models/#пример-модель-магазина)
@@ -220,6 +240,8 @@ readonly many: Many
 readonly required: Required
 ```
 
+**Откуда:** конец создают `one()` и `many()` (`import { one, many } from 'letopis/model'`).
+
 Обязателен ли конец. У `one()` — `true`, пока не вызван `optional()`; у `many()` — `true`, если `min` больше 0.
 
 **Примеры:** [Модель магазина: классы, концы, ключи](../models/#пример-модель-магазина)
@@ -227,8 +249,10 @@ readonly required: Required
 ### конец.min {#end-min}
 
 ```ts
-readonly min: number
+readonly min?: number
 ```
+
+**Откуда:** конец создают `one()` и `many()` (`import { one, many } from 'letopis/model'`).
 
 Наименьшее число целей списка из `many(X, { min })`; если не задано — `undefined`.
 
@@ -237,8 +261,10 @@ readonly min: number
 ### конец.max {#end-max}
 
 ```ts
-readonly max: number
+readonly max?: number
 ```
+
+**Откуда:** конец создают `one()` и `many()` (`import { one, many } from 'letopis/model'`).
 
 Наибольшее число целей списка из `many(X, { max })`; если не задано — `undefined`, предела нет.
 
@@ -247,8 +273,10 @@ readonly max: number
 ### конец.onDeleteRule {#end-ondeleterule}
 
 ```ts
-readonly onDeleteRule: OnDelete
+readonly onDeleteRule?: OnDelete
 ```
+
+**Откуда:** конец создают `one()` и `many()` (`import { one, many } from 'letopis/model'`).
 
 Действие при удалении цели, заданное `onDelete()`, `many(X, { onDelete })` или свойством `onDelete` описания класса. Если не задано — `undefined`, и база действует как при `restrict`.
 
@@ -257,8 +285,10 @@ readonly onDeleteRule: OnDelete
 ### конец.metaData {#end-metadata}
 
 ```ts
-readonly metaData: Record<string, unknown>
+readonly metaData?: Record<string, unknown>
 ```
+
+**Откуда:** конец создают `one()` и `many()` (`import { one, many } from 'letopis/model'`).
 
 Метаданные, заданные `meta()`; если не заданы — `undefined`.
 
@@ -269,6 +299,8 @@ readonly metaData: Record<string, unknown>
 ```ts
 optional(): End<Many, false, T>
 ```
+
+**Откуда:** конец создают `one()` и `many()` (`import { one, many } from 'letopis/model'`).
 
 Необязательный конец.
 
@@ -285,6 +317,8 @@ optional(): End<Many, false, T>
 ```ts
 onDelete(rule: OnDelete): End<Many, Required, T>
 ```
+
+**Откуда:** конец создают `one()` и `many()` (`import { one, many } from 'letopis/model'`).
 
 Правило при удалении цели: restrict (по умолчанию), cascade, unset.
 
@@ -308,6 +342,8 @@ onDelete(rule: OnDelete): End<Many, Required, T>
 meta(meta: Record<string, unknown>): End<Many, Required, T>
 ```
 
+**Откуда:** конец создают `one()` и `many()` (`import { one, many } from 'letopis/model'`).
+
 Метаданные конца.
 
 Повторный вызов заменяет метаданные целиком. Метаданные хранятся в описании класса, база их не толкует; их видно в `db.registry` (`ends` описания класса) и в ответе инструмента MCP `letopis_model`.
@@ -330,6 +366,8 @@ meta(meta: Record<string, unknown>): End<Many, Required, T>
 classNames(): string[]
 ```
 
+**Откуда:** конец создают `one()` и `many()` (`import { one, many } from 'letopis/model'`).
+
 Имена классов целей.
 
 **Возвращает:** `string[]` — Массив имён: у модели берётся её имя, строка остаётся как есть.
@@ -340,11 +378,15 @@ classNames(): string[]
 
 ## Модель в базе и типы
 
+Эти функции — из основного пакета: `import { syncModels, generateTypes, schemaToTs } from 'letopis'`; из `letopis/model` они не экспортируются.
+
 ### syncModels() {#export-syncmodels}
 
 ```ts
 syncModels(db: DbCore, models: readonly AnyModel[], opts?: { apply?: boolean }): Promise<SyncResult>
 ```
+
+**Импорт:** `import { syncModels } from 'letopis'`
 
 Записывает описания моделей в базу строками `Class` арендатора текущей сессии. Без `{ apply: true }` — сухой прогон: те же записи идут в транзакции, которая в конце откатывается, поэтому ошибки описания и `tightening_conflict` видны уже в нём.
 
@@ -359,7 +401,7 @@ syncModels(db: DbCore, models: readonly AnyModel[], opts?: { apply?: boolean }):
 | `opts` | `{ apply?: boolean }` | `{}` | Режим записи. |
 | `opts.apply` | `boolean` | `false` | `true` — применить изменения; без него — сухой прогон. |
 
-**Возвращает:** `Promise<SyncResult>` ([SyncResult](./types#type-syncresult)) — Отчёт `{ applied, created, updated, unchanged, skipped, lost }`: применены ли изменения; имена созданных, изменённых и прежних классов; пропущенные классы System; правила `refine` и `superRefine` (путь и вид), которых нет в базе, — их проверяйте в приложении.
+**Возвращает:** `Promise<SyncResult>` ([SyncResult](./types-model#type-syncresult)) — Отчёт `{ applied, created, updated, unchanged, skipped, lost }`: применены ли изменения; имена созданных, изменённых и прежних классов; пропущенные классы System; правила `refine` и `superRefine` (путь и вид), которых нет в базе, — их проверяйте в приложении.
 
 **Ошибки** ([все коды](../errors/)):
 
@@ -375,6 +417,8 @@ syncModels(db: DbCore, models: readonly AnyModel[], opts?: { apply?: boolean }):
 ```ts
 generateTypes(registry: Registry, opts?: { includeSystem?: boolean }): string
 ```
+
+**Импорт:** `import { generateTypes } from 'letopis'`
 
 Объявления `<Класс>Data` и `<Класс>Links` для классов реестра и `<Класс>Model` — имя, алиас, концы с классами целей и предки (ModelLike, typed.ts), — а в конце список `Models`: строгие типы цепочек без моделей Zod, `connect<Models>()`. Классы арендатора System (системные и классы сидов пакета) — только с includeSystem (`letopis types --system`); без него системные классы даёт встроенный набор SystemModels. Пометка в первой строке — запись каталога model.types_header.
 
@@ -402,6 +446,8 @@ generateTypes(registry: Registry, opts?: { includeSystem?: boolean }): string
 schemaToTs(s: JsonSchema | undefined, indent?: string): string
 ```
 
+**Импорт:** `import { schemaToTs } from 'letopis'`
+
 Тип TypeScript по JSON Schema подмножества.
 
 Учитывает только форму данных: `type`, `properties`, `required`, `items`, `enum`, `const`, `anyOf`, `oneOf`, `additionalProperties` и `propertyNames` с `enum`. Пределы, `format` и `pattern` в тип не попадают. Пустая схема — `unknown`, объект без свойств — `Record<string, unknown>`.
@@ -427,6 +473,8 @@ schemaToTs(s: JsonSchema | undefined, indent?: string): string
 normalizeSchema(input: JsonSchema, opts?: NormalizeOptions): JsonSchema
 ```
 
+**Импорт:** `import { normalizeSchema } from 'letopis/model'`
+
 Нормализует JSON Schema; бросает LetopisError('invalid_class') с названием поля и ключевого слова.
 
 Приводит JSON Schema (обычно вывод `z.toJSONSchema()`) к подмножеству, которое проверяют база и валидатор: убирает `$schema`, разворачивает `$ref` на `$defs`, переводит `pattern` функцией `translatePattern()`, а свободные ключи (например, из `.meta()` Zod) переносит в `x-meta`. Правило, которого подмножество не выражает, функция не теряет молча, а бросает ошибку. Так `syncModels()` готовит поля моделей.
@@ -438,19 +486,19 @@ normalizeSchema(input: JsonSchema, opts?: NormalizeOptions): JsonSchema
 | `input` | `JsonSchema` | обязательный | Исходная схема — объект JSON Schema. |
 | `opts` | `NormalizeOptions` | `{}` | Необязательные поля: `where` — имя модели или поля для текста ошибок (по умолчанию «модель»); `topLevel: true` — ещё проверить, что имена полей верхнего уровня не начинаются с `$`. |
 
-**Возвращает:** `JsonSchema` ([JsonSchema](./types#type-jsonschema)) — Новая JSON Schema в подмножестве базы; входная схема не меняется.
+**Возвращает:** `JsonSchema` ([JsonSchema](./types-model#type-jsonschema)) — Новая JSON Schema в подмножестве базы; входная схема не меняется.
 
 **Ошибки** ([все коды](../errors/)):
 
 - `invalid_class` — ключевое слово вне подмножества (`allOf`, `not`, `if`, `patternProperties` и другие) или `format`, кроме `uuid`, `date`, `date-time` и `email`; `$ref` не на `#/$defs/…`; рекурсия или ненайденное определение; узел — не объект; шаблон `pattern` несовместим с PostgreSQL; имя поля верхнего уровня начинается с `$` (с `topLevel`). В тексте — `where` и узел, где найдена ошибка.
-
-**Примеры:** [Опции up(): свой пул, роли, миграции, первый арендатор, режим сигналов none](../install/#опции-up)
 
 ### translatePattern() {#model-translatepattern}
 
 ```ts
 translatePattern(p: string, where?: string): string
 ```
+
+**Импорт:** `import { translatePattern } from 'letopis/model'`
 
 Перевод шаблона JavaScript в форму, которую одинаково понимают JavaScript (без флага u) и PostgreSQL: обозначения классов заменяются явными наборами, остальное не трогается.
 
