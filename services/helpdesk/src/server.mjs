@@ -695,7 +695,7 @@ export async function createApp() {
       lines.push(`createTenant(admin, schema, { name: '${company}', user: { login: '${login}', roles: ['${ROLE_OF[role]}'] } }) — учётная запись и членство`);
       lines.push('db.Profile().owner(новый).upsert({ account, name, login }) — запись в справочнике компании; кэш справочника сбросил сигнал');
     });
-    mail(login, `Приглашение в helpdesk «${company}»`, `${s.name} пригласил(а) вас в helpdesk «${company}» (роль: ${ROLE_RU[role]}).\nВойдите на http://127.0.0.1:${ENV.port}/ — «Код на почту».`);
+    mail(login, `Приглашение в helpdesk «${company}»`, `${s.name} пригласил(а) вас в helpdesk «${company}» (роль: ${ROLE_RU[role]}).\nВойдите на ${req.protocol}://${req.get('host')}/ — «Код на почту».`);
     res.json({ ok: true });
   }));
 

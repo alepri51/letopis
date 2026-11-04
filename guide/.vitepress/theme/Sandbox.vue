@@ -1,28 +1,29 @@
 <script setup lang="ts">
 /**
- * Песочница примера: исходник примера в редакторе, «Запустить на базе» — прогон на живой базе в свежей схеме
- * (`POST /api/run`, `server.mjs` → `examples/_runner/sandbox.ts`). Снимок прогона уходит в тот же плеер (`result`).
+ * Песочница примера: в редакторе — та же самостоятельная программа, что на странице (`examples/….ts?standalone`),
+ * «Запустить на базе» выполняет её на живой базе (`POST /api/run` → `server.mjs` → `examples/_runner/sandbox.ts`) и
+ * показывает, что она напечатала. Прогоны идут по одному: пока выполняется чужой, запрос ждёт в очереди сервера.
  * Работает, когда сайт открыт с сервера guide с включённой песочницей: контейнер (compose) или `npm run sandbox`.
  */
-import { onMounted, ref } from 'vue';
+import { onBeforeUnmount, onMounted, ref } from 'vue';
 import { withBase } from 'vitepress';
 
 const props = defineProps<{ id: string }>();
-// result: снимок с метками и тот же прогон с настоящими значениями (вкладка «Реальная таблица»; null — сервер их не прислал)
-const emit = defineEmits<{ result: [snapshot: unknown, real: unknown]; reset: [] }>();
-const sources = import.meta.glob<string>(['../../../examples/*/*.ts', '!../../../examples/_*/**'], { query: '?raw', import: 'default' });
+const programs = import.meta.glob<string>(['../../../examples/*/*.ts', '!../../../examples/_*/**'], { query: '?standalone', import: 'default' });
 
 const original = ref('');
 const code = ref('');
 const enabled = ref<boolean | null>(null);
 const running = ref(false);
-const ran = ref(false);
+// пока запрос ждёт ответа: сколько прогонов на сервере впереди (null — неизвестно)
+const waiting = ref<string>('');
 const error = ref('');
-const failures = ref<string[]>([]);
-const logs = ref('');
+const output = ref<string | null>(null);
+const exitCode = ref<number | null>(null);
+const ms = ref<number | null>(null);
 
 onMounted(async () => {
-  const load = sources[`../../../examples/${props.id}.ts`];
+  const load = programs[`../../../examples/${props.id}.ts`];
   original.value = code.value = load ? await load() : '';
   try {
     const r = await fetch(withBase('/api/sandbox'));
@@ -32,37 +33,54 @@ onMounted(async () => {
   }
 });
 
+let poll: ReturnType<typeof setInterval> | null = null;
+const stopPoll = () => {
+  if (poll) clearInterval(poll);
+  poll = null;
+};
+onBeforeUnmount(stopPoll);
+
+/** Место своего прогона на сервере, пока ждём ответ: в очереди или уже выполняется. */
+let ticket = '';
+async function status() {
+  try {
+    const s = await fetch(withBase(`/api/sandbox?ticket=${ticket}`)).then((r) => r.json());
+    if (s.place === 0) waiting.value = 'выполняется…';
+    else if (typeof s.place === 'number') waiting.value = s.place === 1 ? 'в очереди: следующий' : `в очереди: впереди ${s.place - 1}`;
+  } catch {
+    /* ответ на сам прогон всё равно придёт */
+  }
+}
+
 async function run() {
   running.value = true;
   error.value = '';
-  failures.value = [];
-  logs.value = '';
+  output.value = null;
+  exitCode.value = ms.value = null;
+  waiting.value = 'отправляю…';
+  ticket = Math.random().toString(36).slice(2);
+  void status();
+  poll = setInterval(status, 1000);
   try {
     const r = await fetch(withBase('/api/run'), {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ id: props.id, source: code.value }),
+      body: JSON.stringify({ id: props.id, source: code.value, ticket }),
     });
     const body = await r.json().catch(() => ({ error: `сервер ответил ${r.status}` }));
-    logs.value = body.logs ?? '';
+    output.value = typeof body.output === 'string' ? body.output : null;
     if (!r.ok || body.error) {
       error.value = body.error ?? `сервер ответил ${r.status}`;
       return;
     }
-    failures.value = body.failures ?? [];
-    ran.value = true;
-    emit('result', body.snapshot, body.real ?? null);
+    exitCode.value = body.exitCode ?? null;
+    ms.value = body.ms ?? null;
   } catch {
     error.value = 'сервер песочницы недоступен';
   } finally {
+    stopPoll();
     running.value = false;
   }
-}
-
-function back() {
-  ran.value = false;
-  failures.value = [];
-  emit('reset');
 }
 
 // Tab в редакторе вставляет два пробела, а не уводит фокус к следующему полю.
@@ -92,7 +110,7 @@ function onTab(e: KeyboardEvent) {
       spellcheck="false"
       autocapitalize="off"
       autocomplete="off"
-      aria-label="Исходник примера"
+      aria-label="Текст программы"
       @keydown.tab.prevent="onTab"
     />
     <div class="lt-sbx-bar">
@@ -100,18 +118,19 @@ function onTab(e: KeyboardEvent) {
         {{ running ? 'Идёт прогон…' : 'Запустить на базе' }}
       </button>
       <button class="lt-btn ghost" :disabled="code === original" @click="code = original">Вернуть исходный код</button>
-      <button v-if="ran" class="lt-btn ghost" @click="back">Показать записанный снимок</button>
-      <span v-if="running" class="lt-sbx-hint">свежая схема, установка и шаги — обычно несколько секунд</span>
+      <span v-if="running" class="lt-sbx-hint">{{ waiting }}</span>
     </div>
     <div v-if="error" class="lt-sbx-error"><strong>Прогон не получился:</strong> {{ error }}</div>
-    <div v-if="failures.length" class="lt-sbx-failures">
-      <strong>Замечания прогона</strong> (шаг упал не так, как обещает пример, — так сверка ловит изменения):
-      <ul><li v-for="(f, k) in failures" :key="k">{{ f }}</li></ul>
+    <div v-if="output !== null" class="lt-sbx-out">
+      <div class="lt-sbx-out-head">
+        <strong>Что напечатала программа</strong>
+        <span v-if="exitCode !== null" class="lt-sbx-hint">
+          код выхода {{ exitCode }}<template v-if="ms !== null"> · {{ (ms / 1000).toFixed(1) }} с</template>
+        </span>
+      </div>
+      <pre v-if="output">{{ output }}</pre>
+      <p v-else class="lt-sbx-empty">программа ничего не напечатала</p>
     </div>
-    <details v-if="logs" class="lt-sbx-logs">
-      <summary>Что напечатал прогон</summary>
-      <pre>{{ logs }}</pre>
-    </details>
   </div>
 </template>
 
@@ -122,7 +141,7 @@ function onTab(e: KeyboardEvent) {
 .lt-sbx-code {
   display: block;
   width: 100%;
-  min-height: 320px;
+  min-height: 420px;
   resize: vertical;
   padding: 10px 12px;
   border: 1px solid var(--vp-c-divider);
@@ -138,10 +157,10 @@ function onTab(e: KeyboardEvent) {
 .lt-sbx-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
 .lt-sbx-hint { font-size: 12px; color: var(--vp-c-text-3); }
 .lt-sbx-error { margin-top: 8px; padding: 8px 10px; border-radius: 8px; background: var(--vp-c-danger-soft); color: var(--vp-c-danger-1); font-size: 13px; white-space: pre-wrap; }
-.lt-sbx-failures { margin-top: 8px; padding: 8px 10px; border-radius: 8px; background: var(--vp-c-warning-soft); font-size: 13px; }
-.lt-sbx-failures ul { margin: 4px 0 0; }
-.lt-sbx-logs { margin-top: 8px; font-size: 13px; }
-.lt-sbx-logs pre { max-height: 260px; overflow: auto; font-size: 12px; background: var(--vp-c-bg); padding: 8px; border-radius: 6px; }
+.lt-sbx-out { margin-top: 10px; font-size: 13px; }
+.lt-sbx-out-head { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
+.lt-sbx-out pre { margin: 6px 0 0; max-height: 420px; overflow: auto; font-size: 12px; line-height: 1.5; background: var(--vp-c-bg); padding: 8px 10px; border-radius: 6px; white-space: pre; }
+.lt-sbx-empty { margin: 6px 0 0; color: var(--vp-c-text-3); font-style: italic; }
 .lt-btn {
   border: 1px solid var(--vp-c-divider);
   border-radius: 8px;

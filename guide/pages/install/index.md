@@ -28,7 +28,7 @@ grant letopis_app to shop_app;
 |---|---|---|
 | создаёт базу из строки подключения, если её нет (подключившись к базе `postgres`) | `CREATEDB` | только если базы ещё нет |
 | заводит роли `letopis_owner` и `letopis_app`, включает себя в `letopis_owner` (`set`, без наследования прав) | `CREATEROLE` — или роли уже заведены, а у установщика на `letopis_owner` есть `ADMIN OPTION` | первая установка в кластере |
-| заводит роль приложения (опция `login`) и включает её в `letopis_app` | `CREATEROLE` | при каждом `up({ login })` |
+| заводит роль приложения (опция `login`) и включает её в `letopis_app` | `CREATEROLE` и `ADMIN OPTION` на `letopis_app` (если `letopis_app` завёл сам установщик, `ADMIN OPTION` у него уже есть) | при каждом `up({ login })` |
 | ставит расширение `pgcrypto` (хэши паролей и ключей) | право `CREATE` на базе: `pgcrypto` — доверенное расширение | если расширения в базе ещё нет |
 | создаёт схему `v2.<имя>` и отдаёт её `letopis_owner` | право `CREATE` на базе ([CREATE SCHEMA](https://www.postgresql.org/docs/18/sql-createschema.html)) | первая установка схемы |
 
@@ -43,19 +43,31 @@ grant letopis_app to shop_app;
    create database shop owner letopis_installer;   -- владелец базы имеет CREATE; или: grant create on database shop to letopis_installer
    ```
 
+   Роли PostgreSQL общие для всех баз сервера, поэтому `letopis_owner` и `letopis_app` могли остаться от прошлой установки — например, их завёл суперпользователь. С PostgreSQL 16 права `CREATEROLE` мало, чтобы включать других в чужую роль: нужен `ADMIN OPTION` на неё. Роль, которую установщик завёл сам, он получает с `ADMIN OPTION` автоматически, а на чужие роли его выдают отдельно — иначе `up()` отвечает «нет `ADMIN OPTION`» про `letopis_owner` (ключ `boot.owner_no_admin`), а `up({ login })` — сырой ошибкой PostgreSQL `permission denied to grant role "letopis_app"`:
+
+   ```sql
+   -- от суперпользователя, если роли letopis уже есть на сервере
+   grant letopis_owner to letopis_installer with admin option;
+   grant letopis_app to letopis_installer with admin option;   -- нужно для up({ login })
+   ```
+
+   Если `up({ login })` всё же упал на этом шаге, схема к этому моменту уже поставлена, а ключ сервиса из этого вызова не вернулся. Выдайте права и повторите вызов с `fresh: true` — схема ещё пустая, и `up()` выдаст новый ключ.
+
 3. **Заранее подготовленная база** — у установщика нет ни `CREATEROLE`, ни `CREATEDB`: администратор базы один раз готовит всё, что требует этих прав, а `up()` только ставит схему:
 
    ```sql
    -- от суперпользователя, в базе установки
    create extension if not exists pgcrypto;
-   create role letopis_owner nologin;
-   create role letopis_app nologin;
+   do $$ begin                                                     -- роли общие для сервера: могли остаться от прошлой установки
+     if not exists (select 1 from pg_roles where rolname = 'letopis_owner') then create role letopis_owner nologin; end if;
+     if not exists (select 1 from pg_roles where rolname = 'letopis_app') then create role letopis_app nologin; end if;
+   end $$;
    grant letopis_owner to letopis_installer with admin option;   -- up() включает себя в letopis_owner
    grant create on database shop to letopis_installer;           -- для create schema
    create role shop_app login password '…' in role letopis_app;  -- роль приложения заводит администратор
    ```
 
-   Опцию `login` в этом варианте не передавайте — роль приложения уже есть. Без `ADMIN OPTION` на `letopis_owner` `up()` отвечает понятной ошибкой (ключ `boot.owner_no_admin`), а не сырым отказом PostgreSQL.
+   Простое `create role letopis_owner nologin` на сервере, где роль уже есть, падает с `role "letopis_owner" already exists` — поэтому роли заводятся блоком `do` с проверкой. Опцию `login` в этом варианте не передавайте — роль приложения уже есть. Без `ADMIN OPTION` на `letopis_owner` `up()` отвечает понятной ошибкой (ключ `boot.owner_no_admin`), а не сырым отказом PostgreSQL.
 
 Установщик — не роль приложения: приложение подключается своей ролью из `letopis_app`. Суперпользователь или роль с `BYPASSRLS` обходили бы проверки прав, поэтому `connect()` такой роли отказывает (`bypass_rls`).
 
@@ -116,13 +128,15 @@ sequenceDiagram
 | `quiet`, `waitTimeoutMs` | без сообщений в консоль; сколько ждать базу |
 | `log`, `logLevel`, `redact` | журнал работы библиотеки: логгер (pino, `console` или функция), порог и свои поля для маскировки — глава [«Логирование»](../logging/) |
 | `owner`, `app` | имена ролей владельца и приложения |
-| `migrationsDir` | свой каталог миграций для `upgrade` |
+| `migrationsDir` | каталог, откуда `upgrade` берёт миграции вместо каталога самого пакета (ниже) |
 
 Неизвестная опция `up()` или `connect()` — отказ `invalid_data` с похожими именами ещё до подключения к базе (строгий режим): опечатка вроде `serviceKye` молча не пройдёт.
 
 Установка через готовый пул, с явными именами ролей, первым арендатором и режимом сигналов `none` — для пулов в режиме транзакций (PgBouncer), где база не может слать сигналы:
 
-<Example id="install/06-up-options" />
+<Example id="install/06-up-pool-roles" />
+
+Каталог миграций в этом примере — `migrate` рядом с программой. Миграция — файл SQL, который `up({ upgrade: true })` выполняет над схемой старой ревизии, прежде чем заново поставить функции: имя файла — `NNNN-описание.sql`, где `NNNN` — ревизия, к которой он ведёт. Применяются файлы с номером выше ревизии схемы и не выше ревизии пакета, по возрастанию. Обычно опция не нужна: миграции лежат в самом пакете (каталог `sql/migrate` в `node_modules/letopis`). Свой каталог заменяет их целиком, поэтому в нём должны быть и файлы пакета; файл с номером выше ревизии пакета не применится. Здесь схема ставится с нуля — миграций нет, и каталога `migrate` может не быть вовсе: `up()` считает его пустым.
 
 ## Опции connect()
 
@@ -136,13 +150,21 @@ sequenceDiagram
 
 ## Разработка без PostgreSQL
 
+PGlite — PostgreSQL в WebAssembly внутри процесса Node: сервер базы не нужен, поэтому и `ADMIN_DSN` этой программе не нужен. Нужны два пакета PGlite — библиотека их не ставит сама (они необязательные):
+
+```sh
+npm i -D @electric-sql/pglite @electric-sql/pglite-socket
+```
+
+Без них `up({ pglite: true })` отказывает и называет недостающий пакет.
+
 <Example id="install/04-pglite" />
 
 ## Обновление пакета: штамп движка
 
 <Example id="install/05-engine-stamp" />
 
-У схемы есть ревизия движка — сейчас 10. Ревизия меняется не с каждой версией пакета, поэтому `up()` пишет в комментарий схемы ещё и штамп: версию пакета и хэш его файлов SQL; `connect()` сверяет штамп с пакетом и предупреждает о расхождении. Новую ревизию накатывает `up({ schema, upgrade: true })`: миграции и повторный накат функций, данные сохраняются.
+У схемы есть ревизия движка — у letopis 3.0 это 11 (её номер — экспорт `DDL_REVISION` и поле `revision` в ответе `up()`). Ревизия меняется не с каждой версией пакета, поэтому `up()` пишет в комментарий схемы ещё и штамп: версию пакета и хэш его файлов SQL; `connect()` сверяет штамп с пакетом и предупреждает о расхождении. Новую ревизию накатывает `up({ schema, upgrade: true })`: миграции и повторный накат функций, данные сохраняются. Обновлять умеют только схемы ревизии 8 и выше — их ставит letopis 2.0 и новее. Схему letopis 1.x (ревизия ниже 8) пакет не обновляет: `up()` и `connect()` отказывают и советуют `up({ schema, fresh: true })` — поставить схему заново, без переноса данных; в тексте этой ошибки «2.0» — первая версия с ревизией 8 (последний шаг примера выше).
 
 ## Подводные камни
 

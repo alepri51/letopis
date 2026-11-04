@@ -6,8 +6,8 @@ import type { Section } from './types.js';
 
 /** Неизвестное имя класса, алиаса или роли: агенту доступна не db.registry, а letopis_model. */
 const NAME_HINT = 'проверить имя: похожие названы в тексте и в similar, классы, алиасы и концы — letopis_model';
-/** Удаление сорвалось после превью: превью — заново. */
-const PREVIEW_HINT = 'посмотреть превью заново (delete без confirm) и повторить удаление с confirm: true';
+/** Удаление сорвалось после предпросмотра: предпросмотр — заново. */
+const PREVIEW_HINT = 'посмотреть предпросмотр заново (delete без confirm) и повторить удаление с confirm: true';
 /** Неверная опция createMcpServer. */
 const OPTION_HINT = 'исправить опцию createMcpServer: допустимые значения названы в тексте';
 
@@ -307,7 +307,7 @@ export const mcp = {
   // mcp.ts, write: код операции агента не совпал с превью (detail.operation — нынешний)
   'mcp.delete_operation_changed': {
     code: 'confirmation_required',
-    ru: 'letopis_write: операция изменилась после превью — посмотрите превью заново',
+    ru: 'letopis_write: операция изменилась после предпросмотра — посмотрите предпросмотр заново',
     hint: PREVIEW_HINT,
   },
   // mcp.ts, write: целей удаления не видно
@@ -315,10 +315,10 @@ export const mcp = {
     code: 'target_not_found',
     ru: 'letopis_write: удалять нечего — целей не видно',
   },
-  // mcp.ts, write: в превью есть $action restrict (detail.preview)
+  // mcp.ts, write: в превью есть $action restrict или сводка скрытых строк $hidden restrict (detail.preview)
   'mcp.delete_restricted': {
     code: 'delete_restricted',
-    ru: 'letopis_write: удалению мешают строки с $action: restrict',
+    ru: 'letopis_write: удалению мешают строки с $action: restrict (или скрытые правами — сводка $hidden: restrict)',
   },
   // mcp.ts, confirmDelete (stateError): requestState не той операции, не того пользователя или подделан
   'mcp.delete_foreign_answer': {
@@ -328,7 +328,7 @@ export const mcp = {
   // mcp.ts, confirmDelete (stateError): срок requestState истёк
   'mcp.delete_answer_expired': {
     code: 'confirmation_required',
-    ru: 'letopis_write: удаление не выполнено — подтверждение устарело — посмотрите превью и подтвердите удаление заново',
+    ru: 'letopis_write: удаление не выполнено — подтверждение устарело — посмотрите предпросмотр и подтвердите удаление заново',
     hint: PREVIEW_HINT,
   },
   // mcp.ts, confirmDelete: человек отказал или закрыл окно
@@ -344,7 +344,7 @@ export const mcp = {
   // mcp.ts, write: повторное превью в транзакции разошлось с подтверждённым
   'mcp.delete_data_changed': {
     code: 'confirmation_required',
-    ru: 'letopis_write: данные изменились после подтверждения — посмотрите превью заново',
+    ru: 'letopis_write: данные изменились после подтверждения — посмотрите предпросмотр заново',
     hint: PREVIEW_HINT,
   },
   // mcp.ts, limitsOf: maxRows, maxBytes — не целое из диапазона

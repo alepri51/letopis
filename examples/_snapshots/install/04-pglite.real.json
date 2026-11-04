@@ -1,17 +1,5 @@
 {
   "id": "install/04-pglite",
-  "context": {
-    "schema": "v2.g_install_04_pglite",
-    "dsn": {
-      "admin": "postgres://postgres:test@localhost:15433/letopis",
-      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
-    },
-    "user": {
-      "login": "anna@romashka.ru",
-      "password": "Ромашка-2026!"
-    },
-    "up": null
-  },
   "initial": {
     "entity": [],
     "log": [],
@@ -54,5 +42,7 @@
       "secret": [],
       "signals": []
     }
-  ]
+  ],
+  "output": "Шаг 1. Запускаем PGlite и ставим схему\n{\n  \"schema\": \"v2.dev\",\n  \"created\": true,\n  \"pglite\": true\n}\n\nШаг 2. Подключаемся: одно соединение, без LISTEN\n[\n  {\n    \"done\": false,\n    \"title\": \"Написать документацию\"\n  }\n]\n\nШаг 3. Закрываем подключение и PGlite\n\"закрыто\"",
+  "exitCode": 0
 }

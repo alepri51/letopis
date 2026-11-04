@@ -26,10 +26,17 @@ export default example({
     },
     {
       title: 'Смена пароля завершает остальные сессии',
-      text: 'Новый пароль хранится хэшем scrypt; сессии Анны завершены (в `secret` у них заполнена колонка «погашен»), старый пароль больше не подходит.',
+      text:
+        'У Анны открыта сессия на другом устройстве. Сервис меняет ей пароль: новый хранится хэшем scrypt, все сессии ' +
+        'Анны завершены (в `secret` у них заполнена колонка «погашен») — `svc.auth.session(token)` той сессии теперь ' +
+        '`null`, а старый пароль больше не подходит.',
       run: async ({ svc, up, user }) => {
+        const phone = await svc.auth.sessionFor(up.tenant!.user!, { ttl: 600 }); // сессия Анны на другом устройстве
         await svc.auth.setPassword({ account: up.tenant!.user!, identifier: user.login, password: 'Новый-пароль-2026', confirmed: true });
-        return { 'старый пароль': await svc.auth.verifyPassword({ identifier: user.login, password: user.password }) };
+        return {
+          'сессия на другом устройстве': await svc.auth.session(phone),
+          'старый пароль': await svc.auth.verifyPassword({ identifier: user.login, password: user.password }),
+        };
       },
     },
     {
@@ -63,7 +70,10 @@ export default example({
       text:
         'Коду можно дать свой вид — например `OTP_RESET` для сброса пароля. Использованные, истёкшие и исчерпавшие ' +
         'попытки коды больше не нужны: `maintain()` удаляет их из таблицы `secret` — и вида `OTP`, и своих видов ' +
-        '`OTP_<ИМЯ>`. Здесь удалены оба использованных кода: из прошлого шага и этот.',
+        '`OTP_<ИМЯ>`. Здесь удалены оба использованных кода: из прошлого шага и этот. `maintain()` — обслуживание ' +
+        'всей схемы, ему нужно право на эндпоинт `letopis.maintain`, поэтому здесь его вызывает `adm` — администраторское подключение `connect({ dsn: <DSN ' +
+        'администратора базы>, schema, allowBypassRls: true })`, на нём правила доступа (RLS) не действуют. В работе ' +
+        '`maintain()` обычно идёт по расписанию (`connect({ maintain })`), а не из кода входа.',
       run: async ({ svc, up, user, dsn, schema }) => {
         const { code } = await svc.auth.issueOtp({ account: up.tenant!.user!, identifier: user.login, kind: 'OTP_RESET', ttl: 300 });
         const ok = !!(await svc.auth.verifyOtp({ identifier: user.login, code, kind: 'OTP_RESET' }));
@@ -92,6 +102,11 @@ export default example({
     },
     {
       title: 'Короткая сессия для другого процесса',
+      text:
+        '`sessionFor(account, { ttl })` — сервис выдаёт сессию сам, без пароля, на `ttl` секунд (здесь 10 минут). Как и ' +
+        'любой вход, она начинается в личном арендаторе аккаунта: `tenant` ниже — id личного арендатора Анны (он ' +
+        'равен id её аккаунта), а не компании. Перейти в компанию — `auth.switch()` ([«После входа: в каком арендаторе ' +
+        'работать»](#после-входа-в-каком-арендаторе-работать)).',
       run: async ({ svc, up, connect, dsn, schema }) => {
         const token = await svc.auth.sessionFor(up.tenant!.user!, { ttl: 600 });
         const other = await connect({ dsn: dsn.app, schema, token });

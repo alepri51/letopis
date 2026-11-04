@@ -8,7 +8,7 @@ outline: [2, 3]
 
 `db.auth` — способы входа (креды), вход по ним и сессии. Проверку паролей, кодов и TOTP, выпуск сессий и подтверждение кредов вызывает сервис (права `auth.*`); обычному пользователю отвечают `acl_denied`.
 
-**Что здесь:** [Свойство](#своиство) · [Пароли](#пароли) · [Ключи API](#ключи-api) · [TOTP](#totp) · [Одноразовые коды](#одноразовые-коды) · [Внешние учётные записи](#внешние-учетные-записи) · [Креды](#креды) · [Сессии](#сессии) · [Арендаторы](#арендаторы) · [Удаление аккаунта](#удаление-аккаунта). У каждого пункта — сигнатура с типами, что делает, параметры и опции (тип, значение по умолчанию), что возвращает, коды ошибок и ссылки на живые примеры сайта.
+**Что здесь:** [Свойство](#своиство) · [Пароли](#пароли) · [Ключи API](#ключи-api) · [TOTP](#totp) · [Одноразовые коды](#одноразовые-коды) · [Внешние учётные записи](#внешние-учетные-записи) · [Креды](#креды) · [Сессии](#сессии) · [Арендаторы](#арендаторы) · [Удаление аккаунта](#удаление-аккаунта). У каждого пункта — сигнатура с типами, что делает, параметры и опции (тип, значение по умолчанию), что возвращает, коды ошибок и переходы к живым примерам сайта.
 
 ## Свойство
 
@@ -17,6 +17,8 @@ outline: [2, 3]
 ```ts
 readonly auth: AuthApi
 ```
+
+**Откуда:** `db` — подключение из `connect()` (`import { connect } from 'letopis'`); те же методы — у `db.as()` и транзакции `db.begin()`.
 
 Вход и сессии: способы входа (креды) — пароль, ключ API, TOTP, одноразовый код из письма или СМС, привязка внешней учётной записи; вход по ним, выпуск и гашение сессий, выбор арендатора сессии.
 
@@ -31,6 +33,8 @@ readonly auth: AuthApi
 ```ts
 setPassword(a: { account: AccountRef; identifier: string; password: string; kind?: string; confirmed?: boolean; keepCurrent?: boolean }): Promise<string>
 ```
+
+**Откуда:** `db.auth`; `db` — подключение из `connect()` (`import { connect } from 'letopis'`).
 
 Пароль (и любой «логин/пароль»: `kind` — `PASSWORD`, `EMAIL`, …): создать или заменить. Смена гасит остальные сессии аккаунта.
 
@@ -53,7 +57,7 @@ setPassword(a: { account: AccountRef; identifier: string; password: string; kind
 **Ошибки** ([все коды](../errors/)):
 
 - `no_session` — у подключения нет действующей сессии.
-- `acl_denied` — нет недавнего входа и права `auth.credential`; аккаунт — System, сервис или системный администратор, а вызывающий не он сам и не системный администратор; идентификатор занят другой аккаунтом.
+- `acl_denied` — нет недавнего входа и права `auth.credential`; аккаунт — System, сервис или системный администратор, а вызывающий не он сам и не системный администратор; идентификатор занят другим аккаунтом.
 - `invalid_data` — вид креда не подходит или идентификатор пустой.
 
 **Примеры:** [Вход: пароль, ключ API, одноразовый код, TOTP, внешняя учётная запись](../auth/#пример-все-способы-входа)
@@ -61,8 +65,10 @@ setPassword(a: { account: AccountRef; identifier: string; password: string; kind
 ### db.auth.verifyPassword() {#auth-verifypassword}
 
 ```ts
-verifyPassword(a: { identifier: string; password: string; kind?: string; requireConfirmed?: boolean; ttl?: number; totp?: string }): Promise<LoginResult | null>
+verifyPassword(a: { identifier: string; password: string; kind?: string; requireConfirmed?: boolean; ttl?: number | string; totp?: string }): Promise<LoginResult | null>
 ```
+
+**Откуда:** `db.auth`; `db` — подключение из `connect()` (`import { connect } from 'letopis'`).
 
 Вход по паролю — для сервиса с правом `auth.password` и `auth.session`. Неудача — `null`. С `totp` после верного пароля база проверяет код TOTP аккаунта (право `auth.totp`; счётчик неудач и блокировка — общие с `verifyTotp()`): верный — сессия со способами `[kind, 'TOTP']`, неверный или повторный — `null`.
 
@@ -72,20 +78,20 @@ verifyPassword(a: { identifier: string; password: string; kind?: string; require
 
 | Параметр | Тип | По умолчанию | Описание |
 |---|---|---|---|
-| `a` | `{ identifier: string; password: string; kind?: string; requireConfirmed?: boolean; ttl?: number; totp?: string }` | обязательный | Данные входа. |
+| `a` | `{ identifier: string; password: string; kind?: string; requireConfirmed?: boolean; ttl?: number \| string; totp?: string }` | обязательный | Данные входа. |
 | `a.identifier` | `string` | обязательный | Логин. Регистр букв не важен. |
 | `a.password` | `string` | обязательный | Пароль, который ввёл пользователь. |
 | `a.kind` | `string` | `'PASSWORD'` | Вид креда, как в `setPassword()`. |
 | `a.requireConfirmed` | `boolean` | `true` | Пускать только по подтверждённому креду. `false` — и по неподтверждённому. |
-| `a.ttl` | `number` | 7 суток | Срок новой сессии в секундах. Срок считается от последнего использования: подключение само продлевает сессию. |
+| `a.ttl` | `number \| string` | 7 суток | Срок новой сессии в секундах. Срок считается от последнего использования: подключение само продлевает сессию. |
 | `a.totp` | `string` | нет: код не проверяется | Код TOTP из приложения-аутентификатора. Проверяется после верного пароля; нужно право `auth.totp`. |
 
-**Возвращает:** `Promise<LoginResult \| null>` ([LoginResult](./types#type-loginresult)) — `{ account, token }` — id аккаунта и токен новой сессии или `null`. Способы входа сессии (`methods` в `session()`) — `[kind]`, с верным кодом TOTP — `[kind, 'TOTP']`.
+**Возвращает:** `Promise<LoginResult | null>` ([LoginResult](./types-log#type-loginresult)) — `{ account, token }` — id аккаунта и токен новой сессии или `null`. Способы входа сессии (`methods` в `session()`) — `[kind]`, с верным кодом TOTP — `[kind, 'TOTP']`.
 
 **Ошибки** ([все коды](../errors/)):
 
 - `no_session` — у подключения сервиса нет действующей сессии.
-- `acl_denied` — нет права `auth.password` или `auth.session` (с `totp` — ещё `auth.totp`); пароль верен, но аккаунт запись — System, сервис или системный администратор.
+- `acl_denied` — нет права `auth.password` или `auth.session` (с `totp` — ещё `auth.totp`); пароль верен, но аккаунт, которому он принадлежит, — System, сервис или системный администратор: таким аккаунтам вход по паролю сессию не выдаёт.
 - `invalid_data` — сохранённый хэш пароля — scrypt с недопустимыми параметрами или требует больше 64 МБ памяти (например, хэш, перенесённый из другой системы), — как у `verifyHash()`.
 
 **Примеры:** [Вход: пароль, ключ API, одноразовый код, TOTP, внешняя учётная запись](../auth/#пример-все-способы-входа) · [Вход для веб-сервиса: одно подключение сервиса и svc.as() на запрос](../auth/#вход-для-веб-сервиса-одно-подключение-и-svc-as-на-запрос) · [Три таблицы: entity, log и secret](../basics/what-is#три-таблицы-на-примере)
@@ -95,8 +101,10 @@ verifyPassword(a: { identifier: string; password: string; kind?: string; require
 ### db.auth.issueApiKey() {#auth-issueapikey}
 
 ```ts
-issueApiKey(a: { account: AccountRef; name?: string; ttl?: number }): Promise<{ key: string; id: string }>
+issueApiKey(a: { account: AccountRef; name?: string; ttl?: number | string }): Promise<{ key: string; id: string }>
 ```
+
+**Откуда:** `db.auth`; `db` — подключение из `connect()` (`import { connect } from 'letopis'`).
 
 Ключ API `lts_…`: отдаётся один раз. Себе сервис выпускает ключ сам по сессии своего ключа.
 
@@ -106,10 +114,10 @@ issueApiKey(a: { account: AccountRef; name?: string; ttl?: number }): Promise<{ 
 
 | Параметр | Тип | По умолчанию | Описание |
 |---|---|---|---|
-| `a` | `{ account: AccountRef; name?: string; ttl?: number }` | обязательный | Чей ключ и как его назвать. |
+| `a` | `{ account: AccountRef; name?: string; ttl?: number \| string }` | обязательный | Чей ключ и как его назвать. |
 | `a.account` | `AccountRef` | обязательный | Аккаунт: id или объект с полем `id`. |
 | `a.name` | `string` | нет | Название ключа для людей, например «интеграция»; видно в `credentials()` (поле `meta.name`). |
-| `a.ttl` | `number` | бессрочно, пока ключ не отозван | Срок действия ключа в секундах. |
+| `a.ttl` | `number \| string` | бессрочно, пока ключ не отозван | Срок действия ключа в секундах. |
 
 **Возвращает:** `Promise<{ key: string; id: string }>` — `{ key, id }`: `key` — сам ключ вида `lts_…` (показывается один раз, база хранит только хэш), `id` — id креда для `revokeCredential()` и `setFlags()`.
 
@@ -126,6 +134,8 @@ issueApiKey(a: { account: AccountRef; name?: string; ttl?: number }): Promise<{ 
 verifyApiKey(key: string): Promise<LoginResult | null>
 ```
 
+**Откуда:** `db.auth`; `db` — подключение из `connect()` (`import { connect } from 'letopis'`).
+
 Вход по ключу API: проверяет ключ и при успехе открывает новую сессию его аккаунта на 7 суток. Особых прав не нужно. Сессия помнит ключ: отзыв ключа гасит её.
 
 **Параметры**
@@ -134,7 +144,7 @@ verifyApiKey(key: string): Promise<LoginResult | null>
 |---|---|---|---|
 | `key` | `string` | обязательный | Ключ API вида `lts_…`. |
 
-**Возвращает:** `Promise<LoginResult \| null>` ([LoginResult](./types#type-loginresult)) — `{ account, token }` — id аккаунта и токен новой сессии или `null`, если ключа нет, он истёк, отозван или выключен, или аккаунт выключен.
+**Возвращает:** `Promise<LoginResult | null>` ([LoginResult](./types-log#type-loginresult)) — `{ account, token }` — id аккаунта и токен новой сессии или `null`, если ключа нет, он истёк, отозван или выключен, или аккаунт выключен.
 
 **Ошибки:** собственных кодов нет.
 
@@ -145,6 +155,8 @@ verifyApiKey(key: string): Promise<LoginResult | null>
 ```ts
 issueKeySecret(a: { account: AccountRef; name?: string }): Promise<{ key: string; secret: string; id: string }>
 ```
+
+**Откуда:** `db.auth`; `db` — подключение из `connect()` (`import { connect } from 'letopis'`).
 
 Пара ключ + секрет: секрет отдаётся один раз. Себе сервис выпускает пару сам по сессии своего ключа.
 
@@ -173,6 +185,8 @@ issueKeySecret(a: { account: AccountRef; name?: string }): Promise<{ key: string
 verifyKeySecret(key: string, secret: string): Promise<LoginResult | null>
 ```
 
+**Откуда:** `db.auth`; `db` — подключение из `connect()` (`import { connect } from 'letopis'`).
+
 Вход по паре «ключ + секрет»: при верной паре открывает новую сессию её аккаунта на 7 суток. Особых прав не нужно. Сессия помнит пару: отзыв пары гасит её.
 
 **Параметры**
@@ -182,7 +196,7 @@ verifyKeySecret(key: string, secret: string): Promise<LoginResult | null>
 | `key` | `string` | обязательный | Открытый ключ пары. Регистр букв не важен. |
 | `secret` | `string` | обязательный | Секрет пары. |
 
-**Возвращает:** `Promise<LoginResult \| null>` ([LoginResult](./types#type-loginresult)) — `{ account, token }` — id аккаунта и токен новой сессии или `null`, если пары нет, секрет неверен, пара отозвана или выключена, или аккаунт выключен.
+**Возвращает:** `Promise<LoginResult | null>` ([LoginResult](./types-log#type-loginresult)) — `{ account, token }` — id аккаунта и токен новой сессии или `null`, если пары нет, секрет неверен, пара отозвана или выключена, или аккаунт выключен.
 
 **Ошибки:** собственных кодов нет.
 
@@ -195,6 +209,8 @@ verifyKeySecret(key: string, secret: string): Promise<LoginResult | null>
 ```ts
 enrollTotp(a: { account: AccountRef; issuer?: string; label?: string }): Promise<{ secret: string; uri: string }>
 ```
+
+**Откуда:** `db.auth`; `db` — подключение из `connect()` (`import { connect } from 'letopis'`).
 
 Подключает второй фактор TOTP: выдаёт секрет (base32) и адрес `otpauth://` для QR-кода в приложении-аутентификаторе. Фактор включится после первой верной проверки кода — `verifyTotp()` или входа с `totp`.
 
@@ -224,6 +240,8 @@ enrollTotp(a: { account: AccountRef; issuer?: string; label?: string }): Promise
 verifyTotp(a: { account: AccountRef; code: string; window?: number }): Promise<boolean>
 ```
 
+**Откуда:** `db.auth`; `db` — подключение из `connect()` (`import { connect } from 'letopis'`).
+
 Проверяет код TOTP из приложения-аутентификатора. Нужно право `auth.totp` (по умолчанию оно у сервисов и системных администраторов). Первая верная проверка после `enrollTotp()` включает второй фактор. Уже принятый код и более старые коды отклоняются. Пять неудач подряд закрывают проверку на 5 минут. Если транзакция вызывающего откатится, откатится и счётчик неудач, поэтому частоту попыток должен ограничивать сам сервис.
 
 **Параметры**
@@ -250,6 +268,8 @@ verifyTotp(a: { account: AccountRef; code: string; window?: number }): Promise<b
 totpEnabled(account: AccountRef): Promise<boolean>
 ```
 
+**Откуда:** `db.auth`; `db` — подключение из `connect()` (`import { connect } from 'letopis'`).
+
 Проверяет, включён ли у аккаунта второй фактор TOTP. Свой аккаунт проверяет любая сессия, чужую — сессия с правом `auth.totp`.
 
 **Параметры**
@@ -272,8 +292,10 @@ totpEnabled(account: AccountRef): Promise<boolean>
 ### db.auth.issueOtp() {#auth-issueotp}
 
 ```ts
-issueOtp(a: { account: AccountRef; identifier: string; kind?: string; ttl?: number; digits?: number; maxAttempts?: number }): Promise<{ code: string }>
+issueOtp(a: { account: AccountRef; identifier: string; kind?: string; ttl?: number | string; digits?: number; maxAttempts?: number }): Promise<{ code: string }>
 ```
+
+**Откуда:** `db.auth`; `db` — подключение из `connect()` (`import { connect } from 'letopis'`).
 
 Одноразовый код для доставки сервисом (право `auth.otp`).
 
@@ -283,11 +305,11 @@ issueOtp(a: { account: AccountRef; identifier: string; kind?: string; ttl?: numb
 
 | Параметр | Тип | По умолчанию | Описание |
 |---|---|---|---|
-| `a` | `{ account: AccountRef; identifier: string; kind?: string; ttl?: number; digits?: number; maxAttempts?: number }` | обязательный | Кому и куда выпустить код. |
+| `a` | `{ account: AccountRef; identifier: string; kind?: string; ttl?: number \| string; digits?: number; maxAttempts?: number }` | обязательный | Кому и куда выпустить код. |
 | `a.account` | `AccountRef` | обязательный | Аккаунт, в который код даст войти: id или объект с полем `id`. |
 | `a.identifier` | `string` | обязательный | Куда сервис отправит код — почта или телефон, непустая строка. По нему же код найдёт `verifyOtp()`. |
 | `a.kind` | `string` | `'OTP'` | Вид кода: `OTP` или `OTP_<ИМЯ>` (например, `OTP_RESET` для сброса пароля) — коды разных видов не мешают друг другу. |
-| `a.ttl` | `number` | 10 минут | Срок действия кода в секундах. |
+| `a.ttl` | `number \| string` | 10 минут | Срок действия кода в секундах. |
 | `a.digits` | `number` | `6` | Число цифр в коде: от 4 до 10. |
 | `a.maxAttempts` | `number` | `5` | Сколько неверных попыток сжигают код. Значение вне 1–10 база приводит к ближайшей границе. |
 
@@ -308,6 +330,8 @@ issueOtp(a: { account: AccountRef; identifier: string; kind?: string; ttl?: numb
 verifyOtp(a: { identifier: string; code: string; kind?: string }): Promise<LoginResult | null>
 ```
 
+**Откуда:** `db.auth`; `db` — подключение из `connect()` (`import { connect } from 'letopis'`).
+
 Вход по одноразовому коду: верный код открывает новую сессию. Код сгорает после верного ввода и после исчерпания неверных попыток — их число задаёт `issueOtp({ maxAttempts })`.
 
 Нужно право `auth.otp`. Сессия — на 7 суток; способ входа в ней — вид кода. Если транзакция вызывающего откатится, откатится и счётчик неверных попыток, поэтому частоту попыток должен ограничивать сам сервис.
@@ -321,7 +345,7 @@ verifyOtp(a: { identifier: string; code: string; kind?: string }): Promise<Login
 | `a.code` | `string` | обязательный | Код, который ввёл пользователь. |
 | `a.kind` | `string` | `'OTP'` | Вид кода, как при выпуске. |
 
-**Возвращает:** `Promise<LoginResult \| null>` ([LoginResult](./types#type-loginresult)) — `{ account, token }` — id аккаунта и токен новой сессии или `null`: кода нет, он неверен, истёк, уже сгорел или аккаунт выключен.
+**Возвращает:** `Promise<LoginResult | null>` ([LoginResult](./types-log#type-loginresult)) — `{ account, token }` — id аккаунта и токен новой сессии или `null`: кода нет, он неверен, истёк, уже сгорел или аккаунт выключен.
 
 **Ошибки** ([все коды](../errors/)):
 
@@ -337,6 +361,8 @@ verifyOtp(a: { identifier: string; code: string; kind?: string }): Promise<Login
 ```ts
 link(a: { account: AccountRef; kind: string; identifier: string; meta?: Record<string, unknown>; confirmed?: boolean }): Promise<string>
 ```
+
+**Откуда:** `db.auth`; `db` — подключение из `connect()` (`import { connect } from 'letopis'`).
 
 Привязывает к аккаунту внешнюю учётную запись — например, для входа через Telegram, Google или SSO. Входят по привязке через `lookup()`; токен внешнего сервиса ваш сервис проверяет сам.
 
@@ -366,8 +392,10 @@ link(a: { account: AccountRef; kind: string; identifier: string; meta?: Record<s
 ### db.auth.lookup() {#auth-lookup}
 
 ```ts
-lookup(a: { kind: string; identifier: string; requireConfirmed?: boolean; ttl?: number; totp?: string }): Promise<LoginResult | null>
+lookup(a: { kind: string; identifier: string; requireConfirmed?: boolean; ttl?: number | string; totp?: string }): Promise<LoginResult | null>
 ```
+
+**Откуда:** `db.auth`; `db` — подключение из `connect()` (`import { connect } from 'letopis'`).
 
 Вход через привязанную внешнюю учётную запись: находит аккаунт по виду и id у внешнего сервиса и открывает ему новую сессию. Вызывает сервис с правами `auth.identity` и `auth.session`, когда уже сам проверил токен внешнего сервиса; `totp` — как у `verifyPassword()`.
 
@@ -377,14 +405,14 @@ System, сервису и системному администратору се
 
 | Параметр | Тип | По умолчанию | Описание |
 |---|---|---|---|
-| `a` | `{ kind: string; identifier: string; requireConfirmed?: boolean; ttl?: number; totp?: string }` | обязательный | Данные входа. |
+| `a` | `{ kind: string; identifier: string; requireConfirmed?: boolean; ttl?: number \| string; totp?: string }` | обязательный | Данные входа. |
 | `a.kind` | `string` | обязательный | Вид внешней учётной записи, как в `link()`. |
 | `a.identifier` | `string` | обязательный | id пользователя у провайдера. Регистр букв не важен. |
 | `a.requireConfirmed` | `boolean` | `true` | Пускать только по подтверждённой привязке. `false` — и по неподтверждённой. |
-| `a.ttl` | `number` | 7 суток | Срок новой сессии в секундах. |
+| `a.ttl` | `number \| string` | 7 суток | Срок новой сессии в секундах. |
 | `a.totp` | `string` | нет: код не проверяется | Код TOTP; проверяется, как в `verifyPassword()`. |
 
-**Возвращает:** `Promise<LoginResult \| null>` ([LoginResult](./types#type-loginresult)) — `{ account, token }` — id аккаунта и токен новой сессии или `null`: привязки нет, она не подтверждена или выключена, аккаунт выключен, код TOTP не подошёл.
+**Возвращает:** `Promise<LoginResult | null>` ([LoginResult](./types-log#type-loginresult)) — `{ account, token }` — id аккаунта и токен новой сессии или `null`: привязки нет, она не подтверждена или выключена, аккаунт выключен, код TOTP не подошёл.
 
 **Ошибки** ([все коды](../errors/)):
 
@@ -401,6 +429,8 @@ System, сервису и системному администратору се
 credentials(account: AccountRef): Promise<Credential[]>
 ```
 
+**Откуда:** `db.auth`; `db` — подключение из `connect()` (`import { connect } from 'letopis'`).
+
 Способы входа (креды) аккаунта — без хэшей и секретов.
 
 Свои креды видит любая сессия, чужие — с правом `auth.credential`. В списке пароли и другие логины, ключи API (идентификатор — начало ключа), пары «ключ + секрет», ещё не использованные одноразовые коды, TOTP и внешние учётные записи. Удалённые и истёкшие не показываются.
@@ -411,7 +441,7 @@ credentials(account: AccountRef): Promise<Credential[]>
 |---|---|---|---|
 | `account` | `AccountRef` | обязательный | Аккаунт: id или объект с полем `id`. |
 
-**Возвращает:** `Promise<Credential[]>` ([Credential](./types#type-credential)) — Массив кредов от старых к новым; у каждого — `id`, `kind`, `ident` (у TOTP — `null`), `confirmed`, `enabled`, `meta`, `created_at` и `expires_at` (время — строкой; у своего пула `connect({ sql })` — как он настроен).
+**Возвращает:** `Promise<Credential[]>` ([Credential](./types-access#type-credential)) — Массив кредов от старых к новым; у каждого — `id`, `kind`, `ident` (у TOTP — `null`), `confirmed`, `enabled`, `meta`, `created_at` и `expires_at` (время — строкой; у своего пула `connect({ sql })` — как он настроен).
 
 **Ошибки** ([все коды](../errors/)):
 
@@ -425,6 +455,8 @@ credentials(account: AccountRef): Promise<Credential[]>
 ```ts
 revokeCredential(id: string, opts?: { keepCurrent?: boolean }): Promise<boolean>
 ```
+
+**Откуда:** `db.auth`; `db` — подключение из `connect()` (`import { connect } from 'letopis'`).
 
 Удалить кред. Ключ API и пара ключ + секрет гасят только свои сессии, прочие креды — остальные сессии аккаунта; текущая гаснет, если `keepCurrent: false`. Свои ключи сервис отзывает сам; последний действующий ключ сервиса не отзывается (`acl_denied`).
 
@@ -453,6 +485,8 @@ revokeCredential(id: string, opts?: { keepCurrent?: boolean }): Promise<boolean>
 setFlags(id: string, flags: { confirmed?: boolean; enabled?: boolean }): Promise<boolean>
 ```
 
+**Откуда:** `db.auth`; `db` — подключение из `connect()` (`import { connect } from 'letopis'`).
+
 Признаки креда `confirmed` и `enabled` (право `auth.credential`).
 
 Выключенный кред (`enabled: false`) не пускает, но остаётся в списке и включается обратно; уже открытые по нему сессии не гаснут. Неподтверждённый кред не пускает в `verifyPassword()` и `lookup()`, если не передать им `requireConfirmed: false`. Флаги кредов System, сервисов и системных администраторов меняет только он сам или системный администратор.
@@ -480,10 +514,12 @@ setFlags(id: string, flags: { confirmed?: boolean; enabled?: boolean }): Promise
 ### db.auth.sessionFor() {#auth-sessionfor}
 
 ```ts
-sessionFor(account: AccountRef, opts?: { ttl?: number }): Promise<string>
+sessionFor(account: AccountRef, opts?: { ttl?: number | string }): Promise<string>
 ```
 
-Сессия пользователя для другого процесса (право `auth.session`); срок — `ttl` в секундах, по умолчанию 7 суток.
+**Откуда:** `db.auth`; `db` — подключение из `connect()` (`import { connect } from 'letopis'`).
+
+Сессия пользователя для другого процесса (право `auth.session`). Срок `ttl` — число секунд или строка: короткая форма `'15m'`/`'2h'`/`'30s'`/`'1d'` либо интервал PostgreSQL `'15 minutes'`; по умолчанию 7 суток.
 
 Сервис выпускает сессию без проверки пароля, например для фонового процесса или другого сервиса. Способ входа такой сессии — `SERVICE`: она не считается недавним входом, по ней пользователь не меняет свои креды. Для System, сервисов, системных администраторов и выключенных аккаунтов сессия не выпускается.
 
@@ -492,15 +528,15 @@ sessionFor(account: AccountRef, opts?: { ttl?: number }): Promise<string>
 | Параметр | Тип | По умолчанию | Описание |
 |---|---|---|---|
 | `account` | `AccountRef` | обязательный | Аккаунт: id или объект с полем `id`. |
-| `opts` | `{ ttl?: number }` | `{}` | Настройки. |
-| `opts.ttl` | `number` | 7 суток | Срок сессии в секундах (время простоя: подключение само продлевает сессию). |
+| `opts` | `{ ttl?: number \| string }` | `{}` | Настройки. |
+| `opts.ttl` | `number \| string` | 7 суток | Срок сессии в секундах (время простоя: подключение само продлевает сессию). |
 
 **Возвращает:** `Promise<string>` — Токен новой сессии — для `connect({ token })`.
 
 **Ошибки** ([все коды](../errors/)):
 
 - `no_session` — у подключения нет действующей сессии.
-- `acl_denied` — нет права `auth.session`, или аккаунт — System, сервис, системный администратор, выключена или не существует.
+- `acl_denied` — нет права `auth.session`, или аккаунт — System, сервис, системный администратор, выключен или не существует.
 
 **Примеры:** [Вход: пароль, ключ API, одноразовый код, TOTP, внешняя учётная запись](../auth/#пример-все-способы-входа)
 
@@ -510,9 +546,11 @@ sessionFor(account: AccountRef, opts?: { ttl?: number }): Promise<string>
 session(token: string): Promise<SessionInfo | null>
 ```
 
+**Откуда:** `db.auth`; `db` — подключение из `connect()` (`import { connect } from 'letopis'`).
+
 Сведения о сессии по её токену — для сервиса, который держит токен пользователя (например, в cookie): чья это сессия, в каком арендаторе она работает, цело ли там членство, когда истечёт, когда и как был вход. Подключение по этому токену не открывается, срок сессии не продлевается. Вызывает сервис или системный администратор (право `auth.session`).
 
-Так веб-сервис проверяет сессию в начале каждого запроса: чтение по погашенной сессии ошибки не даёт, ответы просто пустые, а здесь ответ — `null`. `member: false` значит, что пользователя убрали из рабочего арендатора или арендатор отключён: запросы по этому токену получат `tenant_denied`. У сессии, которую выдал `createTenant`, список способов входа пуст.
+Так веб-сервис проверяет сессию в начале каждого запроса, а здесь ответ по погашенной или истёкшей сессии — `null`. Цепочки по такой сессии ведут себя иначе: если с прошлого успешного запроса подключения прошло больше минуты, подключение сперва продлевает сессию и получает `no_session` (опция `connect({ refreshSession })`); в пределах минуты и с `refreshSession: false` чтение ошибки не даёт, а ответы пустые. `member: false` значит, что пользователя убрали из рабочего арендатора или арендатор отключён: запросы по этому токену получат `tenant_denied`. У сессии, которую выдал `createTenant`, список способов входа пуст.
 
 **Параметры**
 
@@ -520,7 +558,7 @@ session(token: string): Promise<SessionInfo | null>
 |---|---|---|---|
 | `token` | `string` | обязательный | Токен сессии пользователя — тот, что выдали вход или `sessionFor()`. |
 
-**Возвращает:** `Promise<SessionInfo \| null>` ([SessionInfo](./types#type-sessioninfo)) — Сведения о сессии или `null`: токен неверный, сессия погашена или истекла, аккаунт отключён — причина не различается.
+**Возвращает:** `Promise<SessionInfo | null>` ([SessionInfo](./types-access#type-sessioninfo)) — Сведения о сессии или `null`: токен неверный, сессия погашена или истекла, аккаунт отключён — причина не различается.
 
 **Ошибки** ([все коды](../errors/)):
 
@@ -532,10 +570,12 @@ session(token: string): Promise<SessionInfo | null>
 ### db.auth.refresh() {#auth-refresh}
 
 ```ts
-refresh(opts?: { ttl?: number }): Promise<string>
+refresh(opts?: { ttl?: number | string }): Promise<string>
 ```
 
-Продлить текущую сессию; новый срок — от сейчас.
+**Откуда:** `db.auth`; `db` — подключение из `connect()` (`import { connect } from 'letopis'`).
+
+Продлить текущую сессию; новый срок — от сейчас. `ttl` — число секунд или строка: короткая форма `'15m'`/`'2h'`/`'30s'`/`'1d'` либо интервал PostgreSQL `'15 minutes'`; по умолчанию 7 суток.
 
 Продление не укорачивает срок и не делает его длиннее выданного при входе: сессию, выданную на 10 минут, оно отодвигает не дальше чем на 10 минут от текущего момента. Подключение продлевает свою сессию само раз в минуту работы, поэтому вызывать `refresh()` вручную обычно не нужно.
 
@@ -543,10 +583,10 @@ refresh(opts?: { ttl?: number }): Promise<string>
 
 | Параметр | Тип | По умолчанию | Описание |
 |---|---|---|---|
-| `opts` | `{ ttl?: number }` | `{}` | Настройки. |
-| `opts.ttl` | `number` | 7 суток, но не больше срока, выданного при входе | На сколько секунд от текущего момента продлить. |
+| `opts` | `{ ttl?: number \| string }` | `{}` | Настройки. |
+| `opts.ttl` | `number \| string` | 7 суток, но не больше срока, выданного при входе | На сколько секунд от текущего момента продлить. |
 
-**Возвращает:** `Promise<string>` — Новое время истечения сессии строкой (UTC; у своего пула `connect({ sql })` — как он настроен). Токен прежний.
+**Возвращает:** `Promise<string>` — Новое время истечения сессии строкой в текстовом виде PostgreSQL — через пробел, пояс `+00` (`'2026-11-04 04:32:36.123+00'`; у своего пула `connect({ sql })` — как он настроен). `session().expiresAt` того же момента — ISO из JSON (`'2026-11-04T04:32:36.123+00:00'`); обе строки читает `new Date()`. Токен прежний.
 
 **Ошибки** ([все коды](../errors/)):
 
@@ -560,9 +600,11 @@ refresh(opts?: { ttl?: number }): Promise<string>
 revoke(token?: string): Promise<boolean>
 ```
 
+**Откуда:** `db.auth`; `db` — подключение из `connect()` (`import { connect } from 'letopis'`).
+
 Выход. Без аргумента — погасить сессию этого подключения. С токеном — погасить сессию пользователя по её токену (например, из cookie веб-сервиса): так сервис выводит пользователя, не подключаясь по его токену; нужно право `auth.session`, как у `session(token)`.
 
-Сессия гаснет для всех подключений с тем же токеном. Дальше методы `db.auth`, которым нужна сессия, отвечают `no_session`, а чтение возвращает пустой результат. Выход пользователя веб-сервиса — `svc.auth.revoke(token)` с токеном из cookie: без токена сервис погасил бы собственную сессию.
+Сессия гаснет для всех подключений с тем же токеном. Дальше методы `db.auth`, которым нужна сессия, отвечают `no_session`; цепочки — как у `session()`: после минуты без запросов `no_session`, в пределах минуты — пустой результат. Выход пользователя веб-сервиса — `svc.auth.revoke(token)` с токеном из cookie: без токена сервис погасил бы собственную сессию.
 
 **Параметры**
 
@@ -584,6 +626,8 @@ revoke(token?: string): Promise<boolean>
 ```ts
 revokeAll(account?: AccountRef): Promise<number>
 ```
+
+**Откуда:** `db.auth`; `db` — подключение из `connect()` (`import { connect } from 'letopis'`).
 
 Выход везде: все сессии аккаунта (чужого — с правом `auth.session`).
 
@@ -612,9 +656,11 @@ revokeAll(account?: AccountRef): Promise<number>
 tenants(): Promise<{ tenant: string; roles: string[]; name: string | null; personal: boolean }[]>
 ```
 
+**Откуда:** `db.auth`; `db` — подключение из `connect()` (`import { connect } from 'letopis'`).
+
 Арендаторы, доступные аккаунту сессии: собственный (`roles: ['owner']`, `personal: true`) и по членству. `name` — имя аккаунта арендатора (`createTenant({ name })`, у личного — имя пользователя).
 
-**Возвращает:** `Promise<{ tenant: string; roles: string[]; name: string \| null; personal: boolean }[]>` — Массив `{ tenant, roles, name, personal }`: первым — личный арендатор (`personal: true`, роль `owner`), затем арендаторы по членству (по id) с ролями из членства; `name` — имя арендатора (поле `name` его аккаунта) или `null`.
+**Возвращает:** `Promise<{ tenant: string; roles: string[]; name: string | null; personal: boolean }[]>` — Массив `{ tenant, roles, name, personal }`: первым — личный арендатор (`personal: true`, роль `owner`), затем арендаторы по членству (по id) с ролями из членства; `name` — имя арендатора (поле `name` его аккаунта) или `null`.
 
 **Ошибки** ([все коды](../errors/)):
 
@@ -627,6 +673,8 @@ tenants(): Promise<{ tenant: string; roles: string[]; name: string | null; perso
 ```ts
 switch(tenant: string): Promise<void>
 ```
+
+**Откуда:** `db.auth`; `db` — подключение из `connect()` (`import { connect } from 'letopis'`).
 
 Переключить арендатора сессии: собственный или по членству.
 
@@ -655,6 +703,8 @@ switch(tenant: string): Promise<void>
 ```ts
 purgeAccount(account: AccountRef): Promise<{ account: string; rows: number; versions: number; memberships: number; owned: number }>
 ```
+
+**Откуда:** `db.auth`; `db` — подключение из `connect()` (`import { connect } from 'letopis'`).
 
 Удалить аккаунт: системный администратор или владелец его арендатора; себя и последнего владельца арендатора — нельзя. Данные арендатора стираются, владение строками в чужих арендаторах переходит им, сессии гаснут, креды удаляются. Владелец стирает и арендатора, в котором работает: его сессия возвращается в личный арендатор.
 

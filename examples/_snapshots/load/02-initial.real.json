@@ -1,17 +1,5 @@
 {
   "id": "load/02-initial",
-  "context": {
-    "schema": "v2.g_load_02_initial",
-    "dsn": {
-      "admin": "postgres://postgres:test@localhost:15433/letopis",
-      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
-    },
-    "user": {
-      "login": "anna@romashka.ru",
-      "password": "Ромашка-2026!"
-    },
-    "up": null
-  },
   "initial": {
     "entity": [],
     "log": [],
@@ -42,7 +30,7 @@
         },
         "external": 0,
         "portions": 1,
-        "ms": 315.85149999999703
+        "ms": 377.8715000000084
       },
       "error": null,
       "entity": [],
@@ -67,5 +55,7 @@
       "secret": [],
       "signals": []
     }
-  ]
+  ],
+  "output": "Шаг 1. Свежая установка и модель\nletopis: администраторское подключение — RLS не действует, данные всех арендаторов видны\n\"классы записаны — данных нет\"\n\nШаг 2. Залить магазин и 300 товаров\n{\n  \"rows\": 301,\n  \"loaded\": 301,\n  \"updated\": 0,\n  \"skipped\": 0,\n  \"duplicates\": 0,\n  \"byClass\": {\n    \"Shop\": 1,\n    \"Product\": 300\n  },\n  \"external\": 0,\n  \"portions\": 1,\n  \"ms\": 313.54060000000004\n}\n\nШаг 3. Вторая первая заливка — нельзя\nотказ, как и задумано: letopis: not_empty: первая заливка — только в пустую схему: в entity и log, кроме строк системных классов (Class, Account, member, Resource, rule), ничего быть не должно",
+  "exitCode": 0
 }

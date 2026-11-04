@@ -4,7 +4,7 @@ import { hub } from 'letopis/model';
 import { z } from 'zod';
 import { example } from '../_shared/example.ts';
 
-const Task = hub('Task', { fields: { title: z.string(), done: z.boolean() } });
+const Task = hub('Task', { title: z.string(), done: z.boolean() });
 let dev: UpResult;
 let local: Db;
 
@@ -21,7 +21,8 @@ export default example({
       title: 'Запускаем PGlite и ставим схему',
       text:
         '`up({ pglite: true })` запускает PGlite с сокетом на свободном порту и ставит в него схему. Строка ' +
-        'подключения — `dev.pglite.dsn`. Нужны пакеты `@electric-sql/pglite` и `@electric-sql/pglite-socket`.',
+        'подключения — `dev.pglite.dsn`. Нужны пакеты `@electric-sql/pglite` и `@electric-sql/pglite-socket` ' +
+        '(`npm i -D @electric-sql/pglite @electric-sql/pglite-socket`); сервер PostgreSQL и `ADMIN_DSN` не нужны.',
       run: async () => {
         dev = await up({ schema: 'dev', pglite: true, quiet: true });
         return { schema: dev.schema, created: dev.created, pglite: !!dev.pglite };

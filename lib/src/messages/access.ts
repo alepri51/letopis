@@ -116,4 +116,17 @@ export const access = {
     ru: 'секрет TOTP — не base32',
     hint: 'передать секрет из auth.enrollTotp() — строку base32 (A–Z, 2–7)',
   },
+  // auth.ts, issueOtp (3.0.1): maxAttempts не целое или вне 1–10 (раньше база молча приводила к пределу); value — как передан
+  'access.bad_max_attempts': {
+    code: 'invalid_data',
+    ru: 'issueOtp: maxAttempts {value} — целое от 1 до 10',
+    hint: 'maxAttempts — число неверных попыток до того, как код сгорит: целое от 1 до 10 (по умолчанию 5)',
+  },
+  // auth.ts, ttlOf (3.0.1): срок ttl (sessionFor, issueOtp, issueApiKey, verifyPassword, lookup, refresh, createTenant) — не
+  // число секунд, не короткая форма и не интервал PostgreSQL; where — вызов, value — как передан
+  'access.bad_ttl': {
+    code: 'invalid_data',
+    ru: "{where}: ttl {value} — нужно число секунд, '15m' или интервал PostgreSQL '15 minutes'",
+    hint: "срок ttl больше нуля: число секунд (600), короткая форма '30s', '15m', '2h', '1d' или интервал PostgreSQL '15 minutes'",
+  },
 } satisfies Section<'access'>;

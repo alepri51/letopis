@@ -1,25 +1,5 @@
 {
   "id": "models/05-class-settings",
-  "context": {
-    "schema": "v2.g_models_05_class_settings",
-    "dsn": {
-      "admin": "postgres://postgres:test@localhost:15433/letopis",
-      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
-    },
-    "user": {
-      "login": "anna@romashka.ru",
-      "password": "Ромашка-2026!"
-    },
-    "up": {
-      "serviceKey": "lts_410814ce7ea212b71386322d5a6cf3ebdd0030203fc708736ee4b410ac9c173b",
-      "tenant": {
-        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "7f91c23aa6f46fb931b6b5751c6f4731a2de071041e680377f2e10534a8aef33",
-        "created": true
-      }
-    }
-  },
   "initial": {
     "entity": [],
     "log": [],
@@ -51,7 +31,7 @@
       "error": null,
       "entity": [
         {
-          "id": "ee6231b1-95ad-53ee-a4ae-1d4e9b816aab",
+          "id": "4874b087-4938-5385-9487-3ca6d26d4f36",
           "class": "Ping",
           "rev": 2,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -63,9 +43,9 @@
           "tags": [],
           "op": "update",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "51237518-007a-5537-a22e-7cdc9e3558ac",
+          "agent": "6f55f296-0cd2-504a-862d-7e95016ed153",
           "reason": null,
-          "at": "2026-11-03 19:06:22.541068+00"
+          "at": "2026-11-04 05:15:13.502681+00"
         }
       ],
       "removed": [],
@@ -83,7 +63,7 @@
       "error": null,
       "entity": [
         {
-          "id": "c6109cac-9e7c-5098-a596-65784b437564",
+          "id": "dcab2945-ceeb-5027-a97a-ccd77f9ae912",
           "class": "Draft",
           "rev": 1,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -95,12 +75,12 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "51237518-007a-5537-a22e-7cdc9e3558ac",
+          "agent": "6f55f296-0cd2-504a-862d-7e95016ed153",
           "reason": null,
-          "at": "2026-11-03 19:06:22.57562+00"
+          "at": "2026-11-04 05:15:13.526568+00"
         },
         {
-          "id": "676ae340-0b40-5a61-b632-4dad5555bc0e",
+          "id": "622a9db8-6028-5f98-857b-a4eb0aa1dd34",
           "class": "Product",
           "rev": 1,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -112,12 +92,12 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "51237518-007a-5537-a22e-7cdc9e3558ac",
+          "agent": "6f55f296-0cd2-504a-862d-7e95016ed153",
           "reason": null,
-          "at": "2026-11-03 19:06:22.585409+00"
+          "at": "2026-11-04 05:15:13.535768+00"
         },
         {
-          "id": "ee6231b1-95ad-53ee-a4ae-1d4e9b816aab",
+          "id": "4874b087-4938-5385-9487-3ca6d26d4f36",
           "class": "Ping",
           "rev": 2,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -129,16 +109,16 @@
           "tags": [],
           "op": "update",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "51237518-007a-5537-a22e-7cdc9e3558ac",
+          "agent": "6f55f296-0cd2-504a-862d-7e95016ed153",
           "reason": null,
-          "at": "2026-11-03 19:06:22.541068+00"
+          "at": "2026-11-04 05:15:13.502681+00"
         }
       ],
       "removed": [],
       "log": [
         {
           "seq": "37",
-          "id": "c6109cac-9e7c-5098-a596-65784b437564",
+          "id": "dcab2945-ceeb-5027-a97a-ccd77f9ae912",
           "rev": 1,
           "class": "Draft",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -149,14 +129,14 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "51237518-007a-5537-a22e-7cdc9e3558ac",
+          "agent": "6f55f296-0cd2-504a-862d-7e95016ed153",
           "reason": null,
-          "at": "2026-11-03 19:06:22.57562+00",
-          "tx": "3881254"
+          "at": "2026-11-04 05:15:13.526568+00",
+          "tx": "3892649"
         },
         {
           "seq": "38",
-          "id": "676ae340-0b40-5a61-b632-4dad5555bc0e",
+          "id": "622a9db8-6028-5f98-857b-a4eb0aa1dd34",
           "rev": 1,
           "class": "Product",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -167,10 +147,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "51237518-007a-5537-a22e-7cdc9e3558ac",
+          "agent": "6f55f296-0cd2-504a-862d-7e95016ed153",
           "reason": null,
-          "at": "2026-11-03 19:06:22.585409+00",
-          "tx": "3881256"
+          "at": "2026-11-04 05:15:13.535768+00",
+          "tx": "3892651"
         }
       ],
       "secret": [],
@@ -204,7 +184,7 @@
       "error": null,
       "entity": [
         {
-          "id": "c6109cac-9e7c-5098-a596-65784b437564",
+          "id": "dcab2945-ceeb-5027-a97a-ccd77f9ae912",
           "class": "Draft",
           "rev": 1,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -216,12 +196,12 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "51237518-007a-5537-a22e-7cdc9e3558ac",
+          "agent": "6f55f296-0cd2-504a-862d-7e95016ed153",
           "reason": null,
-          "at": "2026-11-03 19:06:22.57562+00"
+          "at": "2026-11-04 05:15:13.526568+00"
         },
         {
-          "id": "676ae340-0b40-5a61-b632-4dad5555bc0e",
+          "id": "622a9db8-6028-5f98-857b-a4eb0aa1dd34",
           "class": "Product",
           "rev": 1,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -233,12 +213,12 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "51237518-007a-5537-a22e-7cdc9e3558ac",
+          "agent": "6f55f296-0cd2-504a-862d-7e95016ed153",
           "reason": null,
-          "at": "2026-11-03 19:06:22.585409+00"
+          "at": "2026-11-04 05:15:13.535768+00"
         },
         {
-          "id": "ee6231b1-95ad-53ee-a4ae-1d4e9b816aab",
+          "id": "4874b087-4938-5385-9487-3ca6d26d4f36",
           "class": "Ping",
           "rev": 2,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -250,16 +230,16 @@
           "tags": [],
           "op": "update",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "51237518-007a-5537-a22e-7cdc9e3558ac",
+          "agent": "6f55f296-0cd2-504a-862d-7e95016ed153",
           "reason": null,
-          "at": "2026-11-03 19:06:22.541068+00"
+          "at": "2026-11-04 05:15:13.502681+00"
         }
       ],
       "removed": [],
       "log": [
         {
           "seq": "37",
-          "id": "c6109cac-9e7c-5098-a596-65784b437564",
+          "id": "dcab2945-ceeb-5027-a97a-ccd77f9ae912",
           "rev": 1,
           "class": "Draft",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -270,14 +250,14 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "51237518-007a-5537-a22e-7cdc9e3558ac",
+          "agent": "6f55f296-0cd2-504a-862d-7e95016ed153",
           "reason": null,
-          "at": "2026-11-03 19:06:22.57562+00",
-          "tx": "3881254"
+          "at": "2026-11-04 05:15:13.526568+00",
+          "tx": "3892649"
         },
         {
           "seq": "38",
-          "id": "676ae340-0b40-5a61-b632-4dad5555bc0e",
+          "id": "622a9db8-6028-5f98-857b-a4eb0aa1dd34",
           "rev": 1,
           "class": "Product",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -288,14 +268,16 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "51237518-007a-5537-a22e-7cdc9e3558ac",
+          "agent": "6f55f296-0cd2-504a-862d-7e95016ed153",
           "reason": null,
-          "at": "2026-11-03 19:06:22.585409+00",
-          "tx": "3881256"
+          "at": "2026-11-04 05:15:13.535768+00",
+          "tx": "3892651"
         }
       ],
       "secret": [],
       "signals": []
     }
-  ]
+  ],
+  "output": "Шаг 1. Три класса с настройками\n[\n  \"Ping\",\n  \"Draft\",\n  \"Product\"\n]\n\nШаг 2. Класс без истории: журнал пуст\n{\n  \"versions\": [],\n  \"printed\": [\n    \"letopis: .versions() у класса Ping без журнала (history: false) — истории нет\"\n  ]\n}\n\nШаг 3. Владелец — автор, а не арендатор\n{\n  \"draftOwner\": \"3defbabb-a94d-5359-8463-dc947de193e1\",\n  \"productOwner\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\"\n}\n\nШаг 4. Настройки класса — в реестре подключения\n{\n  \"Ping\": {\n    \"history\": false,\n    \"ownerDefault\": \"tenant\",\n    \"meta\": {}\n  },\n  \"Draft\": {\n    \"history\": true,\n    \"ownerDefault\": \"actor\",\n    \"meta\": {}\n  },\n  \"Product\": {\n    \"history\": true,\n    \"ownerDefault\": \"tenant\",\n    \"meta\": {\n      \"icon\": \"mdi:package-variant\",\n      \"order\": 1,\n      \"title\": \"Товар\"\n    }\n  }\n}",
+  "exitCode": 0
 }

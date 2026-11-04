@@ -1,3 +1,5 @@
 node_modules/
 # временные исходники песочницы сайта (_runner/sandbox.ts)
 .sandbox-*/
+# временные папки самостоятельных программ примеров (_runner/program.ts)
+.standalone-*/

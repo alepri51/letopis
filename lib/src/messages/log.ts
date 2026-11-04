@@ -59,9 +59,12 @@ export interface LogEventInfo {
 }
 
 /**
- * Каталог событий логирования. Имена основных событий зафиксированы спецификацией 3.0 (connect, close, up, migrate,
- * sync, read, cache.hit, cache.miss, write, delete.preview, delete, restore, tx.*, auth.login, auth.logout, auth.revoke,
- * auth.switch, watch.start, watch.stop, signal, maintain, warning, error, sql); остальные — дополнительные.
+ * Каталог событий логирования — объект (не массив): имя события → `{ level, ru }`, где `level` — уровень события по
+ * умолчанию (`debug`, `info`, `warn`, `error`), `ru` — что значит событие. Тип — `Readonly<Record<LogEventName,
+ * LogEventInfo>>`: `LOG_EVENTS.write.level` — `'info'`, список имён — `Object.keys(LOG_EVENTS)`. Основные события:
+ * connect, close, up, migrate, sync, read, cache.hit, cache.miss, write, delete.preview, delete, restore, tx.*,
+ * auth.login, auth.logout, auth.revoke, auth.switch, watch.start, watch.stop, signal, maintain, warning, error, sql;
+ * остальные — дополнительные.
  */
 export const LOG_EVENTS = {
   // подключение
@@ -81,8 +84,8 @@ export const LOG_EVENTS = {
   'cache.miss': { level: 'debug', ru: 'ответа нет в кэше результатов — запрос к базе' },
   'raw': { level: 'debug', ru: 'сырой SQL db.sql' },
   // запись
-  'write': { level: 'info', ru: 'запись цепочкой (create, update, upsert, слоты) или батч' },
-  'delete.preview': { level: 'debug', ru: 'превью удаления: delete() без confirm, ничего не удалено' },
+  'write': { level: 'info', ru: 'запись цепочкой (create, update, upsert, шаги ролей) или батч' },
+  'delete.preview': { level: 'debug', ru: 'предпросмотр удаления: delete() без confirm, ничего не удалено' },
   'delete': { level: 'info', ru: 'удаление выполнено: состав каскада, сверка с expect' },
   'restore': { level: 'info', ru: 'восстановление выполнено: восстановленные и пропущенные цели' },
   'load': { level: 'info', ru: 'db.load(): массовая загрузка завершена' },

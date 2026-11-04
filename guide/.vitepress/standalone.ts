@@ -1,17 +1,20 @@
 /**
- * Самостоятельный вариант исполняемого примера: тот же код без каркаса сайта.
+ * Исполняемый пример → самостоятельная программа для читателя.
  *
- * Пример (`examples/<глава>/<NN>-<имя>.ts` в корне репозитория) написан для раннера: `example({ steps })` из
- * `examples/_shared/example.ts`, шаги получают от раннера `ctx` (db, svc, connect, dsn…), помощники лежат в
- * `examples/_shared/`. Здесь из него собирается обычный скрипт: импорты слиты, код помощников `_shared/*.ts` вставлен
- * целиком, `ctx` собран явно — `up()`, `connect()`, `svc.as()`, как делает раннер (`examples/_runner/runner.ts`), — а
- * шаги идут подряд, каждый печатает свой результат. Код шагов — ровно тот же, что в файле примера (вместе со строками
- * `// скрыть`).
+ * Пример (`examples/<глава>/<NN>-<имя>.ts` в корне репозитория) объявлен через `example({ steps })`: шаги получают
+ * параметром схему, подключения и строки подключения, помощники лежат в `examples/_shared/`. Здесь из него
+ * собирается обычный скрипт, который читатель запускает у себя: импорты слиты, код помощников вставлен целиком (вместо
+ * `_shared/cli.ts`, который зовёт CLI в процессе, — `_shared/cli-npx.ts`: `npx letopis …` отдельным процессом),
+ * подготовка схемы написана явно (`up()`, `connect()`, `svc.as()`), шаги идут подряд, и каждый печатает свой результат.
+ * Код шагов — тот же, что в файле примера; пометка `// скрыть` (строка не показывается в пошаговом показе) срезается,
+ * сама строка остаётся. Пути к файлам репозитория (`new URL('../_shared/x.ts', import.meta.url)`,
+ * `new URL('../../lib/sql/…', import.meta.url)`) заменяются на то, что есть у читателя: модуль, который программа
+ * сама пишет рядом с собой, и каталог установленного пакета letopis.
  *
  * Скрипт не зависит от сайта: роль приложения заводит `up({ login })`, база по умолчанию — из рецепта запуска на
- * главной (`DEFAULT_ADMIN_DSN`). В HTML страницы его вставляет `preview.ts` (программа примера: скрипт, команды запуска
- * по `packages` и `file`, ожидаемый вывод по `titles`); модулем `examples/….ts?standalone` его отдаёт плагин
- * `standalonePlugin` (подключён в `config.ts`).
+ * главной (`DEFAULT_ADMIN_DSN`). В HTML страницы его вставляет `preview.ts`; модулем `examples/….ts?standalone` его
+ * отдаёт плагин `standalonePlugin` (подключён в `config.ts`); `examples/run.ts` запускает его отдельным процессом и
+ * пишет напечатанное в снимок (`output`).
  */
 import { readFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
@@ -22,6 +25,16 @@ interface Named { name: string; as?: string; type: boolean }
 interface Imports { order: string[]; byModule: Map<string, { def?: string; ns?: string; named: Named[]; typeOnly: boolean }> }
 
 const KIT_EXAMPLE = '_shared/example.ts';
+/** Помощник, который в программе читателя заменён другим: CLI в процессе → `npx letopis …`. */
+const KIT_SWAP: Record<string, string> = { '_shared/cli.ts': '_shared/cli-npx.ts' };
+/** Заголовки разделов программы для помощников. */
+const KIT_TITLE: Record<string, string> = {
+  '_shared/shop.ts': 'модель магазина и её данные',
+  '_shared/cli-npx.ts': 'команда letopis в отдельном процессе',
+  '_shared/proxy.ts': 'прокси, который рвёт соединение на COMMIT',
+  '_shared/race.ts': 'ожидание блокировки в базе',
+  '_shared/diagram.ts': 'ER-схема модели (Mermaid)',
+};
 
 function addImport(acc: Imports, decl: ts.ImportDeclaration, sf: ts.SourceFile, spec: string): void {
   if (!acc.byModule.has(spec)) {
@@ -58,8 +71,7 @@ function printImports(acc: Imports): string {
     const named = m.named.map((n) => `${n.type && !m.typeOnly ? 'type ' : ''}${n.name}${n.as ? ` as ${n.as}` : ''}`);
     const head = m.typeOnly && !m.def && !m.ns ? 'import type ' : 'import ';
     const parts = [m.def, m.ns ? `* as ${m.ns}` : undefined, named.length ? `{ ${named.join(', ')} }` : undefined].filter(Boolean);
-    const note = spec.startsWith('.') ? ' // внутренний модуль репозитория letopis — в своём проекте его нет' : '';
-    out.push((parts.length ? `${head}${parts.join(', ')} from '${spec}';` : `import '${spec}';`) + note);
+    out.push(parts.length ? `${head}${parts.join(', ')} from '${spec}';` : `import '${spec}';`);
   }
   return out.join('\n');
 }
@@ -99,6 +111,10 @@ function stringOf(e: ts.Expression | undefined, sf: ts.SourceFile): string {
 }
 
 const lf = (s: string) => s.replace(/\r\n/g, '\n');
+/** Пометка «строку не показывать в пошаговом показе» — в программе читателя она не нужна. */
+const unhide = (s: string) => s.replace(/[ \t]*\/\/\s*скрыть[ \t]*$/gm, '');
+/** Текст как литерал-шаблон: обратная косая, обратная кавычка и `${` экранированы. */
+const template = (s: string) => '`' + s.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$\{/g, '\\${') + '`';
 
 /** Строка подключения администратора по умолчанию — база из рецепта запуска на главной (Docker, порт 15440). */
 export const DEFAULT_ADMIN_DSN = 'postgres://postgres:guide@127.0.0.1:15440/letopis';
@@ -118,12 +134,16 @@ export interface StandaloneInfo {
   text: string;
   /** Имя файла скрипта (`rental.ts`). */
   file: string;
-  /** Пакеты для `npm i` в порядке импорта; letopis — с версией (`letopis@3`). */
+  /** Пакеты для `npm i` (без tsx — он ставится в devDependencies). */
   packages: string[];
-  /** Скрипт импортирует внутренний модуль репозитория letopis — вне репозитория он так не запустится. */
+  /** Команда установки в пустой папке: `npm init -y && … && npm i -D tsx`. */
+  install: string;
+  /** Команда запуска для bash: `ADMIN_DSN=… npx tsx файл.ts` (без ADMIN_DSN, если программе база не нужна). */
+  run: string;
+  /** Программе нужна база PostgreSQL (ADMIN_DSN); пример на PGlite обходится без неё. */
+  needsDb: boolean;
+  /** В программе остался путь в репозиторий letopis — вне репозитория она так не запустится (должно быть false). */
   internal: boolean;
-  /** Шаги печатают и сами (console, `log: console`) — этого вывода в снимке нет. */
-  prints: boolean;
   /** Заголовки шагов так, как их печатает скрипт («Шаг 1. …»). */
   titles: string[];
   /** Код ошибки, которой шаг обязан упасть (отказ — так и задумано), или null. */
@@ -137,7 +157,7 @@ export function standalone(file: string, guide: string): string {
 
 /** Самостоятельный скрипт и что нужно, чтобы его запустить. */
 export function standaloneInfo(file: string, guide: string): StandaloneInfo {
-  // все пути — от examples/: id примера, помощники _shared/, внутренние модули репозитория (../lib/…)
+  // все пути — от examples/: id примера, помощники _shared/
   const root = join(guide, '..', 'examples');
   const src = lf(readFileSync(file, 'utf8'));
   const sf = ts.createSourceFile(file, src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
@@ -151,7 +171,9 @@ export function standaloneInfo(file: string, guide: string): StandaloneInfo {
     if (!spec.startsWith('.')) return null;
     const abs = resolve(dirname(base), spec);
     const rel = relative(root, abs).replace(/\\/g, '/');
-    return rel.startsWith('_shared/') ? { abs, rel } : null;
+    if (!rel.startsWith('_shared/')) return null;
+    const swap = KIT_SWAP[rel];
+    return swap ? { abs: join(root, swap), rel: swap } : { abs, rel };
   };
 
   for (const st of sf.statements) {
@@ -173,7 +195,9 @@ export function standaloneInfo(file: string, guide: string): StandaloneInfo {
     prelude.push(statementText(st, src, sf));
   }
   const name = scriptName(id);
-  if (!def) return { text: `// examples/${id}.ts: не найден вызов example({ … })\n`, file: name, packages: [], internal: false, prints: false, titles: [], expected: [] };
+  if (!def) {
+    return { text: `// ${name}: не найден вызов example({ … })\n`, file: name, packages: [], install: '', run: '', needsDb: false, internal: false, titles: [], expected: [] };
+  }
 
   // помощники _shared/*.ts — целиком, без export; их импорты сливаются с импортами примера
   const kitCode: string[] = [];
@@ -184,13 +208,14 @@ export function standaloneInfo(file: string, guide: string): StandaloneInfo {
     for (const st of ksf.statements) {
       if (ts.isImportDeclaration(st)) {
         const spec = (st.moduleSpecifier as ts.StringLiteral).text;
-        // внутренние модули репозитория (не пакеты) остаются как есть: путь — относительно файла помощника
+        // путь в репозиторий остаётся как есть (internal ниже его поймает): относительно файла помощника
         addImport(imports, st, ksf, spec.startsWith('.') ? relative(root, resolve(dirname(abs), spec)).replace(/\\/g, '/') : spec);
         continue;
       }
       body.push(statementText(st, ksrc, ksf));
     }
-    kitCode.push(`// ---------- помощник сайта _shared/${relative(join(root, '_shared'), abs).replace(/\\/g, '/')} ----------\n${body.join('').trim()}`);
+    const rel = relative(root, abs).replace(/\\/g, '/');
+    kitCode.push(`// ---------- ${KIT_TITLE[rel] ?? 'помощники'} ----------\n${body.join('').trim()}`);
   }
 
   const title = stringOf(prop(def, 'title', sf)?.initializer, sf);
@@ -215,7 +240,21 @@ export function standaloneInfo(file: string, guide: string): StandaloneInfo {
   const tenant = setup !== 'none';
   const need = (n: string) => used.has(n);
 
-  // что раннер сайта передаёт шагам в ctx — здесь то же своими руками
+  // пути в репозиторий в коде примера → то, что есть у читателя
+  const modules: { file: string; text: string }[] = [];
+  const localize = (code: string): string => code
+    // модуль помощника, который нужен файлом (letopis sync читает модель из модуля), — программа пишет его рядом с собой
+    .replace(/new URL\((['"])\.\.\/_shared\/([\w.-]+\.ts)\1,\s*import\.meta\.url\)/g, (_all, _q: string, kit: string) => {
+      if (!modules.some((m) => m.file === kit)) modules.push({ file: kit, text: lf(readFileSync(join(root, '_shared', kit), 'utf8')) });
+      return `new URL('./${kit}', import.meta.url)`;
+    })
+    // файлы пакета (sql/…) — из установленного letopis
+    .replace(/new URL\((['"])\.\.\/\.\.\/lib\/((?!src\/)[^'"]+)\1,\s*import\.meta\.url\)/g, (_all, _q: string, path: string) =>
+      `new URL('../${path}', import.meta.resolve('letopis'))`);
+  const preludeCode = localize(unhide(prelude.join('').trim()));
+  for (const s of steps) s.run = localize(unhide(s.run));
+
+  // то, что шаги берут параметром, — здесь своими руками
   if (!imports.byModule.has('letopis')) {
     imports.byModule.set('letopis', { named: [], typeOnly: false });
     imports.order.unshift('letopis');
@@ -225,11 +264,11 @@ export function standaloneInfo(file: string, guide: string): StandaloneInfo {
     if (!lib.named.some((n) => n.name === name && n.as === as && !n.type)) lib.named.push({ name, as, type: false });
     lib.typeOnly = false;
   };
-  // без установки раннера (setup: 'none') шаги, которым нужна роль приложения (dsn.app), получают её от up({ login })
+  // без арендатора (setup: 'none') шаги, которым нужна роль приложения (dsn.app), получают её от up({ login })
   const needApp = !tenant && steps.some((s) => /\bdsn\.app\b/.test(s.run));
   if (tenant || needApp) want('up', 'install');
-  want('connect');
-  if (need('admin') || !tenant) {
+  if (tenant || need('connect')) want('connect');
+  const addPostgres = () => {
     if (!imports.byModule.has('postgres')) {
       imports.byModule.set('postgres', { def: 'postgres', named: [], typeOnly: false });
       imports.order.push('postgres');
@@ -238,23 +277,35 @@ export function standaloneInfo(file: string, guide: string): StandaloneInfo {
       pg.typeOnly = false;
       pg.def ??= 'postgres';
     }
-  }
+  };
+  // база нужна, если её берут шаги; пример без неё (PGlite) запускается без ADMIN_DSN
+  const needDb = tenant || ['dsn', 'admin', 'schema'].some(need);
+  if (need('admin') || (!tenant && needDb)) addPostgres();
   const pgName = imports.byModule.get('postgres')?.def ?? 'postgres';
+  if (modules.length) {
+    if (!imports.byModule.has('node:fs')) {
+      imports.byModule.set('node:fs', { named: [], typeOnly: false });
+      imports.order.push('node:fs');
+    }
+    const fs = imports.byModule.get('node:fs')!;
+    if (!fs.named.some((n) => n.name === 'writeFileSync' && !n.as)) fs.named.push({ name: 'writeFileSync', type: false });
+    fs.typeOnly = false;
+  }
 
-  const ctx: string[] = [
-    '// База — PostgreSQL 18; ADMIN_DSN — администратор, который ставит схему (какие права нужны — глава «Установка',
-    '// и подключение»). По умолчанию — база из Docker по рецепту на главной сайта.',
+  const prep: string[] = needDb ? [
+    '// ADMIN_DSN — PostgreSQL 18 и пользователь с правами установщика; по умолчанию — база из Docker по рецепту на главной',
     `const ADMIN_DSN = process.env.ADMIN_DSN ?? '${DEFAULT_ADMIN_DSN}';`,
-    `// схема примера: каждый запуск ставит её заново${tenant ? ' (up({ fresh: true }))' : ''}`,
+    '// схема примера: каждый запуск начинает её заново',
     `const schema = 'v2.example_${id.replace(/[^a-z0-9]+/gi, '_').toLowerCase()}';`,
-    "const user = { login: 'anna@romashka.ru', password: 'Ромашка-2026!' };",
-  ];
+  ] : [];
+  const credentials = "{ login: 'anna@romashka.ru', password: 'Ромашка-2026!' }";
+  if (need('user')) prep.push(`const user = ${credentials};`);
   if (tenant) {
-    ctx.push(
-      '// установка, как у раннера сайта: схема, арендатор «Ромашка» с первым пользователем Анной и роль приложения',
-      "const installed = await install({",
-      "  dsn: ADMIN_DSN, schema, fresh: true, quiet: true,",
-      "  tenant: { name: 'Ромашка', user: { name: 'Анна', ...user } },",
+    prep.push(
+      '// схема, арендатор «Ромашка» с первым пользователем Анной и роль приложения для подключений сервиса',
+      'const installed = await install({',
+      '  dsn: ADMIN_DSN, schema, fresh: true, quiet: true,',
+      `  tenant: { name: 'Ромашка', user: { name: 'Анна', ${need('user') ? '...user' : credentials.slice(2, -2)} } },`,
       "  login: { user: 'example_app', password: 'example-app-secret' },",
       '});',
       'const dsn = { admin: ADMIN_DSN, app: installed.login!.dsn! };',
@@ -263,10 +314,9 @@ export function standaloneInfo(file: string, guide: string): StandaloneInfo {
       'const db = await svc.as(installed.tenant!.user!, { tenant: installed.tenant!.tenant });',
     );
   } else if (needApp) {
-    ctx.push(
-      '// роль приложения (член группы letopis_app) заводит сам up({ login }) и возвращает её строку подключения;',
-      '// роль общая для кластера и остаётся, а схему пример ставит сам (up()) — поэтому она удаляется: пример начинает',
-      '// с пустой схемы, как у раннера сайта',
+    prep.push(
+      '// роль приложения (член группы letopis_app) заводит up({ login }) и возвращает её строку подключения; роль общая',
+      '// для всего сервера и остаётся, а схему шаги ставят сами — поэтому здесь она сразу удаляется',
       'const prepared = await install({',
       '  dsn: ADMIN_DSN, schema, fresh: true, quiet: true,',
       "  login: { user: 'example_app', password: 'example-app-secret' },",
@@ -276,18 +326,18 @@ export function standaloneInfo(file: string, guide: string): StandaloneInfo {
       "await reset.unsafe('drop schema if exists \"' + schema + '\" cascade');",
       'await reset.end();',
     );
-  } else {
-    ctx.push(
-      '// пример сам ставит схему (up()), поэтому начинает с пустой — как у раннера сайта: прежняя схема примера удаляется',
+  } else if (needDb) {
+    prep.push(
+      '// схему шаги ставят сами (up()) — прежняя схема примера удаляется, чтобы начать с пустой',
       'const dsn = { admin: ADMIN_DSN };',
       `const reset = ${pgName}(ADMIN_DSN, { onnotice: () => {} });`,
       "await reset.unsafe('drop schema if exists \"' + schema + '\" cascade');",
       'await reset.end();',
     );
   }
-  if (need('admin')) ctx.push(`// сырой SQL от администратора базы\nconst admin = ${pgName}(ADMIN_DSN, { onnotice: () => {} });`);
+  if (need('admin')) prep.push(`// SQL от администратора базы\nconst admin = ${pgName}(ADMIN_DSN, { onnotice: () => {} });`);
   if (need('warnings')) {
-    ctx.push(
+    prep.push(
       '/** Выполнить функцию и собрать предупреждения, которые она напечатала через console.warn. */',
       'async function warnings<T>(fn: () => Promise<T>): Promise<{ result: T; warnings: string[] }> {',
       '  const seen: string[] = [];',
@@ -301,18 +351,22 @@ export function standaloneInfo(file: string, guide: string): StandaloneInfo {
       '}',
     );
   }
-  const fields = ['schema', 'dsn', 'user', ...(tenant ? ['up: installed', 'svc', 'db'] : []), ...(need('admin') ? ['admin'] : []), 'connect', ...(need('warnings') ? ['warnings'] : [])];
-  ctx.push(`// ctx — то, что шаги примера берут параметром: ({ db }), ({ connect, dsn, schema }) …\nconst ctx = { ${fields.join(', ')} };`);
+  // в ctx — только то, что шаги в самом деле берут
+  const fields = [
+    ...(needDb ? ['schema', 'dsn'] : []), 'user', ...(tenant ? ['up: installed', 'svc', 'db'] : []), 'admin', 'connect', 'warnings',
+  ].filter((f) => need(f.split(':')[0]));
+  prep.push(`// что шаги берут параметром\nconst ctx = { ${fields.join(', ')} };`);
 
-  const runner = [
+  const stepFn = [
     '/** Выполнить шаг и напечатать результат; expected — код ошибки, которой шаг обязан упасть (отказ — так и задумано). */',
     'async function step(title: string, run: (c: typeof ctx) => Promise<unknown>, expected?: string) {',
+    '  console.log(`\\n${title}`);',
     '  try {',
     '    const result = await run(ctx);',
-    '    console.log(`\\n${title}\\n`, JSON.stringify(result, null, 2) ?? \'\');',
+    "    console.log(JSON.stringify(result, (_k, v) => (typeof v === 'bigint' ? Number(v) : v), 2) ?? '');",
     '  } catch (e) {',
     '    if (!expected || (e as { code?: string }).code !== expected) throw e;',
-    '    console.log(`\\n${title}\\nотказ, как и задумано: ${(e as Error).message}`);',
+    '    console.log(`отказ, как и задумано: ${(e as Error).message}`);',
     '  }',
     '}',
   ];
@@ -323,37 +377,44 @@ export function standaloneInfo(file: string, guide: string): StandaloneInfo {
     return `await step('${label}', ${reindent(s.run)}${s.expected ? `, '${s.expected}'` : ''});`;
   });
 
-  // пакеты для npm i — по импортам скрипта; postgres ставится явно, даже если скрипт его не импортирует: им пользуются
-  // createTenant и свой SQL, а под pnpm и yarn PnP зависимость letopis из своего кода не видна
-  const packages = [...new Set(['letopis', 'zod', ...imports.order.map(packageOf).filter((p): p is string => !!p), 'postgres'])]
-    .map((p) => (p === 'letopis' ? 'letopis@3' : p));
-  const internal = imports.order.some((m) => m.startsWith('.'));
-  const prints = steps.some((s) => /\bconsole\.|log:\s*console\b/.test(s.run));
+  const code = [preludeCode, ...kitCode, ...stepCode].join('\n');
+  // пакеты для npm i — по импортам; postgres ставится всегда: им пользуются createTenant и свой SQL, а под pnpm и yarn
+  // PnP зависимость letopis из своего кода не видна
+  const extra: string[] = [];
+  if ([...imports.order].some((m) => m.startsWith('@electric-sql/pglite')) || /\bpglite\b/.test(code)) {
+    extra.push('@electric-sql/pglite', '@electric-sql/pglite-socket');
+  }
+  const mcp = imports.order.some((m) => m === 'letopis/mcp' || m.startsWith('@modelcontextprotocol/')) ||
+    /['"]mcp['"]/.test(code) || /\bletopis mcp\b/.test(code);
+  if (mcp) extra.push('@modelcontextprotocol/server', '@modelcontextprotocol/client');
+  const packages = [...new Set([
+    'letopis', 'zod', 'postgres',
+    ...imports.order.map(packageOf).filter((p): p is string => !!p && p !== 'tsx'),
+    ...extra,
+  ])].map((p) => (p === 'letopis' ? 'letopis@3' : p === 'postgres' ? 'postgres@3' : p));
+  const run = needDb ? `ADMIN_DSN=${DEFAULT_ADMIN_DSN} npx tsx ${name}` : `npx tsx ${name}`;
+  const install = `npm init -y && npm pkg set type=module && npm i ${packages.join(' ')} && npm i -D tsx`;
+  const internal = imports.order.some((m) => m.startsWith('.')) || /['"]\.\.\/(?:\.\.\/)?(?:_shared|lib)\//.test(code);
 
   const head = [
-    `// «${title}» — самостоятельный вариант примера сайта (файл examples/${id}.ts).`,
-    '// Каркас сайта убран: example() и ctx раннера заменены обычным кодом, помощники _shared/… вставлены целиком,',
-    '// шаги идут подряд и печатают результат. Запуск — в пустой папке проекта ("type": "module" нужен для await',
-    '// на верхнем уровне):',
-    `//   npm init -y && npm pkg set type=module && npm i ${packages.join(' ')} && npm i -D tsx`,
-    `//   ADMIN_DSN=${DEFAULT_ADMIN_DSN} npx tsx ${name}`,
-    `//   PowerShell: $env:ADMIN_DSN = '${DEFAULT_ADMIN_DSN}'; npx tsx ${name}`,
+    `// ${title}`,
+    `// Установка в пустой папке: ${install}`,
+    `// Запуск: ${run}`,
   ];
-  if (internal) {
-    head.push('// Внимание: пример вызывает внутренний модуль репозитория letopis (помеченный импорт) — в своём проекте',
-      '// вместо него команда в терминале: npx letopis … (глава «Эксплуатация»).');
-  }
+  const files = modules.map((m) =>
+    `// ${m.file} рядом с программой — модуль, который читает letopis sync\nwriteFileSync(new URL('./${m.file}', import.meta.url), ${template(m.text)});`);
+  const model = [...files, preludeCode].filter(Boolean).join('\n\n');
   const text = [
     head.join('\n'),
     printImports(imports),
     ...kitCode,
-    prelude.join('').trim() ? `// ---------- модель и помощники примера ----------\n${prelude.join('').trim()}` : '',
-    `// ---------- что раннер сайта передавал шагам (ctx) ----------\n${ctx.join('\n')}`,
-    runner.join('\n'),
+    model ? `// ---------- модель и данные ----------\n${model}` : '',
+    `// ---------- подготовка${tenant ? ': схема, арендатор, сервис' : needDb ? ': схема' : ''} ----------\n${prep.join('\n')}`,
+    stepFn.join('\n'),
     `// ---------- шаги ----------\n${stepCode.join('\n\n')}`,
     '// пулы подключений держат процесс открытым — выходим явно\nprocess.exit(0);',
   ].filter(Boolean).join('\n\n') + '\n';
-  return { text, file: name, packages, internal, prints, titles, expected: steps.map((s) => s.expected) };
+  return { text, file: name, packages, install, run, needsDb: needDb, internal, titles, expected: steps.map((s) => s.expected) };
 }
 
 /** Vite: `examples/….ts?standalone` — модуль с самостоятельным вариантом примера строкой. */

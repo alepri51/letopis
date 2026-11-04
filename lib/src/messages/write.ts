@@ -67,7 +67,7 @@ export const write = {
   // create() или upsert() на возврате к узлу пути
   'write.create_on_pivot': {
     code: 'invalid_query',
-    ru: '{verb}() на возврате к узлу — он ведёт к существующей сущности, используйте update()',
+    ru: '{verb}() на возврате к узлу — он ведёт к существующему объекту, используйте update()',
   },
   // create() или upsert() после шага с фильтром, а не с id
   'write.create_with_filter': {
@@ -105,7 +105,7 @@ export const write = {
   // слот после глагола, который слотов не принимает
   'write.slot_bad_verb': {
     code: 'invalid_query',
-    ru: 'слот .{role} после {verb}() — слоты у create(), update() и upsert()',
+    ru: 'шаг роли .{role} после {verb}() — шаги ролей бывают только у create(), update() и upsert()',
   },
   // write.ts:slotRole: имя слота — не роль записываемого класса и не класс реестра
   'write.slot_unknown': {
@@ -120,22 +120,22 @@ export const write = {
   // write.ts:slotRole: класс слота принимают несколько ролей
   'write.slot_ambiguous': {
     code: 'invalid_query',
-    ru: 'слот {name} у класса {cls} неоднозначен: роли {roles} — назовите роль',
+    ru: 'шаг {name} у класса {cls} неоднозначен: роли {roles} — назовите роль',
   },
   // конец из пути: шаг подходит нескольким ролям
   'write.end_ambiguous': {
     code: 'invalid_query',
-    ru: 'конец класса {cls} для шага {step} неоднозначен: роли {roles} — назовите шаг ролью или задайте слот',
+    ru: 'конец класса {cls} для шага {step} неоднозначен: роли {roles} — назовите шаг ролью или задайте конец шагом роли после глагола',
   },
   // конец из пути: шаг дал не одну сущность; count — сколько найдено
   'write.end_not_single': {
     code: 'invalid_query',
-    ru: 'шаг {step} должен дать ровно одну сущность для конца {cls} (найдено {count})',
+    ru: 'шаг {step} должен дать ровно один объект для конца {cls} (найдено {count})',
   },
   // слот .роль.set() одиночного конца — значение дало несколько сущностей
   'write.slot_single_many': {
     code: 'invalid_query',
-    ru: 'слот .{role}.set(): конец одиночный, а значение дало {count} сущностей',
+    ru: 'шаг роли .{role}.set(): конец одиночный, а значение дало объектов: {count}',
   },
   // write.ts:existsError: create() — объект уже есть, id не вычислить
   'write.exists': {
@@ -212,32 +212,40 @@ export const write = {
   // restore({ expect }), delete({ expect }): expect — не список строк { id, rev }; verb — глагол
   'write.bad_expect': {
     code: 'invalid_query',
-    ru: '{verb}({ expect }): expect — список строк { id, rev } (строки ответа)',
+    ru: '{verb}({ expect }): expect — список строк { id, rev } (строки ответа; у delete — и строки-сводки предпросмотра как есть)',
   },
   // delete({ expect }) без confirm: превью сравнивать не с чем
   'write.expect_without_confirm': {
     code: 'invalid_query',
-    ru: 'delete({ expect }) — только с { confirm: true }: без него delete() и есть превью',
+    ru: 'delete({ expect }) — только с { confirm: true }: без него delete() и есть предпросмотр',
   },
   // delete({ confirm: true, expect }): превью в транзакции удаления не совпало с показанным; detail.preview — новое превью
   'write.preview_changed': {
     code: 'conflict',
-    ru: 'delete({ confirm: true, expect }): превью изменилось с тех пор, как его показали — ничего не удалено',
-    hint: 'показать пользователю новое превью (err.detail.preview) и удалить с ним: delete({ confirm: true, expect: err.detail.preview })',
+    ru: 'delete({ confirm: true, expect }): предпросмотр изменился с тех пор, как его показали — ничего не удалено',
+    hint: 'показать пользователю новый предпросмотр (err.detail.preview) и удалить с ним: delete({ confirm: true, expect: err.detail.preview })',
+  },
+  // write.ts, checkRestrict (3.0.1): сверенный предпросмотр delete({ confirm: true, expect }) содержит мешающие строки
+  // (restrict) — видимые или сводку скрытых правами; отказ до удаления. visible — число видимых, others — скрытых;
+  // detail — { rows: [{ id, class }], others }, как у отказа триггера (sql-write.delete_restricted)
+  'write.delete_restricted': {
+    code: 'delete_restricted',
+    ru: 'удалению мешают ссылающиеся строки: видимых {visible}, скрытых правами {others} — ничего не удалено',
+    hint: 'показать пользователю мешающие строки (err.detail.rows); скрытые правами (err.detail.others) видит только их владелец — обратиться к нему; удалить или перевести мешающие строки (или сменить у их конца onDelete) и заново показать предпросмотр delete()',
   },
   // write.ts, checkFullData и checkPatchEnds (3.0, вместо api.validation_failed_end): лишний ключ данных — конец класса
   // (имя роли или класса на конце); keys — такие ключи, role — роль первого из них. Нарушения ValidationError дописывает
   // к тексту сам
   'write.link_in_data': {
     code: 'invalid_data',
-    ru: '{verb}() у {cls}: {keys} — связь, а не поле данных; конец задают путь цепочки или слот после глагола: .{role}.set(id)',
-    hint: 'конец (связь) — не поле данных: путь цепочки (db.Владелец(id).Класс().create(…)) или слот после глагола: db.Класс.create({ … }).Роль.set(id); у конца-списка — .Роль.add(id) / .Роль.remove(id), снять — .Роль.unset()',
+    ru: '{verb}() у {cls}: {keys} — связь, а не поле данных; конец задают путь цепочки или шаг роли после глагола: .{role}.set(id)',
+    hint: 'конец (связь) — не поле данных: путь цепочки (db.Владелец(id).Класс().create(…)) или шаг роли после глагола: db.Класс.create({ … }).Роль.set(id); у конца-списка — .Роль.add(id) / .Роль.remove(id), снять — .Роль.unset()',
   },
   // 3.0: delete({ confirm: true }) без expect и без all — удаление не сверено с показанным превью
   'write.confirm_without_expect': {
     code: 'invalid_query',
-    ru: 'delete({ confirm: true }) без { expect }: удаление не сверено с превью, которое видел пользователь — ничего не удалено',
-    hint: 'передайте expect из превью: const p = await db.Класс(id).delete().rows(); показать p пользователю; await db.Класс(id).delete({ confirm: true, expect: p }).rows(). Осознанно удалить текущий состав без сверки — delete({ confirm: true, all: true })',
+    ru: 'delete({ confirm: true }) без { expect }: удаление не сверено с предпросмотром, который видел пользователь — ничего не удалено',
+    hint: 'передайте expect из предпросмотра: const p = await db.Класс(id).delete().rows(); показать p пользователю; await db.Класс(id).delete({ confirm: true, expect: p }).rows(). Осознанно удалить текущий состав без сверки — delete({ confirm: true, all: true })',
   },
   // 3.0: restore() без expect и без all — и для явных id: последнее надгробие могло смениться с тех пор, как его видели
   'write.restore_without_expect': {

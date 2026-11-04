@@ -1,25 +1,5 @@
 {
   "id": "auth/03-delete-account",
-  "context": {
-    "schema": "v2.g_auth_03_delete_account",
-    "dsn": {
-      "admin": "postgres://postgres:test@localhost:15433/letopis",
-      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
-    },
-    "user": {
-      "login": "anna@romashka.ru",
-      "password": "Ромашка-2026!"
-    },
-    "up": {
-      "serviceKey": "lts_c8006ce399c01897ef3dcdbd50261178e804ae816208068a5227bb73c803ef7e",
-      "tenant": {
-        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "d7a65caa6e30b72b71c2a7c743a068ea5301cf9b2dda1a46cc9dfa4ae10d61cc",
-        "created": true
-      }
-    }
-  },
   "initial": {
     "entity": [],
     "log": [],
@@ -45,12 +25,12 @@
             "methods": [
               "PASSWORD"
             ],
-            "service": "4105bcea-fb9b-5721-8209-7938dc27346b",
-            "login_at": "2026-11-03T19:05:23.344451+00:00"
+            "service": "f849bccc-ce95-5986-af80-5a469e30cf33",
+            "login_at": "2026-11-04T05:13:28.001657+00:00"
           },
-          "material": "00db67544804d4b74d0a9e196c3bec69fa7362e3f11c70cd3eb338ce827397f1",
-          "expires_at": "2026-11-10 19:05:23.344457+00",
-          "created_at": "2026-11-03 19:05:23.344459+00",
+          "material": "f2956f8d795d2e53c871c64979f863a1c2c5fb824cf0cda2c5c4003a206989e4",
+          "expires_at": "2026-11-11 05:13:28.00167+00",
+          "created_at": "2026-11-04 05:13:28.001671+00",
           "deleted_at": null
         }
       ],
@@ -78,12 +58,12 @@
             "methods": [
               "PASSWORD"
             ],
-            "service": "4105bcea-fb9b-5721-8209-7938dc27346b",
-            "login_at": "2026-11-03T19:05:23.344451+00:00"
+            "service": "f849bccc-ce95-5986-af80-5a469e30cf33",
+            "login_at": "2026-11-04T05:13:28.001657+00:00"
           },
-          "material": "00db67544804d4b74d0a9e196c3bec69fa7362e3f11c70cd3eb338ce827397f1",
-          "expires_at": "2026-11-10 19:05:23.344457+00",
-          "created_at": "2026-11-03 19:05:23.344459+00",
+          "material": "f2956f8d795d2e53c871c64979f863a1c2c5fb824cf0cda2c5c4003a206989e4",
+          "expires_at": "2026-11-11 05:13:28.00167+00",
+          "created_at": "2026-11-04 05:13:28.001671+00",
           "deleted_at": null
         },
         {
@@ -93,9 +73,9 @@
           "meta": {
             "confirmed": true
           },
-          "material": "736372797074243332373638243824312457586f2b54694e376337674f716837765648626e73673d3d2474645677724f6a664f3437674e526a674b6c6e7950717532465355546f366e693046522b61556f4c54566b3d",
+          "material": "73637279707424333237363824382431246550395576443661774d7859715848354432727874773d3d24706444314654554c5536735833425757325976744170355632433768313142586d74716d5471564e646d513d",
           "expires_at": null,
-          "created_at": "2026-11-03 19:05:23.823356+00",
+          "created_at": "2026-11-04 05:13:28.480495+00",
           "deleted_at": null
         },
         {
@@ -105,24 +85,24 @@
           "meta": {
             "ttl": "7 days",
             "tenant": "68466b9a-4722-5a50-ba68-378a96b6beb8",
-            "login_at": "2026-11-03T19:05:23.824756+00:00"
+            "login_at": "2026-11-04T05:13:28.481829+00:00"
           },
-          "material": "b5ffec84a784a530560d5f512de25cc0ebacb73ef1f960a566594f901e25ee73",
-          "expires_at": "2026-11-10 19:05:23.824763+00",
-          "created_at": "2026-11-03 19:05:23.824765+00",
+          "material": "0edc84c4af830d7bc583fda9958d8559c7dda8f1abad9807e0c3137115fad1f4",
+          "expires_at": "2026-11-11 05:13:28.481837+00",
+          "created_at": "2026-11-04 05:13:28.481839+00",
           "deleted_at": null
         },
         {
           "account": "23dc6878-f3af-5ecf-a062-e5329b9f1638",
           "kind": "KEYSECRET",
-          "ident": "e911ece0bc0523b5",
+          "ident": "c18af64f460d1034",
           "meta": {
             "name": "касса",
             "confirmed": true
           },
-          "material": "6607bf3f043c8a50b3d7fcb03afc2384dcca8d01b1472333411685c75165dbbd",
+          "material": "d4147d556fd6bfeca51e1297ce18eb8e9d336575b08f792e1c320a65692553c3",
           "expires_at": null,
-          "created_at": "2026-11-03 19:05:23.831167+00",
+          "created_at": "2026-11-04 05:13:28.487741+00",
           "deleted_at": null
         }
       ],
@@ -149,19 +129,19 @@
             "methods": [
               "PASSWORD"
             ],
-            "service": "4105bcea-fb9b-5721-8209-7938dc27346b",
-            "login_at": "2026-11-03T19:05:23.344451+00:00"
+            "service": "f849bccc-ce95-5986-af80-5a469e30cf33",
+            "login_at": "2026-11-04T05:13:28.001657+00:00"
           },
-          "material": "00db67544804d4b74d0a9e196c3bec69fa7362e3f11c70cd3eb338ce827397f1",
-          "expires_at": "2026-11-10 19:05:23.344457+00",
-          "created_at": "2026-11-03 19:05:23.344459+00",
+          "material": "f2956f8d795d2e53c871c64979f863a1c2c5fb824cf0cda2c5c4003a206989e4",
+          "expires_at": "2026-11-11 05:13:28.00167+00",
+          "created_at": "2026-11-04 05:13:28.001671+00",
           "deleted_at": null
         }
       ],
       "signals": [
         "Account",
         "member",
-        "session:b5ffec84a784a530"
+        "session:0edc84c4af830d7b"
       ]
     },
     {
@@ -185,16 +165,18 @@
             "methods": [
               "PASSWORD"
             ],
-            "service": "4105bcea-fb9b-5721-8209-7938dc27346b",
-            "login_at": "2026-11-03T19:05:23.344451+00:00"
+            "service": "f849bccc-ce95-5986-af80-5a469e30cf33",
+            "login_at": "2026-11-04T05:13:28.001657+00:00"
           },
-          "material": "00db67544804d4b74d0a9e196c3bec69fa7362e3f11c70cd3eb338ce827397f1",
-          "expires_at": "2026-11-10 19:05:23.344457+00",
-          "created_at": "2026-11-03 19:05:23.344459+00",
+          "material": "f2956f8d795d2e53c871c64979f863a1c2c5fb824cf0cda2c5c4003a206989e4",
+          "expires_at": "2026-11-11 05:13:28.00167+00",
+          "created_at": "2026-11-04 05:13:28.001671+00",
           "deleted_at": null
         }
       ],
       "signals": []
     }
-  ]
+  ],
+  "output": "Шаг 1. Системный администратор\nletopis: администраторское подключение — RLS не действует, данные всех арендаторов видны\n{\n  \"Анна работает в\": \"System\"\n}\n\nШаг 2. Борис: пароль, пара «ключ + секрет» и сессия\n{\n  \"правил в кэше\": 3,\n  \"кэш\": 1\n}\n\nШаг 3. Удалить аккаунт Бориса\n{\n  \"строк Бориса в secret\": 0,\n  \"правил по кэшированному запросу\": 0,\n  \"сессия по токену\": null\n}\n\nШаг 4. Аккаунт System удалить нельзя\nотказ, как и задумано: letopis: acl_denied: аккаунт System не удаляется: ему принадлежат служебные строки установки",
+  "exitCode": 0
 }

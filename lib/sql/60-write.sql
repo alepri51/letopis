@@ -1378,12 +1378,15 @@ begin
   return null;
 end $$;
 
--- Превью удаления (этап 4, п. 6): что удалит delete этих строк — те же уровни и то же правило
+-- Предпросмотр удаления (этап 4, п. 6): что удалит delete этих строк — те же уровни и то же правило
 -- ref_action(), что у триггера, но без изменений. Строки: action delete (цели — depth 0, каскад —
 -- уровень), unset (конец будет снят) и restrict (мешает удалению). Функция владельца ищет по
 -- индексу ends без RLS (§3 «Индексы под RLS»), поэтому и цели, и выдачу пропускает через
 -- row_visible() — то же условие, что у политики чтения (как find_*): невидимых строк не раскрывает
--- ни id, ни классом. О невидимых мешающих строках скажет само удаление (visible_detail: число).
+-- ни id, ни классом. Невидимые строки замыкания (3.0.1) — в конце сводкой, по строке на действие (delete,
+-- unset, restrict; только непустые): id и class — null, action — 'hidden:<действие>', depth — их число. Вид
+-- результата прежний: тело ставит create or replace повторным накатом той же ревизии, а клиент, который
+-- соединяет выдачу с entity по id, сводок не видит.
 create or replace function @SCHEMA@.delete_preview(p_ids uuid[]) returns table(id uuid, class text, action text, depth int)
 language plpgsql stable security definer
 set search_path = pg_catalog, @SCHEMA@, pg_temp
@@ -1432,10 +1435,19 @@ begin
     from (select x.id, @SCHEMA@.ref_action((@SCHEMA@.class_row(x.class, x.tenant)).data->'resolved'->'ends', x.links, all_ids) as a
           from @SCHEMA@.entity x where x.ends && all_ids and not (x.id = any (all_ids))) r);
   return query
-    select (o->>0)::uuid, e.class, o->>1, (o->>2)::int
-    from jsonb_array_elements(out_rows) o
-    join @SCHEMA@.entity e on e.id = (o->>0)::uuid
-    where @SCHEMA@.row_visible(e.tenant, e.class, e.id, e.owner, e.tags, e.data, e.links, c_tenant, c_account, c_plan);
+    with o as (
+      select (j.v->>0)::uuid as id, e.class, j.v->>1 as action, (j.v->>2)::int as depth, j.ord,
+             @SCHEMA@.row_visible(e.tenant, e.class, e.id, e.owner, e.tags, e.data, e.links, c_tenant, c_account, c_plan) as vis
+      from jsonb_array_elements(out_rows) with ordinality j(v, ord)
+      join @SCHEMA@.entity e on e.id = (j.v->>0)::uuid
+    )
+    select x.id, x.class, x.action, x.depth
+    from (select o.id, o.class, o.action, o.depth, 0 as part, o.ord as k from o where o.vis
+          union all
+          select null::uuid, null::text, 'hidden:' || o.action, count(*)::int, 1,
+                 array_position(array['delete', 'unset', 'restrict'], o.action)::bigint
+          from o where not o.vis group by o.action) x
+    order by x.part, x.k;
 end $$;
 
 create or replace trigger entity_bi before insert on @SCHEMA@.entity

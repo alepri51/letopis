@@ -18,7 +18,7 @@
 
 ```sh
 npm init -y && npm pkg set type=module    # код приложения — ESM, иначе import → SyntaxError
-npm i letopis zod postgres@3              # postgres@3 — та же мажорная версия, что у letopis (пул для createTenant)
+npm i letopis@3 zod postgres@3           # @3 — линия 3 этой памятки; postgres@3 — та же мажорная версия, что у letopis
 npm i -D tsx
 ADMIN_DSN='postgres://postgres:…@localhost:5432/app' SERVICE_KEY=lts_… APP_PASSWORD=… USER_PASSWORD=… npx tsx app.ts
 ```
@@ -215,6 +215,10 @@ const esc = (s: string) => s.replace(/[&<>"']/g, (c) =>
 // `<li data-id="${esc(row.id)}">${esc(String(row.data.code))}</li>`; обработчик — на список, не onclick из данных
 ```
 - Ключ сервиса → файл с правами только владельца или хранилище секретов, не в репозиторий и не клиенту.
+- Строгие типы у фасада → `svc.as(…) as unknown as TypedDb<typeof models>`, не свой `connect({ token })` на вход
+  (README, «Строгий режим»).
+- Системный администратор (член System с ролью `admin`) через сервис не входит и `svc.as()` от его имени →
+  `acl_denied`: отдельный аккаунт, вход ключом API и `auth.switch(System)` (README, «Аккаунты, арендаторы и членство»).
 
 ### 6. Ошибки → текст для человека
 
@@ -279,7 +283,7 @@ function toHuman(e: unknown): string[] {
   SQLSTATE и имена ограничения, таблицы, колонки); значения полей `data` строк в `detail` ошибки (`***`); значение
   аргумента в тексте ошибки letopis (`***`).
 - Маскируются (`***`): поля с именами паролей, токенов, ключей, секретов, кредов, `cookie` и поля из `redact` — на
-  любой глубине; учётные данные в строке подключения (`postgres://***@host/db`); пароль в тексте SQL.
+  любой глубине; строка подключения — без пользователя и пароля (`postgres://localhost:5432/app`); пароль в тексте SQL.
 - Пишутся как есть: значения **фильтров** в `chain` (`Item({"code":"i1"})`; данные записи — только именами полей),
   тексты исключений вашего кода. Фильтр по персональным или секретным полям с другим именем → имя поля в `redact`.
   Объект ошибки, который получает приложение (`err.message`, `err.cause`), не маскируется.
@@ -529,7 +533,7 @@ const history = await db.Item(w).versions()                         // все в
 - `versions()` по пути или по классу без id → только **живые** объекты; с удалёнными → `withDeleted()` на этом шаге
   (`db.Obj(o).Hold().withDeleted().versions()`) или явный id (`db.Hold(id).versions()`).
 - Причина версии — опция `reason` глагола, `db.begin({ reason })`, `db.batch(имя, { reason })`. Журнал хранит каждую
-  версию; класс с `history: false` не даёт `versions`, `asOf`, `restore`, событий подписки.
+  версию; класс с `history: false` — без журнала: `versions()` → `[]`, нет `asOf`, `restore`, событий подписки.
 
 ### 11. Агенты и MCP
 
@@ -541,7 +545,8 @@ const server = await createMcpServer(await svc.as(userId, { tenant: TENANT }), {
 - Только сессия пользователя в арендаторе приложения: без `{ tenant }` — личный арендатор, классов там нет; корень
   сервиса без `as()` → `user_session_required`; подключение в обход RLS → `bypass_rls`.
 - `letopis_model`, `letopis_query`, `letopis_history`; с `write: true` — `letopis_write`: `update` только с `rev`,
-  удаление — превью и подтверждение человека. Форматы ответов — README, «Агенты и MCP».
+  удаление — превью и подтверждение человека. Ответ — `structuredContent.data` (`rows` у `letopis_query`); клиент в
+  процессе — `Client` и `InMemoryTransport` из `@modelcontextprotocol/client`; аргументы — README, «Агенты и MCP».
 
 ### 12. Эксплуатация и завершение
 
@@ -583,5 +588,7 @@ await adm.close(); await svc.close()               // svc закрывает п�
 11. Класс с историей строк не удаляется (`invalid_class`): класс, который придётся удалять, заводят с `history: false`.
 12. Предупреждения `letopis: …` в консоли (фильтр `undefined`, `sort()` не в конце, `withDeleted()` не у своего шага) —
     почти всегда ошибка в коде.
-13. SQLSTATE `22P02` (значение не того типа, и в `db.sql`) → `invalid_query` (`api.db_bad_value`), исходная —
+13. Персональные данные, которые придётся стереть, → класс с `history: false`: журнал хранит каждую версию, а
+    `purgeAccount` чужие арендаторы не трогает (README, «Удалить аккаунт»).
+14. SQLSTATE `22P02` (значение не того типа, и в `db.sql`) → `invalid_query` (`api.db_bad_value`), исходная —
     `err.cause`.

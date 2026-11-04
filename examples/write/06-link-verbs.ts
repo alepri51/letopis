@@ -45,18 +45,24 @@ export default example({
     {
       title: 'Кэш результатов и описание класса',
       text:
-        '`.cache()` — повтор того же чтения без запроса к базе, пока данные не изменились. Попадания считаем на свежем ' +
-        'подключении Анны. У `db` сигнал о записи из прошлого шага мог бы прийти во время первого чтения: такой ответ ' +
-        'мог устареть, и кэш его не сохраняет (защита от гонки чтения и сигнала, счётчик `raced`). В описании класса из ' +
-        'реестра подключения (`db.registry.find()`) — поля класса (`schema.properties`, их задаёт `fields` модели) и ' +
-        'настройка кэша (`cache`).',
+        '`.cache()` — повтор того же чтения без запроса к базе, пока данные не изменились. Проверяем на свежем ' +
+        'подключении Анны. Сигнал о записи из прошлого шага может прийти во время первого чтения: такой ответ мог ' +
+        'устареть, и кэш его не сохраняет (защита от гонки чтения и сигнала, счётчик `raced` в `cache.stats()`). ' +
+        'Поэтому чтение повторяем, пока очередной повтор не придёт из кэша: число попаданий (`hits`) растёт. ' +
+        'В описании класса из реестра подключения (`db.registry.find()`) — поля класса (`schema.properties`, ' +
+        'их задаёт `fields` модели) и настройка кэша (`cache`).',
       run: async ({ connect, dsn, schema, up }) => {
         const anna = await connect({ dsn: dsn.app, schema, token: up.tenant!.token! });
-        await anna.Product().cache({ ttl: 30 }).count(); // запрос к базе — ответ сохраняется в кэше
-        await anna.Product().cache({ ttl: 30 }).count(); // то же чтение — из кэша
-        const { hits, raced } = anna.cache.stats();
+        const read = () => anna.Product().cache({ ttl: 30 }).count();
+        await read(); // запрос к базе — ответ ложится в кэш, если сигнал о записи не пришёл во время чтения
+        let fromCache = false;
+        for (let i = 0; i < 10 && !fromCache; i++) {
+          const before = anna.cache.stats().hits;
+          await read(); // то же чтение — из кэша, если ответ сохранён
+          fromCache = anna.cache.stats().hits > before;
+        }
         const desc = anna.registry.find('Product')!;
-        return { 'попаданий в кэш': hits, raced, 'поля Product': Object.keys(desc.schema.properties ?? {}).slice(0, 4), cache: desc.cache ?? null };
+        return { 'повтор из кэша': fromCache ? 'да' : 'нет', 'поля Product': Object.keys(desc.schema.properties ?? {}).slice(0, 4), cache: desc.cache ?? null };
       },
     },
   ],

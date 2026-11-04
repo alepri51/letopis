@@ -49,9 +49,9 @@ export default example({
         'перечитан — классы компании теперь видны. Компанию берут из `auth.tenants()`: первая не личная — ' +
         '`.find((t) => !t.personal)`; если их несколько, пусть выберет пользователь (по `name`).',
       run: async () => {
-        const club = (await anna.auth.tenants()).find((t) => !t.personal)!;
-        await anna.auth.switch(club.tenant);
-        return { 'сейчас': club.name, 'anna.Item().count()': await anna.Item().count() };
+        const company = (await anna.auth.tenants()).find((t) => !t.personal)!;
+        await anna.auth.switch(company.tenant);
+        return { 'сейчас': company.name, 'anna.Item().count()': await anna.Item().count() };
       },
     },
     {

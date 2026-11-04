@@ -1,25 +1,5 @@
 {
   "id": "ops/02-sql-cache-signals",
-  "context": {
-    "schema": "v2.g_ops_02_sql_cache_signals",
-    "dsn": {
-      "admin": "postgres://postgres:test@localhost:15433/letopis",
-      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
-    },
-    "user": {
-      "login": "anna@romashka.ru",
-      "password": "Ромашка-2026!"
-    },
-    "up": {
-      "serviceKey": "lts_bed616ccb690ced767c73db25d5b372f034d43c7cecebd63a746440fcbc1548f",
-      "tenant": {
-        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "9628bcd8a572f2b2cae5a68c42a95fd79e09ed9b37f2eb1023344ce9c0df30be",
-        "created": true
-      }
-    }
-  },
   "initial": {
     "entity": [],
     "log": [],
@@ -124,5 +104,7 @@
       "secret": [],
       "signals": []
     }
-  ]
+  ],
+  "output": "Шаг 1. Что знает реестр подключения\n{\n  \"has Product / Нет\": [\n    true,\n    false\n  ],\n  \"find Нет\": \"undefined\",\n  \"ключ Product (resolve)\": [\n    \"Shop\",\n    \"sku\"\n  ],\n  \"семейство Customer\": [\n    \"Customer\",\n    \"Vip\"\n  ],\n  \"классов всего (all)\": 12,\n  \"leafType Product.price / title\": [\n    \"numeric\",\n    \"text\"\n  ],\n  \"свой реестр после load: столько же классов\": true\n}\n\nШаг 2. Свой SQL в сессии пользователя\n{\n  \"db.sql\": [\n    {\n      \"tenant_name\": \"Ромашка\",\n      \"reason\": \"\"\n    }\n  ],\n  \"db.transaction — только свой арендатор\": [\n    {\n      \"class\": \"Product\",\n      \"n\": 4\n    },\n    {\n      \"class\": \"Shop\",\n      \"n\": 2\n    }\n  ]\n}\n\nШаг 3. Кэш только по сроку и отправка сигналов сейчас\nletopis: администраторское подключение — RLS не действует, данные всех арендаторов видны\n{\n  \"stats\": {\n    \"size\": 1,\n    \"hits\": 1,\n    \"misses\": 1,\n    \"stores\": 1,\n    \"raced\": 0,\n    \"signals\": 0,\n    \"listens\": 0,\n    \"enabled\": true\n  },\n  \"режим сигналов\": \"class\",\n  \"ответов в кэше после clear()\": 0\n}\n\nШаг 4. Подписка: размер пачки и запасной опрос\n{\n  \"op\": \"create\",\n  \"class\": \"Shop\"\n}",
+  "exitCode": 0
 }

@@ -1,25 +1,5 @@
 {
   "id": "load/01-load-options",
-  "context": {
-    "schema": "v2.g_load_01_load_options",
-    "dsn": {
-      "admin": "postgres://postgres:test@localhost:15433/letopis",
-      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
-    },
-    "user": {
-      "login": "anna@romashka.ru",
-      "password": "Ромашка-2026!"
-    },
-    "up": {
-      "serviceKey": "lts_2a2d6398f53c6fff1605daf2e5fc2478068ef72882d79cca25b4eedaea6bdbc0",
-      "tenant": {
-        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "df4074f8072c86de90baeda1f8274272523411390a1c1f3e1e3a4c10899d5cb0",
-        "created": true
-      }
-    }
-  },
   "initial": {
     "entity": [],
     "log": [],
@@ -52,7 +32,7 @@
         },
         "external": 0,
         "portions": 1,
-        "ms": 215.50759999999718
+        "ms": 217.07300000000396
       },
       "error": null,
       "entity": [],
@@ -101,7 +81,7 @@
         "byClass": {},
         "external": 1,
         "portions": 1,
-        "ms": 18.329200000000128
+        "ms": 18.576900000000023
       },
       "error": null,
       "entity": [],
@@ -151,7 +131,7 @@
         },
         "external": 0,
         "portions": 2,
-        "ms": 467.5124999999971
+        "ms": 442.803899999999
       },
       "error": null,
       "entity": [],
@@ -175,7 +155,7 @@
           },
           "external": 0,
           "portions": 1,
-          "ms": 226.67020000000048
+          "ms": 225.95700000000943
         },
         "автор": "3defbabb-a94d-5359-8463-dc947de193e1"
       },
@@ -274,5 +254,7 @@
         "Product"
       ]
     }
-  ]
+  ],
+  "output": "Шаг 1. Администраторское подключение\nletopis: администраторское подключение — RLS не действует, данные всех арендаторов видны\n{\n  \"tenant\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\"\n}\n\nШаг 2. Магазин и два товара одним вызовом\n{\n  \"rows\": 3,\n  \"loaded\": 3,\n  \"updated\": 0,\n  \"skipped\": 0,\n  \"duplicates\": 0,\n  \"byClass\": {\n    \"Shop\": 1,\n    \"Product\": 2\n  },\n  \"external\": 0,\n  \"portions\": 1,\n  \"ms\": 219.62549999999987\n}\n\nШаг 3. Один товар дважды во входе\nотказ, как и задумано: letopis: duplicate: загрузка отменена: строка 2 — id d5a04473-a3ea-52e1-96ed-2b4eda507bb3 уже был в строке 1\n\nШаг 4. Повторы — берём последний, существующие — обновляем\n{\n  \"rows\": 2,\n  \"loaded\": 0,\n  \"updated\": 1,\n  \"skipped\": 0,\n  \"duplicates\": 1,\n  \"byClass\": {},\n  \"external\": 1,\n  \"portions\": 1,\n  \"ms\": 38.16010000000006\n}\n\nШаг 5. Уже существующий объект по умолчанию — ошибка\nотказ, как и задумано: letopis: exists: загрузка отменена: строка 1 — объект уже есть в базе\n\nШаг 6. Массив строк, порции и пачки\n{\n  \"rows\": 2,\n  \"loaded\": 2,\n  \"updated\": 0,\n  \"skipped\": 0,\n  \"duplicates\": 0,\n  \"byClass\": {\n    \"Customer\": 2\n  },\n  \"external\": 0,\n  \"portions\": 2,\n  \"ms\": 474.1861000000001\n}\n\nШаг 7. Строки без $class и от имени пользователя\n{\n  \"report\": {\n    \"rows\": 1,\n    \"loaded\": 1,\n    \"updated\": 0,\n    \"skipped\": 0,\n    \"duplicates\": 0,\n    \"byClass\": {\n      \"Customer\": 1\n    },\n    \"external\": 0,\n    \"portions\": 1,\n    \"ms\": 225.67070000000012\n  },\n  \"автор\": \"3defbabb-a94d-5359-8463-dc947de193e1\"\n}\n\nШаг 8. Классы не грузятся\nотказ, как и задумано: letopis: class_not_loadable: загрузка отменена: строка 1 — строки Class задают letopis sync и create — там база компилирует проверку\n\nШаг 9. Обычное подключение загружать не может\nотказ, как и задумано: letopis: admin_required: загрузчику нужно администраторское подключение (connect({ allowBypassRls: true }) роли, которая может стать владельцем схемы)\n\nШаг 10. Объект жил раньше и удалён — deleted\nотказ, как и задумано: letopis: deleted: загрузка отменена: строка 1 — объект с этим id жил раньше и удалён (existing: update воскресит)\n\nШаг 11. existing: update возвращает удалённый объект\n{\n  \"загружено\": 1,\n  \"версии\": [\n    \"v1 create 400\",\n    \"v2 delete 400\",\n    \"v3 create 450\"\n  ]\n}",
+  "exitCode": 0
 }

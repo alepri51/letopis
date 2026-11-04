@@ -35,8 +35,27 @@ export type LogFields = Partial<Omit<LogEvent, 'ts' | 'event' | 'level'>> & { le
 const RANK: Readonly<Record<LogEventLevel, number>> = { debug: 10, info: 20, warn: 30, error: 40 };
 const LEVELS: readonly LogLevel[] = ['debug', 'info', 'warn', 'error', 'off'];
 
-/** Имена полей с секретами: маскируются в любом месте detail всегда. */
-const SECRET_KEY = /pass(?:word|wd|phrase)?$|^pass|^pwd$|secret|token|api_?key|service_?key|authorization|cookie|credential|^hash$|^material$|^totp$|^otp$/i;
+/**
+ * Имена полей с секретами: маскируются в любом месте detail всегда. Имя делится на слова (camelCase, snake_case,
+ * kebab-case, точки, цифры): секрет — слово из SECRET_WORDS (password, newPassword, refresh_token, clientSecret …), пара
+ * слов api/service + key (apiKey, api_key, serviceKey) или имя целиком из SECRET_EXACT. Слово, где «pass» — часть другого
+ * слова (bypass, passage, passport, compass, isPassive), секретом не считается.
+ */
+const SECRET_WORDS = new Set(['password', 'passwords', 'passwd', 'passphrase', 'pwd', 'pass', 'secret', 'secrets', 'token', 'tokens',
+  'apikey', 'apikeys', 'servicekey', 'authorization', 'cookie', 'cookies', 'credential', 'credentials', 'totp', 'otp']);
+const SECRET_EXACT = new Set(['hash', 'material']);
+const SECRET_PAIR = new Set(['api', 'service']);
+const SECRET_STEM = /passw|passphrase|pwd|secret|token|api[-_]?keys?|service[-_]?keys?|credential|cookie|authorization/i;
+const SECRET_KEY = {
+  test(key: string): boolean {
+    if (SECRET_EXACT.has(key.toLowerCase())) return true;
+    // корни секретов подстрокой — и в склеенных именах (dbpassword, apitoken, x-api-key); голое «pass» сюда не входит,
+    // поэтому bypass, passport, compass секретами не считаются
+    if (SECRET_STEM.test(key)) return true;
+    const words = key.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2').toLowerCase().split(/[^a-z]+/);
+    return words.some((w, i) => SECRET_WORDS.has(w) || ((w === 'key' || w === 'keys') && i > 0 && SECRET_PAIR.has(words[i - 1]!)));
+  },
+};
 /**
  * Учётные данные в строке подключения: схема://пользователь:пароль@хост — всё до последней `@` в части хоста
  * (пароль может содержать `@`, `:` и `/`).

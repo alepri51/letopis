@@ -4,7 +4,9 @@ import { End, one, hub, normalizeSchema, translatePattern } from 'letopis/model'
 import { z } from 'zod';
 import { example } from '../_shared/example.ts';
 
-const MIGRATIONS = fileURLToPath(new URL('../../lib/sql/migrate', import.meta.url));
+// Свой каталог миграций — migrate рядом с программой. На свежей схеме миграции не применяются, а каталога может не быть:
+// отсутствующий каталог up() считает пустым.
+const MIGRATIONS = fileURLToPath(new URL('./migrate', import.meta.url));
 
 export default example({
   title: 'Опции up(): свой пул, роли, миграции, первый арендатор, режим сигналов none',
@@ -19,6 +21,10 @@ export default example({
   steps: [
     {
       title: 'Установка через готовый пул, с ролями по умолчанию и первым арендатором',
+      text:
+        '`sql` — готовый пул postgres.js вместо строки подключения. `owner` и `app` — имена ролей владельца схемы и ' +
+        'приложения (здесь — те же, что по умолчанию). `migrationsDir` — каталог миграций для `upgrade: true` вместо ' +
+        'каталога пакета: на свежей схеме миграций нет, поэтому каталог `migrate` рядом с программой может и не существовать.',
       run: async ({ admin, schema }) => {
         const r = await up({
           sql: admin as never, schema, fresh: true, quiet: true, owner: 'letopis_owner', app: 'letopis_app', migrationsDir: MIGRATIONS,

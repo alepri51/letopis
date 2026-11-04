@@ -100,8 +100,8 @@ export const codes = {
   },
   'codes.conflict': {
     code: 'conflict',
-    ru: 'то, что вы видели, уже изменилось — ничего не записано: `update` с `{ rev }` (строку изменили после чтения, `write.rev_conflict`), `delete({ confirm: true, expect })` (превью изменилось, `write.preview_changed`; в том числе цели уже удалены или не найдены — `detail.preview: []`), `restore({ expect })` (объект меняли после удаления, `write.restore_stale`)',
-    hint: 'перечитать и повторить с новыми данными: `update` — с новым `rev` (для чисел — `inc` вместо записи итога); `delete` — показать новое превью `err.detail.preview` и удалить с ним; `restore` — сообщить пользователю (вещь уже у другого) или `restore({ expect, partial: true })`',
+    ru: 'то, что вы видели, уже изменилось — ничего не записано: `update` с `{ rev }` (строку изменили после чтения, `write.rev_conflict`), `delete({ confirm: true, expect })` (предпросмотр изменился, `write.preview_changed`; в том числе цели уже удалены или не найдены — `detail.preview: []`), `restore({ expect })` (объект меняли после удаления, `write.restore_stale`)',
+    hint: 'перечитать и повторить с новыми данными: `update` — с новым `rev` (для чисел — `inc` вместо записи итога); `delete` — показать новый предпросмотр `err.detail.preview` и удалить с ним; `restore` — сообщить пользователю (вещь уже у другого) или `restore({ expect, partial: true })`',
   },
   'codes.rev_ambiguous': {
     code: 'rev_ambiguous',

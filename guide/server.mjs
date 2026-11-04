@@ -3,15 +3,18 @@
  * Отдаёт статическую сборку VitePress (`.vitepress/dist`) с чистыми адресами: `/basics/what-is` →
  * `basics/what-is.html`. Только локально: руками слушает 127.0.0.1, compose открывает порт на 127.0.0.1.
  *
- * Песочница (`SANDBOX=1`): `POST /api/run` прогоняет присланный со страницы пример на живой базе в свежей схеме
- * (`examples/_runner/sandbox.ts` в отдельном процессе с рабочим каталогом examples/: примеры, их помощники и пакеты —
- * там, сайт их только читает) и возвращает снимок для плеера. Это исполнение любого кода на
- * вашей машине, поэтому:
+ * Песочница (`SANDBOX=1`): `POST /api/run` с телом `{ id, source }` выполняет присланную со страницы самостоятельную
+ * программу примера (тот же текст, что на странице, возможно правленый) на живой базе: `examples/_runner/sandbox.ts`
+ * в отдельном процессе с рабочим каталогом examples/ (пакеты и tsconfig — там, сайт их только читает) кладёт её во
+ * временный каталог и запускает `node --import tsx` с `ADMIN_DSN` базы стенда (`ENTITY_DSN`). Ответ —
+ * `{ output, exitCode, ms }` (stdout и stderr программы одним потоком) или `{ error, output }`. Это исполнение любого
+ * кода на вашей машине, поэтому:
  * - запрос принимается только со страниц самого сайта: заголовки Host и Origin — 127.0.0.1 или localhost с портом
  *   сайта (`PUBLIC_PORT`, по умолчанию `PORT`) или dev-сервера VitePress (5173); так чужая страница в том же
  *   браузере не отправит код ни напрямую, ни через подмену DNS;
  * - тело — только JSON (чужой сайт не отправит его без предварительного запроса CORS, а его сервер не одобряет);
- * - один прогон за раз, не дольше `SANDBOX_TIMEOUT_MS` (по умолчанию 120 с), тело не больше 256 КБ.
+ * - прогоны по одному, остальные ждут в очереди (не больше `SANDBOX_QUEUE`, по умолчанию 10, сверх — 503); прогон не
+ *   дольше `SANDBOX_TIMEOUT_MS` (по умолчанию 120 с), тело не больше 256 КБ.
  */
 import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
@@ -30,7 +33,11 @@ const PUBLIC_PORT = Number(process.env.PUBLIC_PORT ?? PORT);
 const TIMEOUT = Number(process.env.SANDBOX_TIMEOUT_MS ?? 120_000);
 const MAX_BODY = 256 * 1024;
 const MARK = '@@RESULT@@';
+const MAX_QUEUE = Number(process.env.SANDBOX_QUEUE ?? 10);
+const MAX_OUTPUT = 200_000;
 const HOSTS = new Set([`127.0.0.1:${PUBLIC_PORT}`, `localhost:${PUBLIC_PORT}`]);
+// Каталоги без своей страницы (index.html): адрес каталога ведёт на его первую страницу.
+const DIR_REDIRECTS = { '/basics': '/basics/what-is' };
 const ORIGINS = new Set([...HOSTS, '127.0.0.1:5173', 'localhost:5173'].map((h) => `http://${h}`));
 const TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -68,44 +75,76 @@ async function readBody(req) {
   return Buffer.concat(chunks).toString('utf8');
 }
 
-let busy = false;
-
-/** Один прогон в отдельном процессе: зависший или упавший пример не уронит сервер. */
-function runSandbox(body) {
+/** Один прогон в отдельном процессе: зависшая или упавшая программа не уронит сервер. */
+function runSandbox(source) {
   return new Promise((resolve) => {
-    // tsx — из examples/node_modules, tsconfig — examples/tsconfig.json (letopis исходниками ../lib/src)
+    // tsx — из examples/node_modules, tsconfig — examples/tsconfig.json (letopis исходниками ../lib/src); программу
+    // во временном каталоге запускает и убирает за собой sandbox.ts, он же снимает её по SANDBOX_TIMEOUT_MS
     const child = spawn(process.execPath, ['--import', 'tsx', join('_runner', 'sandbox.ts')], {
       cwd: EXAMPLES,
-      env: process.env,
+      env: { ...process.env, SANDBOX_TIMEOUT_MS: String(TIMEOUT) },
       stdio: ['pipe', 'pipe', 'pipe'],
     });
     let out = '';
-    let err = '';
-    const cap = (s, c) => (s.length < 4_000_000 ? s + c : s);
-    child.stdout.on('data', (c) => (out = cap(out, c.toString('utf8'))));
-    child.stderr.on('data', (c) => (err = cap(err, c.toString('utf8'))));
-    const timer = setTimeout(() => child.kill('SIGKILL'), TIMEOUT);
-    child.on('close', (code, signal) => {
+    const cap = (c) => (out.length < MAX_OUTPUT ? (out += c.toString('utf8')) : out);
+    child.stdout.on('data', cap);
+    child.stderr.on('data', cap);
+    // страховка: sandbox.ts сам снимает программу по времени; не ответил и он — снимаем его
+    const timer = setTimeout(() => child.kill('SIGKILL'), TIMEOUT + 15_000);
+    child.on('close', (code) => {
       clearTimeout(timer);
       const at = out.lastIndexOf(MARK);
-      const logs = (at >= 0 ? out.slice(0, at) : out).trim() + (err.trim() ? `\n${err.trim()}` : '');
-      if (at < 0) {
-        const why = signal === 'SIGKILL' ? `прогон дольше ${Math.round(TIMEOUT / 1000)} с — остановлен` : `прогон упал (код ${code})`;
-        return resolve({ status: 500, body: { error: why, logs: logs.slice(-20_000) } });
-      }
+      // пути временного каталога в трассировках ошибок — просто program.ts
+      const output = (at >= 0 ? out.slice(0, at) : out)
+        .replace(/^\n+|\s+$/g, '')
+        .replace(/(?:file:\/\/\/?)?[^\s'"(]*\.sandbox-[0-9a-f]+[\\/]/g, '')
+        .slice(-MAX_OUTPUT);
+      if (at < 0) return resolve({ status: 500, body: { error: `песочница упала (код ${code})`, output } });
+      let r;
       try {
-        const r = JSON.parse(out.slice(at + MARK.length));
-        resolve({ status: r.error ? 500 : 200, body: { ...r, logs: logs.slice(-20_000) } });
+        r = JSON.parse(out.slice(at + MARK.length));
       } catch {
-        resolve({ status: 500, body: { error: 'не удалось разобрать результат прогона', logs: logs.slice(-20_000) } });
+        return resolve({ status: 500, body: { error: 'не удалось разобрать итог прогона', output } });
       }
+      if (r.error) return resolve({ status: 500, body: { error: r.error, output } });
+      if (r.timedOut) return resolve({ status: 200, body: { error: `программа работала дольше ${Math.round(TIMEOUT / 1000)} с — остановлена`, output } });
+      resolve({ status: 200, body: { output, exitCode: r.exitCode, ms: r.ms } });
     });
-    child.stdin.end(body);
+    child.stdin.end(JSON.stringify({ source }));
   });
 }
 
-async function api(req, res, path) {
-  if (path === '/api/sandbox') return json(res, 200, { enabled: SANDBOX });
+// Одна песочница на всех: прогоны по одному, остальные ждут в очереди (FIFO). Кто ушёл, не дождавшись, — пропускается.
+const queue = [];
+let running = false;
+// билет выполняемого прогона: страница по нему узнаёт своё место (GET /api/sandbox?ticket=…)
+let current = null;
+
+async function drain() {
+  if (running) return;
+  running = true;
+  try {
+    while (queue.length) {
+      const job = queue.shift();
+      if (job.gone()) continue;
+      current = job.ticket;
+      const r = await runSandbox(job.source);
+      if (!job.gone()) json(job.res, r.status, r.body);
+    }
+  } finally {
+    running = false;
+    current = null;
+  }
+}
+
+async function api(req, res, path, url) {
+  if (path === '/api/sandbox') {
+    // place: 0 — этот прогон выполняется, n — n-й в очереди, null — билета нет (ещё не принят или уже готов)
+    const ticket = url.searchParams.get('ticket');
+    const at = ticket ? queue.findIndex((j) => j.ticket === ticket) : -1;
+    const place = ticket && ticket === current ? 0 : at >= 0 ? at + 1 : null;
+    return json(res, 200, { enabled: SANDBOX, running, queued: queue.length, place });
+  }
   if (path !== '/api/run') return json(res, 404, { error: 'нет такого адреса' });
   if (!SANDBOX) return json(res, 403, { error: 'песочница выключена (SANDBOX=1 включает)' });
   if (req.method !== 'POST') return json(res, 405, { error: 'только POST' });
@@ -116,20 +155,32 @@ async function api(req, res, path) {
   }
   if (!String(req.headers['content-type'] ?? '').startsWith('application/json')) return json(res, 415, { error: 'тело — JSON' });
   const body = await readBody(req);
-  if (body === null) return json(res, 413, { error: 'исходник больше 256 КБ' });
-  if (busy) return json(res, 429, { error: 'песочница занята другим прогоном — повторите через несколько секунд' });
-  busy = true;
+  if (body === null) return json(res, 413, { error: 'программа больше 256 КБ' });
+  let source, ticket;
   try {
-    const r = await runSandbox(body);
-    json(res, r.status, r.body);
-  } finally {
-    busy = false;
+    ({ source, ticket } = JSON.parse(body));
+  } catch {
+    return json(res, 400, { error: 'тело — JSON вида { id, source }' });
   }
+  if (typeof source !== 'string' || !source.trim()) return json(res, 400, { error: 'нет текста программы (source)' });
+  if (queue.length >= MAX_QUEUE) {
+    return json(res, 503, { error: `песочница перегружена: очередь полна (${MAX_QUEUE}) — попробуйте через минуту` });
+  }
+  let closed = false;
+  const job = { source, ticket: typeof ticket === 'string' ? ticket.slice(0, 64) : null, res, gone: () => closed || res.writableEnded };
+  // клиент ушёл, не дождавшись: из очереди — сразу, чтобы не занимал место и не считался «впереди»
+  res.on('close', () => {
+    closed = true;
+    const at = queue.indexOf(job);
+    if (at >= 0) queue.splice(at, 1);
+  });
+  queue.push(job);
+  void drain();
 }
 
 async function handle(req, res) {
   const url = new URL(req.url ?? '/', 'http://localhost');
-  if (url.pathname.startsWith('/api/')) return api(req, res, url.pathname);
+  if (url.pathname.startsWith('/api/')) return api(req, res, url.pathname, url);
   let rel;
   try {
     rel = normalize(decodeURIComponent(url.pathname)).replace(/^[/\\]+/, '');
@@ -143,8 +194,27 @@ async function handle(req, res) {
     res.writeHead(400).end();
     return;
   }
+  // Адрес со слэшем на конце (`/basics/what-is/`, `/services/salon/`): у страницы-файла (`what-is.html`) — редирект
+  // на адрес без слэша (каталог без index.html — по DIR_REDIRECTS). Раньше такой адрес получал 404.html, а клиент
+  // VitePress гидратировал её разметку страницей what-is — у страницы пропадало начало (заголовок, вводный текст).
+  // Страница-каталог (`/install/` → `install/index.html`) отдаётся как есть.
+  const slash = url.pathname.length > 1 && url.pathname.endsWith('/');
+  const bare = slash ? base.replace(/[/\\]+$/, '') : base;
+  // один ведущий слэш: `//host/…` в Location увёл бы на чужой сайт
+  const canon = '/' + url.pathname.replace(/^\/+|\/+$/g, '');
+  if (slash && bare !== DIST && !(await file(join(bare, 'index.html')))) {
+    const to = (await file(`${bare}.html`)) ? canon : DIR_REDIRECTS[canon];
+    if (to) {
+      res.writeHead(302, { location: to + url.search, 'cache-control': 'no-cache' }).end();
+      return;
+    }
+  }
+  if (!slash && DIR_REDIRECTS[canon] && !(await file(`${base}.html`)) && !(await file(join(base, 'index.html')))) {
+    res.writeHead(302, { location: DIR_REDIRECTS[canon] + url.search, 'cache-control': 'no-cache' }).end();
+    return;
+  }
   const found =
-    (await file(base)) ?? (await file(`${base}.html`)) ?? (await file(join(base, 'index.html')));
+    (await file(bare)) ?? (await file(`${bare}.html`)) ?? (await file(join(bare, 'index.html')));
   const path = found ?? join(DIST, '404.html');
   const body = await readFile(path);
   res.writeHead(found ? 200 : 404, {

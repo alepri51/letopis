@@ -6,7 +6,7 @@
  *   await db.Org(org).Staff().create({ name: 'Вася', phone: '+7' }).rows()      // концы из пути: { Org }
  *   await db.Customer(c).booking({ notes: 'x' }).update({ notes: 'y' }).rows()
  *   await db.Wallet(w).update({ balance: inc(-300) }).first()                     // приращение в базе
- *   await db.Staff(s).booking().create({ … }).Customer.set(c).Item.set(svc).rows() // слоты концов
+ *   await db.Staff(s).booking().create({ … }).Customer.set(c).Item.set(svc).rows() // шаги ролей
  *
  * Библиотека пишет обычными операторами SQL — теми же, что выполнил бы человек в консоли:
  * insert, update … set data = merge(data, $patch), insert … on conflict do update, delete; всё
@@ -56,20 +56,38 @@ export const isInc = (v: unknown): v is IncMarker =>
 // ---------------------------------------------------------------------------
 
 /**
- * Ожидаемая строка `expect` у `restore()` и `delete({ confirm: true })` (план 2.1, A1, A2): строка ответа или её `id`,
- * `rev` (и `$action` превью удаления). Лишние поля строки не мешают.
+ * Ожидаемая строка `expect` у `restore()` и `delete({ confirm: true })`: строка ответа или её `id`, `rev` (и `$action`
+ * предпросмотра удаления). Лишние поля строки не мешают.
  */
 export interface Expected {
   id: string;
   rev: number;
-  /** У строки превью — что с ней будет; строку ответа (с любым $action) можно передать как есть. */
+  /** У строки предпросмотра — что с ней будет; строку ответа (с любым $action) можно передать как есть. */
   $action?: Row['$action'];
+  /** Строка-сводка предпросмотра (`$action: 'hidden'`, 3.0.1): что будет со скрытыми правами строками. */
+  $hidden?: Row['$hidden'];
+  /** Строка-сводка предпросмотра: число скрытых правами строк. */
+  $count?: number;
+}
+
+const HIDDEN_ACTIONS = ['delete', 'unset', 'restrict'] as const;
+type HiddenAction = (typeof HIDDEN_ACTIONS)[number];
+const HIDDEN_PREFIX = 'hidden:';
+
+/**
+ * Действие строки-сводки предпросмотра удаления (3.0.1): `$hidden` или хвост id `hidden:<действие>`; не сводка — null.
+ * Сводку узнаёт и по одному id: expect, собранный из ответа как `{ id, rev }`, её не теряет.
+ */
+function hiddenOf(x: Expected): HiddenAction | null {
+  if (x.$action !== 'hidden' && !(typeof x.id === 'string' && x.id.startsWith(HIDDEN_PREFIX))) return null;
+  const a = x.$hidden ?? (typeof x.id === 'string' ? x.id.slice(HIDDEN_PREFIX.length) : undefined);
+  return (HIDDEN_ACTIONS as readonly string[]).includes(a as string) ? (a as HiddenAction) : null;
 }
 
 /**
- * Опции delete() (3.0): без confirm — превью; `{ confirm: true, expect }` — удалить ровно показанное превью;
+ * Опции delete(): без confirm — предпросмотр; `{ confirm: true, expect }` — удалить ровно показанный предпросмотр;
  * `{ confirm: true, all: true }` — осознанно удалить текущий состав целей без сверки (и без фильтра). `{ confirm: true }`
- * без expect и all — invalid_query (write.confirm_without_expect).
+ * без expect и all — invalid_query.
  */
 export type DeleteOptions =
   | { confirm?: false; all?: boolean; expect?: undefined; reason?: string }
@@ -77,9 +95,9 @@ export type DeleteOptions =
   | { confirm: true; all: true; expect?: readonly Expected[]; reason?: string };
 
 /**
- * Опции restore() (3.0): `{ expect }` — надгробия, которые видел пользователь (ответ delete() или withDeleted()), с
+ * Опции restore(): `{ expect }` — надгробия, которые видел пользователь (ответ delete() или withDeleted()), с
  * `partial: true` — что можно; `{ all: true }` — осознанно вернуть все удалённые цели шага без сверки. Без expect и all —
- * invalid_query (write.restore_without_expect), и для явных id.
+ * invalid_query, и для явных id.
  */
 export type RestoreOptions =
   | { expect: readonly Expected[]; partial?: boolean; all?: boolean; reason?: string }
@@ -109,10 +127,20 @@ export function dropUndefined(data: Record<string, unknown>): Record<string, unk
   return out;
 }
 
-/** expect — список строк { id, rev } (и $action у превью удаления): иначе invalid_query до записи. */
+/**
+ * expect — список строк { id, rev } (и $action у предпросмотра удаления): иначе invalid_query до записи. Строка-сводка
+ * скрытых строк предпросмотра удаления (`$action: 'hidden'`, id `hidden:<действие>`, 3.0.1) — без rev, `$count` (если
+ * задан) — целое ≥ 1.
+ */
 function checkExpect(expect: unknown, verb: string): void {
-  const ok = Array.isArray(expect) && expect.every((x) => x !== null && typeof x === 'object' && typeof (x as Expected).id === 'string'
-    && Number.isInteger((x as Expected).rev) && (x as Expected).rev >= 1);
+  const ok = Array.isArray(expect) && expect.every((x) => {
+    if (x === null || typeof x !== 'object' || typeof (x as Expected).id !== 'string') return false;
+    const e = x as Expected;
+    if (verb === 'delete' && (e.$action === 'hidden' || e.id.startsWith(HIDDEN_PREFIX))) {
+      return hiddenOf(e) !== null && (e.$count === undefined || (Number.isInteger(e.$count) && e.$count >= 1));
+    }
+    return Number.isInteger(e.rev) && e.rev >= 1;
+  });
   if (!ok) throw lerr('write.bad_expect', { verb });
 }
 
@@ -124,7 +152,7 @@ export function checkReason(v: unknown, where: string): string {
   return v;
 }
 
-/** Значение слота: id, список id, строка ответа или ленивая цепочка (в той же транзакции). */
+/** Значение шага роли: id, список id, строка ответа или ленивая цепочка (в той же транзакции). */
 export type SlotValue = string | string[] | { id: string } | null | { plan: Step[]; mods: ChainMods };
 
 export interface Slot {
@@ -134,7 +162,7 @@ export interface Slot {
   value: SlotValue;
 }
 
-/** Строка ответа записи (результат upsert — $upsert, превью удаления — $action — поля Row). */
+/** Строка ответа записи (результат upsert — $upsert, предпросмотр удаления — $action — поля Row). */
 export type WriteRow = Row;
 
 
@@ -725,28 +753,72 @@ async function updateOp(w: WriteCtx, steps: Step[], opStep: Step): Promise<Write
   return inTargetOrder(ids, res.map((r) => toRow(r.row)));
 }
 
-/** Превью удаления целей: то же замыкание, что у триггера удаления (ref_action), база не меняется. */
+/** Строка-сводка скрытых правами строк предпросмотра (3.0.1): ни класса, ни id, ни данных — только действие и число. */
+const hiddenRow = (action: HiddenAction, count: number): WriteRow => ({
+  id: `${HIDDEN_PREFIX}${action}`, class: '', rev: 0, tenant: '', owner: '', links: {}, data: {}, tags: [], at: '', author: '',
+  op: 'hidden', $action: 'hidden', $hidden: action, $count: count,
+});
+
+/**
+ * Предпросмотр удаления целей: то же замыкание, что у триггера удаления (ref_action), база не меняется. Видимые строки —
+ * как есть, скрытые правами — в конце сводками: delete_preview отдаёт их строками с id null, action
+ * 'hidden:<действие>' и числом в depth; здесь — по строке на действие delete, unset, restrict, только непустые.
+ */
 async function previewOf(w: WriteCtx, ids: string[]): Promise<WriteRow[]> {
   const S = quoteId(w.schema);
-  const res = await query<{ row: Record<string, unknown>; action: WriteRow['$action']; depth: number | null }>(w,
+  const res = await query<{ row: Record<string, unknown> | null; action: string; depth: number | null }>(w,
     `select ${rowJson('e')} as row, p.action, p.depth from ${S}.delete_preview($1::uuid[]) p `
-    + `join ${S}.entity e on e.id = p.id order by p.depth nulls last, p.action, e.id`, [ids]);
-  return res.map((r) => {
-    const row = toRow(r.row) as WriteRow;
-    row.$action = r.action;
+    + `left join ${S}.entity e on e.id = p.id where p.id is null or e.id is not null `
+    + `order by p.id is null, p.depth nulls last, p.action, e.id`, [ids]);
+  const out: WriteRow[] = [];
+  const hidden = new Map<string, number>();
+  for (const r of res) {
+    if (r.action.startsWith(HIDDEN_PREFIX)) {
+      hidden.set(r.action.slice(HIDDEN_PREFIX.length), r.depth ?? 0);
+      continue;
+    }
+    const row = toRow(r.row!) as WriteRow;
+    row.$action = r.action as WriteRow['$action'];
     if (r.depth !== null) row.$depth = r.depth;
-    return row;
+    out.push(row);
+  }
+  for (const a of HIDDEN_ACTIONS) {
+    const n = hidden.get(a) ?? 0;
+    if (n > 0) out.push(hiddenRow(a, n));
+  }
+  return out;
+}
+
+/**
+ * Превью совпадает с показанным: те же видимые строки по id, с теми же rev и $action (порядок не важен), и те же
+ * сводки скрытых строк (3.0.1) по действию и числу; у сводки без $count сверяется только её наличие.
+ */
+function samePreview(now: WriteRow[], expect: readonly Expected[]): boolean {
+  if (now.length !== expect.length) return false;
+  const want = new Map<string, Expected>();
+  for (const x of expect) {
+    const h = hiddenOf(x);
+    want.set(h ? `${HIDDEN_PREFIX}${h}` : x.id.toLowerCase(), x);
+  }
+  if (want.size !== expect.length) return false;
+  return now.every((r) => {
+    if (r.$action === 'hidden') {
+      const x = want.get(r.id);
+      return x !== undefined && (x.$count === undefined || x.$count === r.$count);
+    }
+    const x = want.get(r.id.toLowerCase());
+    return x !== undefined && hiddenOf(x) === null && x.rev === r.rev && (x.$action === undefined || x.$action === r.$action);
   });
 }
 
-/** Превью совпадает с показанным: те же строки по id, с теми же rev и $action (порядок не важен). */
-function samePreview(now: WriteRow[], expect: readonly Expected[]): boolean {
-  if (now.length !== expect.length) return false;
-  const want = new Map(expect.map((x) => [x.id.toLowerCase(), x]));
-  return now.every((r) => {
-    const x = want.get(r.id.toLowerCase());
-    return x !== undefined && x.rev === r.rev && (x.$action === undefined || x.$action === r.$action);
-  });
+/**
+ * Сверенный с expect предпросмотр, а в нём мешающие строки (restrict) — видимые или скрытые правами (3.0.1): отказ
+ * delete_restricted до удаления; detail — как у отказа триггера: видимые { id, class } и число остальных.
+ */
+function checkRestrict(now: WriteRow[]): void {
+  const rows = now.filter((r) => r.$action === 'restrict').map((r) => ({ id: r.id, class: r.class }));
+  const others = now.filter((r) => r.$action === 'hidden' && r.$hidden === 'restrict').reduce((n, r) => n + (r.$count ?? 0), 0);
+  if (rows.length || others) throw lerr('write.delete_restricted', { visible: rows.length, others }, { detail: { rows, others } });
 }
 
 async function deleteOp(w: WriteCtx, steps: Step[], opStep: Step): Promise<WriteRow[]> {
@@ -768,6 +840,7 @@ async function deleteOp(w: WriteCtx, steps: Step[], opStep: Step): Promise<Write
       now = await previewOf(w, ids);
     }
     if (!samePreview(now, op.expect)) throw lerr('write.preview_changed', undefined, { detail: { preview: now } });
+    checkRestrict(now);
   }
   if (!ids.length) return [];
   // результат — надгробия этой транзакции после метки: delete … returning не видит каскад триггера

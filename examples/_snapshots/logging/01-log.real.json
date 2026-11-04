@@ -1,25 +1,5 @@
 {
   "id": "logging/01-log",
-  "context": {
-    "schema": "v2.g_logging_01_log",
-    "dsn": {
-      "admin": "postgres://postgres:test@localhost:15433/letopis",
-      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
-    },
-    "user": {
-      "login": "anna@romashka.ru",
-      "password": "Ромашка-2026!"
-    },
-    "up": {
-      "serviceKey": "lts_01adc134823b56360b4c2317ecea1dc3fc6c424ada4c824e67803af7370a86b5",
-      "tenant": {
-        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "229bbac48e771bbedbe46ea3b6950f1a0fe704549f2686581f367f07cb9cc0c2",
-        "created": true
-      }
-    }
-  },
   "initial": {
     "entity": [],
     "log": [],
@@ -27,13 +7,22 @@
   },
   "steps": [
     {
-      "result": {
-        "text": "первая заметка"
-      },
+      "result": [
+        {
+          "вызов": "console.info",
+          "event": "connect",
+          "op": "connect"
+        },
+        {
+          "вызов": "console.info",
+          "event": "write",
+          "op": "create"
+        }
+      ],
       "error": null,
       "entity": [
         {
-          "id": "a70b29e4-bc26-5b9e-9a2f-43fe810327e8",
+          "id": "382a4255-6cef-59c1-98d0-67d2aff1e1eb",
           "class": "Note",
           "rev": 1,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -47,14 +36,14 @@
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
           "agent": null,
           "reason": null,
-          "at": "2026-11-03 19:20:58.696512+00"
+          "at": "2026-11-04 05:14:51.210143+00"
         }
       ],
       "removed": [],
       "log": [
         {
           "seq": "35",
-          "id": "a70b29e4-bc26-5b9e-9a2f-43fe810327e8",
+          "id": "382a4255-6cef-59c1-98d0-67d2aff1e1eb",
           "rev": 1,
           "class": "Note",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -67,8 +56,8 @@
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
           "agent": null,
           "reason": null,
-          "at": "2026-11-03 19:20:58.696512+00",
-          "tx": "3882328"
+          "at": "2026-11-04 05:14:51.210143+00",
+          "tx": "3892185"
         }
       ],
       "secret": [],
@@ -82,40 +71,30 @@
         {
           "level": "info",
           "event": "connect",
-          "op": "connect",
-          "rows": null,
-          "code": null,
-          "key": null
+          "op": "connect"
         },
         {
           "level": "info",
           "event": "write",
           "op": "create",
-          "rows": 1,
-          "code": null,
-          "key": null
+          "rows": 1
         },
         {
           "level": "info",
           "event": "delete",
           "op": "delete",
-          "rows": 1,
-          "code": null,
-          "key": null
+          "rows": 1
         },
         {
           "level": "info",
           "event": "restore",
           "op": "restore",
-          "rows": 1,
-          "code": null,
-          "key": null
+          "rows": 1
         },
         {
           "level": "warn",
           "event": "error",
           "op": "rows",
-          "rows": null,
           "code": "not_deleted",
           "key": "write.restore_already"
         }
@@ -123,7 +102,7 @@
       "error": null,
       "entity": [
         {
-          "id": "a70b29e4-bc26-5b9e-9a2f-43fe810327e8",
+          "id": "382a4255-6cef-59c1-98d0-67d2aff1e1eb",
           "class": "Note",
           "rev": 1,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -137,10 +116,10 @@
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
           "agent": null,
           "reason": null,
-          "at": "2026-11-03 19:20:58.696512+00"
+          "at": "2026-11-04 05:14:51.210143+00"
         },
         {
-          "id": "e2198200-33c1-5172-b3f8-a1837f6e940c",
+          "id": "3ba862f8-fbec-5e70-80a1-e4126dd05a6f",
           "class": "Note",
           "rev": 3,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -154,14 +133,14 @@
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
           "agent": null,
           "reason": null,
-          "at": "2026-11-03 19:20:58.848692+00"
+          "at": "2026-11-04 05:14:51.358032+00"
         }
       ],
       "removed": [],
       "log": [
         {
           "seq": "35",
-          "id": "a70b29e4-bc26-5b9e-9a2f-43fe810327e8",
+          "id": "382a4255-6cef-59c1-98d0-67d2aff1e1eb",
           "rev": 1,
           "class": "Note",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -174,12 +153,12 @@
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
           "agent": null,
           "reason": null,
-          "at": "2026-11-03 19:20:58.696512+00",
-          "tx": "3882328"
+          "at": "2026-11-04 05:14:51.210143+00",
+          "tx": "3892185"
         },
         {
           "seq": "36",
-          "id": "e2198200-33c1-5172-b3f8-a1837f6e940c",
+          "id": "3ba862f8-fbec-5e70-80a1-e4126dd05a6f",
           "rev": 1,
           "class": "Note",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -192,12 +171,12 @@
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
           "agent": null,
           "reason": null,
-          "at": "2026-11-03 19:20:58.794351+00",
-          "tx": "3882333"
+          "at": "2026-11-04 05:14:51.300699+00",
+          "tx": "3892190"
         },
         {
           "seq": "37",
-          "id": "e2198200-33c1-5172-b3f8-a1837f6e940c",
+          "id": "3ba862f8-fbec-5e70-80a1-e4126dd05a6f",
           "rev": 2,
           "class": "Note",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -210,12 +189,12 @@
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
           "agent": null,
           "reason": null,
-          "at": "2026-11-03 19:20:58.83171+00",
-          "tx": "3882335"
+          "at": "2026-11-04 05:14:51.336818+00",
+          "tx": "3892192"
         },
         {
           "seq": "38",
-          "id": "e2198200-33c1-5172-b3f8-a1837f6e940c",
+          "id": "3ba862f8-fbec-5e70-80a1-e4126dd05a6f",
           "rev": 3,
           "class": "Note",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -228,8 +207,8 @@
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
           "agent": null,
           "reason": null,
-          "at": "2026-11-03 19:20:58.848692+00",
-          "tx": "3882336"
+          "at": "2026-11-04 05:14:51.358032+00",
+          "tx": "3892193"
         }
       ],
       "secret": [],
@@ -282,7 +261,7 @@
       "error": null,
       "entity": [
         {
-          "id": "a70b29e4-bc26-5b9e-9a2f-43fe810327e8",
+          "id": "382a4255-6cef-59c1-98d0-67d2aff1e1eb",
           "class": "Note",
           "rev": 1,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -296,10 +275,10 @@
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
           "agent": null,
           "reason": null,
-          "at": "2026-11-03 19:20:58.696512+00"
+          "at": "2026-11-04 05:14:51.210143+00"
         },
         {
-          "id": "e2198200-33c1-5172-b3f8-a1837f6e940c",
+          "id": "3ba862f8-fbec-5e70-80a1-e4126dd05a6f",
           "class": "Note",
           "rev": 3,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -313,10 +292,10 @@
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
           "agent": null,
           "reason": null,
-          "at": "2026-11-03 19:20:58.848692+00"
+          "at": "2026-11-04 05:14:51.358032+00"
         },
         {
-          "id": "36a71017-40db-5adc-bd60-eb06d08625ee",
+          "id": "143ac31e-8912-5900-a1de-cc873937bb50",
           "class": "Note",
           "rev": 1,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -330,14 +309,14 @@
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
           "agent": null,
           "reason": null,
-          "at": "2026-11-03 19:20:59.768353+00"
+          "at": "2026-11-04 05:14:52.013932+00"
         }
       ],
       "removed": [],
       "log": [
         {
           "seq": "35",
-          "id": "a70b29e4-bc26-5b9e-9a2f-43fe810327e8",
+          "id": "382a4255-6cef-59c1-98d0-67d2aff1e1eb",
           "rev": 1,
           "class": "Note",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -350,12 +329,12 @@
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
           "agent": null,
           "reason": null,
-          "at": "2026-11-03 19:20:58.696512+00",
-          "tx": "3882328"
+          "at": "2026-11-04 05:14:51.210143+00",
+          "tx": "3892185"
         },
         {
           "seq": "36",
-          "id": "e2198200-33c1-5172-b3f8-a1837f6e940c",
+          "id": "3ba862f8-fbec-5e70-80a1-e4126dd05a6f",
           "rev": 1,
           "class": "Note",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -368,12 +347,12 @@
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
           "agent": null,
           "reason": null,
-          "at": "2026-11-03 19:20:58.794351+00",
-          "tx": "3882333"
+          "at": "2026-11-04 05:14:51.300699+00",
+          "tx": "3892190"
         },
         {
           "seq": "37",
-          "id": "e2198200-33c1-5172-b3f8-a1837f6e940c",
+          "id": "3ba862f8-fbec-5e70-80a1-e4126dd05a6f",
           "rev": 2,
           "class": "Note",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -386,12 +365,12 @@
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
           "agent": null,
           "reason": null,
-          "at": "2026-11-03 19:20:58.83171+00",
-          "tx": "3882335"
+          "at": "2026-11-04 05:14:51.336818+00",
+          "tx": "3892192"
         },
         {
           "seq": "38",
-          "id": "e2198200-33c1-5172-b3f8-a1837f6e940c",
+          "id": "3ba862f8-fbec-5e70-80a1-e4126dd05a6f",
           "rev": 3,
           "class": "Note",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -404,12 +383,12 @@
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
           "agent": null,
           "reason": null,
-          "at": "2026-11-03 19:20:58.848692+00",
-          "tx": "3882336"
+          "at": "2026-11-04 05:14:51.358032+00",
+          "tx": "3892193"
         },
         {
           "seq": "39",
-          "id": "36a71017-40db-5adc-bd60-eb06d08625ee",
+          "id": "143ac31e-8912-5900-a1de-cc873937bb50",
           "rev": 1,
           "class": "Note",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -422,8 +401,8 @@
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
           "agent": null,
           "reason": null,
-          "at": "2026-11-03 19:20:59.768353+00",
-          "tx": "3882343"
+          "at": "2026-11-04 05:14:52.013932+00",
+          "tx": "3892200"
         }
       ],
       "secret": [],
@@ -431,5 +410,7 @@
         "Note"
       ]
     }
-  ]
+  ],
+  "output": "Шаг 1. Логгер — console\n{\n  ts: '2026-11-04T05:14:53.507Z',\n  level: 'info',\n  event: 'connect',\n  op: 'connect',\n  ms: 70,\n  tenant: '55cd1ada-aa68-5582-8b21-7dd4646a6a0a',\n  account: '3defbabb-a94d-5359-8463-dc947de193e1',\n  detail: {\n    schema: 'v2.example_logging_01_log',\n    dsn: 'postgres://127.0.0.1:15440/letopis',\n    pool: 'own',\n    max: 10,\n    bypass: false,\n    revision: 11,\n    signals: 'class',\n    listen: true,\n    cache: true,\n    session: 'token',\n    account: '3defbabb-a94d-5359-8463-dc947de193e1'\n  }\n} connect\n{\n  ts: '2026-11-04T05:14:53.524Z',\n  level: 'info',\n  event: 'write',\n  op: 'create',\n  ms: 13.9,\n  tenant: '55cd1ada-aa68-5582-8b21-7dd4646a6a0a',\n  account: '3defbabb-a94d-5359-8463-dc947de193e1',\n  chain: 'Note().create({text}).rows()',\n  rows: 1,\n  detail: {\n    classes: { Note: 1 },\n    ids: [ '9148a73d-1eb3-5576-ba7e-65531edf405c' ]\n  }\n} write\n[\n  {\n    \"вызов\": \"console.info\",\n    \"event\": \"connect\",\n    \"op\": \"connect\"\n  },\n  {\n    \"вызов\": \"console.info\",\n    \"event\": \"write\",\n    \"op\": \"create\"\n  }\n]\n\nШаг 2. Свой логгер: события write, delete, restore, error\n[\n  {\n    \"level\": \"info\",\n    \"event\": \"connect\",\n    \"op\": \"connect\"\n  },\n  {\n    \"level\": \"info\",\n    \"event\": \"write\",\n    \"op\": \"create\",\n    \"rows\": 1\n  },\n  {\n    \"level\": \"info\",\n    \"event\": \"delete\",\n    \"op\": \"delete\",\n    \"rows\": 1\n  },\n  {\n    \"level\": \"info\",\n    \"event\": \"restore\",\n    \"op\": \"restore\",\n    \"rows\": 1\n  },\n  {\n    \"level\": \"warn\",\n    \"event\": \"error\",\n    \"op\": \"rows\",\n    \"code\": \"not_deleted\",\n    \"key\": \"write.restore_already\"\n  }\n]\n\nШаг 3. Журнал установки и свои секретные поля: up({ log }), redact\n{\n  \"events\": [\n    {\n      \"level\": \"info\",\n      \"event\": \"up\",\n      \"op\": \"up\"\n    },\n    {\n      \"level\": \"info\",\n      \"event\": \"connect\",\n      \"op\": \"connect\"\n    },\n    {\n      \"level\": \"info\",\n      \"event\": \"write\",\n      \"op\": \"create\"\n    }\n  ],\n  \"catalog\": [\n    {\n      \"name\": \"connect\",\n      \"level\": \"info\",\n      \"ru\": \"connect() готов: схема, режим сигналов, кэш, способ входа\"\n    },\n    {\n      \"name\": \"close\",\n      \"level\": \"info\",\n      \"ru\": \"db.close(): пул, подписки и таймеры закрыты\"\n    },\n    {\n      \"name\": \"registry.refresh\",\n      \"level\": \"debug\",\n      \"ru\": \"реестр классов перечитан\"\n    },\n    {\n      \"name\": \"session.renew\",\n      \"level\": \"info\",\n      \"ru\": \"сессия по ключу сервиса истекла — ключ обменян на новую\"\n    }\n  ]\n}",
+  "exitCode": 0
 }

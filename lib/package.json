@@ -1,6 +1,6 @@
 {
   "name": "letopis",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "Letopis (летопись): хранилище версионированных сущностей на PostgreSQL 18 — целостность, история, арендаторы и права проверяет сама база, поверх — цепочки через точку. ИИ-агенту — AGENT-CHEATSHEET.md и llms.txt в пакете; исходный код доступен (PolyForm Noncommercial 1.0.0)",
   "keywords": [
     "postgres",

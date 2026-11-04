@@ -89,6 +89,13 @@ export const boot = {
     ru: 'up({ login }): роль {user} — привилегированная (суперпользователь, CREATEROLE, CREATEDB, REPLICATION, BYPASSRLS, роль-владелец или её член) или сама роль приложения: роль приложения — обычная роль входа, привилегированную up() не трогает',
     hint: 'выбрать для login другое имя — роль без этих атрибутов и без членства в роли владельца',
   },
+  // up.ts, ensureLogin (3.0.1): установщик не может выдать роль приложения (PostgreSQL 16+: нужен ADMIN OPTION, SQLSTATE
+  // 42501 «permission denied to grant role»); app — роль приложения, installer — роль установщика (current_user)
+  'boot.login_grant_denied': {
+    code: 'invalid_data',
+    ru: 'up({ login }): роль {installer} не может выдать роль {app} роли {user} — нужен ADMIN OPTION на роль {app} (grant {app} to {installer} with admin option) или суперпользователь',
+    hint: 'выполнить от суперпользователя grant <роль приложения> to <установщик> with admin option (имена — в тексте ошибки) и повторить up({ login }) — или ставить от суперпользователя',
+  },
   // up.ts, createTenant() и up({ tenant }): нет имени арендатора
   'boot.tenant_name_required': {
     code: 'invalid_data',

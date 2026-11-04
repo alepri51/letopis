@@ -246,7 +246,8 @@ function memberItem(id: string, title: string, m: ts.Node): Item {
   }
   const type = (m as ts.PropertySignature).type;
   const ro = ts.getCombinedModifierFlags(m as ts.Declaration) & ts.ModifierFlags.Readonly ? 'readonly ' : '';
-  return { ...base, kind: 'property', signature: `${ro}${name}: ${type ? flat(type.getText()) : 'unknown'}`, params: [] };
+  const q = (m as ts.PropertySignature).questionToken ? '?' : '';
+  return { ...base, kind: 'property', signature: `${ro}${name}${q}: ${type ? flat(type.getText()) : 'unknown'}`, params: [] };
 }
 const isPublic = (m: ts.ClassElement) =>
   !!m.name && !ts.isPrivateIdentifier(m.name) && !ts.isConstructorDeclaration(m) && !ts.isClassStaticBlockDeclaration(m)
@@ -342,14 +343,18 @@ for (const [entry, prefix, file] of ENTRIES) {
         const own = f !== withDoc ? jsdocOf(f).text : '';
         return `${own ? `${own.split('\n').map((l) => `// ${l}`).join('\n')}\n` : ''}${sigText(name, f)}`;
       };
-      // параметры — перегрузки, которую описывает api-docs.ts (больше всего описанных имён), иначе последней:
-      // у hub()/link() короткая форма (name, shape) стоит после полной (name, def) ради выбора перегрузки TypeScript
-      const want = Object.keys((docs as Record<string, ApiDoc>)[id]?.params ?? {});
-      const score = (f: ts.FunctionDeclaration) => paramsOf(f).filter((p) => want.includes(p.name)).length;
-      const paramSrc = want.length ? shown.reduce((a, f) => (score(f) > score(a) ? f : a), last) : last;
+      // параметры — всех перегрузок по порядку первого появления (у hub()/link() полная форма (name, def) и короткая
+      // (name, shape, opts)); параметр, которого нет хотя бы в одной перегрузке, необязателен
+      const params: Param[] = [];
+      for (const f of shown) {
+        for (const p of paramsOf(f)) {
+          if (params.some((x) => x.name === p.name)) continue;
+          params.push({ ...p, optional: p.optional || shown.some((g) => !paramsOf(g).some((x) => x.name === p.name)) });
+        }
+      }
       add({
         id, kind: 'function', title: `${name}()`, jsdoc: withDoc ? jsdocOf(withDoc) : { text: '', params: {} }, ...where(last),
-        signature: shown.map(sigOf).join('\n'), params: paramsOf(paramSrc), returnType: returnTypeOf(paramSrc),
+        signature: shown.map(sigOf).join('\n'), params, returnType: returnTypeOf(last),
       });
       continue;
     }
@@ -359,10 +364,18 @@ for (const [entry, prefix, file] of ENTRIES) {
       const heritage = cls.heritageClauses?.map((h) => ` ${h.getText()}`).join('') ?? '';
       const fields = cls.members.filter(isPublic).filter((m) => ts.isPropertyDeclaration(m))
         .map((m) => `  ${flat(m.getText()).replace(/\s*=.*$/, '').replace(/;$/, '')};`);
+      // методы и свойства-геттеры — одной строкой, без тел (у Registry класс — это его методы)
+      const methods = cls.members.filter(isPublic).flatMap((m) => {
+        const n = m.name!.getText();
+        if (ts.isMethodDeclaration(m)) return [`  ${sigText(n, m).replace(/\n\s*/g, ' ').replace(/,\s*\)/g, ')')};`];
+        if (ts.isGetAccessorDeclaration(m)) return [`  readonly ${n}: ${returnTypeOf(m)};`];
+        return [];
+      });
       const ctorLine = ctor ? [`  ${sigText('constructor', ctor).replace(/: [^:]*$/, '').replace(/\n/g, '\n  ')};`] : [];
+      const tps = cls.typeParameters?.length ? `<${cls.typeParameters.map((t) => flat(t.getText())).join(', ')}>` : '';
       add({
         id, kind: 'class', title: name, jsdoc: jsdocOf(cls), ...where(cls),
-        signature: [`class ${name}${heritage} {`, ...ctorLine, ...fields, '}'].join('\n'),
+        signature: [`class ${name}${tps}${heritage} {`, ...ctorLine, ...fields, ...methods, '}'].join('\n'),
         params: ctor ? paramsOf(ctor) : [],
       });
       continue;
@@ -380,7 +393,21 @@ for (const [entry, prefix, file] of ENTRIES) {
     } else {
       const t = v.type ? flat(v.type.getText()) : checker.typeToString(checker.getTypeAtLocation(v), undefined, ts.TypeFormatFlags.NoTruncation);
       const initText = v.initializer ? flat(v.initializer.getText()) : '';
-      const sig = initText && initText.length <= 60 ? `const ${name} = ${initText}` : `const ${name}: ${t.length > 80 ? 'readonly string[]' : t}`;
+      // длинный литерал-объект `{ … } as const satisfies Record<string, Y>` — словарь: ключ — экспортированный тип
+      // `keyof typeof NAME` (если есть), значение — Y
+      let short = t;
+      if (t.length > 80) {
+        let sat: string | undefined;
+        let e = v.initializer;
+        for (; e && (ts.isAsExpression(e) || ts.isSatisfiesExpression(e) || ts.isParenthesizedExpression(e)); e = e.expression) {
+          if (ts.isSatisfiesExpression(e)) sat = flat(e.type.getText()).match(/^Record<string, (.+)>$/)?.[1];
+        }
+        const keyType = [...exportedTypes].find(([, d]) => ts.isTypeAliasDeclaration(d) && flat(d.type.getText()) === `keyof typeof ${name}`)?.[0];
+        if (e && ts.isArrayLiteralExpression(e)) short = 'readonly string[]';
+        else if (sat) short = `Readonly<Record<${keyType ?? 'string'}, ${sat}>>`;
+        else throw new Error(`gen-api: ${name} — длинный тип: ни массив, ни satisfies Record<string, …>`);
+      }
+      const sig = initText && initText.length <= 60 ? `const ${name} = ${initText}` : `const ${name}: ${short}`;
       add({ id, kind: 'const', title: name, jsdoc: jsdocOf(v), ...where(v), signature: sig, params: [] });
     }
   }
@@ -534,7 +561,13 @@ const PAGES: Page[] = [
       { title: 'Шаг', ids: ['chain.step'] },
       { title: 'Модификаторы', intro: 'Модификатор уточняет цепочку и возвращает её продолжение: сколько строк, в каком порядке, на какой момент.', ids: ['chain.limit', 'chain.offset', 'chain.sort', 'chain.after', 'chain.asOf', 'chain.withDeleted', 'chain.deep', 'chain.exact', 'chain.alias', 'chain.tags', 'chain.owner', 'chain.entity', 'chain.forUpdate', 'chain.cache'] },
       { title: 'Терминалы', intro: 'Терминал исполняет цепочку и возвращает результат. После глагола записи терминал исполняет план записи и возвращает записанные строки.', ids: ['chain.rows', 'chain.first', 'chain.ids', 'chain.count', 'chain.paths', 'chain.versions', 'chain.sum', 'chain.avg', 'chain.min', 'chain.max', 'chain.countBy'] },
-      { title: 'Глаголы записи', intro: 'Глагол ставит запись в план. Исполняет план терминал (`rows()`, `first()`, `ids()`, `count()`). `update()` и `delete({ confirm: true, expect })` правят только цели, которые сузили фильтр, id, `tags()`, `owner()` или `limit()` хотя бы одного шага; все строки шага — явно, опцией `{ all: true }`, иначе `invalid_query` до записи. Подтверждённое удаление идёт только с `expect` — предпросмотром, который видел пользователь, а `restore()` — только с `expect` (надгробиями); без сверки — осознанно, `{ all: true }`.', ids: ['chain.create', 'chain.update', 'chain.upsert', 'chain.delete', 'chain.restore'] },
+    ],
+  },
+  {
+    file: 'write', title: 'Цепочка: запись',
+    intro: 'Запись — те же цепочки: шаги выбирают объекты, глагол ставит запись в план, терминал (`rows()`, `first()`, `ids()`, `count()`, `paths()`) выполняет весь план одной транзакцией. Шаги, модификаторы и терминалы — на странице [Цепочка](./chain).',
+    sections: [
+      { title: 'Глаголы записи', intro: 'Глагол ставит запись в план. Исполняет план терминал (`rows()`, `first()`, `ids()`, `count()`, `paths()`). `update()` и `delete({ confirm: true, expect })` правят только цели, которые сузили фильтр, id, `tags()`, `owner()` или `limit()` хотя бы одного шага; все строки шага — явно, опцией `{ all: true }`, иначе `invalid_query` до записи. Подтверждённое удаление идёт только с `expect` — предпросмотром, который видел пользователь, а `restore()` — только с `expect` (надгробиями); без сверки — осознанно, `{ all: true }`.', ids: ['chain.create', 'chain.update', 'chain.upsert', 'chain.delete', 'chain.restore'] },
       { title: 'Шаги ролей', intro: 'После глагола записи шаг роли без вызова задаёт конец: `.Роль.set(…)`, `.Роль.unset()`, у множественного конца ещё `.add(…)` и `.remove(…)`.', ids: ['chain.set', 'chain.unset', 'chain.add', 'chain.remove'] },
     ],
   },
@@ -594,18 +627,25 @@ const PAGES: Page[] = [
   },
   {
     file: 'model', title: 'Модели: letopis/model',
-    intro: 'Модель описывается в коде: `hub` — класс-объект, `link` — класс-связь, `one` и `many` — концы. `syncModels` записывает модель в базу, `generateTypes` возвращает текст типов для TypeScript.',
+    intro: 'Модель описывается в коде: `hub` — класс-объект, `link` — класс-связь, `one` и `many` — концы. `syncModels` записывает модель в базу, `generateTypes` возвращает текст типов для TypeScript. ' +
+      'Классы, концы и JSON Schema импортируются из `letopis/model`, а `syncModels`, `generateTypes` и `schemaToTs` — из `letopis`.',
     sections: [
       { title: 'Классы и концы', ids: ['model.hub', 'model.link', 'model.one', 'model.many', 'model.End', 'end.*'] },
-      { title: 'Модель в базе и типы', ids: ['export.syncModels', 'export.generateTypes', 'export.schemaToTs'] },
+      { title: 'Модель в базе и типы', intro: 'Эти функции — из основного пакета: `import { syncModels, generateTypes, schemaToTs } from \'letopis\'`; из `letopis/model` они не экспортируются.', ids: ['export.syncModels', 'export.generateTypes', 'export.schemaToTs'] },
       { title: 'JSON Schema', ids: ['model.normalizeSchema', 'model.translatePattern'] },
     ],
   },
   {
-    file: 'utils', title: 'Служебные экспорты',
-    intro: 'Функции и константы пакета `letopis`, которые не относятся к подключению: операторы фильтров, id, ошибки, проверка данных, пароли.',
+    file: 'filters', title: 'Операторы фильтров',
+    intro: 'Операторы ставятся значением поля в фильтре шага цепочки: `db.Product({ price: gt(100) })`. Все — из основного пакета: `import { gt, or } from \'letopis\'`.',
     sections: [
       { title: 'Операторы фильтров', intro: OPS_INTRO, ids: ['export.ne', 'export.gt', 'export.gte', 'export.lt', 'export.lte', 'export.between', 'export.inList', 'export.like', 'export.ilike', 'export.starts', 'export.ends', 'export.has', 'export.hasAny', 'export.hasAll', 'export.exists', 'export.isNull', 'export.not', 'export.or', 'export.isOp'] },
+    ],
+  },
+  {
+    file: 'utils', title: 'Служебные экспорты',
+    intro: 'Функции и константы пакета `letopis`, которые не относятся к подключению: приращение и курсор, id, ошибки, проверка данных, пароли. Операторы фильтров — на странице [Операторы фильтров](./filters).',
+    sections: [
       { title: 'Приращение и курсор', ids: ['export.inc', 'export.isInc', 'export.cursorOf'] },
       { title: 'id объектов', ids: ['export.idOf', 'export.uuidv5', 'export.v5Name', 'export.v5Id'] },
       { title: 'Ошибки', ids: ['export.LetopisError', 'export.ValidationError', 'export.fromDbError'] },
@@ -656,7 +696,7 @@ const anchorOf = (id: string) => id.replace(/[^A-Za-z0-9]+/g, '-').toLowerCase()
 const isVoid = (t?: string) => !t || /^(Promise<void>|void)$/.test(t);
 for (const id of Object.keys(docs)) if (!items.has(id)) problems.push(`api-docs.ts: ключ ${id} — такого пункта нет в API`);
 let fromJsdoc = 0, fromDocs = 0;
-const resolved = new Map<string, { summary: string; details?: string; returns?: string; errors?: Record<string, string>; def?: string; signature?: string; params: (Param & { text?: string })[] }>();
+const resolved = new Map<string, { summary: string; details?: string; returns?: string; errors?: Record<string, string>; def?: string; signature?: string; type?: string; params: (Param & { text?: string })[] }>();
 for (const it of items.values()) {
   const d: ApiDoc = docs[it.id] ?? {};
   const need: Record<string, unknown> = {};
@@ -692,19 +732,55 @@ for (const it of items.values()) {
   if (Object.keys(need).length) {
     problems.push(`${it.id}: нет описания — ${Object.keys(need).join(', ')}`);
   }
-  resolved.set(it.id, { summary, details: d.details, returns: it.jsdoc.returns || d.returns, errors: d.errors, def: d.default ?? it.jsdoc.def, signature: d.signature ?? it.signature, params });
+  // тип опции — из api-docs.ts, если в коде он параметр обобщения (ClassDef: P, E, T)
+  const type = (d as { type?: string }).type;
+  resolved.set(it.id, { summary, details: d.details, returns: it.jsdoc.returns || d.returns, errors: d.errors, def: d.default ?? it.jsdoc.def, signature: d.signature ?? it.signature, params, type });
 }
 
 // ---------- markdown ----------
-/** Текст вне кода: <, >, {{ и * экранируются; `код` — как есть. */
-const md = (s: string) => s.split(/(`+[^`]*`+)/).map((part, i) => (i % 2 ? part : part
-  .replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\{\{/g, '&#123;&#123;').replace(/\*/g, '\\*'))).join('');
+/**
+ * Текст вне кода: <, >, {{ и одиночная * экранируются; `код` и ``код с ` внутри`` — как есть; **жирный** — как есть.
+ * Код вида db.sql`select …` вне кавычек (обратная кавычка сразу после буквы) берётся в двойные: `` db.sql`select …` ``.
+ */
+const md = (s: string) => s.split(/(``[\s\S]*?``)/)
+  .map((part, i) => (i % 2 ? part : part.replace(/(^|[\s(«])([\w.]+`[^`\n]+`)(?=[\s.,;:)»]|$)/g, '$1`` $2 ``'))).join('')
+  .split(/(``[\s\S]*?``|`[^`]*`)/).map((part, i) => (i % 2 ? part : part
+    .replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\{\{/g, '&#123;&#123;')
+    .replace(/\*\*(?=\S)([^*\n]+?)\*\*/g, '\u0000$1\u0000').replace(/\*/g, '\\*').replace(/\u0000/g, '**'))).join('');
+/** В ячейке таблицы | экранируется (markdown-it снимает обратный слэш); вне таблицы — нет. */
 const cell = (s: string) => md(s).replace(/\|/g, '\\|').replace(/\n+/g, '<br>');
-const code = (s: string) => `\`${s.replace(/\|/g, '\\|')}\``;
+const code = (s: string) => `\`${s}\``;
+const codeCell = (s: string) => `\`${s.replace(/\|/g, '\\|')}\``;
 const typeName = (t?: string) => t?.replace(/^Promise<(.*)>$/, '$1').replace(/\[\]$/, '').replace(/ \| null$/, '');
+/**
+ * Типы — на нескольких страницах по темам (по файлу объявления): одна страница со всеми типами весила 520 КБ HTML.
+ * Файл, которого нет ни в одной теме, — в последнюю.
+ */
+const TYPE_PAGES: { file: string; title: string; intro: string; src: string[] }[] = [
+  { file: 'types-chain', title: 'Типы: цепочка и запись', intro: 'Строки ответа, фильтры, опции глаголов и удаления, план записи, транзакции.', src: ['chain.ts', 'write.ts', 'sql.ts', 'tx.ts', 'types.ts', 'ops.ts'] },
+  { file: 'types-model', title: 'Типы: модели', intro: 'Классы и концы `letopis/model`, реестр, синхронизация, проверка данных.', src: ['model.ts', 'sync.ts', 'registry.ts', 'validate.ts', 'jsonschema.ts', 'describe.ts'] },
+  { file: 'types-typed', title: 'Типы: строгие типы', intro: 'Строгие типы цепочек и подключения: `connect({ models })`, `connect<Models>()`, `loose()`.', src: ['typed.ts'] },
+  { file: 'types-access', title: 'Типы: вход и права', intro: 'Сессии и креды `db.auth`, правила и решения `db.acl`.', src: ['auth.ts', 'acl.ts'] },
+  { file: 'types-watch', title: 'Типы: подписка, кэш, загрузка, MCP', intro: 'Подписка и её события, кэш результатов, обслуживание, загрузчик, сервер MCP.', src: ['watch.ts', 'cache.ts', 'signals.ts', 'load.ts', 'admin.ts', 'mcp.ts'] },
+  { file: 'types-log', title: 'Типы: журнал', intro: 'Опции журнала `connect({ log, logLevel, redact })`, событие журнала, логгер, каталог событий.', src: ['log.ts'] },
+  { file: 'types-setup', title: 'Типы: подключение, установка, ошибки', intro: 'Опции `connect()`, `up()` и `createTenant()`, их результаты, ошибки и прочие типы.', src: [] },
+];
+/** Интерфейсы, члены которых — пункты справочника: на странице типов — только объявление и ссылка. */
+const MEMBERS_ON: Record<string, [string, string]> = {
+  ChainCore: ['./chain', 'Цепочка'], DbCore: ['./db', 'Корень db'], AuthApi: ['./auth', 'Вход: db.auth'],
+  AclApi: ['./acl', 'Права: db.acl'], Subscription: ['./watch#db-watch', 'Подписка и кэш'], Registry: ['./utils#export-registry', 'Служебные экспорты'],
+};
+const typePage = new Map<string, string>();
+for (const [n, d] of exportedTypes) {
+  const f = norm(relative(SRC, d.getSourceFile().fileName)).replace(/^messages\//, '');
+  // типы журнала объявлены и рядом с типами цепочки (types.ts) — по имени на страницу журнала
+  const page = /^(Log|QueryEvent)/.test(n) ? 'types-log' : (TYPE_PAGES.find((p) => p.src.includes(f)) ?? TYPE_PAGES[TYPE_PAGES.length - 1]).file;
+  typePage.set(n, page);
+}
+const typeHref = (n: string, from: string) => `${typePage.get(n) === from ? '' : `./${typePage.get(n)}`}#type-${n.toLowerCase()}`;
 function typeLink(t: string | undefined, from: string): string {
   const n = typeName(t);
-  return n && exportedTypes.has(n) ? ` ([${n}](${from === 'types' ? '' : './types'}#type-${n.toLowerCase()}))` : '';
+  return n && exportedTypes.has(n) ? ` ([${n}](${typeHref(n, from)}))` : '';
 }
 function exampleLinks(it: Item): string {
   const keys = [it.id, ...(docs[it.id]?.examples ?? [])];
@@ -719,13 +795,45 @@ function exampleLinks(it: Item): string {
   }
   return out.join(' · ');
 }
+/** Точка входа пакета по контракту: имя → 'letopis' | 'letopis/model' | 'letopis/mcp' (значения и типы). */
+const entryOf = new Map<string, string>();
+for (const [entry] of ENTRIES) {
+  for (const n of [...contract.exports[entry].values, ...contract.exports[entry].types] as string[]) {
+    if (!entryOf.has(n)) entryOf.set(n, entry === '.' ? 'letopis' : `letopis${entry.slice(1)}`);
+  }
+}
+const CONNECT = '`db` — подключение из `connect()` (`import { connect } from \'letopis\'`)';
+/** Откуда объект метода: у методов объектов — кто его даёт. */
+const OWNER: Record<string, string> = {
+  chain: 'цепочка `db.Класс(…)`, `db` — из `connect()`',
+  db: `${CONNECT}; те же методы — у \`db.as()\` и транзакции \`db.begin()\``,
+  batch: `\`batch\` — из \`db.batch()\`; ${CONNECT}`,
+  auth: `\`db.auth\`; ${CONNECT}`,
+  acl: `\`db.acl\`; ${CONNECT}`,
+  subscription: `\`sub\` — из \`db.watch()\`; ${CONNECT}`,
+  dbcache: `\`db.cache\`; ${CONNECT}`,
+  registry: `\`db.registry\` (класс \`Registry\` — \`import { Registry } from 'letopis'\`); ${CONNECT}`,
+  end: 'конец создают `one()` и `many()` (`import { one, many } from \'letopis/model\'`)',
+};
+/** Строка «Импорт» у функции, класса, константы и «Откуда» у метода объекта. */
+function importOf(it: Item): string {
+  const [prefix, name] = [it.id.slice(0, it.id.indexOf('.')), it.id.slice(it.id.indexOf('.') + 1)];
+  if (['export', 'model', 'mcp'].includes(prefix)) {
+    const from = entryOf.get(name);
+    if (!from) throw new Error(`gen-api: ${it.id} нет в контракте`);
+    return `**Импорт:** \`import { ${name} } from '${from}'\``;
+  }
+  return OWNER[prefix] ? `**Откуда:** ${OWNER[prefix]}.` : '';
+}
+/** Пункты, у которых живые примеры показывают другое (End, normalizeSchema, load.withHistory): строки «Примеры» нет. */
+const NO_EXAMPLES = new Set(['model.End', 'model.normalizeSchema', 'load.withHistory']);
 function renderOptions(g: Group, page: string): string[] {
   const opts = [...items.values()].filter((it) => it.kind === 'option' && it.group === g.prefix);
   const rows = opts.map((o) => {
     const r = resolved.get(o.id)!;
     const text = [r.summary, r.details].filter(Boolean).join(' ');
-    const ex = exampleLinks(o);
-    return `| <span id="${anchorOf(o.id)}"></span>${code(o.title)} | ${code(o.type!)} | ${o.optional ? cell(r.def ?? '') : 'обязательная'} | ${cell(text)}${ex ? `<br>Примеры: ${ex.replace(/\|/g, '\\|')}` : ''} |`;
+    const ex = NO_EXAMPLES.has(o.id) ? '' : exampleLinks(o);
+    return `| <span id="${anchorOf(o.id)}"></span>${codeCell(o.title)} | ${codeCell(r.type ?? o.type!)} | ${o.optional ? cell(r.def ?? '') : 'обязательная'} | ${cell(text)}${ex ? `<br>Примеры: ${ex.replace(/\|/g, '\\|')}` : ''} |`;
   });
   void page;
   return [`**Опции \`${g.iface}\`**`, '', '| Опция | Тип | По умолчанию | Описание |', '|---|---|---|---|', ...rows, ''];
@@ -734,13 +842,16 @@ function renderItem(it: Item, page: string): string[] {
   const r = resolved.get(it.id)!;
   const out: string[] = [`### ${md(it.title)} {#${anchorOf(it.id)}}`, ''];
   if (r.signature) out.push(`\`\`\`${it.lang ?? 'ts'}`, r.signature, '```', '');
+  const from = importOf(it);
+  if (from) out.push(from, '');
   out.push(md(r.summary), '');
   if (r.details) out.push(md(r.details), '');
   const ps = r.params;
   if (ps.length) {
     const head = it.kind === 'cli' ? 'Аргумент' : 'Параметр';
     out.push(`**${it.kind === 'class' ? 'Параметры конструктора' : 'Параметры'}**`, '', `| ${head} | Тип | По умолчанию | Описание |`, '|---|---|---|---|');
-    for (const p of ps) out.push(`| ${code(p.name)} | ${p.type ? code(p.type) : ''} | ${p.optional || it.kind === 'tool' ? cell(p.def ?? '') : 'обязательный'} | ${cell(p.text ?? '')} |`);
+    // у обязательного параметра значение по умолчанию из api-docs.ts — уточнение («один из двух» у --token и --api-key)
+    for (const p of ps) out.push(`| ${codeCell(p.name)} | ${p.type ? codeCell(p.type) : ''} | ${p.optional || it.kind === 'tool' ? cell(p.def ?? '') : cell(p.def ?? 'обязательный')} | ${cell(p.text ?? '')} |`);
     out.push('');
   }
   for (const g of GROUPS) if (g.owner === it.id) out.push(...renderOptions(g, page));
@@ -754,7 +865,7 @@ function renderItem(it: Item, page: string): string[] {
     if (codes.length) out.push(...codes.map(([c, t]) => `- \`${c}\` — ${md(t)}`), '');
   }
   const ex = exampleLinks(it);
-  out.push(`**Примеры:** ${ex || 'живого примера пока нет.'}`, '');
+  if (!NO_EXAMPLES.has(it.id)) out.push(`**Примеры:** ${ex || 'живого примера пока нет.'}`, '');
   return out;
 }
 const HEADER = '<!-- Страница собрана scripts/gen-api.ts из lib/src и coverage/api-docs.ts — не править руками. -->';
@@ -763,7 +874,7 @@ const slug = (t: string) => slugify(plain(t));
 /** «Что здесь» в начале страницы справочника: разделы и как устроен пункт. */
 const whatsHere = (p: Page) =>
   `**Что здесь:** ${p.sections.map((s) => `[${md(s.title)}](#${slug(s.title)})`).join(' · ')}. У каждого пункта — сигнатура с типами, что делает, ` +
-  'параметры и опции (тип, значение по умолчанию), что возвращает, коды ошибок и ссылки на живые примеры сайта.';
+  'параметры и опции (тип, значение по умолчанию), что возвращает, коды ошибок и переходы к живым примерам сайта.';
 const pages = new Map<string, string>();
 for (const p of PAGES) {
   const out = ['---', 'outline: [2, 3]', '---', '', HEADER, '', `# ${p.title}`, '', md(p.intro), '', whatsHere(p), ''];
@@ -780,9 +891,20 @@ for (const p of PAGES) {
 }
 // типы
 {
-  const out = ['---', 'outline: [2, 2]', '---', '', HEADER, '', '# Типы', '',
-    'Типы, которые экспортирует пакет: объявления как в исходниках `lib/src`, с комментариями. На них ссылаются сигнатуры справочника.', ''];
-  for (const [name, d] of [...exportedTypes].sort(([a], [b]) => a.localeCompare(b))) {
+  const sorted = [...exportedTypes].sort(([a], [b]) => a.localeCompare(b));
+  // обзор типов: темы и все имена со ссылками
+  const index = ['---', 'outline: [2, 2]', '---', '', HEADER, '', '# Типы', '',
+    'Типы, которые экспортирует пакет, — объявления с комментариями; на них ссылаются сигнатуры справочника. ' +
+    'Тип импортируется так же, как значение: `import type { Row } from \'letopis\'`; точка входа указана у каждого типа.', ''];
+  for (const tp of TYPE_PAGES) {
+    index.push(`## [${md(tp.title)}](./${tp.file})`, '', md(tp.intro), '',
+      sorted.filter(([n]) => typePage.get(n) === tp.file).map(([n]) => `[${n}](./${tp.file}#type-${n.toLowerCase()})`).join(' · '), '');
+  }
+  pages.set('types.md', `${index.join('\n').trimEnd()}\n`);
+  const typeOut = new Map(TYPE_PAGES.map((tp) => [tp.file, ['---', 'outline: [2, 2]', '---', '', HEADER, '', `# ${tp.title}`, '',
+    `${md(tp.intro)} Все темы — на странице [Типы](./types).`, '']]));
+  for (const [name, d] of sorted) {
+    const out = typeOut.get(typePage.get(name)!)!;
     const sf = d.getSourceFile();
     const jsdocStart = ts.getJSDocCommentsAndTags(d).filter(ts.isJSDoc).map((j) => j.getStart())[0];
     let text = sf.text.slice(jsdocStart ?? d.getStart(), d.getEnd());
@@ -799,10 +921,20 @@ for (const p of PAGES) {
       });
       text = `${head} {\n${lines.join('\n')}\n}`;
     }
+    // у интерфейсов, чьи члены — пункты справочника, комментарии членов не повторяются: описание — по ссылке
+    const membersAt = MEMBERS_ON[name];
+    if (membersAt) {
+      const bodyAt = text.indexOf('{', text.indexOf(name));
+      text = text.slice(0, bodyAt) + text.slice(bodyAt).replace(/^[ \t]*\/\*\*[\s\S]*?\*\/[ \t]*\r?\n/gm, '').replace(/^[ \t]*\/\/.*\r?\n/gm, '');
+    }
     text = text.replace(/\/\*\*[\s\S]*?\*\//g, (c) => dropRefs(c).replace(/,\s*план\s+[\d.]*\d(?=[.;:]|\s*$)/gm, ''));
-    out.push(`## ${name} {#type-${name.toLowerCase()}}`, '', '```ts', text.replace(/^export /gm, ''), '```', '');
+    if (membersAt) out.push(`## ${name} {#type-${name.toLowerCase()}}`, '', `**Импорт:** \`import type { ${name} } from '${entryOf.get(name)}'\`. Каждый член с описанием, параметрами и ошибками — на странице [${membersAt[1]}](${membersAt[0]}).`, '',
+      '```ts', text.replace(/^export /gm, ''), '```', '');
+    if (membersAt) continue;
+    out.push(`## ${name} {#type-${name.toLowerCase()}}`, '', `**Импорт:** \`import type { ${name} } from '${entryOf.get(name)}'\``, '',
+      '```ts', text.replace(/^export /gm, ''), '```', '');
   }
-  pages.set('types.md', `${out.join('\n').trimEnd()}\n`);
+  for (const [file, out] of typeOut) pages.set(`${file}.md`, `${out.join('\n').trimEnd()}\n`);
 }
 // обзор
 {
@@ -815,7 +947,8 @@ for (const p of PAGES) {
     const links = p.sections.flatMap((s) => s.ids).map((id) => `[${md(items.get(id)!.title)}](./${p.file}#${anchorOf(id)})`);
     out.push(links.join(' · '), '');
   }
-  out.push('## [Типы](./types)', '', `${exportedTypes.size} экспортированных типов с объявлениями.`, '');
+  out.push('## [Типы](./types)', '', `${exportedTypes.size} экспортированных типов с объявлениями: ` +
+    `${TYPE_PAGES.map((tp) => `[${md(tp.title.replace(/^Типы: /, ''))}](./${tp.file})`).join(' · ')}.`, '');
   pages.set('index.md', `${out.join('\n').trimEnd()}\n`);
 }
 

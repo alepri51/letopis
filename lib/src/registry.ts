@@ -43,6 +43,12 @@ export interface ClassInfo {
 
 interface ClassRow { tenant: string; rev: number; data: { alias?: string; resolved: Record<string, unknown> } }
 
+/**
+ * Реестр классов сессии — `db.registry`: описания классов арендатора и системных классов, как их видит подключение.
+ * Методы: `has(имя)` — есть ли класс или алиас; `find(имя)` — описание `ClassInfo` или `undefined`; `resolve(имя)` — то же,
+ * а неизвестное имя — `invalid_class`; `all()` — все классы; `family(имя)` — класс и его потомки; `leafType(класс, путь)` —
+ * тип поля по пути в данных; `load(строки)` — заменить содержимое (его зовёт само подключение, `db.refresh()`).
+ */
 export class Registry {
   private byName = new Map<string, ClassInfo>();
   private byAlias = new Map<string, string>();

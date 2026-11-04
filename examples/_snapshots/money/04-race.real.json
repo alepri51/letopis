@@ -1,25 +1,5 @@
 {
   "id": "money/04-race",
-  "context": {
-    "schema": "v2.g_money_04_race",
-    "dsn": {
-      "admin": "postgres://postgres:test@localhost:15433/letopis",
-      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
-    },
-    "user": {
-      "login": "anna@romashka.ru",
-      "password": "Ромашка-2026!"
-    },
-    "up": {
-      "serviceKey": "lts_8c78088915e0da4f585e3316f0e682032fd18b42e971dafe349d769ff43d1143",
-      "tenant": {
-        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "e4198fa6b1e364533ac03c8536542a7d7ff1620b53386692ca2f623cb4ff5b34",
-        "created": true
-      }
-    }
-  },
   "initial": {
     "entity": [],
     "log": [],
@@ -28,7 +8,7 @@
   "steps": [
     {
       "result": {
-        "at": "2026-11-03T19:06:33.150524+00:00",
+        "at": "2026-11-04T05:15:32.632448+00:00",
         "id": "7059d160-3cdb-5650-ae26-befb9e94b84e",
         "op": "create",
         "rev": 1,
@@ -42,7 +22,7 @@
         "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
         "author": "3defbabb-a94d-5359-8463-dc947de193e1",
         "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-        "agent": "0c558636-241d-5440-85aa-69b1aabbab5a"
+        "agent": "2fd83ed7-7355-5ce4-b1f3-1c5c7afe8a71"
       },
       "error": null,
       "entity": [
@@ -60,9 +40,9 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "0c558636-241d-5440-85aa-69b1aabbab5a",
+          "agent": "2fd83ed7-7355-5ce4-b1f3-1c5c7afe8a71",
           "reason": null,
-          "at": "2026-11-03 19:06:33.150524+00"
+          "at": "2026-11-04 05:15:32.632448+00"
         }
       ],
       "removed": [],
@@ -97,7 +77,7 @@
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
           "agent": null,
           "reason": "списание 400",
-          "at": "2026-11-03 19:06:33.242602+00"
+          "at": "2026-11-04 05:15:32.736226+00"
         }
       ],
       "removed": [],
@@ -130,9 +110,9 @@
           "tags": [],
           "op": "update",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "0c558636-241d-5440-85aa-69b1aabbab5a",
+          "agent": "2fd83ed7-7355-5ce4-b1f3-1c5c7afe8a71",
           "reason": "списание 400",
-          "at": "2026-11-03 19:06:33.401125+00"
+          "at": "2026-11-04 05:15:32.916262+00"
         }
       ],
       "removed": [],
@@ -165,9 +145,9 @@
           "tags": [],
           "op": "update",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "0c558636-241d-5440-85aa-69b1aabbab5a",
+          "agent": "2fd83ed7-7355-5ce4-b1f3-1c5c7afe8a71",
           "reason": "списание 400",
-          "at": "2026-11-03 19:06:33.557353+00"
+          "at": "2026-11-04 05:15:33.095151+00"
         }
       ],
       "removed": [],
@@ -177,5 +157,7 @@
         "Card"
       ]
     }
-  ]
+  ],
+  "output": "Шаг 1. Карта с 500\n{\n  \"at\": \"2026-11-04T05:15:34.5543+00:00\",\n  \"id\": \"7059d160-3cdb-5650-ae26-befb9e94b84e\",\n  \"op\": \"create\",\n  \"rev\": 1,\n  \"data\": {\n    \"number\": \"4242\",\n    \"balance\": 500\n  },\n  \"tags\": [],\n  \"class\": \"Card\",\n  \"links\": {},\n  \"owner\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n  \"author\": \"3defbabb-a94d-5359-8463-dc947de193e1\",\n  \"tenant\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n  \"agent\": \"dec53821-e9ee-5b4a-9f51-68ef7d7a9d9b\"\n}\n\nШаг 2. Без защиты: оба прочли 500 — одно списание потеряно\n{\n  \"первое\": \"списано 400, остаток 100\",\n  \"второе\": \"списано 400, остаток 100\",\n  \"на карте\": 100\n}\n\nШаг 3. С lock(): второе ждёт, читает 100 и получает отказ\n{\n  \"первое\": \"списано 400, остаток 100\",\n  \"второе ждало блокировку\": true,\n  \"второе\": \"отказ: недостаточно средств: 100 < 400\",\n  \"на карте\": 100\n}\n\nШаг 4. С forUpdate(): то же блокировкой строки\n{\n  \"первое\": \"списано 400, остаток 100\",\n  \"второе ждало строку\": true,\n  \"второе\": \"отказ: недостаточно средств: 100 < 400\",\n  \"на карте\": 100\n}",
+  "exitCode": 0
 }

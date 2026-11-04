@@ -11,15 +11,15 @@ export default example({
     'delete() без подтверждения — только предпросмотр: что удалится и как. С { confirm: true, expect: предпросмотр } ' +
     'удаляется ровно показанное, а что ' +
     'делать с концами, ведущими на них, решает действие при удалении у конца: cascade — удалить вместе, ' +
-    'restrict — запретить, unset — очистить конец. Модель магазина — помощник _shared/shop.ts: его код — в «Весь код примера».',
+    'restrict — запретить, unset — очистить конец. Модель магазина и функция seedShop, которая её наполняет, вставлены в начало программы примера.',
   tables: ['entity', 'log'],
   covers: ['chain.delete', 'error.delete_restricted', 'error.conflict', 'nuance.cascade-unset-restrict', 'nuance.preview-depth', 'nuance.delete-as-shown', 'nuance.restore-partial'],
   steps: [
     {
       title: 'Данные магазина',
       text:
-        '`seedShop` — помощник сайта (`_shared/shop.ts`): записывает модель магазина и заводит магазины, товары, покупателей ' +
-        'и заказы. Для удаления важны концы: у строки заказа `line` конец `Order: one(Order).onDelete(\'cascade\')`, ' +
+        '`seedShop` (её код — в начале программы примера) записывает модель магазина и заводит магазины, товары, ' +
+        'покупателей и заказы. У заказа здесь есть поле `status` — расширение модели главы 3. Для удаления важны концы: у строки заказа `line` конец `Order: one(Order).onDelete(\'cascade\')`, ' +
         'у товара конец `Shop` без `onDelete` (по умолчанию `restrict`), у товара конец `Category` с `onDelete: \'unset\'`.',
       run: async ({ db }) => {
         d = await seedShop(db);

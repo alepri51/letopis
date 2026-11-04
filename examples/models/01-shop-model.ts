@@ -2,13 +2,12 @@ import { syncModels } from 'letopis';
 import { hub, link, one, many } from 'letopis/model';
 import { z } from 'zod';
 import { example } from '../_shared/example.ts';
-import { erDiagram } from '../_shared/diagram.ts';
 
 // Модель магазина: магазин, дерево категорий, товар, покупатель, заказ и строка заказа.
 const Shop = hub('Shop', { name: z.string(), city: z.string().optional() }, { key: ['name'] });
 const Category = hub('Category', { name: z.string() }, {
   key: ['name'],
-  ends: { Parent: one('Category').optional().onDelete('unset') }, // дерево: ссылка на родителя
+  ends: { Parent: one('Category').optional().onDelete('unset') }, // дерево: конец к родителю
 });
 const Product = hub('Product', { sku: z.string(), title: z.string(), price: z.number().int().min(0) }, {
   ends: { Shop, Category: many(Category, { max: 5, onDelete: 'unset' }) },
@@ -55,18 +54,25 @@ export default example({
       },
     },
     {
-      title: 'Схема модели — из того, что записано в базе',
+      title: 'Что записано в базе: ключи и концы',
       text:
-        'Схему ниже рисует код по описаниям классов, которые подключение прочло из базы (`db.registry.all()`), а не ' +
-        'человек — поэтому она не расходится с моделью. PK — поле ключа; подпись связи — роль конца и что будет при ' +
-        'удалении цели.',
-      run: async ({ db }) => erDiagram(db.registry.all(), ['Shop', 'Category', 'Product', 'Customer', 'Order', 'line']),
+        'Подключение прочло описания классов из базы (`db.registry.all()`): у каждого класса — ключ и концы. Подпись ' +
+        'конца — роль, класс цели и что будет при удалении цели (`restrict`, если не задано). Схема этой модели — под ' +
+        'примером.',
+      run: async ({ db }) =>
+        db.registry.all()
+          .filter((c) => models.some((m) => m.name === c.name))
+          .map((c) => ({
+            класс: c.name,
+            ключ: c.key.join(' + ') || '—',
+            концы: Object.entries(c.ends).map(([role, e]) => `${role} → ${[e.class].flat().join(' | ')} (${e.onDelete ?? 'restrict'})`).join(', ') || '—',
+          })),
     },
     {
       title: 'Конец модели изнутри',
       text:
         '`one(…)` и `many(…)` возвращают конец (`End`) — его описание: на какие классы (`targets`, имена — ' +
-        '`classNames()`), одиночная или множественная (`many`), обязательная ли (`required`), сколько целей (`min`, ' +
+        '`classNames()`), одиночный или множественный (`many`), обязательный ли (`required`), сколько целей (`min`, ' +
         '`max`), что делать при удалении цели (`onDeleteRule`) и метаданные (`metaData`). `optional()`, `onDelete()` и ' +
         '`meta()` не меняют конец, а возвращают новый.',
       run: async () => {

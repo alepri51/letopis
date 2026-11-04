@@ -8,7 +8,7 @@ outline: [2, 3]
 
 Права проверяет база: правила (`rule`) и ресурсы (`Resource`) — обычные классы. `db.acl` только спрашивает решение для того, от чьего имени идёт запрос.
 
-**Что здесь:** [Методы](#методы). У каждого пункта — сигнатура с типами, что делает, параметры и опции (тип, значение по умолчанию), что возвращает, коды ошибок и ссылки на живые примеры сайта.
+**Что здесь:** [Методы](#методы). У каждого пункта — сигнатура с типами, что делает, параметры и опции (тип, значение по умолчанию), что возвращает, коды ошибок и переходы к живым примерам сайта.
 
 ## Методы
 
@@ -17,6 +17,8 @@ outline: [2, 3]
 ```ts
 readonly acl: AclApi
 ```
+
+**Откуда:** `db` — подключение из `connect()` (`import { connect } from 'letopis'`); те же методы — у `db.as()` и транзакции `db.begin()`.
 
 Права того, от чьего имени идёт запрос, — заранее, для интерфейса и проверок в приложении: `check(endpoint)` — можно ли обратиться к ресурсу приложения, `checkData(класс, операция)` — можно ли читать, менять или удалять объекты класса. Сами права база применяет при каждом запросе.
 
@@ -30,6 +32,8 @@ readonly acl: AclApi
 check(endpoint: string): Promise<AclDecision>
 ```
 
+**Откуда:** `db.acl`; `db` — подключение из `connect()` (`import { connect } from 'letopis'`).
+
 Можно ли тому, от чьего имени идёт запрос, обратиться к ресурсу приложения (эндпоинту). Решают правила доступа System и текущего арендатора.
 
 Ресурс приложения — именованное действие, например отчёт или кнопка: строки база защищает сама, а право на такое действие приложение проверяет этим вызовом. Решает ровно одно подходящее правило — с наибольшим весом; при равном весе запрет сильнее. Нет подходящего правила — запрет.
@@ -40,7 +44,7 @@ check(endpoint: string): Promise<AclDecision>
 |---|---|---|---|
 | `endpoint` | `string` | обязательный | Имя эндпоинта, например `shop.reports.daily`: части через точку, как в масках ресурсов `API`. |
 
-**Возвращает:** `Promise<AclDecision>` ([AclDecision](./types#type-acldecision)) — `{ allow, rule, code, message }`: `allow` — можно ли; `rule` — победившее правило (`id`, `group`, `object`, `weight`, `permission`); `code` и `message` — из запрещающего правила, если они там заданы.
+**Возвращает:** `Promise<AclDecision>` ([AclDecision](./types-access#type-acldecision)) — `{ allow, rule, code, message }`: `allow` — можно ли; `rule` — победившее правило (`id`, `group`, `object`, `weight`, `permission`); `code` и `message` — из запрещающего правила, если они там заданы.
 
 **Ошибки** ([все коды](../errors/)):
 
@@ -54,9 +58,11 @@ check(endpoint: string): Promise<AclDecision>
 checkData(className: string, op: AclOp): Promise<AclDataDecision>
 ```
 
+**Откуда:** `db.acl`; `db` — подключение из `connect()` (`import { connect } from 'letopis'`).
+
 Можно ли тому, от чьего имени идёт запрос, выполнять операцию `op` с объектами класса — со всеми или только с теми, что подходят под условие `filter` в ответе.
 
-Подходит, чтобы заранее скрыть в интерфейсе недоступные действия: сами права на строки база применяет при каждом запросе. Без сессии ответ — `{ allow: false }`.
+Подходит, чтобы заранее скрыть в интерфейсе недоступные действия: сами права на строки база применяет при каждом запросе. Без сессии ответ — `{ allow: false }`. Имя класса не сверяется с реестром: неизвестный класс (или опечатка) — тоже `{ allow: false }`, без ошибки.
 
 **Параметры**
 
@@ -65,7 +71,7 @@ checkData(className: string, op: AclOp): Promise<AclDataDecision>
 | `className` | `string` | обязательный | Имя класса (не алиас). |
 | `op` | `AclOp` | обязательный | Операция: `READ`, `WRITE` или `DELETE`. |
 
-**Возвращает:** `Promise<AclDataDecision>` ([AclDataDecision](./types#type-acldatadecision)) — `{ allow }` или `{ allow: true, filter }`: `filter` — условие на колонки строк (`id`, `owner`, `tenant`, `tags`, `data`, `links`), под которое должна подойти строка; без `filter` разрешены все строки класса.
+**Возвращает:** `Promise<AclDataDecision>` ([AclDataDecision](./types-access#type-acldatadecision)) — `{ allow }` или `{ allow: true, filter }`: `filter` — условие на колонки строк (`id`, `owner`, `tenant`, `tags`, `data`, `links`), под которое должна подойти строка; без `filter` разрешены все строки класса.
 
 **Ошибки** ([все коды](../errors/)):
 
@@ -79,9 +85,11 @@ checkData(className: string, op: AclOp): Promise<AclDataDecision>
 grant(spec: AclRuleSpec): Promise<AclRule[]>
 ```
 
+**Откуда:** `db.acl`; `db` — подключение из `connect()` (`import { connect } from 'letopis'`).
+
 Разрешить роли (`role`) или всем аккаунтам арендатора (`everyone: true`) операции с классами и ресурсы приложения — по правилу на каждую операцию и цель, с весом `weight` (по умолчанию 50). Повтор ничего не меняет; запрет той же группы и цели заменяется разрешением. Внутри `db.begin()` — в её транзакции, иначе — своей.
 
-Под капотом — строки `Resource` и `rule` текущего арендатора: группа `role:<роль>:ACCOUNT` (для всех аккаунтов арендатора — `everyone:ACCOUNT`), объект `class:<класс>:<ОП>` (с условием — его канонический JSON в alias) или `api:<маска>:API`. Ключ правила — пара группа и объект, поэтому повтор ничего не меняет, а `grant` после `deny` той же роли и цели заменяет запрет разрешением. Внутри `db.begin()` — в её транзакции, иначе — своей. Писать правила может тот, у кого есть `WRITE` на `Resource` и `rule` (после `createTenant` — любой участник по правилу «можно всё»).
+Правила хранятся строками `Resource` и `rule` текущего арендатора. Правило определяют роль (или все аккаунты), операция и цель, поэтому повтор ничего не меняет, а `grant` после `deny` той же роли и цели заменяет запрет разрешением. Внутри `db.begin()` — в её транзакции, иначе — своей. Писать правила может тот, у кого есть `WRITE` на `Resource` и `rule` (после `createTenant` — любой участник по правилу «можно всё»).
 
 **Параметры**
 
@@ -89,7 +97,7 @@ grant(spec: AclRuleSpec): Promise<AclRule[]>
 |---|---|---|---|
 | `spec` | `AclRuleSpec` | обязательный | `{ role \| everyone: true, read?, write?, delete?, api?, weight? }`: `role` — роль членства, `everyone: true` — все аккаунты арендатора, кроме анонимных и теневых (ровно одно из двух); `read`, `write`, `delete` — класс (с потомками), `'*'` (все классы) или `{ class, …условие }` — шаблон колонок `owner`, `tenant`, `tags`, `data`, `links`, `id` со значениями `$actor` и `$tenant`, списком — несколько; `api` — маски эндпоинтов; `weight` — от 1 до 999, по умолчанию 50 (сильнее «можно всё» с весом 10). |
 
-**Возвращает:** `Promise<AclRule[]>` ([AclRule](./types#type-aclrule)) — Записанные правила `{ id, role, everyone, group, op, target, condition?, permission, weight, enabled }` — по одному на операцию и цель.
+**Возвращает:** `Promise<AclRule[]>` ([AclRule](./types-access#type-aclrule)) — Записанные правила `{ id, role, everyone, group, op, target, condition?, permission, weight, enabled }` — по одному на операцию и цель.
 
 **Ошибки** ([все коды](../errors/)):
 
@@ -104,6 +112,8 @@ grant(spec: AclRuleSpec): Promise<AclRule[]>
 deny(spec: AclRuleSpec): Promise<AclRule[]>
 ```
 
+**Откуда:** `db.acl`; `db` — подключение из `connect()` (`import { connect } from 'letopis'`).
+
 Запретить — те же правила с запретом: при равном весе запрет сильнее разрешения.
 
 То же, что `grant`, с запретом: при равном весе запрет сильнее разрешения — так закрывают «можно всё» от `createTenant` (вес 10) для отдельной роли и класса.
@@ -114,7 +124,7 @@ deny(spec: AclRuleSpec): Promise<AclRule[]>
 |---|---|---|---|
 | `spec` | `AclRuleSpec` | обязательный | Как у `grant`: `{ role \| everyone: true, read?, write?, delete?, api?, weight? }`. |
 
-**Возвращает:** `Promise<AclRule[]>` ([AclRule](./types#type-aclrule)) — Записанные правила `{ id, role, everyone, group, op, target, condition?, permission: 'deny', weight, enabled }`.
+**Возвращает:** `Promise<AclRule[]>` ([AclRule](./types-access#type-aclrule)) — Записанные правила `{ id, role, everyone, group, op, target, condition?, permission: 'deny', weight, enabled }`.
 
 **Ошибки** ([все коды](../errors/)):
 
@@ -129,9 +139,11 @@ deny(spec: AclRuleSpec): Promise<AclRule[]>
 revoke(spec: Omit<AclRuleSpec, 'weight'>): Promise<number>
 ```
 
-Снять правила роли или всех аккаунтов — разрешения и запреты — для этих операций и целей; число снятых. `revoke({ everyone: true, read: '*', write: '*', delete: '*' })` снимает «можно всё» от createTenant: дальше права — только по ролям.
+**Откуда:** `db.acl`; `db` — подключение из `connect()` (`import { connect } from 'letopis'`).
 
-Снимает правила роли или всех аккаунтов — и разрешения, и запреты. Для всех аккаунтов — и правила «можно всё» от `createTenant` (группа System `authenticated:ACCOUNT`; цель `'*'` — и объекты System `all:<ОП>`): `revoke({ everyone: true, read: '*', write: '*', delete: '*' })` оставляет права только по ролям. Ресурсы остаются: без правил они ни на что не действуют.
+Снять правила роли или всех аккаунтов — разрешения и запреты — для этих операций и целей; возвращает число снятых правил. Операции снимаются по очереди, и правило на несколько операций считается один раз: «можно всё» на чтение, запись и удаление от createTenant даёт 1. `revoke({ everyone: true, read: '*', write: '*', delete: '*' })` снимает «можно всё» от createTenant: дальше права — только по ролям.
+
+Снимает правила роли или всех аккаунтов — и разрешения, и запреты. Для всех аккаунтов с целью `'*'` — и правила «можно всё» от `createTenant`: `revoke({ everyone: true, read: '*', write: '*', delete: '*' })` оставляет права только по ролям. Ресурсы остаются: без правил они ни на что не действуют.
 
 **Параметры**
 
@@ -139,7 +151,7 @@ revoke(spec: Omit<AclRuleSpec, 'weight'>): Promise<number>
 |---|---|---|---|
 | `spec` | `Omit<AclRuleSpec, 'weight'>` | обязательный | `{ role \| everyone: true, read?, write?, delete?, api? }` — как у `grant`, без `weight`. |
 
-**Возвращает:** `Promise<number>` — Число снятых правил; 0 — таких правил не было.
+**Возвращает:** `Promise<number>` — Число снятых правил; 0 — таких правил не было. Операции снимаются по очереди (`read`, `write`, `delete`), и каждую следующую вызов ищет уже с оставшимися правами: если чтение правил держалось только на снятом правиле (например, «можно всё» `read: '*'`), остальные правила вызов не находит и не считает — так `revoke` трёх операций «можно всё» отвечает 1. Что осталось, покажет `list()` подключения с правами на правила.
 
 **Ошибки** ([все коды](../errors/)):
 
@@ -154,6 +166,8 @@ revoke(spec: Omit<AclRuleSpec, 'weight'>): Promise<number>
 roles(account: string | { id: string }, roles?: readonly string[] | null): Promise<string[] | null>
 ```
 
+**Откуда:** `db.acl`; `db` — подключение из `connect()` (`import { connect } from 'letopis'`).
+
 Роли аккаунта в текущем арендаторе (строка `member`); null — не член. Со списком ролей — заменить их (членство заводится, если его нет), с null — снять членство. Сам арендатор (вход под его аккаунтом) — владелец без строки `member`: для него ответ null.
 
 Членство — строка `member` с концами `User` и `Tenant` (ключ `[User, Tenant]`) в текущем арендаторе. Роли сверяются с масками групп правил арендатора (`{ roles: '{staff}' }`); роли System не дают.
@@ -165,7 +179,7 @@ roles(account: string | { id: string }, roles?: readonly string[] | null): Promi
 | `account` | `string \| { id: string }` | обязательный | Аккаунт — id или строка с полем `id`. |
 | `roles` | `readonly string[] \| null` | нет — прочитать роли | Новые роли: список заменяет прежние (членство заводится, если его нет), `null` снимает членство. |
 
-**Возвращает:** `Promise<string[] \| null>` — Роли аккаунта в текущем арендаторе; `null` — не член (и сам арендатор: вход под его аккаунтом — владелец без строки `member`).
+**Возвращает:** `Promise<string[] | null>` — Роли аккаунта в текущем арендаторе; `null` — не член (и сам арендатор: вход под его аккаунтом — владелец без строки `member`).
 
 **Ошибки** ([все коды](../errors/)):
 
@@ -181,11 +195,13 @@ roles(account: string | { id: string }, roles?: readonly string[] | null): Promi
 list(): Promise<AclRule[]>
 ```
 
+**Откуда:** `db.acl`; `db` — подключение из `connect()` (`import { connect } from 'letopis'`).
+
 Правила текущего арендатора — свои и «можно всё» от createTenant. На подключении без RLS (`allowBypassRls`) — тоже только правила арендатора сессии, без правил других арендаторов и System.
 
-Правила обёртки показаны по роли, прочие — по alias группы (`role: null`); правила для всех аккаунтов — «можно всё» от `createTenant` и `everyone: true` обёртки — с `everyone: true`. Ресурсы System, на которые ссылаются правила «можно всё», арендатор не видит — `list()` узнаёт их по id. На администраторском подключении (роль без RLS видит строки всех арендаторов) — тоже только правила арендатора сессии.
+Правила, записанные `grant()` и `deny()`, показаны по роли; правила, заведённые строками `rule` напрямую, — по имени группы (`role: null`); правила для всех аккаунтов — «можно всё» от `createTenant` и `everyone: true` — с `everyone: true`. На администраторском подключении (роль без RLS видит строки всех арендаторов) — тоже только правила арендатора сессии.
 
-**Возвращает:** `Promise<AclRule[]>` ([AclRule](./types#type-aclrule)) — Массив `{ id, role, everyone, group, op, target, condition?, permission, weight, enabled }`, по операции, цели и роли; `enabled: false` — правило выключено полем `enabled` строки `rule`, база его не применяет.
+**Возвращает:** `Promise<AclRule[]>` ([AclRule](./types-access#type-aclrule)) — Массив `{ id, role, everyone, group, op, target, condition?, permission, weight, enabled }`, по операции, цели и роли; `enabled: false` — правило выключено полем `enabled` строки `rule`, база его не применяет.
 
 **Ошибки** ([все коды](../errors/)):
 

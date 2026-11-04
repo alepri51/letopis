@@ -29,6 +29,13 @@ export const api = {
     ru: 'класс или роль {name} не найдены: в реестре сессии нет ни одного класса арендатора — сессия, похоже, в личном арендаторе',
     hint: 'после входа сессия работает в личном арендаторе пользователя: найти нужного — db.auth.tenants(), перейти — db.auth.switch(tenant) или db.as(аккаунт, { tenant }); классы в арендатор записывает syncModels',
   },
+  // chain.ts (3.0.1): шаг не найден, в реестре сессии только классы System, а арендатор сессии не личный — в нём просто
+  // нет классов; похожие имена — params.similar
+  'api.unknown_step_empty_tenant': {
+    code: 'invalid_class',
+    ru: 'класс или роль {name} не найдены: в этом арендаторе нет классов — вызовите syncModels в нём',
+    hint: 'классы в арендатор записывает syncModels — в сессии этого арендатора (подключение арендатора или db.as(аккаунт, { tenant })); имя — как в модели',
+  },
   // chain.ts: у цепочки спросили свойство массива (length, map, filter, 0 …) или перебрали её — она не массив строк
   'api.chain_not_rows': {
     code: 'invalid_query',
@@ -57,8 +64,8 @@ export const api = {
   // запроса; text — текст сервера
   'api.db_bad_value': {
     code: 'invalid_query',
-    ru: 'значение не того типа: {text}',
-    hint: 'id — строка uuid, числа — числа, даты — строки ISO; проверьте значения фильтра, курсора и опций',
+    ru: 'база не приняла значение: оно не того типа, что поле или параметр запроса (ответ PostgreSQL: {text})',
+    hint: 'передавайте id строкой uuid, числа — числами, даты — строками ISO 8601; проверьте значения фильтра, курсора, опций и параметров db.sql и повторите запрос',
   },
   // errors.ts, ValidationError: первое нарушение в тексте ошибки — путь и сообщение; текст не для ошибки (lmsg)
   'api.validation_issue': {
@@ -141,27 +148,27 @@ export const api = {
   // chain.ts, slotValue: значение .Роль.set(…), .add(…), .remove(…)
   'api.slot_value': {
     code: 'invalid_query',
-    ru: 'значение слота — id, список id, строка ответа или цепочка',
+    ru: 'значение шага роли (.Роль.set(), .add(), .remove()) — id, список id, строка ответа или цепочка',
   },
   // chain.ts: слот не сразу после create(), update() или upsert(); name — роль, как вызвана, op — set, unset, add, remove
   'api.slot_without_write': {
     code: 'invalid_query',
-    ru: 'слот .{name}.{op}() — после create(), update() или upsert(): db.Класс(…).update(…).{name}.{op}(…)',
+    ru: 'шаг роли .{name}.{op}() — после create(), update() или upsert(): db.Класс(…).update(…).{name}.{op}(…)',
   },
   // chain.ts: add() или remove() у одиночного конца
   'api.slot_single': {
     code: 'invalid_query',
-    ru: 'слот .{name}.{op}(): конец {role} одиночный — set() или unset()',
+    ru: 'шаг роли .{name}.{op}(): конец {role} одиночный — set() или unset()',
   },
   // chain.ts: unset() у обязательного конца
   'api.slot_required': {
     code: 'invalid_query',
-    ru: 'слот .{name}.unset(): конец {role} обязателен',
+    ru: 'шаг роли .{name}.unset(): конец {role} обязателен',
   },
   // chain.ts: set() или unset() одного конца дважды в одной записи
   'api.slot_twice': {
     code: 'invalid_query',
-    ru: 'слот {role} задан дважды в одной записи',
+    ru: 'конец {role} задан дважды в одной записи',
   },
   // chain.ts, withLast: deep(), exact(), alias(), tags(), owner() сразу после глагола; verb — глагол
   'api.step_mod_after_verb': {
@@ -186,7 +193,7 @@ export const api = {
   // chain.ts: set, unset, add, remove у цепочки, а не у слота роли; method — имя метода
   'api.slot_method': {
     code: 'invalid_query',
-    ru: '{method}() — метод слота: db.Класс(…).update(…).Роль.{method}(…)',
+    ru: '{method}() — метод шага роли после глагола: db.Класс(…).update(…).Роль.{method}(…)',
   },
   // chain.ts: cache({ ttl })
   'api.cache_ttl': {
@@ -225,8 +232,14 @@ export const api = {
   // аргумента (array — массив)
   'api.begin_arg': {
     code: 'invalid_query',
-    ru: 'db.begin() принимает только опции { reason }, а не {type}: транзакцию открывает begin(), закрывают commit() и rollback()',
-    hint: 'const tr = await db.begin(); try { …; await tr.commit() } catch (e) { await tr.rollback(); throw e }',
+    ru: 'db.begin() принимает только объект опций с полем reason или ничего; передано значение типа {type}. Функцию begin() не вызывает: транзакцию открывает begin(), закрывают commit() и rollback()',
+    hint: 'откройте транзакцию без функции и закройте её сами: const tr = await db.begin(); try { …запросы через tr…; await tr.commit() } catch (e) { await tr.rollback(); throw e }',
+  },
+  // index.ts: вызов цепочки или метода подключения после db.close() корня (и у db.as(), db.begin() этого подключения)
+  'api.closed': {
+    code: 'invalid_query',
+    ru: 'подключение закрыто (db.close()) — откройте новое connect()',
+    hint: 'db.close() — в конце работы процесса; цепочки, db.as() и db.begin() закрытого подключения не работают — для новой работы const db = await connect({ … })',
   },
   'api.nested_begin': {
     code: 'invalid_query',

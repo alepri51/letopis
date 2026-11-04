@@ -1,25 +1,5 @@
 {
   "id": "ops/03-cli",
-  "context": {
-    "schema": "v2.g_ops_03_cli",
-    "dsn": {
-      "admin": "postgres://postgres:test@localhost:15433/letopis",
-      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
-    },
-    "user": {
-      "login": "anna@romashka.ru",
-      "password": "Ромашка-2026!"
-    },
-    "up": {
-      "serviceKey": "lts_e7c1a0503b2025830bb6c2b1d3ced129c781d64f0d042acf66a9b3bd3bd32764",
-      "tenant": {
-        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "9eafe2e54fa6174bf84a6c3157b5de399d7dc181261cb7991ea71e0aa82040fd",
-        "created": true
-      }
-    }
-  },
   "initial": {
     "entity": [],
     "log": [],
@@ -28,9 +8,9 @@
   "steps": [
     {
       "result": {
-        "сухой прогон": "сухой прогон: создать 7, изменить 0, без изменений 0, системных 0",
+        "сухой прогон": "сухой прогон: создать 3, изменить 0, без изменений 0, системных 0",
         "--check до --apply, код": 1,
-        "с --apply": "применено: создать 7, изменить 0, без изменений 0, системных 0",
+        "с --apply": "применено: создать 3, изменить 0, без изменений 0, системных 0",
         "--check после --apply, код": 0
       },
       "error": null,
@@ -47,9 +27,9 @@
         "код выхода": 0,
         "начало файла": [
           "export interface CategoryData {",
-          "export interface CategoryLinks {",
+          "export interface CategoryLinks {}",
           "export interface CategoryModel {",
-          "export interface CustomerData {"
+          "export interface ProductData {"
         ]
       },
       "error": null,
@@ -86,7 +66,7 @@
           },
           "external": 0,
           "portions": 1,
-          "ms": 224.17789999999513
+          "ms": 215.5193
         }
       },
       "error": null,
@@ -128,5 +108,7 @@
       "secret": [],
       "signals": []
     }
-  ]
+  ],
+  "output": "Шаг 1. sync: сухой прогон, проверка и запись моделей\n{\n  \"сухой прогон\": \"сухой прогон: создать 3, изменить 0, без изменений 0, системных 0\",\n  \"--check до --apply, код\": 1,\n  \"с --apply\": \"применено: создать 3, изменить 0, без изменений 0, системных 0\",\n  \"--check после --apply, код\": 0\n}\n\nШаг 2. types: интерфейсы TypeScript по модели из базы\n{\n  \"код выхода\": 0,\n  \"начало файла\": [\n    \"export interface CategoryData {\",\n    \"export interface CategoryLinks {}\",\n    \"export interface CategoryModel {\",\n    \"export interface ProductData {\"\n  ]\n}\n\nШаг 3. Без действующей сессии types отказывает\n{\n  \"код выхода\": 1,\n  \"ошибка\": \"letopis: no_session: нет действующей сессии: токен погашен, истёк или неверен\",\n  \"файл прежний\": true\n}\n\nШаг 4. load: NDJSON — объект на строку\n{\n  \"код выхода\": 0,\n  \"report\": {\n    \"rows\": 2,\n    \"loaded\": 2,\n    \"updated\": 0,\n    \"skipped\": 0,\n    \"duplicates\": 0,\n    \"byClass\": {\n      \"Shop\": 2\n    },\n    \"external\": 0,\n    \"portions\": 1,\n    \"ms\": 231.82629999999997\n  }\n}\n\nШаг 5. maintain: обслуживание по расписанию\n{\n  \"код выхода\": 0,\n  \"отчёт\": {\n    \"skipped\": false,\n    \"sessions\": 0,\n    \"codes\": 0,\n    \"queue\": 0\n  }\n}\n\nШаг 6. mcp: сервер инструментов для ИИ-агента по stdio\n[\n  \"letopis_model\",\n  \"letopis_query\",\n  \"letopis_history\"\n]",
+  "exitCode": 0
 }

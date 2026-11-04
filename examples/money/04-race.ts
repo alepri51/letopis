@@ -5,10 +5,10 @@ import { z } from 'zod';
 import { example } from '../_shared/example.ts';
 import { waitForLock } from '../_shared/race.ts';
 
-const Account = hub('Card', { number: z.string(), balance: z.number().int().min(0) }, { key: ['number'] });
+const Card = hub('Card', { number: z.string(), balance: z.number().int().min(0) }, { key: ['number'] });
 let card: { id: string };
 
-/** Списание «прочитал — проверил — записал итог»; withLock — сначала занять блокировку счёта. */
+/** Списание «прочитал — проверил — записал итог»; how.lock — сначала занять блокировку карты (tr.lock), how.forUpdate — читать строку с forUpdate(). */
 async function debit(db: Db, amount: number, how: { lock?: boolean; forUpdate?: boolean }, before?: () => Promise<void>) {
   const tr = await db.begin({ reason: `списание ${amount}` });
   try {
@@ -39,7 +39,7 @@ export default example({
     {
       title: 'Карта с 500',
       run: async ({ db }) => {
-        await syncModels(db, [Account], { apply: true });
+        await syncModels(db, [Card], { apply: true });
         [card] = await db.Card().create({ number: '4242', balance: 500 }).rows();
         return card;
       },

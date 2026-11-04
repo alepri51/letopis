@@ -18,14 +18,21 @@
 | `LETOPIS_LOG=<уровень>` | если `log` не передан — события пишутся в stderr JSON-строками, одна строка — одно событие; `1` или `true` — уровень `info` |
 | `letopis <команда> --log[=уровень]` | то же для командной строки: события — JSON-строками в stderr; `--log` без значения — `info`; без флага действует `LETOPIS_LOG` |
 
+Три способа в одной программе (`npm i letopis pino`; в `package.json` — `"type": "module"`, чтобы работал `await` на верхнем уровне). Строка подключения роли приложения и ключ сервиса — те, что вернул `up()` ([«Установка и подключение»](../install/)):
+
 ```ts
 import pino from 'pino'
-import { connect } from 'letopis'
+import { connect, type LogEvent } from 'letopis'
+
+const dsn = process.env.APP_DSN!          // роль приложения: up({ login }) → login.dsn
+const apiKey = process.env.LETOPIS_KEY!   // ключ сервиса: up() → serviceKey
+const schema = 'v2.shop'
 
 const logger = pino()
 const db = await connect({ dsn, schema, apiKey, log: logger, logLevel: 'info' })   // pino: logger.info(event, event.event)
 const dev = await connect({ dsn, schema, apiKey, log: console, logLevel: 'debug' }) // разработка: всё, включая SQL
-const mine = await connect({ dsn, schema, apiKey, log: (e) => myQueue.push(e) })     // своя функция
+const events: LogEvent[] = []
+const mine = await connect({ dsn, schema, apiKey, log: (e) => void events.push(e) }) // своя функция: здесь — в массив
 ```
 
 - **`logLevel`** — порог: `'debug' | 'info' | 'warn' | 'error' | 'off'`, по умолчанию `'info'`; `'off'` — ничего. Событие ниже порога даже не собирается — на скорость это не влияет. Если `log` передан без `logLevel`, порог берётся из `LETOPIS_LOG` (если там уровень), иначе `info`.
@@ -58,13 +65,13 @@ const mine = await connect({ dsn, schema, apiKey, log: (e) => myQueue.push(e) })
 
 ## Маскировка секретов
 
-Секреты в журнал не попадают **никогда**: значение поля, в имени которого есть секрет, заменяется на `'***'` в любом месте `detail` — в том числе `password`, `pass`, `passwd`, `pwd`, `passphrase`, `secret`, `token`, `credential`, `api_key` и `apiKey`, `service_key` и `serviceKey`, `hash`, `material`, `totp`, `otp`, `authorization`, `cookie`. В строке подключения скрыты и имя пользователя, и пароль: `postgres://***@host/db`.
+Секреты в журнал не попадают **никогда**: значение поля, в имени которого есть секрет, заменяется на `'***'` в любом месте `detail` — в том числе `password`, `pass`, `passwd`, `pwd`, `passphrase`, `secret`, `token`, `credential`, `api_key` и `apiKey`, `service_key` и `serviceKey`, `hash`, `material`, `totp`, `otp`, `authorization`, `cookie`. Строка подключения в `detail` (например, у событий `connect` и `up`) пишется без пользователя, пароля и параметров — только адрес и база: `postgres://127.0.0.1:5432/letopis`. Если строка подключения попала в текст (сообщение ошибки, SQL), имя пользователя и пароль в нём заменены целиком: `postgres://***@127.0.0.1:5432/letopis`.
 
 Что ещё гарантировано:
 
 - **Значения параметров SQL** не пишутся: у событий `sql` и `raw` — текст запроса с `$1…` и число параметров (`detail.params`).
 - **Тексты ошибок PostgreSQL** не пишутся: у ошибки базы (сама ошибка или причина ошибки letopis) в событии только SQLSTATE (`code`, `detail.sqlstate`) и имена объектов схемы — `constraint`, `table`, `column`, `schema`, `datatype`, `routine`. Текст, `DETAIL`, `WHERE`, `HINT` и внутренний запрос остаются у самого объекта ошибки, а в `msg` — «ошибка PostgreSQL 23505 (текст, DETAIL, WHERE и HINT базы в журнал не пишутся — они у самой ошибки)».
-- **Ошибка letopis** — `code`, `key` и `msg` по каталогу; значения аргументов в тексте (неверный uuid, значение курсора, текст базы) заменены на `***`, имена классов, полей, ролей, id и `rev` остаются. Данные строк в `detail` (например, превью в `detail.preview` при `conflict`) — `data: '***'`.
+- **Ошибка letopis** — `code`, `key` и `msg` по каталогу; значения аргументов в тексте (неверный uuid, значение курсора, текст базы) заменены на `***`, имена классов, полей, ролей, id и `rev` остаются. Данные строк в `detail` (например, предпросмотр в `detail.preview` при `conflict`) — `data: '***'`.
 
 Чего гарантия **не** даёт: значения **фильтров** чтения и правки пишутся в `chain` (`Client({"email":"anna@shop.ru"})`; поля-секреты — `***`), данные записи — только именами полей (`create(name,price)`). Тексты обычных исключений вашего кода внутри `db.begin()` пишутся как есть (с маскировкой паролей). Свои чувствительные поля — например, email в фильтрах — добавляет `redact`, имена без учёта регистра:
 
@@ -105,6 +112,8 @@ const db = await connect({ dsn, schema, apiKey, log: logger, redact: ['email', '
 
 ::: details Ещё события
 `auth.as` (debug — `db.as()` и `svc.as()`), `auth.fail` (warn — неудачный вход), `acl.change` (изменение прав `db.acl`), `tenant.create` (`createTenant`), `account.purge` (`purgeAccount`), `load` (итог `db.load()`), `lock` (debug — `db.lock()`), `mcp.call` (вызов инструмента MCP). Уровень у них — `info`, если не сказано иное; уровень любого события — в его поле `level`.
+
+Полный каталог событий есть и в самом пакете: `import { LOG_EVENTS } from 'letopis'` — объект «имя события → `{ level, ru }`» (уровень по умолчанию и описание по-русски), например `LOG_EVENTS.delete.level` — `'info'`. Имя события как тип — `LogEventName`.
 :::
 
 ## Удаление и возврат по журналу

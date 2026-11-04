@@ -29,14 +29,15 @@ import { lerr, lmsg } from './errors.js';
 import { stderrLog } from './log.js';
 import type { LogLevel, LogOptions } from './types.js';
 
-const USAGE = `letopis sync <модуль> --dsn <строка> --schema <v2.имя> (--token <токен> | --api-key <ключ>) [--apply | --check]
-letopis types --dsn <строка> --schema <v2.имя> (--token <токен> | --api-key <ключ>) [--out <файл>] [--system]
-letopis load <файлы…> --dsn <строка> --schema <v2.имя> (--token <токен> | --api-key <ключ>) [--class <Класс>]
+const USAGE = `letopis sync <модуль> --dsn <строка> --schema <схема> (--token <токен> | --api-key <ключ>) [--apply | --check]
+letopis types --dsn <строка> --schema <схема> (--token <токен> | --api-key <ключ>) [--out <файл>] [--system]
+letopis load <файлы…> --dsn <строка> --schema <схема> (--token <токен> | --api-key <ключ>) [--class <Класс>]
   [--duplicates error|first|last] [--existing error|skip|update] [--commit-every <N>] [--initial]
-letopis maintain --dsn <строка> --schema <v2.имя> [--token <токен> | --api-key <ключ>]
-letopis mcp --dsn <строка> --schema <v2.имя> --token <токен пользователя> [--write]
+letopis maintain --dsn <строка> --schema <схема> [--token <токен> | --api-key <ключ>]
+letopis mcp --dsn <строка> --schema <схема> --token <токен пользователя> [--write]
   (или LETOPIS_DSN, LETOPIS_SCHEMA, LETOPIS_TOKEN; ключ сервиса --api-key не принимается)
-у любой команды: --log[=debug|info|warn|error|off] — события JSON-строками в stderr (без значения — info)`;
+у любой команды: --log[=debug|info|warn|error|off] — события JSON-строками в stderr (без значения — info)
+(<схема> — v2.<имя> или просто <имя>: shop — это v2.shop)`;
 
 /** Команды CLI: остальное — USAGE с кодом 2 ещё до подключения. */
 const COMMANDS = new Set(['sync', 'types', 'load', 'maintain', 'mcp']);
@@ -64,18 +65,45 @@ function logFlag(argv: string[]): { args: string[]; log: LogOptions } {
   return { args, log: level === undefined ? {} : { log: stderrLog, logLevel: level } };
 }
 
+/** Флаги CLI для parseArgs. */
+const OPTIONS = {
+  dsn: { type: 'string' }, schema: { type: 'string' }, token: { type: 'string' }, 'api-key': { type: 'string' },
+  apply: { type: 'boolean' }, out: { type: 'string' }, help: { type: 'boolean' },
+  class: { type: 'string' }, duplicates: { type: 'string' }, existing: { type: 'string' }, 'commit-every': { type: 'string' },
+  initial: { type: 'boolean' }, write: { type: 'boolean' }, system: { type: 'boolean' }, check: { type: 'boolean' },
+} as const;
+
+/**
+ * Ошибка разбора аргументов parseArgs — русский текст каталога (английский текст Node — только для прочих ошибок);
+ * null — не ошибка разбора.
+ */
+function parseError(e: unknown): string | null {
+  const code = (e as { code?: unknown } | null)?.code;
+  const message = String((e as Error | null)?.message ?? '');
+  // имя флага или аргумент — первое в кавычках: «Unknown option '--aply'…», «Option '--dsn <value>' argument missing»
+  const quoted = (/'([^']*)'/.exec(message)?.[1] ?? '').split(' ')[0] ?? '';
+  if (code === 'ERR_PARSE_ARGS_UNKNOWN_OPTION') return lmsg('model.cli_unknown_flag', { flag: quoted });
+  if (code === 'ERR_PARSE_ARGS_INVALID_OPTION_VALUE') {
+    // строковому флагу не дали значения или булевому дали
+    return lmsg(/does not take/i.test(message) ? 'model.cli_flag_no_value' : 'model.cli_flag_needs_value', { flag: quoted });
+  }
+  if (code === 'ERR_PARSE_ARGS_UNEXPECTED_POSITIONAL') return lmsg('model.cli_unexpected_arg', { arg: quoted });
+  return null;
+}
+
 export async function main(argv: string[]): Promise<number> {
   const { args, log } = logFlag(argv);
-  const { values, positionals } = parseArgs({
-    args,
-    allowPositionals: true,
-    options: {
-      dsn: { type: 'string' }, schema: { type: 'string' }, token: { type: 'string' }, 'api-key': { type: 'string' },
-      apply: { type: 'boolean' }, out: { type: 'string' }, help: { type: 'boolean' },
-      class: { type: 'string' }, duplicates: { type: 'string' }, existing: { type: 'string' }, 'commit-every': { type: 'string' },
-      initial: { type: 'boolean' }, write: { type: 'boolean' }, system: { type: 'boolean' }, check: { type: 'boolean' },
-    },
-  });
+  let parsed: ReturnType<typeof parseArgs<{ args: string[]; allowPositionals: true; options: typeof OPTIONS }>>;
+  try {
+    parsed = parseArgs({ args, allowPositionals: true, options: OPTIONS });
+  } catch (e) {
+    const text = parseError(e);
+    if (text === null) throw e;
+    // код выхода 1 — как у прочих ошибок до подключения (прежде — необработанное исключение parseArgs)
+    console.error(`letopis: ${text}`);
+    return 1;
+  }
+  const { values, positionals } = parsed;
   const [cmd, arg] = positionals;
   // клиенты MCP передают строку подключения и токен окружением (план 1.1, §2.5) — только для этой команды
   if (cmd === 'mcp') {

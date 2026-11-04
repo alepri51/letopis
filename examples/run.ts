@@ -10,11 +10,16 @@
  * попадает в снимок — в `_runner/runner.ts`. Снимок `_snapshots/<глава>/<NN>-<имя>.json` — с метками вместо uuid и
  * времени (его сверяет --check), рядом `.real.json` — тот же прогон с настоящими значениями, только для показа.
  * Расхождение с --check = изменилось поведение библиотеки, примера или текста.
+ *
+ * Кроме шагов, каждый пример запускается и как самостоятельная программа — тот текст, что на странице
+ * (`_runner/program.ts`): её вывод — поле `output` снимка (в `.json` — с метками, в `.real.json` — как напечатано,
+ * вместе с `exitCode`). Программа упала или ничего не напечатала — пример не прошёл.
  */
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join, relative, dirname, sep } from 'node:path';
 import { ensureDatabase, adminSql } from './_runner/db.ts';
 import { ROOT, EXAMPLES, SNAPSHOTS, walk, runExample, firstDiff } from './_runner/runner.ts';
+import { cleanPrograms, runProgram, type ProgramRun } from './_runner/program.ts';
 
 const args = process.argv.slice(2);
 const check = args.includes('--check');
@@ -27,6 +32,7 @@ if (!files.length) {
 }
 await ensureDatabase();
 const admin = adminSql();
+cleanPrograms();
 let failed = 0;
 for (const file of files) {
   const t0 = Date.now();
@@ -38,8 +44,18 @@ for (const file of files) {
     console.log(`✗ ${relative(EXAMPLES, file)}: прогон упал — ${(e as Error).stack}`);
     continue;
   }
+  // самостоятельная программа: тот же текст, что на странице, отдельным процессом
+  let program: ProgramRun;
+  try {
+    program = await runProgram(file, admin);
+  } catch (e) {
+    program = { output: '', labeled: '', exitCode: null, failures: [`программа не запустилась — ${(e as Error).stack}`] };
+  }
+  res.failures.push(...program.failures);
+  const snapshot = { ...(res.snapshot as object), output: program.labeled };
+  const real = { ...(res.real as object), output: program.output, exitCode: program.exitCode };
   const out = join(SNAPSHOTS, `${res.id}.json`);
-  const json = JSON.stringify(res.snapshot, null, 2) + '\n';
+  const json = JSON.stringify(snapshot, null, 2) + '\n';
   if (check) {
     const old = existsSync(out) ? readFileSync(out, 'utf8').replace(/\r\n/g, '\n') : null;
     if (old !== json) res.failures.push(old === null ? 'снимка нет — запустите без --check' : `снимок расходится с ${relative(ROOT, out)}: ${firstDiff(old, json)}`);
@@ -47,7 +63,7 @@ for (const file of files) {
     mkdirSync(dirname(out), { recursive: true });
     writeFileSync(out, json);
     // тот же снимок с реальными значениями (id, время, токены) — только для показа, сверка его не трогает
-    writeFileSync(out.replace(/\.json$/, '.real.json'), JSON.stringify(res.real, null, 2) + '\n');
+    writeFileSync(out.replace(/\.json$/, '.real.json'), JSON.stringify(real, null, 2) + '\n');
   }
   const ms = Date.now() - t0;
   if (res.failures.length) {

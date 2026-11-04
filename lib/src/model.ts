@@ -32,7 +32,11 @@ type TargetName<T> = T extends string ? T : T extends { readonly name: infer N e
  */
 type MinRequired<O> = O extends { min: infer N } ? (N extends 0 | undefined ? false : number extends N ? boolean : true) : false;
 
-/** Конец класса: `one(X)`, `one(A, B)`, `many(X, { min, max })`. `T` — имена классов целей (только для типов). */
+/**
+ * Конец класса: `one(X)`, `one(A, B)`, `many(X, { min, max })`. Параметры типа: `Many` — конец-список, `Required` —
+ * обязателен, `T` — имена классов целей (только для типов). `min`, `max`, `onDeleteRule`, `metaData` необязательны:
+ * не заданы — `undefined`.
+ */
 export class End<Many extends boolean = boolean, Required extends boolean = boolean, T extends string = string> {
   readonly targets: readonly Target[];
   readonly many: Many;
@@ -41,7 +45,7 @@ export class End<Many extends boolean = boolean, Required extends boolean = bool
   readonly max?: number;
   readonly onDeleteRule?: OnDelete;
   readonly metaData?: Record<string, unknown>;
-  /** Только для вывода типов: имена классов целей — строгие переходы и слоты цепочек (план 2.0, этап 4, п. 1). */
+  /** Только для вывода типов: имена классов целей — строгие переходы и шаги ролей цепочек. */
   declare readonly __targets?: T;
 
   constructor(targets: readonly Target[], opts: { many: Many; required: Required; min?: number; max?: number; onDelete?: OnDelete; meta?: Record<string, unknown> }) {

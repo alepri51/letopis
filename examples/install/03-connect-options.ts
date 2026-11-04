@@ -4,7 +4,7 @@ import { hub } from 'letopis/model';
 import { z } from 'zod';
 import { example } from '../_shared/example.ts';
 
-const Product = hub('Product', { fields: { title: z.string(), price: z.number().int().min(0) } });
+const Product = hub('Product', { title: z.string(), price: z.number().int().min(0) });
 
 export default example({
   title: 'Опции connect(): наблюдение за запросами, пул, сигналы, кэш, модели',

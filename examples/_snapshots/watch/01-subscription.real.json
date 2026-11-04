@@ -1,25 +1,5 @@
 {
   "id": "watch/01-subscription",
-  "context": {
-    "schema": "v2.g_watch_01_subscription",
-    "dsn": {
-      "admin": "postgres://postgres:test@localhost:15433/letopis",
-      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
-    },
-    "user": {
-      "login": "anna@romashka.ru",
-      "password": "Ромашка-2026!"
-    },
-    "up": {
-      "serviceKey": "lts_1587f813bbdd3bb6e2a86c37d1db9e02efd2654a3d238ca67a6f580a33533a65",
-      "tenant": {
-        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "7152fcf5e1a30de6ea7f75b7bd8222f5198f4b921baef5a76a6a0dcfbda6ef16",
-        "created": true
-      }
-    }
-  },
   "initial": {
     "entity": [],
     "log": [],
@@ -62,7 +42,7 @@
     {
       "result": [
         {
-          "at": "2026-11-03T19:06:54.734203+00:00",
+          "at": "2026-11-04T05:16:14.959225+00:00",
           "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
           "op": "update",
           "rev": 2,
@@ -79,7 +59,7 @@
           "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "agent": "76ea99e5-502d-565e-b4a2-e3268120cafb"
+          "agent": "ebe0f141-b656-5eac-a462-84812a8b8756"
         }
       ],
       "error": null,
@@ -122,5 +102,7 @@
       "secret": [],
       "signals": []
     }
-  ]
+  ],
+  "output": "Шаг 1. Магазин и два товара\n\"готово\"\n\nШаг 2. Подписка с начала журнала\n[\n  {\n    \"op\": \"create\",\n    \"title\": \"Чайник\",\n    \"rev\": 1\n  },\n  {\n    \"op\": \"create\",\n    \"title\": \"Кружка\",\n    \"rev\": 1\n  }\n]\n\nШаг 3. Пока подписки нет — изменение\n[\n  {\n    \"at\": \"2026-11-04T05:16:16.537982+00:00\",\n    \"id\": \"099dcd72-c15a-5fe8-a95f-70da339186f0\",\n    \"op\": \"update\",\n    \"rev\": 2,\n    \"data\": {\n      \"sku\": \"K-1\",\n      \"price\": 1990,\n      \"title\": \"Чайник\"\n    },\n    \"tags\": [],\n    \"class\": \"Product\",\n    \"links\": {\n      \"Shop\": \"820d0964-969f-5ad6-bc38-f38710912f70\"\n    },\n    \"owner\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n    \"author\": \"3defbabb-a94d-5359-8463-dc947de193e1\",\n    \"tenant\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n    \"agent\": \"95687ed1-6de2-5069-8596-9d5eb9863c28\"\n  }\n]\n\nШаг 4. Продолжить с курсора\n{\n  \"op\": \"update\",\n  \"title\": \"Чайник\",\n  \"price\": 1990,\n  \"rev\": 2\n}\n\nШаг 5. Цикл for await, отставание и выход из цикла\n{\n  \"события\": [\n    \"create Чайник\",\n    \"create Кружка\",\n    \"update Чайник\"\n  ],\n  \"ждать нечего (lag = 0)\": true,\n  \"после break: done\": true\n}",
+  "exitCode": 0
 }

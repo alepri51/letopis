@@ -1,25 +1,5 @@
 {
   "id": "install/03-connect-options",
-  "context": {
-    "schema": "v2.g_install_03_connect_options",
-    "dsn": {
-      "admin": "postgres://postgres:test@localhost:15433/letopis",
-      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
-    },
-    "user": {
-      "login": "anna@romashka.ru",
-      "password": "Ромашка-2026!"
-    },
-    "up": {
-      "serviceKey": "lts_406bf728c4a138d6c20a8355b750777d77154b6843e6001b9630eb02a32c17e0",
-      "tenant": {
-        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "d69981e148aee7f4d990a65ab70578218d8b7331e29bc97d12c1a37f2ae1265f",
-        "created": true
-      }
-    }
-  },
   "initial": {
     "entity": [],
     "log": [],
@@ -95,7 +75,7 @@
     },
     {
       "result": {
-        "tenant": "c5c8081a-3663-5c1a-9711-70a7cbb4d876",
+        "tenant": "77303783-5532-59b3-a128-a40aa1c19528",
         "schema": "v2.g_install_03_connect_options"
       },
       "error": null,
@@ -140,5 +120,7 @@
       "secret": [],
       "signals": []
     }
-  ]
+  ],
+  "output": "Шаг 1. Класс для опытов\n\n\nШаг 2. onQuery: что выполнила каждая цепочка\n[\n  {\n    \"mode\": \"rows\",\n    \"classes\": [\n      \"Product\"\n    ],\n    \"rows\": 1,\n    \"slow\": true,\n    \"ms\": \"≥ 0\"\n  },\n  {\n    \"mode\": \"count\",\n    \"classes\": [\n      \"Product\"\n    ],\n    \"rows\": 1,\n    \"slow\": true,\n    \"ms\": \"≥ 0\"\n  }\n]\n\nШаг 3. Пул, сигналы, продление сессии\n[\n  {\n    \"price\": 2500,\n    \"title\": \"Чайник\"\n  }\n]\n\nШаг 4. Кэш результатов\n{\n  \"hits\": 1,\n  \"misses\": 1,\n  \"stores\": 1\n}\n\nШаг 5. Модели — для типов, service — то же, что apiKey\n{\n  \"tenant\": \"ab7de4b4-5885-51e5-88fc-7a769f736d7d\",\n  \"schema\": \"v2.example_install_03_connect_options\"\n}\n\nШаг 6. Интервал обслуживания проверяется сразу\n{\n  \"0\": \"invalid_data\",\n  \"-5\": \"invalid_data\",\n  \"NaN\": \"invalid_data\",\n  \"'30d'\": \"invalid_data\",\n  \"'1d'\": \"подключено\"\n}\n\nШаг 7. owner — имя роли-владельца для администраторского подключения\n{\n  \"tenant\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\"\n}\n\nШаг 8. Закрыть подключение\n\"закрыто\"",
+  "exitCode": 0
 }

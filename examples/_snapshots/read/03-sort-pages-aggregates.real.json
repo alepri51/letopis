@@ -1,25 +1,5 @@
 {
   "id": "read/03-sort-pages-aggregates",
-  "context": {
-    "schema": "v2.g_read_03_sort_pages_aggregates",
-    "dsn": {
-      "admin": "postgres://postgres:test@localhost:15433/letopis",
-      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
-    },
-    "user": {
-      "login": "anna@romashka.ru",
-      "password": "Ромашка-2026!"
-    },
-    "up": {
-      "serviceKey": "lts_1acb8c5279a9bafcabcc93561b395f812322ca18e9d9c349c16a22d3a169bcbb",
-      "tenant": {
-        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "aa50a5e5f6d3856fdfdb742316d0d83e981b3f07793eafb149bd9a49c570706c",
-        "created": true
-      }
-    }
-  },
   "initial": {
     "entity": [],
     "log": [],
@@ -158,5 +138,7 @@
       "secret": [],
       "signals": []
     }
-  ]
+  ],
+  "output": "Шаг 1. Данные магазина\n\"готово\"\n\nШаг 2. Первая страница: два самых дорогих\n[\n  {\n    \"title\": \"Чайник\",\n    \"price\": 2500\n  },\n  {\n    \"title\": \"Пуэр\",\n    \"price\": 1500\n  }\n]\n\nШаг 3. Следующая страница — после последней строки\n{\n  \"cursor\": {\n    \"v\": 1500,\n    \"id\": \"f131b655-37ba-56ed-9572-de867c43ba2a\",\n    \"rev\": 1\n  },\n  \"page2\": [\n    {\n      \"title\": \"Сенча\",\n      \"price\": 900\n    },\n    {\n      \"title\": \"Кружка\",\n      \"price\": 400\n    }\n  ]\n}\n\nШаг 4. offset — сдвиг на N строк\n[\n  \"Кружка\"\n]\n\nШаг 5. Неверный курсор — отказ до запроса\nотказ, как и задумано: letopis: invalid_query: after(cursor): значение курсора \"дорого\" не подходит к sort('data.price') — ожидалось: число или null; курсор снят с другого поля? Нужен cursorOf(строка, 'data.price')\n\nШаг 6. Сумма, среднее, минимум, максимум\n{\n  \"сумма строк заказа A-1\": 3400,\n  \"средняя цена в «Ромашке»\": 1633.3333333333333,\n  \"самый дешёвый\": 400,\n  \"самый дорогой\": 2500,\n  \"сумма по пустому\": null\n}\n\nШаг 7. Минимум и максимум логического поля\n{\n  \"min(done)\": false,\n  \"max(done)\": true\n}\n\nШаг 8. Группировка countBy\n{\n  \"заказы по статусу\": {\n    \"new\": 1,\n    \"paid\": 1\n  },\n  \"самый частый статус\": {\n    \"new\": 1\n  }\n}",
+  "exitCode": 0
 }
