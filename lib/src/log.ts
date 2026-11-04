@@ -45,9 +45,13 @@ const SECRET_WORDS = new Set(['password', 'passwords', 'passwd', 'passphrase', '
   'apikey', 'apikeys', 'servicekey', 'authorization', 'cookie', 'cookies', 'credential', 'credentials', 'totp', 'otp']);
 const SECRET_EXACT = new Set(['hash', 'material']);
 const SECRET_PAIR = new Set(['api', 'service']);
+const SECRET_STEM = /passw|passphrase|pwd|secret|token|api[-_]?keys?|service[-_]?keys?|credential|cookie|authorization/i;
 const SECRET_KEY = {
   test(key: string): boolean {
     if (SECRET_EXACT.has(key.toLowerCase())) return true;
+    // корни секретов подстрокой — и в склеенных именах (dbpassword, apitoken, x-api-key); голое «pass» сюда не входит,
+    // поэтому bypass, passport, compass секретами не считаются
+    if (SECRET_STEM.test(key)) return true;
     const words = key.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2').toLowerCase().split(/[^a-z]+/);
     return words.some((w, i) => SECRET_WORDS.has(w) || ((w === 'key' || w === 'keys') && i > 0 && SECRET_PAIR.has(words[i - 1]!)));
   },
