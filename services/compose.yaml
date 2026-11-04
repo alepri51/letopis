@@ -4,6 +4,12 @@
 #
 # Сайт с песочницей — http://127.0.0.1:8080. Все порты открыты только на 127.0.0.1: стенд для своей машины,
 # наружу его не публикуют. Порт базы 15440 не пересекается с тестовыми 15433 и 15432.
+#
+# Порты на машине задают переменные (по умолчанию — как ниже): PG_PORT=15440, GUIDE_PORT=8080, SALON_PORT=8081,
+# WALLET_PORT=8082, HELPDESK_PORT=8083, DOCUMENTS_PORT=8084. Второй стенд рядом с первым — своё имя проекта и свои
+# порты, например:
+#
+#   SALON_PORT=18081 PG_PORT=25440 docker compose -p my-letopis -f services/compose.yaml up --build salon
 name: letopis-guide
 
 services:
@@ -12,7 +18,7 @@ services:
     environment:
       POSTGRES_PASSWORD: guide
       POSTGRES_DB: letopis
-    ports: ['127.0.0.1:15440:5432']
+    ports: ['127.0.0.1:${PG_PORT:-15440}:5432']
     volumes: ['pgdata:/var/lib/postgresql']
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U postgres -d letopis']
@@ -29,7 +35,7 @@ services:
       # ('0' — выключить; подробности — страница «Песочница»)
       SANDBOX: '1'
       ENTITY_DSN: postgres://postgres:guide@pg:5432/letopis
-    ports: ['127.0.0.1:8080:8080']
+    ports: ['127.0.0.1:${GUIDE_PORT:-8080}:8080']
     depends_on:
       pg:
         condition: service_healthy
@@ -43,7 +49,7 @@ services:
       APP_DSN: postgres://salon_app:salon-app-secret@pg:5432/letopis
       PORT: '8081'
       HOST: 0.0.0.0
-    ports: ['127.0.0.1:8081:8081']
+    ports: ['127.0.0.1:${SALON_PORT:-8081}:8081']
     depends_on:
       pg:
         condition: service_healthy
@@ -57,7 +63,7 @@ services:
       APP_DSN: postgres://wallet_app:wallet-app-secret@pg:5432/letopis
       PORT: '8082'
       HOST: 0.0.0.0
-    ports: ['127.0.0.1:8082:8082']
+    ports: ['127.0.0.1:${WALLET_PORT:-8082}:8082']
     depends_on:
       pg:
         condition: service_healthy
@@ -73,7 +79,7 @@ services:
       HOST: 0.0.0.0
       # демо-почта /mail показывает коды входа всем, кто её открыл: только для своей машины ('0' — выключить)
       DEMO_MAIL: '1'
-    ports: ['127.0.0.1:8083:8083']
+    ports: ['127.0.0.1:${HELPDESK_PORT:-8083}:8083']
     depends_on:
       pg:
         condition: service_healthy
@@ -87,7 +93,7 @@ services:
       APP_DSN: postgres://documents_app:documents-app-secret@pg:5432/letopis
       PORT: '8084'
       HOST: 0.0.0.0
-    ports: ['127.0.0.1:8084:8084']
+    ports: ['127.0.0.1:${DOCUMENTS_PORT:-8084}:8084']
     depends_on:
       pg:
         condition: service_healthy

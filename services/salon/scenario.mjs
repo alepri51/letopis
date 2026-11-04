@@ -57,6 +57,8 @@ try {
   await call(cookie, `/api/bookings/${mine.id}/cancel`, {});
   const afterCancel = (await call(cookie, `/api/schedule?day=${day}`)).data;
   check(afterCancel.cancelled.some((b) => b.id === mine.id), 'отмена: бронь в списке отменённых');
+  const twice = await call(cookie, `/api/bookings/${mine.id}/cancel`, {});
+  check(twice.status === 404, 'повторная отмена (брони уже нет) — 404, а не «готово»');
   const hist = (await call(cookie, `/api/bookings/${mine.id}/history`)).data;
   // id брони — из ключа (мастер, время начала): повторный прогон на том же слоте продолжает историю прежнего
   // объекта, поэтому сверяем последние две версии

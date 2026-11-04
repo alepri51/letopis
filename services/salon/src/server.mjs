@@ -152,7 +152,9 @@ export async function createApp() {
     }
   });
   app.post('/api/bookings/:id/cancel', auth, async (req, res) => {
-    await act(req.s, 'Отменить бронь', (lines) => cancel(userDb(req.s), req.params.id, lines));
+    const rows = await act(req.s, 'Отменить бронь', (lines) => cancel(userDb(req.s), req.params.id, lines));
+    // чужую (другого салона) или уже отменённую бронь права не показывают: удалять нечего — 404, а не «готово»
+    if (!rows.length) return res.status(404).json({ error: 'Брони нет: её уже отменили или она не из вашего салона' });
     res.json({ ok: true });
   });
   app.post('/api/bookings/:id/restore', auth, async (req, res) => {
