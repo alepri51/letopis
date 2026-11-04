@@ -12,6 +12,7 @@
 import { createHmac, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import { lerr } from './errors.js';
+import { shortIntervalMs } from './admin.js';
 import type { Executor } from './tx.js';
 import type { CallSpec } from './log.js';
 
@@ -99,7 +100,41 @@ type AccountRef = string | { id: string };
 const accId = (a: AccountRef): string => (typeof a === 'object' ? a.id : a);
 /** Логин без крайних пробелов (план 2.1, A12): « anna » и «anna» — один логин; не строка — как есть (отказ даст база). */
 const trimLogin = (v: unknown): string => (typeof v === 'string' ? v.trim() : (v as string));
-const ttlOf = (sec: number | undefined): string | null => (sec === undefined ? null : `${Math.round(sec)} seconds`);
+/**
+ * Срок ttl (3.0.1) — интервал для базы: число секунд, короткая форма как у connect({ maintain }) ('30s', '15m', '2h',
+ * '1d') или строка-интервал PostgreSQL ('15 minutes') — её разбирает база, ошибку разбора переводит ttlGuard. Не задан —
+ * null (срок по умолчанию). Не число больше нуля, пустая строка, другой тип — invalid_data (access.bad_ttl).
+ */
+export function ttlOf(v: unknown, where: string): string | null {
+  if (v === undefined || v === null) return null;
+  if (typeof v === 'number') {
+    if (Number.isFinite(v) && v > 0) return `${Math.max(1, Math.round(v))} seconds`;
+  } else if (typeof v === 'string' && v.trim() !== '') {
+    const ms = shortIntervalMs(v);
+    if (ms === null) return v.trim();
+    if (ms > 0) return `${ms / 1000} seconds`;
+  }
+  throw lerr('access.bad_ttl', { where, value: shownTtl(v) });
+}
+
+const shownTtl = (v: unknown): string =>
+  (typeof v === 'string' ? `'${v}'` : typeof v === 'number' || typeof v === 'boolean' || v == null ? String(v) : typeof v);
+
+/**
+ * Строка ttl, которую не принял разбор интервала PostgreSQL (22007 — не интервал, 22008 и 22015 — вне диапазона), —
+ * invalid_data access.bad_ttl вместо сырой ошибки базы; прочие ошибки — как есть.
+ */
+export async function ttlGuard<T>(run: Promise<T>, ttl: unknown, where: string): Promise<T> {
+  try {
+    return await run;
+  } catch (e) {
+    const code = (e as { code?: unknown } | null)?.code;
+    if (typeof ttl === 'string' && (code === '22007' || code === '22008' || code === '22015')) {
+      throw lerr('access.bad_ttl', { where, value: shownTtl(ttl) }, { cause: e });
+    }
+    throw e;
+  }
+}
 
 /** Успешный вход: аккаунт и токен новой сессии. */
 export interface LoginResult {
@@ -139,6 +174,10 @@ export interface Credential {
   expires_at: string | null;
 }
 
+/**
+ * Вход, креды и сессии (`db.auth`). Срок `ttl` у входа, ключей, кодов и сессий — число секунд или строка: короткая форма
+ * `'15m'`/`'2h'`/`'30s'`/`'1d'` либо интервал PostgreSQL `'15 minutes'`; иное — `invalid_data`.
+ */
 export interface AuthApi {
   /** Пароль (и любой «логин/пароль»: `kind` — `PASSWORD`, `EMAIL`, …): создать или заменить. Смена гасит остальные сессии аккаунта. */
   setPassword(a: { account: AccountRef; identifier: string; password: string; kind?: string; confirmed?: boolean; keepCurrent?: boolean }): Promise<string>;
@@ -147,9 +186,9 @@ export interface AuthApi {
    * верного пароля база проверяет код TOTP аккаунта (право `auth.totp`; счётчик неудач и блокировка — общие
    * с `verifyTotp()`): верный — сессия со способами `[kind, 'TOTP']`, неверный или повторный — `null`.
    */
-  verifyPassword(a: { identifier: string; password: string; kind?: string; requireConfirmed?: boolean; ttl?: number; totp?: string }): Promise<LoginResult | null>;
+  verifyPassword(a: { identifier: string; password: string; kind?: string; requireConfirmed?: boolean; ttl?: number | string; totp?: string }): Promise<LoginResult | null>;
   /** Ключ API `lts_…`: отдаётся один раз. Себе сервис выпускает ключ сам по сессии своего ключа. */
-  issueApiKey(a: { account: AccountRef; name?: string; ttl?: number }): Promise<{ key: string; id: string }>;
+  issueApiKey(a: { account: AccountRef; name?: string; ttl?: number | string }): Promise<{ key: string; id: string }>;
   verifyApiKey(key: string): Promise<LoginResult | null>;
   /** Пара ключ + секрет: секрет отдаётся один раз. Себе сервис выпускает пару сам по сессии своего ключа. */
   issueKeySecret(a: { account: AccountRef; name?: string }): Promise<{ key: string; secret: string; id: string }>;
@@ -162,7 +201,7 @@ export interface AuthApi {
   verifyTotp(a: { account: AccountRef; code: string; window?: number }): Promise<boolean>;
   totpEnabled(account: AccountRef): Promise<boolean>;
   /** Одноразовый код для доставки сервисом (право `auth.otp`). */
-  issueOtp(a: { account: AccountRef; identifier: string; kind?: string; ttl?: number; digits?: number; maxAttempts?: number }): Promise<{ code: string }>;
+  issueOtp(a: { account: AccountRef; identifier: string; kind?: string; ttl?: number | string; digits?: number; maxAttempts?: number }): Promise<{ code: string }>;
   /**
    * Вход по одноразовому коду: верный код открывает новую сессию. Код сгорает после верного ввода и после исчерпания
    * неверных попыток — их число задаёт `issueOtp({ maxAttempts })`.
@@ -178,7 +217,7 @@ export interface AuthApi {
    * сессию. Вызывает сервис с правами `auth.identity` и `auth.session`, когда уже сам проверил токен внешнего сервиса;
    * `totp` — как у `verifyPassword()`.
    */
-  lookup(a: { kind: string; identifier: string; requireConfirmed?: boolean; ttl?: number; totp?: string }): Promise<LoginResult | null>;
+  lookup(a: { kind: string; identifier: string; requireConfirmed?: boolean; ttl?: number | string; totp?: string }): Promise<LoginResult | null>;
   /** Способы входа (креды) аккаунта — без хэшей и секретов. */
   credentials(account: AccountRef): Promise<Credential[]>;
   /**
@@ -189,8 +228,11 @@ export interface AuthApi {
   revokeCredential(id: string, opts?: { keepCurrent?: boolean }): Promise<boolean>;
   /** Признаки креда `confirmed` и `enabled` (право `auth.credential`). */
   setFlags(id: string, flags: { confirmed?: boolean; enabled?: boolean }): Promise<boolean>;
-  /** Сессия пользователя для другого процесса (право `auth.session`); срок — `ttl` в секундах, по умолчанию 7 суток. */
-  sessionFor(account: AccountRef, opts?: { ttl?: number }): Promise<string>;
+  /**
+   * Сессия пользователя для другого процесса (право `auth.session`). Срок `ttl` — число секунд или строка: короткая форма
+   * `'15m'`/`'2h'`/`'30s'`/`'1d'` либо интервал PostgreSQL `'15 minutes'`; по умолчанию 7 суток.
+   */
+  sessionFor(account: AccountRef, opts?: { ttl?: number | string }): Promise<string>;
   /**
    * Сведения о сессии по её токену — для сервиса, который держит токен пользователя (например, в cookie): чья это
    * сессия, в каком арендаторе она работает, цело ли там членство, когда истечёт, когда и как был вход. Подключение
@@ -203,8 +245,11 @@ export interface AuthApi {
    * `no_session` — у подключения нет действующей сессии.
    */
   session(token: string): Promise<SessionInfo | null>;
-  /** Продлить текущую сессию; новый срок — от сейчас. */
-  refresh(opts?: { ttl?: number }): Promise<string>;
+  /**
+   * Продлить текущую сессию; новый срок — от сейчас. `ttl` — число секунд или строка: короткая форма `'15m'`/`'2h'`/`'30s'`/`'1d'`
+   * либо интервал PostgreSQL `'15 minutes'`; по умолчанию 7 суток.
+   */
+  refresh(opts?: { ttl?: number | string }): Promise<string>;
   /**
    * Выход. Без аргумента — погасить сессию этого подключения. С токеном — погасить сессию пользователя по её токену
    * (например, из cookie веб-сервиса): так сервис выводит пользователя, не подключаясь по его токену; нужно право
@@ -241,16 +286,17 @@ export function makeAuth(S: string, exec: Executor, onSwitch: () => Promise<void
   // Вход после первой проверки. Код TOTP проверяет база той же функцией, что verifyTotp (право auth.totp,
   // окно ±1 шаг, повтор шага, счётчик неудач и блокировка), секрет из базы не выходит; способ TOTP
   // сессия получает только после удачи. Без кода — сессия без отметки TOTP, как раньше.
-  const login = async (account: string | null | undefined, ttl: number | undefined, methods: string[],
-    totp?: string | null): Promise<LoginResult | null> => {
+  const login = async (account: string | null | undefined, ttl: unknown, methods: string[],
+    totp?: string | null, where = 'auth'): Promise<LoginResult | null> => {
+    const interval = ttlOf(ttl, where);
     if (!account) return null;
     if (totp != null) {
       const v = await one<{ ok: boolean }>(`select ${S}.auth_verify_totp($1::uuid, $2::text, 1) as ok`, [account, String(totp)]);
       if (!v.ok) return null;
       methods = [...methods, 'TOTP'];
     }
-    const r = await one<{ t: string }>(`select ${S}.issue_session($1::uuid, coalesce($2::interval, interval '7 days'), $3::text[]) as t`,
-      [account, ttlOf(ttl), methods]);
+    const r = await ttlGuard(one<{ t: string }>(`select ${S}.issue_session($1::uuid, coalesce($2::interval, interval '7 days'), $3::text[]) as t`,
+      [account, interval, methods]), ttl, where);
     return { account, token: r.t };
   };
   return {
@@ -261,6 +307,7 @@ export function makeAuth(S: string, exec: Executor, onSwitch: () => Promise<void
       return r.id;
     },
     async verifyPassword(a) {
+      ttlOf(a.ttl, 'verifyPassword');
       const get = async (ident: unknown) => (await exec.run((q) => q.unsafe(`select account, hash, confirmed from ${S}.auth_password_get($1, $2)`,
         [ident as string, a.kind ?? 'PASSWORD'])))[0] as unknown as { account: string; hash: string; confirmed: boolean } | undefined;
       // логин без крайних пробелов (план 2.1, A12); кред, записанный до 2.1 с пробелами, находится по логину как есть
@@ -269,10 +316,11 @@ export function makeAuth(S: string, exec: Executor, onSwitch: () => Promise<void
       if (!cred) return dummyVerify(a.password).then(() => null);
       if (!(await verifyHash(a.password, cred.hash))) return null;
       if (!cred.confirmed && a.requireConfirmed !== false) return null;
-      return login(cred.account, a.ttl, [a.kind ?? 'PASSWORD'], a.totp);
+      return login(cred.account, a.ttl, [a.kind ?? 'PASSWORD'], a.totp, 'verifyPassword');
     },
     async issueApiKey(a) {
-      return one(`select key, id from ${S}.auth_issue_apikey($1::uuid, $2, $3::interval)`, [accId(a.account), a.name ?? null, ttlOf(a.ttl)]);
+      return ttlGuard(one(`select key, id from ${S}.auth_issue_apikey($1::uuid, $2, $3::interval)`,
+        [accId(a.account), a.name ?? null, ttlOf(a.ttl, 'issueApiKey')]), a.ttl, 'issueApiKey');
     },
     async verifyApiKey(key) {
       return (await one<{ r: LoginResult | null }>(`select ${S}.auth_login_apikey($1) as r`, [key])).r;
@@ -297,8 +345,11 @@ export function makeAuth(S: string, exec: Executor, onSwitch: () => Promise<void
       return (await one<{ ok: boolean }>(`select ${S}.auth_totp_enabled($1::uuid) as ok`, [accId(account)])).ok;
     },
     async issueOtp(a) {
-      const r = await one<{ c: string }>(`select ${S}.auth_issue_otp($1::uuid, $2, $3, coalesce($4::interval, interval '10 minutes'), $5, $6) as c`,
-        [accId(a.account), a.identifier, a.kind ?? 'OTP', ttlOf(a.ttl), a.digits ?? 6, a.maxAttempts ?? 5]);
+      // 3.0.1: число попыток вне 1–10 — отказ, а не молчаливое приведение к пределу в базе
+      const max = a.maxAttempts;
+      if (max !== undefined && !(Number.isInteger(max) && max >= 1 && max <= 10)) throw lerr('access.bad_max_attempts', { value: shownTtl(max) });
+      const r = await ttlGuard(one<{ c: string }>(`select ${S}.auth_issue_otp($1::uuid, $2, $3, coalesce($4::interval, interval '10 minutes'), $5, $6) as c`,
+        [accId(a.account), a.identifier, a.kind ?? 'OTP', ttlOf(a.ttl, 'issueOtp'), a.digits ?? 6, max ?? 5]), a.ttl, 'issueOtp');
       return { code: r.c };
     },
     async verifyOtp(a) {
@@ -309,8 +360,9 @@ export function makeAuth(S: string, exec: Executor, onSwitch: () => Promise<void
         [accId(a.account), a.kind, a.identifier, (a.meta ?? {}) as never, a.confirmed ?? false])).id;
     },
     async lookup(a) {
+      ttlOf(a.ttl, 'lookup');
       const r = await one<{ a: string | null }>(`select ${S}.auth_lookup($1, $2, $3) as a`, [a.kind, a.identifier, a.requireConfirmed ?? true]);
-      return login(r.a, a.ttl, [a.kind], a.totp);
+      return login(r.a, a.ttl, [a.kind], a.totp, 'lookup');
     },
     async credentials(account) {
       return exec.run((q) => q.unsafe(`select * from ${S}.auth_credentials($1::uuid)`, [accId(account)])) as unknown as Promise<Credential[]>;
@@ -322,7 +374,7 @@ export function makeAuth(S: string, exec: Executor, onSwitch: () => Promise<void
       return (await one<{ ok: boolean }>(`select ${S}.auth_set_flags($1::uuid, $2, $3) as ok`, [id, flags.confirmed ?? null, flags.enabled ?? null])).ok;
     },
     async sessionFor(account, opts) {
-      return (await login(accId(account), opts?.ttl, ['SERVICE']))!.token;
+      return (await login(accId(account), opts?.ttl, ['SERVICE'], undefined, 'sessionFor'))!.token;
     },
     async session(token) {
       const r = (await one<{ r: SessionInfo | null }>(`select ${S}.auth_session_info($1) as r`, [token])).r;
@@ -330,7 +382,8 @@ export function makeAuth(S: string, exec: Executor, onSwitch: () => Promise<void
       return r && { account: r.account, tenant: r.tenant, member: r.member, expiresAt: r.expiresAt, loginAt: r.loginAt, methods: r.methods };
     },
     async refresh(opts) {
-      return (await one<{ e: string }>(`select ${S}.auth_refresh(coalesce($1::interval, interval '7 days')) as e`, [ttlOf(opts?.ttl)])).e;
+      return (await ttlGuard(one<{ e: string }>(`select ${S}.auth_refresh(coalesce($1::interval, interval '7 days')) as e`,
+        [ttlOf(opts?.ttl, 'refresh')]), opts?.ttl, 'refresh')).e;
     },
     async revoke(token) {
       // с токеном — выход пользователя по токену (план 2.1, A3): право auth.session, как у session(token)

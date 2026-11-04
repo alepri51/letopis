@@ -572,7 +572,7 @@ function withLinks(db: Db, cls: string, c: Chain, links: unknown): Chain {
 
 /** Хэш операции удаления: схема, арендатор, класс, цели и превью каскада — подтверждение человека привязано к нему. */
 function operationOf(db: Db, cls: string, targets: string[], preview: Row[]): string {
-  const rows = preview.map((r) => [r.id, r.class, r.rev, r.$action ?? null, r.$depth ?? null]).sort((x, y) => (String(x[0]) < String(y[0]) ? -1 : 1));
+  const rows = preview.map((r) => [r.id, r.class, r.rev, r.$action ?? null, r.$depth ?? null, r.$count ?? null]).sort((x, y) => (String(x[0]) < String(y[0]) ? -1 : 1));
   return createHash('sha256').update(JSON.stringify({ schema: db.schema, tenant: db.tenant, cls, targets: [...targets].sort(), rows })).digest('hex');
 }
 
@@ -688,14 +688,17 @@ async function write(db: Db, a: Args, ctx: ServerContext, sdk: Sdk, server: McpS
   }
   if (a.operation !== undefined && a.operation !== op) throw lerr('mcp.delete_operation_changed', undefined, { detail: { operation: op } });
   if (!preview.some((r) => (r.$depth ?? 0) === 0)) throw lerr('mcp.delete_nothing');
-  if (preview.some((r) => r.$action === 'restrict')) throw lerr('mcp.delete_restricted', undefined, { detail: { preview } });
-  const count = (act: string) => preview.filter((r) => r.$action === act).length;
+  // мешают и скрытые правами строки: сводка $hidden 'restrict' (3.0.1)
+  if (preview.some((r) => r.$action === 'restrict' || r.$hidden === 'restrict')) throw lerr('mcp.delete_restricted', undefined, { detail: { preview } });
+  // сводка скрытых строк считается их числом ($count)
+  const count = (act?: string) => preview.filter((r) => act === undefined || r.$action === act || r.$hidden === act)
+    .reduce((n, r) => n + (r.$action === 'hidden' ? r.$count ?? 0 : 1), 0);
   // окно видит человек: каноническое имя класса (имя — идентификатор по метасхеме) и id целей; алиас и meta — текст
   // арендатора, в окно они не попадают (ревью безопасности №2)
   const first = targets.slice(0, CONFIRM_IDS).join(', ');
   const shown = targets.length > CONFIRM_IDS ? lmsg('mcp.delete_ids_more', { ids: first, more: targets.length - CONFIRM_IDS }) : first;
   const message = lmsg('mcp.delete_message', {
-    count: targets.length, cls: db.registry.resolve(cls).name, ids: shown, rows: preview.length,
+    count: targets.length, cls: db.registry.resolve(cls).name, ids: shown, rows: count(),
     deleted: count('delete'), unset: count('unset'), operation: op.slice(0, 12),
   });
   const c = await confirmDelete(sdk, server, ctx, op, message, who);
@@ -755,7 +758,7 @@ async function checkCredentials(db: Db, o: Limits): Promise<Actor> {
 
 /**
  * Сервер MCP для одного пользователя letopis: инструменты `letopis_model`, `letopis_query`, `letopis_history`, а с
- * `{ write: true }` — ещё `letopis_write`. Подключение — сессия пользователя (`connect({ token })`) или фасад
+ * `{ write: true }` — ещё `letopis_write`. Подключение — сессия пользователя (`connect({ token })`) или подключение
  * `db.as(пользователь)`. Транспорт выбирает приложение: `server.connect(транспорт)`, `serveStdio(() => createMcpServer(db))`
  * или обработчик HTTP `createMcpHandler(() => createMcpServer(db))` из SDK; токен запроса HTTP проверяет приложение.
  */

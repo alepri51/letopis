@@ -19,7 +19,7 @@ import postgres from 'postgres';
 import { DDL_REVISION, RESERVED_CLASS_NAMES, SCHEMA_VERSION, type LogOptions } from './types.js';
 import { makeLog, maskDsn, traceSql, traced, type Log } from './log.js';
 import { startPglite, type PgliteOptions, type PgliteServer } from './pglite.js';
-import { hashPassword } from './auth.js';
+import { hashPassword, ttlGuard, ttlOf } from './auth.js';
 import { checkOptions, lerr, lmsg, type MsgKey, type Params } from './errors.js';
 import { sqlCatalog } from './messages/index.js';
 import { v5Id } from './uuid.js';
@@ -401,9 +401,11 @@ export interface UpOptions extends Omit<InstallOptions, 'schema' | 'upTo' | 'mig
   login?: LoginOptions;
 }
 
-/** Роль приложения up({ login }). */
+/** Роль приложения up({ login }): `{ user, password }` (поле — `user`, не `name`). */
 export interface LoginOptions {
+  /** Имя роли PostgreSQL для приложения, например `'shop_app'`: нет — up() её создаёт, есть — меняет пароль. */
   user: string;
+  /** Пароль роли: войдёт в строку подключения `r.login.dsn`. */
   password: string;
 }
 
@@ -668,8 +670,15 @@ async function ensureLogin(sql: postgres.Sql, login: LoginOptions, owner: string
     const verb = r ? 'alter role %I login password %L' : 'create role %I login password %L';
     const [{ q }] = await tx`select format(${verb}::text, ${login.user}::text, ${login.password}::text) as q`;
     await tx.unsafe(q as string);
-    const [{ g }] = await tx`select format('grant %I to %I', ${app}::text, ${login.user}::text) as g`;
-    await tx.unsafe(g as string);
+    const [{ g, installer }] = await tx`select format('grant %I to %I', ${app}::text, ${login.user}::text) as g, current_user::text as installer`;
+    // PostgreSQL 16+: выдать роль может только тот, у кого на неё ADMIN OPTION (или суперпользователь) — понятный отказ
+    // вместо сырого 42501 «permission denied to grant role» (3.0.1)
+    await tx.unsafe(g as string).catch((e: unknown) => {
+      if ((e as { code?: unknown } | null)?.code === '42501') {
+        throw lerr('boot.login_grant_denied', { installer, app, user: login.user }, { cause: e });
+      }
+      throw e;
+    });
     return !r;
   });
   let url: string | undefined;
@@ -704,7 +713,8 @@ export interface TenantOptions {
      * APIKEY, KEYSECRET, OTP, TOTP, KEY, LOCK); иначе invalid_data.
      */
     kind?: string;
-    ttl?: string;
+    /** Срок сессии: как ttl у auth (число секунд, '15m', интервал PostgreSQL '15 minutes'); по умолчанию 7 суток. */
+    ttl?: string | number;
     /** Роли членства (по умолчанию ['owner']); роли уже существующего членства повтор не меняет. */
     roles?: string[];
   };
@@ -773,8 +783,9 @@ export async function createTenant(sql: postgres.Sql, schema: string, opts: Tena
   // логин без крайних пробелов, как у auth.setPassword() и verifyPassword() (план 2.1, A12)
   const login = u ? (typeof u.login === 'string' ? u.login.trim() : u.login) : '';
   const user = u ? v5Id(SYSTEM_ID, 'Account', [`user:${login}`]) : null;
+  const ttl = u ? ttlOf(u.ttl, 'createTenant') : null;
   const hash = u ? await hashPassword(u.password) : null;
-  return sql.begin(async (tx) => {
+  return ttlGuard(sql.begin(async (tx) => {
     // под блокировкой схемы, как накат: up({ tenant }) нескольких экземпляров сервиса разом заводит арендатора один
     // раз, остальные находят его по имени (без неё оба вставили бы ту же строку и один упал бы на ключе)
     await lockSchema(tx, schema);
@@ -810,8 +821,8 @@ export async function createTenant(sql: postgres.Sql, schema: string, opts: Tena
         where not exists (select 1 from ${S}.secret where kind = $2 and casefold(ident) collate pg_unicode_fast = casefold($3) collate pg_unicode_fast and deleted_at is null)`,
       [user, kind, login, hash]);
       token = (await tx.unsafe(`select ${S}.new_session($1::uuid, $2::interval, $3::jsonb) as t`,
-        [user, u.ttl ?? '7 days', { tenant } as never]))[0].t as string;
+        [user, ttl ?? '7 days', { tenant } as never]))[0].t as string;
     }
     return { tenant, user, token, created };
-  }) as Promise<TenantResult>;
+  }) as Promise<TenantResult>, u?.ttl, 'createTenant');
 }

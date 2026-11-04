@@ -311,6 +311,24 @@ export const model = {
     code: 'invalid_query',
     ru: 'правило {kind} в {path} проверяется только в библиотеке — в базе его нет',
   },
+  // cli.ts, main: ошибка разбора аргументов (node:util parseArgs) — текст по-русски вместо английского текста Node (lmsg,
+  // код не печатается; выход с кодом 2). flag — флаг, как его передали (--aply, -x); arg — лишний аргумент
+  'model.cli_unknown_flag': {
+    code: 'invalid_query',
+    ru: 'неизвестный флаг {flag}; см. letopis --help',
+  },
+  'model.cli_flag_needs_value': {
+    code: 'invalid_query',
+    ru: 'флагу {flag} нужно значение: {flag} <значение> или {flag}=<значение>; см. letopis --help',
+  },
+  'model.cli_flag_no_value': {
+    code: 'invalid_query',
+    ru: 'флаг {flag} не принимает значения — уберите «=…» после него; см. letopis --help',
+  },
+  'model.cli_unexpected_arg': {
+    code: 'invalid_query',
+    ru: 'лишний аргумент {arg}; см. letopis --help',
+  },
   // sync.ts, generateTypes: пометка в первой строке файла типов (после «// ») — текст не для ошибки
   'model.types_header': {
     code: 'invalid_query',
@@ -320,7 +338,7 @@ export const model = {
   // и валидатор letopis его не исполняют, данные записались бы как есть; rules — пути и виды через запятую
   'model.transform_unsupported': {
     code: 'invalid_class',
-    ru: 'преобразования Zod не исполняются при записи: {rules}',
-    hint: 'привести значение до записи в коде сервиса (например, value.trim()) и убрать преобразование из модели; проверку без изменения значения дают .regex(), .min(), .refine()',
+    ru: 'в модели есть преобразования Zod, а при записи их никто не исполняет — значение записалось бы как есть; поля с преобразованием: {rules}',
+    hint: 'уберите из модели .trim(), .toLowerCase(), .transform(), z.preprocess() и .pipe() и приводите значение в коде сервиса до записи (например, name.trim()); проверку без изменения значения дают .regex(), .min(), .refine()',
   },
 } satisfies Section<'model'>;

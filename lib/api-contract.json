@@ -342,6 +342,10 @@
       "message": "letopis: invalid_data: "
     },
     {
+      "module": "cli",
+      "message": "letopis: <…>"
+    },
+    {
       "module": "errors",
       "message": "letopis: <…>"
     },

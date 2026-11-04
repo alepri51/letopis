@@ -6,7 +6,7 @@
  * - переходы цепочки выводятся из концов, как в resolveHop (lib/src/sql.ts): от класса C — роли его семейства (C и
  *   потомков) и классы, связанные с семейством C концом в любую сторону (роль, имя которой совпало с именем класса,
  *   во время выполнения — шаг класса, так же и здесь);
- * - слоты — только роли класса C: `set(id | строка | цепочка)`, `add` и `remove` — у множественного конца, `unset` —
+ * - шаги ролей после глагола — только роли класса C: `set(id | строка | цепочка)`, `add` и `remove` — у множественного конца, `unset` —
  *   у необязательного;
  * - поля фильтров, `or()` и агрегатов `sum`, `avg`, `min`, `max`, `countBy` — поля класса.
  * Чего типы не знают: возврат к узлу связи из пути (pivot) от класса, с которым связь не связана концом, и роль чужого
@@ -182,9 +182,9 @@ export type StepsOf<M extends readonly AnyModelLike[]> =
   { [K in AllOf<M> as NameOf<K>]: StepFnOf<K, M> } &
   { [K in AllOf<M> as AliasOf<K>]: StepFnOf<K, M> };
 
-/** Значение слота одиночного конца: id, строка ответа или цепочка. */
+/** Значение шага роли одиночного конца (`.Роль.set(…)`): id, строка ответа или цепочка. */
 type SlotOne = string | { readonly id: string } | ChainRef;
-/** Значение слота множественного конца: ещё и список id или строк. */
+/** Значение шага роли множественного конца (`.Роль.add(…)`, `.remove(…)`): ещё и список id или строк. */
 type SlotMany = SlotOne | readonly (string | { readonly id: string })[];
 /** Слоты роли с концом S записываемой строки класса C. */
 type SlotFns<S, C, M extends readonly AnyModelLike[]> =
@@ -210,7 +210,7 @@ type Retyped = 'paths' | 'rows' | 'first' | 'versions' | 'limit' | 'offset' | 's
 
 /**
  * Цепочка с текущим классом C (у шага-роли с несколькими целями — их союз): терминалы отдают RowOf<C>, шаги — переходы
- * из концов, слоты — роли C, агрегаты — поля C.
+ * из концов, шаги ролей после глагола (`.Роль.set(…)`) — роли C, агрегаты — поля C.
  */
 export type TypedChain<C, M extends readonly AnyModelLike[]> = Omit<ChainCore, Retyped> & {
   paths(): Promise<Path[]>;
@@ -243,8 +243,8 @@ export type TypedChain<C, M extends readonly AnyModelLike[]> = Omit<ChainCore, R
   update(patch?: PatchOf<DataOf<C>>, opts?: { rev?: number; all?: boolean; reason?: string }): TypedChain<C, M>;
   upsert(data: Partial<DataOf<C>>, opts?: { reason?: string }): TypedChain<C, M>;
   /**
-   * Без опций — превью. `{ confirm: true, expect: превью }` — удалить ровно показанное (цели сужены фильтром, id, `tags()`,
-   * `owner()` или `limit()`); `{ confirm: true }` без `expect` — `invalid_query` (`write.confirm_without_expect`);
+   * Без опций — предпросмотр. `{ confirm: true, expect: предпросмотр }` — удалить ровно показанное (цели сужены фильтром, id, `tags()`,
+   * `owner()` или `limit()`); `{ confirm: true }` без `expect` — `invalid_query`;
    * осознанно удалить текущий состав без сверки — `{ confirm: true, all: true }`.
    */
   delete(opts?: DeleteOptions): TypedChain<C, M>;

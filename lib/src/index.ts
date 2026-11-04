@@ -41,8 +41,7 @@ export { ne, gt, gte, lt, lte, between, inList, like, ilike, starts, ends, has, 
 /**
  * Хотя бы один из фильтров: `db.Product(or({ sku: 'K-1' }, { price: lt(500) }))` — товар K-1 или дешевле 500. Ставится
  * вместо всего фильтра шага, а не значением поля; условия внутри одного фильтра соединяются через «и». В шаге подключения
- * с моделями (`TypedDb`) фильтры внутри — поля и роли класса шага: тип им даёт шаг (план 2.0, этап 4, п. 1). Та же
- * фабрика, что в реестре операторов (ops.ts), — другой у неё только тип.
+ * с моделями (`TypedDb`) фильтры внутри — поля и роли класса шага: тип им даёт шаг.
  */
 export const or = orFilters as unknown as <F extends object>(...filters: NoInfer<F>[]) => OrOp<F>;
 export { cursorOf } from './sql.js';
@@ -71,7 +70,7 @@ export interface ConnectOptions extends LogOptions {
   sql?: postgres.Sql;
   /** Схема установки, например `v2.salon`; имя без точки (`salon`) — как у `up()`: `v2.salon`. */
   schema: string;
-  /** Токен сессии; либо ключ `APIKEY` в `apiKey` (он же `service` — ключ сервиса) — его обменяют на сессию. */
+  /** Токен сессии; либо ключ API в `apiKey` (он же `service` — ключ сервиса) — его обменяют на сессию. */
   token?: string;
   apiKey?: string;
   service?: string;
@@ -149,7 +148,15 @@ export interface DbCore {
    * класса. Сами права база применяет при каждом запросе.
    */
   readonly acl: AclApi;
-  /** Сырой SQL под сессией и RLS, одной транзакцией (в `db.begin()` — в ней): `` db.sql`select …` ``. */
+  /**
+   * Сырой SQL под сессией и RLS, одной транзакцией (в `db.begin()` — в ней); права те же, что у цепочек. Путь поиска
+   * схем у запроса — по умолчанию PostgreSQL, поэтому таблицы `entity`, `log`, `secret` пишутся со схемой установки в
+   * двойных кавычках, значения — параметрами шаблона:
+   * ```ts
+   * const rows = await db.sql`select id, data->>'name' as name from "v2.shop".entity where class = ${'Shop'}`;
+   * ```
+   * Без схемы (`from entity`) — ошибка PostgreSQL 42P01 «relation does not exist».
+   */
   sql(strings: TemplateStringsArray, ...values: unknown[]): Promise<postgres.Row[]>;
   /** Транзакция под сессией: `fn` получает соединение postgres.js (в `db.begin()` — ту же транзакцию). */
   transaction<T>(fn: (tx: Tx) => Promise<T>): Promise<T>;
@@ -186,8 +193,9 @@ export interface DbCore {
    */
   load(input: LoadInput, opts?: LoadOptions): Promise<LoadReport>;
   /**
-   * Именованная очередь планов фасада: `batch.Класс(…).create(…)`; `batch.run()` — одной транзакцией. У корня,
-   * у каждого `db.as()` и у каждой `db.begin()` очереди свои: план исполняется от имени фасада, который его поставил.
+   * Именованная очередь планов подключения (db, db.as(), db.begin()): `batch.Класс(…).create(…)`; `batch.run()` — одной
+   * транзакцией. У корня, у каждого `db.as()` и у каждой `db.begin()` очереди свои: план исполняется от имени того
+   * подключения, которое его поставило.
    */
   batch(name: string, opts?: { reason?: string }): Batch;
   /** Advisory-блокировка до конца транзакции — только в `db.begin()` (иначе `tx_required`). */
@@ -197,8 +205,11 @@ export interface DbCore {
   /** Откатить транзакцию `tr` (то же, что `tr.rollback()`). */
   rollback(tr?: DbTx): Promise<void>;
   /**
-   * Закрыть подключение: у корня — пул и подписки, в `db.begin()` — откат транзакции; у фасада `db.as()` ничего не делает
-   * (пул общий с корнем).
+   * Закрыть подключение: у корня — пул, подписки и обслуживание по расписанию (идущий запуск `maintain()` close() ждёт),
+   * в `db.begin()` — откат транзакции; у `db.as()` ничего не делает (пул общий с корнем). После `close()` корня любой
+   * вызов этого подключения и производных от него (`db.as()`, `db.begin()`, цепочки, созданные раньше) — `invalid_query`
+   * «подключение закрыто (db.close()) — откройте новое connect()»; пул заново не открывается, процесс может завершиться.
+   * Повторный `close()` — без ошибки.
    */
   close(): Promise<void>;
 }
@@ -209,8 +220,8 @@ export type Db = DbCore & { [className: string]: StepFn };
 export type DbTx = Db;
 /**
  * Подключение со строгими типами по моделям: `connect({ models })` или `connect<Models>()` с объявлениями
- * `letopis types`. Шаг — только известный класс или алиас (модели и системные классы), переходы — по концам, слоты — роли
- * класса; имена, известные только во время выполнения, — `loose(db)` (план 2.0, этап 4, п. 1). Модели без литеральных
+ * `letopis types`. Шаг — только известный класс или алиас (модели и системные классы), переходы — по концам, шаги ролей
+ * после глагола — роли класса; имена, известные только во время выполнения, — `loose(db)`. Модели без литеральных
  * имён (`AnyModel[]` вместо списка `as const`) строгим типам не помогут — тогда это `Db`.
  */
 export type TypedDb<M extends readonly AnyModelLike[]> = string extends M[number]['name'] ? Db : DbCore & StepsOf<M>;
@@ -277,15 +288,43 @@ interface Shared {
   subs: Set<Subscription>;
   track(s: Subscription): Subscription;
   close: () => Promise<void>;
+  /** close() корня вызван: любой вызов фасадов подключения — отказ api.closed, пул заново не открывается. */
+  closed: boolean;
+}
+
+/** Методы фасада, которые отвечают сразу, а не обещанием: после close() они бросают api.closed синхронно. */
+const SYNC_MEMBERS = new Set(['idOf', 'entity', 'watch', 'batch']);
+/** Свойства фасада, которые после close() читаются как прежде: не обращаются к базе. */
+const PASSIVE_MEMBERS = new Set(['close', 'schema', 'token', 'tenant', 'registry', 'cache']);
+
+/** Исполнитель, который после close() корня отказывает api.closed: postgres.js reserve() открыл бы закрытый пул заново. */
+function openOnly(sh: Shared, exec: Executor): Executor {
+  return {
+    explicit: exec.explicit,
+    run: (fn, opts) => (sh.closed ? Promise.reject(lerr('api.closed')) : exec.run(fn, opts)),
+  };
+}
+
+/** Служебный объект фасада (auth, acl) после close(): каждый метод — отказ api.closed. */
+function closedApi<T extends object>(api: T): T {
+  return new Proxy(api, {
+    get(t, prop, r) {
+      const v = Reflect.get(t, prop, r) as unknown;
+      return typeof v === 'function' ? () => Promise.reject(lerr('api.closed')) : v;
+    },
+  });
 }
 
 /** Фасад db: пул (exec — исполнитель пула) или явная транзакция (tx). */
-function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: ExplicitTx): Db {
+function makeDb(sh: Shared, scope: Scope, raw: Executor, owner?: string, tx?: ExplicitTx): Db {
   const txc = scope.txc;
+  // после close() корня цепочки (и созданные до него), auth, acl, db.sql — отказ api.closed; raw — у maintain(), который
+  // идёт по расписанию: close() его дожидается
+  const exec = openOnly(sh, raw);
   // логгер фасада: арендатор и аккаунт — в момент события (корень меняет их auth.switch), метка транзакции — от db.begin()
   const log = (txc.log ?? sh.log).child({ who: () => ({ tenant: scope.tenant(), account: txc.account ?? sh.root.account }) });
   const chainCtx: ChainCtx = {
-    reg: scope.registry(), schema: sh.schema, exec, tenant: scope.tenant, hasToken: () => Boolean(txc.token), owner, onQuery: sh.onQuery, slowMs: sh.slowMs,
+    reg: scope.registry(), schema: sh.schema, exec, tenant: scope.tenant, account: () => txc.account ?? sh.root.account, hasToken: () => Boolean(txc.token), owner, onQuery: sh.onQuery, slowMs: sh.slowMs,
     reason: txc.reason ?? '', txReason: txc.reason ?? '', log,
     ...(sh.cache ? { cache: { store: sh.cache, who: () => ({ token: txc.token, account: txc.account, tenant: scope.tenant() }) } } : {}),
   };
@@ -303,7 +342,7 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
   }, scope.root && !tx), log, 'auth', AUTH_LOG, { switch: () => scope.tenant() });
   // запись правил (grant, deny, revoke, roles) идёт цепочками самого фасада — он объявлен ниже, берётся при вызове
   const acl = instrument(makeAcl(sh.S, exec, () => facade), log, 'acl', ACL_LOG);
-  const adm: AdminCtx = { S: sh.S, txc, exec };
+  const adm: AdminCtx = { S: sh.S, txc, exec: raw };
   // один процесс (план 2.0, 7.9 №3): у корня с connect({ admin }) администраторские вызовы идут вторым пулом с той же
   // сессией, а цепочки и db.sql — пулом приложения под RLS; db.as() и db.begin() администраторский пул не берут
   const viaAdmin = scope.root && !tx && sh.adminSql ? sh.adminSql : null;
@@ -434,15 +473,29 @@ function makeDb(sh: Shared, scope: Scope, exec: Executor, owner?: string, tx?: E
     commit: (tr) => traced(log, null, { op: 'commit' }, async () => (tr ? tr.commit() : tx ? tx.commit() : noTx('commit()'))),
     rollback: (tr) => traced(log, null, { op: 'rollback' }, async () => (tr ? tr.rollback() : tx ? tx.rollback() : noTx('rollback()'))),
     // подключение из as() пул не закрывает: пул общий с корнем (план 2.1, A12) — закрывает его close() корня
+    // повторный close() и close() у db.as() или db.begin() закрытого подключения — без ошибки
     close: () => traced(log, !tx && scope.root ? 'close' : null, { op: 'close', detail: { schema: sh.schema } },
-      () => (tx ? tx.rollback() : scope.root ? sh.close() : Promise.resolve())),
+      () => (tx ? (sh.closed ? Promise.resolve() : tx.rollback()) : scope.root ? sh.close() : Promise.resolve())),
   };
   /** Свойство фасада: служебное — из core, иначе шаг класса, алиаса или роли. */
   const member = (t: DbCore, prop: string | symbol, r: unknown): unknown => {
+    if (sh.closed && typeof prop === 'string' && prop !== 'then' && !PASSIVE_MEMBERS.has(prop)) return closedMember(t, prop, r);
     if (typeof prop === 'symbol' || prop in t) return Reflect.get(t, prop, r);
     if (prop === 'then') return undefined;
     // неизвестный класс или роль — событие error с именем шага
     return log.enabled ? guarded(log, { op: prop, chain: prop }, () => startStep(chainCtx, prop)) : startStep(chainCtx, prop);
+  };
+  /** Свойство фасада после close(): методы и шаги — отказ api.closed (обещанием, у шагов и синхронных методов — сразу). */
+  const closedMember = (t: DbCore, prop: string, r: unknown): unknown => {
+    if (prop in t) {
+      const v = Reflect.get(t, prop, r) as unknown;
+      if (prop === 'auth' || prop === 'acl') return closedApi(v as object);
+      if (typeof v !== 'function') return v;
+      if (!SYNC_MEMBERS.has(prop)) return () => Promise.reject(lerr('api.closed'));
+    }
+    return () => {
+      throw lerr('api.closed');
+    };
   };
   const facade = new Proxy(core, {
     get(t, prop, r) {
@@ -822,6 +875,7 @@ async function open(opts: ConnectOptions, base: Log, info: Record<string, unknow
       stamper.unref?.();
     }
     let stopMaintain: (() => Promise<void>) | null = null;
+    let closing: Promise<void> | null = null;
     const subs = new Set<Subscription>();
     const shared: Shared = {
       sql, schema: opts.schema, S, notifier, passes, root, registryFor, registryOf, refresh, onQuery: opts.onQuery, slowMs: opts.slowMs, log: base,
@@ -838,19 +892,28 @@ async function open(opts: ConnectOptions, base: Log, info: Record<string, unknow
         subs.add(s);
         return s;
       },
-      async close() {
-        // живые подписки закрываются: иначе с чужим пулом (connect({ sql })) они опрашивали бы журнал и после close()
-        // (план 2.0, 7.4 №8)
-        for (const s of [...subs]) s.close();
-        // идущий maintain() по расписанию доделывается: пул закрывается после него, а не посреди транзакции
-        await stopMaintain?.();
-        resync.stop();
-        startReload.stop();
-        if (stamper) clearInterval(stamper);
-        await notifier.close();
-        await listener?.unlisten();
-        if (own) await sql.end({ timeout: 5 });
-        if (ownAdmin) await adminSql!.end({ timeout: 5 });
+      closed: false,
+      close() {
+        // повторный close() ждёт первого; флаг — сразу: вызовы после close() отказывают api.closed, а не открывают пул
+        // заново (postgres.js reserve() после end() соединяется снова)
+        if (closing) return closing;
+        shared.closed = true;
+        closing = (async () => {
+          // живые подписки закрываются: иначе с чужим пулом (connect({ sql })) они опрашивали бы журнал и после close()
+          // (план 2.0, 7.4 №8)
+          for (const s of [...subs]) s.close();
+          // идущий maintain() по расписанию доделывается: пул закрывается после него, а не посреди транзакции
+          await stopMaintain?.();
+          resync.stop();
+          startReload.stop();
+          if (stamper) clearInterval(stamper);
+          cache?.clear();
+          await notifier.close();
+          await listener?.unlisten();
+          if (own) await sql.end({ timeout: 5 });
+          if (ownAdmin) await adminSql!.end({ timeout: 5 });
+        })();
+        return closing;
       },
     };
     const db = makeDb(shared, { txc: ctx, tenant: () => root.tenant, registry: () => root.registry, root: true }, poolExecutor(ctx));

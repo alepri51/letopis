@@ -34,6 +34,8 @@ export interface ChainCtx {
   readonly exec: Executor;
   /** Арендатор сессии. */
   readonly tenant: () => string | null;
+  /** Аккаунт сессии (с имперсонацией — тот, от чьего имени): арендатор равен ему — личный арендатор. */
+  readonly account?: () => string | null;
   /** Фасад входит по токену сессии (connect({ token }), ключ API): без арендатора сессии шаг — sessionless(). */
   readonly hasToken?: () => boolean;
   /** Владелец новых строк по умолчанию (db.as(…, { owner })). */
@@ -117,10 +119,14 @@ export interface ChainCore {
   /**
    * Не больше n строк ответа: объектов последнего шага, у `paths()` — путей, у `versions()` — версий, перед `countBy()` —
    * групп. До глагола сужает его цели. Сразу после глагола перед `rows`, `first`, `ids`, `count` и `paths` —
-   * `invalid_query`: глагол уже прошёл по всем целям, сужать нечего.
+   * `invalid_query`: глагол уже прошёл по всем целям, сужать нечего. `n` — целое от 0: дробное — `invalid_query`,
+   * отрицательное отклоняет PostgreSQL (ошибка базы с SQLSTATE 2201W).
    */
   limit(n: number): Chain;
-  /** Пропустить первые n строк ответа — тех же, что считает `limit()`; где действует — как у `limit()`. */
+  /**
+   * Пропустить первые n строк ответа — тех же, что считает `limit()`; где действует — как у `limit()`. `n` — целое от 0:
+   * дробное — `invalid_query`, отрицательное отклоняет PostgreSQL (ошибка базы с SQLSTATE 2201X).
+   */
   offset(n: number): Chain;
   /** Сортировка по полю последнего шага: 'at' | 'rev' | 'id' | 'data.<путь>'. */
   sort(field: string, dir?: 'asc' | 'desc' | boolean): Chain;
@@ -219,7 +225,7 @@ export type StepFn = ((filter?: Filter) => Chain) & {
   remove(value: unknown): Chain;
 };
 export type Chain = ChainCore & { [className: string]: StepFn };
-/** Любая цепочка — с типами по моделям (`TypedChain`) или без них (`Chain`): аргумент `entity()` и значение слота. */
+/** Любая цепочка — с типами по моделям (`TypedChain`) или без них (`Chain`): аргумент `entity()` и значение шага роли (`.Роль.set(цепочка)`). */
 export type ChainRef = Pick<ChainCore, 'ids'>;
 
 /** Внутренний канал: план чужой ленивой цепочки (entity()). */
@@ -266,12 +272,20 @@ const stepNames = (reg: Registry): string[] =>
 const ARRAY_PROPS = new Set(['length', 'map', 'filter', 'forEach', 'reduce', 'find', 'some', 'every', 'slice', 'at', 'toJSON', '0']);
 
 /**
- * Неизвестный класс или роль — с похожими именами реестра (план 2.0, 7.9 №6). Свойство массива — api.chain_not_rows;
- * в реестре только классы System — сессия, похоже, в личном арендаторе (api.unknown_step_no_classes).
+ * Неизвестный класс или роль — с похожими именами реестра (план 2.0, 7.9 №6). Свойство массива — api.chain_not_rows.
+ * В реестре только классы System (3.0.1): сессия в личном арендаторе (арендатор = аккаунт сессии) —
+ * api.unknown_step_no_classes, иначе в арендаторе просто нет классов — api.unknown_step_empty_tenant.
  */
-const unknownName = (reg: Registry, name: string): never => {
+const unknownName = (ctx: ChainCtx, name: string): never => {
+  const reg = ctx.reg;
   if (ARRAY_PROPS.has(name)) throw lerr('api.chain_not_rows', { name });
-  const key = reg.all().every((c) => c.tenant === SYSTEM_ID) ? 'api.unknown_step_no_classes' : 'api.unknown_step';
+  let key: 'api.unknown_step' | 'api.unknown_step_no_classes' | 'api.unknown_step_empty_tenant' = 'api.unknown_step';
+  if (reg.all().every((c) => c.tenant === SYSTEM_ID)) {
+    const tenant = ctx.tenant();
+    const account = ctx.account?.() ?? null;
+    key = tenant !== null && account !== null && tenant.toLowerCase() === account.toLowerCase()
+      ? 'api.unknown_step_no_classes' : 'api.unknown_step_empty_tenant';
+  }
   throw lerr(key, { name, similar: similar(name, stepNames(reg)) });
 };
 
@@ -484,8 +498,10 @@ function writeDetail(op: PlanOp, rows: readonly Row[] | undefined): Record<strin
     if (op.confirm && op.expect !== undefined) d.locked = true;
     if (rows && !op.confirm) {
       const actions: Record<string, number> = {};
-      for (const r of rows) if (r.$action) actions[r.$action] = (actions[r.$action] ?? 0) + 1;
+      // строки-сводки скрытых правами строк (3.0.1): в actions.hidden — их число, в классы и id сводки не идут
+      for (const r of rows) if (r.$action) actions[r.$action] = (actions[r.$action] ?? 0) + (r.$action === 'hidden' ? r.$count ?? 0 : 1);
       d.actions = actions;
+      rows = rows.filter((r) => r.$action !== 'hidden');
     }
   } else if (op.kind === 'restore') {
     d.expect = op.expect !== undefined ? op.expect.length : false;
@@ -997,7 +1013,7 @@ export function makeChain(ctx: ChainCtx, steps: Step[], mods: ChainMods, nodes: 
     }
     const found = lookupStep(ctx.reg, prop);
     if (!found && noSession(ctx, prop)) return sessionless();
-    return classProp(ctx, prop, found ?? unknownName(ctx.reg, prop), steps, mods, nodes);
+    return classProp(ctx, prop, found ?? unknownName(ctx, prop), steps, mods, nodes);
   };
 
   const log = ctx.log;
@@ -1063,7 +1079,7 @@ export function makeBatch(ctx: ChainCtx, queue: BatchEntry[]): Batch {
 export function startStep(ctx: ChainCtx, name: string): StepFn {
   const found = lookupStep(ctx.reg, name);
   if (!found && noSession(ctx, name)) return sessionless();
-  return classProp(ctx, name, found ?? unknownName(ctx.reg, name), undefined, {}, NO_NODES);
+  return classProp(ctx, name, found ?? unknownName(ctx, name), undefined, {}, NO_NODES);
 }
 
 /** Старт пути с готового узла: db.entity(row | цепочка). */

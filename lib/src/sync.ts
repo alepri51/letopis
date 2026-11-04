@@ -179,10 +179,9 @@ export function schemaToTs(s: JsonSchema | undefined, indent = ''): string {
 
 /**
  * Объявления `<Класс>Data` и `<Класс>Links` для классов реестра и `<Класс>Model` — имя, алиас, концы с классами целей
- * и предки (ModelLike, typed.ts), — а в конце список `Models`: строгие типы цепочек без моделей Zod, `connect<Models>()`
- * (план 2.0, этап 4, п. 1). Классы арендатора System (системные и классы сидов пакета) — только с includeSystem
- * (`letopis types --system`); без него системные классы даёт встроенный набор SystemModels. Пометка в первой строке —
- * запись каталога model.types_header.
+ * и предки, — а в конце список `Models`: строгие типы цепочек без моделей Zod, `connect<Models>()`. Классы арендатора
+ * System (системные и классы сидов пакета) — только с includeSystem (`letopis types --system`); без него системные
+ * классы даёт встроенный набор SystemModels. Первая строка — пометка «Сгенерировано letopis types — не править руками.»
  */
 export function generateTypes(registry: Registry, opts: { includeSystem?: boolean } = {}): string {
   const out = [`// ${lmsg('model.types_header')}`, ''];

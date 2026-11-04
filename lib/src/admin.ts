@@ -56,6 +56,15 @@ export function queueWarning(queue: number): string | null {
 const MAX_TIMER_MS = 2 ** 31 - 1;
 
 /**
+ * Короткая форма интервала — '500ms', '30s', '15m', '1h', '1d' (дробное число тоже) — в миллисекундах; другая строка —
+ * null. Общая для connect({ maintain }) и срока ttl у auth (3.0.1).
+ */
+export function shortIntervalMs(v: string): number | null {
+  const m = /^(\d+(?:\.\d+)?)\s*(ms|s|m|h|d)$/.exec(v.trim());
+  return m ? Number(m[1]) * { ms: 1, s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 }[m[2] as 'ms']! : null;
+}
+
+/**
  * Интервал расписания: число мс или строка '500ms', '30s', '15m', '1h', '1d' — конечный, от 1 мс до 2³¹−1 мс (около 24
  * суток); иначе invalid_data. Ноль, отрицательное, NaN и слишком длинный интервал таймер Node.js превращает в 1 мс —
  * обслуживание шло бы без перерыва.
@@ -63,10 +72,7 @@ const MAX_TIMER_MS = 2 ** 31 - 1;
 export function parseInterval(v: unknown): number {
   let ms = Number.NaN;
   if (typeof v === 'number') ms = v;
-  else if (typeof v === 'string') {
-    const m = /^(\d+(?:\.\d+)?)\s*(ms|s|m|h|d)$/.exec(v.trim());
-    if (m) ms = Number(m[1]) * { ms: 1, s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 }[m[2] as 'ms']!;
-  }
+  else if (typeof v === 'string') ms = shortIntervalMs(v) ?? Number.NaN;
   if (!Number.isFinite(ms) || ms < 1 || ms > MAX_TIMER_MS) {
     const shown = typeof v === 'string' ? `'${v}'` : typeof v === 'number' || typeof v === 'boolean' || v == null ? String(v) : typeof v;
     throw lerr('time.bad_interval', { value: shown });
