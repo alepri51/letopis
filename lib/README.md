@@ -71,12 +71,16 @@ RLS. Правила одинаково действуют и для библио
 
 ```sh
 npm pkg set type=module             # код приложения — ESM: "type": "module" или файлы .mjs
-npm install letopis zod postgres@3  # postgres@3 — для createTenant и своих SQL-запросов
-npm install -D tsx                  # запуск примеров на TypeScript: npx tsx app.ts
+npm i letopis@3 zod postgres@3     # postgres@3 — для createTenant и своих SQL-запросов
+npm i -D tsx                        # запуск примеров на TypeScript: npx tsx app.ts
 ```
 
-`postgres` — зависимость letopis версии 3. Ставьте ту же мажорную версию: `npm i postgres` без версии поставит 4.x,
-и код будет работать, но `createTenant(admin, …)` не пройдёт проверку типов — типы двух копий `postgres` несовместимы.
+`letopis@3` — мажорная линия 3, о которой это руководство: внутри неё обновления не ломают работающий код
+([«Версии и совместимость»](#версии-и-совместимость)), а `npm i letopis` без версии поставит последний выпуск, и после
+выхода 4.0 им окажется он. `postgres` — зависимость letopis версии 3. Ставьте ту же мажорную версию: `npm i postgres`
+без версии поставит 4.x, и код будет работать, но `createTenant(admin, …)` не пройдёт проверку типов — типы двух копий
+`postgres` несовместимы. Для MCP добавьте `@modelcontextprotocol/server` (и `@modelcontextprotocol/client` — проверять
+сервер своим клиентом), для PGlite — `@electric-sql/pglite @electric-sql/pglite-socket`.
 
 Пакет — модуль ES, и примеры написаны на `import`: без `"type": "module"` в `package.json` приложения (или без
 расширения `.mjs`) Node ответит `SyntaxError: Cannot use import statement outside a module`.
@@ -300,10 +304,10 @@ await up({ dsn: ADMIN, schema: 'shop', signals: 'opaque' })   // дальше up
 import { up, connect } from 'letopis'
 
 const ADMIN = 'postgres://postgres:secret@localhost:5432/shop'
-const APP = 'postgres://shop_app:app-secret@localhost:5432/shop'
 
-const r = await up({ dsn: ADMIN, schema: 'shop',
+const r = await up({ dsn: ADMIN, schema: 'shop', login: { user: 'shop_app', password: 'app-secret' },
   tenant: { name: 'Ромашка', user: { name: 'Анна', login: 'anna@shop.ru', password: 'Ромашка-2026!' } } })
+const APP = r.login!.dsn!          // роль приложения shop_app: postgres://shop_app:app-secret@localhost:5432/shop
 const SHOP = r.tenant!.tenant      // арендатор — магазин «Ромашка»
 const ANNA = r.tenant!.user!       // его первый пользователь
 ```
@@ -402,6 +406,9 @@ const anna = await connect({ dsn: APP, schema: r.schema, token: r.tenant!.token!
 У подключения есть `db.schema`, `db.token`, `db.tenant` (арендатор сессии) и `db.close()`. Подключения,
 полученные через `as()`, делят пул с исходным: закрывать нужно исходное, один раз — оно закрывает пул, подписки и все
 фасады. `close()` у подключения из `as()` ничего не делает: пул общий, и фасад после такого вызова работает дальше.
+После `close()` исходного подключения любой вызов — цепочка, `begin()`, `transaction()`, `sql`, `auth.*` у него и у
+его фасадов — `invalid_query` (`api.closed`, «подключение закрыто (db.close()) — откройте новое connect()»): пул заново
+не открывается, и процесс может завершиться. Повторный `close()` ошибки не даёт.
 
 ### Администраторское подключение
 
@@ -436,7 +443,7 @@ await solo.close()                           // закрывает оба пул
 
 ### Обновление пакета и схемы
 
-У схемы есть ревизия движка (сейчас 10). Если новая версия пакета принесёт новую ревизию, `connect()` только
+У схемы есть ревизия движка (сейчас 11, `r.revision` и константа `DDL_REVISION`). Если новая версия пакета принесёт новую ревизию, `connect()` только
 предупредит и назовёт команду. Отказывает `up()`: на отставшую схему без `upgrade: true` и на схему новее пакета.
 К схеме новее пакета (её уже обновил более новый пакет, а старые экземпляры приложения ещё работают) `connect()`
 подключается с предупреждением
@@ -467,7 +474,7 @@ await solo.close()                           // закрывает оба пул
 
 Текст сообщения об ошибке в API не входит: в патче он может стать точнее. Полагайтесь на `err.code`.
 
-Шаг версии перед каждым выпуском сверяет сценарий `check:semver`: он сравнивает контракт API (`lib/api-contract.json`)
+Шаг версии перед каждым выпуском сверяет сценарий `check:semver`: он сравнивает контракт API (`api-contract.json` в корне пакета)
 и ревизию движка с прошлым выпуском и требует шаг не меньше нужного. Каждый выпуск проверяет
 обновление схемы с предыдущего выпуска. Что изменилось при переходе на 3.0 и чем заменить снятое — запись
 версии в [CHANGELOG.md](CHANGELOG.md).
@@ -596,14 +603,18 @@ id из email подбирается перебором и остаётся в �
 ### Наследование и алиасы
 
 `extends` — потомок получает поля, концы и ключ предка. Своё поле с тем же именем заменяет поле предка целиком.
-`abstract: true` — у класса не бывает своих строк. Шаг цепочки по классу отдаёт и строки потомков: `db.Customer()`
+`abstract: true` — у класса не бывает своих строк: `create()` абстрактного класса — `invalid_class`
+(`sql-write.class_abstract`, «класс … абстрактный»), строки создают у потомков. Шаг цепочки по классу отдаёт и строки потомков: `db.Customer()`
 найдёт и `Vip`, а `.exact()` оставит только сам класс. `alias` — второе имя класса для шага цепочки, например
 по-русски.
 
 ### Настройки класса
 
 - `history: false` — журнал для класса не ведётся: нет версий, среза на дату, восстановления и событий подписки (по
-  умолчанию `true` — журнал хранит каждую версию). Сменить `history` у существующего класса может только тот, у кого
+  умолчанию `true` — журнал хранит каждую версию). `versions()` такого класса — пустой список без ошибки, с предупреждением
+`api.no_history` в консоль; правка
+перезаписывает данные, а удаление стирает строку без следа в журнале — так хранят данные, которые потом стирают
+([«Удалить аккаунт»](#удалить-аккаунт)). Сменить `history` у существующего класса может только тот, у кого
   есть право `READ` и `DELETE` без условий на все строки класса и его потомков: `false` выключает журнал — аудит этих
   строк.
 - `ownerDefault: 'actor'` — владелец новых строк — сам пользователь, а не арендатор (по умолчанию `'tenant'`).
@@ -683,6 +694,23 @@ const n = await loose(typed)[name]().count()
 Чего строгие типы не знают: возврат к узлу связи от класса, с которым она не связана концом, и роль чужого класса
 шагом; `db.as()`, `db.begin()`, `db.batch()` и `entity()` отдают цепочки без строгих типов.
 
+Веб-сервису строгие типы нужны у фасада `svc.as()`, а не у своего подключения по токену: свой пул на каждый вход
+исчерпал бы соединения ([«Веб-сервис»](#веб-сервис-одно-подключение-и-безопасность)). Фасад и подключение по токену —
+одни и те же цепочки во время выполнения, различаются только типы, поэтому фасад приводят к `TypedDb` одним
+помощником:
+
+```ts
+import type { Db, TypedDb } from 'letopis'
+
+const typedAs = (d: Db) => d as unknown as TypedDb<typeof models>   // только тип: проверки во время выполнения те же
+const shopDb = typedAs(await svc.as(ANNA, { tenant: SHOP }))
+await shopDb.Shop({ name: 'Ромашка' }).Product().rows()              // строгие типы, как у connect({ models })
+```
+
+Фильтр, собранный во время выполнения (из параметров запроса), — тип `FieldFilter` из `letopis`:
+`const f: Record<string, FieldFilter> = { status: req.query.status }` и `loose(shopDb).Order(f)`; `Record<string,
+unknown>` проверку типов не проходит.
+
 **Отказы во время выполнения** — с моделями и без них:
 
 | Что | Ответ |
@@ -700,6 +728,9 @@ const n = await loose(typed)[name]().count()
 | `createTenant(admin, …)`, где `admin` — не пул `postgres()`: строка DSN, подключение `connect()`, `undefined` | `invalid_query` (`api.create_tenant_admin`) до запросов ([«Первый арендатор и пользователь»](#первый-арендатор-и-пользователь)) |
 | метод цепочки у результата `versions()`: `versions().rows()`, `.sort()`, `.limit()` | `invalid_query` (`api.versions_terminal`): `versions()` — терминал, модификаторы — до него |
 | `forUpdate()` с тем, что блокировать нельзя: `count()`, `paths()`, `versions()`, агрегат, `asOf()`, `withDeleted()`, `deep()`, глагол | `lock_unsupported` (`api.for_update_unsupported`): текст называет помеху |
+| поле фильтра (и внутри `or()`), `sort('data.…')` или агрегата, которого нет в описании ни одного класса шага (с потомками, если шаг не `exact()`; у роли — её целей); в фильтре годится и роль конца | `invalid_query` с похожими именами до запроса, у плана записи — до записи. Сверяется только первый ключ пути: путь внутрь поля-объекта не проверяется. У строк `Class` поля — свойства описания класса (`kind`, `alias`, `parent` и другие) |
+| `after()` перед `count()`, `sum()`, `avg()`, `min()`, `max()` или `countBy()` | `invalid_query`: курсор листает строки, а счёт идёт по всем объектам шага |
+| класс с зарезервированным именем | `invalid_class`: хаб — от `hub()`, `syncModels` и базы, связь — от базы ([«Имена классов»](#имена-классов)) |
 
 **Предупреждения** — не отказы: цепочка исполняется, а в консоль один раз на место (`console.warn`, текст начинается с
 `letopis:`) выводится строка:
@@ -709,9 +740,7 @@ const n = await loose(typed)[name]().count()
 | шаг с аргументом `undefined`: `db.Product(undefined)` | `api.step_undefined_filter` | фильтра нет — шаг находит все строки, как `db.Product()`; чаще всего это пустая переменная с id |
 | шаг после `sort()`: `db.Shop(shop).sort('data.name').Product()` | `api.sort_not_last` | `sort()` относится к последнему шагу цепочки — ставьте его в конец |
 | `withDeleted()` не у последнего шага, а у последнего его нет: `db.Order(o).withDeleted().line()` | `api.with_deleted_step` | `withDeleted()` — модификатор своего шага: здесь удалённые заказы и живые строки; удалённые строки — `.line().withDeleted()` ([«Удалённые»](#удалённые)) |
-| поле фильтра (и внутри `or()`), `sort('data.…')` или агрегата, которого нет в описании ни одного класса шага (с потомками, если шаг не `exact()`; у роли — её целей); в фильтре годится и роль конца | `invalid_query` с похожими именами до запроса, у плана записи — до записи. Сверяется только первый ключ пути: путь внутрь поля-объекта не проверяется. У строк `Class` поля — свойства описания класса (`kind`, `alias`, `parent` и другие) |
-| `after()` перед `count()`, `sum()`, `avg()`, `min()`, `max()` или `countBy()` | `invalid_query`: курсор листает строки, а счёт идёт по всем объектам шага |
-| класс с зарезервированным именем | `invalid_class`: хаб — от `hub()`, `syncModels` и базы, связь — от базы ([«Имена классов»](#имена-классов)) |
+| `versions()` у класса с `history: false` | `api.no_history` | журнала у класса нет — ответ пустой ([«Настройки класса»](#настройки-класса)) |
 
 ### Имена классов
 
@@ -752,8 +781,9 @@ try {
 - `create` только создаёт. Занятый ключ — ошибка `exists` с `detail.id`: id библиотека вычисляет сама. Поэтому у
   класса с ключом повтор после сбоя сети сразу показывает, что первая попытка прошла. Класс без ключа так не
   защищён: повтор создаст второй объект.
-- Теги новой строки задаёт `.tags([…])` перед глаголом, владельца — `.owner(id)`; явного владельца должны разрешать
-  права.
+- Теги новой строки задаёт `.tags([…])` после шага класса и перед глаголом —
+  `db.Product().tags(['новинка']).create({ … }).rows()`, владельца — так же `.owner(id)`; явного владельца должны
+  разрешать права. У корня таких методов нет: `db.tags([…])` ищет класс `tags` — `invalid_class`.
 - Удалённый объект можно создать снова тем же ключом: новый объект **занимает id удалённого** (id — v5 от ключа), и
   история id продолжится. Восстановить прежний после этого нельзя: `restore({ expect })` по его надгробию — `not_deleted`
   (`write.restore_id_taken`). Если удалённое ещё могут вернуть, перед `create()` проверьте
@@ -1038,7 +1068,10 @@ const page2 = await db.Product().sort('data.price', 'desc')
 `sort(поле, 'asc' | 'desc')` — по `'at'`, `'rev'`, `'id'` или `'data.<путь>'`. `after(cursorOf(строка, поле))` —
 постраничный вывод «после такой-то строки»; он требует `sort()`. Такой вывод устойчив к вставкам и удалениям между
 страницами, но строка, у которой изменилось поле сортировки, может выпасть или повториться. Курсор — объект
-`{ v, id, rev }` (значение поля, id и номер версии строки): он переживает JSON, и его можно отдать клиенту. Поле в `cursorOf` должно
+`{ v, id, rev }` (значение поля, id и номер версии строки): он переживает JSON, и его можно отдать клиенту — например,
+строкой в ссылке «дальше»: `Buffer.from(JSON.stringify(cursorOf(last, 'data.price'))).toString('base64url')`, обратно —
+`JSON.parse(Buffer.from(s, 'base64url').toString())` в `after()`; курсор от клиента — недоверенные данные, неверный
+даёт `invalid_query` (ниже). Поле в `cursorOf` должно
 совпадать с полем `sort`. Значение курсора проверяется по типу поля `sort` до запроса, неверное — `invalid_query`:
 числовому полю нужно конечное число, `rev` — целое, логическому — `true` или `false`, текстовому — строка, uuid и
 `id` — uuid, времени и `at` — строка ISO с поясом, дате — `ГГГГ-ММ-ДД`, полю без описания — строка, число или
@@ -1063,7 +1096,10 @@ const page2 = await db.Product().sort('data.price', 'desc')
 const subtree = await db.Category(tea).Category().deep().rows()   // подкатегории любой глубины; $depth — уровень
 ```
 
-`deep(max)` повторяет переход к тому же классу до глубины `max` (по умолчанию 32 уровня). Фильтр, теги и владелец
+`deep(max)` повторяет переход к тому же классу до глубины `max` (по умолчанию 32 уровня). Нужен конец класса на
+самого себя (`Parent: one('Category')` в модели выше); обход идёт от узла к детям — к строкам, чей конец ведёт на
+узел. `deep()` на первом шаге — `invalid_query` (`query.deep_first_step`), на переходе к другому классу —
+`invalid_query` (`query.deep_hop`); переход без конца на тот же класс — `no_path`. Фильтр, теги и владелец
 шага отбирают узлы любого уровня, но обход не обрывают. Обрывает его только узел, невидимый по правам: он скрывает и
 своё поддерево.
 
@@ -1117,8 +1153,20 @@ try {
 каждой строке превью `$action`: `delete`, `unset` или `restrict`, и `$depth` — уровень каскада (0 — сама цель; у
 строк `unset` и `restrict` его нет). С подтверждением удаляются все цели шага одним оператором, а каскад применяет
 правила концов. Итог — надгробия по уровням каскада, внутри уровня по id (в таком порядке они и в журнале); цели
-классов без журнала (`history: false`) — в конце. Превью не учитывает права: строка с `$action: 'delete'` может не
-удалиться у пользователя без права (`acl_denied`), поэтому интерфейсу стоит спросить `acl.checkData(класс, 'DELETE')`.
+классов без журнала (`history: false`) — в конце. Права на удаление превью не проверяет: строка с
+`$action: 'delete'` может не удалиться у пользователя без права (`acl_denied`), поэтому интерфейсу стоит спросить
+`acl.checkData(класс, 'DELETE')`.
+
+**Строки, скрытые правами.** Строки замыкания, которых пользователь не видит (например, оплаты заказа у мастера без
+права `READ` на них), в превью не раскрываются: в конце превью идёт по одной строке-сводке на действие —
+`{ id: 'hidden:restrict', $action: 'hidden', $hidden: 'restrict', $count: 2, … }` (порядок `delete`, `unset`,
+`restrict`, только при числе больше нуля). `$hidden` — что будет со скрытыми строками, `$count` — сколько их; класс,
+id и данные скрытых строк не показываются. Отличить сводку — `row.$action === 'hidden'`. Сводки входят в `expect` как
+есть и сверяются по `$hidden` и `$count`: изменилось число скрытых строк — `conflict` (`write.preview_changed`).
+Сводки `delete` и `unset` удалению не мешают, а превью со строками `restrict` — видимыми или скрытыми — подтверждение
+отклоняет заранее, до удаления: `delete_restricted` («удалению мешают ссылающиеся строки: видимых N, скрытых правами
+M»), `err.detail` — `{ rows: [{ id, class }], others: M }`. Пользователю — «ещё M скрытых записей мешают удалению —
+обратитесь к владельцу».
 
 - `delete({ confirm: true })` без `expect` — `invalid_query` (`write.confirm_without_expect`) до записи, ничего не
   удалено: удаление не сверено с тем, что видел пользователь. Подсказка ошибки — та же форма в два шага.
@@ -1303,7 +1351,8 @@ const ours = (await db.Order(order).withDeleted().line().withDeleted().rows())
   `delete()` — в [памятке](AGENT-CHEATSHEET.md), «Правила для любой задачи».
 
 Историю удалённого объекта журнал хранит: стереть версии одного объекта нельзя. Удаление аккаунта
-(`db.auth.purgeAccount`, [раздел 10](#10-пользователи-вход-и-права)) стирает данные и журнал его арендатора.
+(`db.auth.purgeAccount`) стирает данные и журнал только его собственного арендатора; что делать с персональными
+данными в чужих арендаторах — [«Удалить аккаунт»](#удалить-аккаунт).
 
 ## 8. Транзакции и батчи
 
@@ -1385,7 +1434,8 @@ try {
 
 - `forUpdate()` — только внутри `db.begin()` (иначе `tx_required`) и только с `rows`, `first`, `ids` (иначе
   `lock_unsupported`). Строки блокируются в порядке id; строка, которая перестала подходить под условия шага, в ответ
-  не попадает.
+  не попадает. Блокировка — это право записи: строки, которые пользователь видит, но править не может, `forUpdate()`
+  не блокирует — `acl_denied` (`api.lock_denied`).
 - Под `{ rev }` и под `forUpdate()` объект и ключи блокируются в разном порядке: смешение двух путей в параллельных
   запросах одного объекта даёт `40P01`. Внутри блока с `forUpdate()` не ждите внешних вызовов: строку ждут все
   писатели (помогут `lock_timeout` и `idle_in_transaction_session_timeout`).
@@ -1514,11 +1564,42 @@ npx letopis load shops.ndjson products.ndjson --dsn "$ADMIN" --schema v2.shop --
 
 Аккаунт — строка класса `Account` в System: имя, категории (`User`, `Service` и свои), признак `enabled`. Каждый
 аккаунт — сам себе арендатор. Работать в чужом арендаторе позволяет членство `member` — связь пользователя
-(`User`) с арендатором (`Tenant`) с ролями в данных. Аккаунты и их категории правит системный администратор —
-член System с ролью `admin`. Отдельного метода, чтобы назначить его, нет: членство в System с ролью `admin` кладёт
-свой сид установки или загрузчик на администраторском подключении (строка `member` с `tenant: <id System>`).
-Новых пользователей арендатора удобно заводить `createTenant`
+(`User`) с арендатором (`Tenant`) с ролями в данных. Новых пользователей арендатора удобно заводить `createTenant`
 ([раздел 3](#3-установка-и-подключение)).
+
+**Системный администратор** — член System с ролью `admin`: правит аккаунты и их категории, удаляет аккаунты
+(`purgeAccount`), выдаёт креды System и сервисов. Его права действуют, только пока сессия работает в арендаторе
+System. Отдельного метода, чтобы назначить его, нет; путь — четыре шага: отдельный аккаунт, членство в System
+загрузчиком на администраторском подключении, первый вход по токену `createTenant`, постоянный вход — своим ключом API.
+
+```ts
+const SYSTEM = '2eba6d0a-1edd-4bb6-a85a-a703dab49035'   // id арендатора System — один во всех установках
+// 1. отдельный аккаунт: свой арендатор без правил («Администрирование»), логин и пароль
+const rootPool = postgres(ADMIN)
+const root = await createTenant(rootPool, r.schema, { name: 'Администрирование', grantAll: false,
+  user: { name: 'Root', login: 'root@shop.ru', password: 'Root-2026!' } })
+await rootPool.end()
+// 2. членство в System с ролью admin — загрузчиком на администраторском подключении (adm выше)
+await adm.load({ member: [{ User: root.user, Tenant: SYSTEM, roles: ['admin'] }] }, { tenant: SYSTEM })
+// 3. первый вход — токен из createTenant; права администратора — после перехода сессии в System
+const sa = await connect({ dsn: APP, schema: r.schema, token: root.token! })
+await sa.auth.switch(SYSTEM)
+// 4. постоянный вход — свой ключ API (отдаётся один раз: храните, как ключ сервиса)
+const { key: ROOT_KEY } = await sa.auth.issueApiKey({ account: root.user!, name: 'root' })
+await sa.close()
+// дальше: const sa = await connect({ dsn: APP, schema, apiKey: ROOT_KEY }); await sa.auth.switch(SYSTEM)
+```
+
+- Системный администратор — не обычный пользователь: сервис его не пускает. `verifyPassword`, `lookup` и
+  `sessionFor` для него — `acl_denied` (`sql-access.no_sessions_for_account`, «сессии для этого аккаунта не
+  выпускаются»), `svc.as()` от его имени — `acl_denied` (`sql-core.impersonation_denied`): иначе сервис получил бы его
+  права. Поэтому назначайте администратором отдельный аккаунт: пользователь, которого сделали администратором,
+  перестаёт входить через сервис.
+- Вход по ключу API (`connect({ apiKey })`) работает и у него; сессия по ключу начинается в личном
+  арендаторе, поэтому после входа — `auth.switch(SYSTEM)`. Ключ потерян — новый токен даёт повтор `createTenant` с тем
+  же `name` и логином (пароль он не меняет), затем шаги 3–4.
+- Снять роль — удалить строку `member` в System по превью от имени другого администратора или правкой её `roles`.
+- Сервер MCP с сессией в System — только с опцией `allowSystemAdmin: true` ([«Агенты и MCP»](#агенты-и-mcp)).
 
 ### Сервис и ключи API
 
@@ -1581,6 +1662,7 @@ const { code } = await svc.auth.issueOtp({ account: BORIS, identifier: 'boris@lu
 const byCode = await svc.auth.verifyOtp({ identifier: 'boris@lutik.ru', code })                        // { account, token } | null
 const { secret, uri } = await svc.auth.enrollTotp({ account: BORIS, issuer: 'Лютик' })              // uri — для QR-кода
 const totpOk = await svc.auth.verifyTotp({ account: BORIS, code: totpCode(secret) })                // первая проверка включает фактор
+// тот же код второй раз (в том же 30-секундном шаге) отклоняется: вход с totp сразу после verifyTotp — null до следующего шага
 ```
 
 Код одноразовый: успешная проверка и перебор (по умолчанию 5 попыток) его сжигают. Счётчики попыток откатываются
@@ -1893,10 +1975,39 @@ await adm.close()
 
 ### Удалить аккаунт
 
-`db.auth.purgeAccount(аккаунт)` удаляет аккаунт и данные его арендатора. Вызывать может системный администратор или
-владелец его арендатора; себя и последнего владельца арендатора удалить нельзя. Владение строками в чужих
-арендаторах переходит этим арендаторам, сессии гаснут, креды удаляются. Владелец может стереть и арендатора, в
-котором сейчас работает: его сессия вернётся в личный арендатор.
+`db.auth.purgeAccount(аккаунт)` удаляет аккаунт и его собственного арендатора. Вызывать может системный администратор
+([«Аккаунты, арендаторы и членство»](#аккаунты-арендаторы-и-членство)) или владелец (роль `owner`) этого арендатора;
+себя и последнего владельца арендатора удалить нельзя. Сервису по ключу — `acl_denied`
+(`sql-time.account_purge_denied`). Ответ — `{ account, rows, versions, memberships, owned }`. Владелец может стереть
+и арендатора, в котором сейчас работает: его сессия вернётся в личный арендатор.
+
+Что стирается и что остаётся:
+
+| Что | После `purgeAccount` |
+|---|---|
+| строки собственного арендатора аккаунта и их журнал | стёрты физически (`rows`, `versions`) |
+| креды, сессии, секреты TOTP, внешние учётные записи (`secret`) | стёрты; сессии гаснут с сигналом |
+| членства в чужих арендаторах | удалены, надгробие — в журнале (`memberships`) |
+| строка `Account` | удалена; надгробие с последним снимком (имя, категории) — в журнале System |
+| строки чужих арендаторов, которыми он владел | остаются, владелец — их арендатор (`owned`) |
+| строки чужих арендаторов, которые он создал или правил, и **все их версии** | остаются как есть; `author` версий — id удалённого аккаунта |
+| строки, которые ссылаются на аккаунт концом | мешают: `delete_restricted` (`sql-time.account_referenced`), ничего не удалено |
+
+Персональные данные клиента в данных арендатора (телефон и почта в строке `Customer` магазина) `purgeAccount` не
+трогает, а журнал хранит каждую их версию: стереть версии одного объекта нельзя. Поэтому стираемые персональные
+данные держите в отдельном классе с `history: false` — у него нет версий, правка перезаписывает, а удаление стирает
+без следа, — и ссылайтесь на него из основного объекта. Стереть клиента — удалить его строку этого класса по превью:
+
+```ts
+const Contact = hub('Contact', { phone: z.string(), email: z.string() }, { history: false })   // без журнала
+const Client = hub('Client', { name: z.string() }, { ends: { Contact: one(Contact).optional().onDelete('unset') } })
+// … стереть персональные данные клиента c:
+const shown = await db.Client(c).Contact().delete().rows()
+await db.Client(c).Contact().delete({ confirm: true, expect: shown, reason: 'стирание по запросу' }).rows()
+```
+
+Данные, уже записанные в класс с журналом, остаются в его версиях; обезличить можно только текущую версию правкой.
+Удалить весь арендатор с журналом — `purgeAccount` арендатора.
 
 Системный администратор может удалить и саму строку аккаунта — по превью, `db.Account(id).delete({ confirm: true,
 expect: превью })`, в арендаторе System; данные арендатора аккаунта при этом остаются. Любой путь сразу стирает строки аккаунта в `secret`:
@@ -2202,10 +2313,10 @@ import { createMcpServer } from 'letopis/mcp'
 import { createMcpHandler } from '@modelcontextprotocol/server'
 
 const ADMIN = 'postgres://postgres:secret@localhost:5432/shop'
-const APP = 'postgres://shop_app:app-secret@localhost:5432/shop'
-const r = await up({ dsn: ADMIN, schema: 'shop', quiet: true,
+const r = await up({ dsn: ADMIN, schema: 'shop', quiet: true, login: { user: 'shop_app', password: 'app-secret' },
+  serviceKey: process.env.SERVICE_KEY,   // повторный up() ключ не выдаёт — для повторяемого запуска передайте свой
   tenant: { name: 'Ромашка', user: { name: 'Анна', login: 'anna@shop.ru', password: 'Ромашка-2026!' } } })
-const svc = await connect({ dsn: APP, schema: r.schema, apiKey: r.serviceKey! })
+const svc = await connect({ dsn: r.login!.dsn!, schema: r.schema, apiKey: (r.serviceKey ?? process.env.SERVICE_KEY)! })
 
 // authInfo — итог проверки токена запроса приложением; в extra оно кладёт id аккаунта letopis
 const mcp = createMcpHandler(async ({ authInfo }) =>
@@ -2216,11 +2327,34 @@ const mcp = createMcpHandler(async ({ authInfo }) =>
 Фабрику обработчик вызывает на каждый запрос HTTP, поэтому `createMcpServer` проверяет подключение каждый раз (один
 запрос к базе).
 
-Проверить обработчик можно без сети: клиент SDK из пакета `@modelcontextprotocol/client` ходит в него через `fetch`
-приложения — `new StreamableHTTPClientTransport(new URL('http://localhost/mcp'), { fetch: (url, init) =>
-mcp.fetch(new Request(url, init), { authInfo }) })`. Так пример выше проверяет тест `docs` (сценарий `mcp` в
-`lib/test/docs.test.ts` репозитория): без `write` клиент видит три инструмента, а `letopis_model` отвечает от имени
-Анны в магазине.
+Проверить обработчик можно без сети: клиент SDK из пакета `@modelcontextprotocol/client` (его ставят отдельно:
+`npm i -D @modelcontextprotocol/client`) ходит в него через `fetch` приложения — `new StreamableHTTPClientTransport(new
+URL('http://localhost/mcp'), { fetch: (url, init) => mcp.fetch(new Request(url, init), { authInfo }) })`.
+
+**Клиент в том же процессе** — без HTTP, парой связанных транспортов `InMemoryTransport` (есть в обоих пакетах SDK):
+
+```ts
+import { Client, InMemoryTransport } from '@modelcontextprotocol/client'
+
+const [clientSide, serverSide] = InMemoryTransport.createLinkedPair()
+const server = await createMcpServer(await svc.as(r.tenant!.user!, { tenant: r.tenant!.tenant }), { write: true })
+await server.connect(serverSide)
+const client = new Client({ name: 'check', version: '1' })   // подтверждение удаления — { capabilities: { elicitation: {} } }
+await client.connect(clientSide)
+const res = await client.callTool({ name: 'letopis_query', arguments: { class: 'Shop', limit: 10 } })
+const rows = (res.structuredContent as { data: { rows: unknown[] } }).data.rows   // { notice, data: { rows, count, more } }
+await client.callTool({ name: 'letopis_write', arguments: { op: 'create', class: 'Shop', data: { name: 'Лютик' } } })
+await client.close()
+```
+
+Аргументы инструментов (полные схемы с описаниями отдаёт `client.listTools()`):
+
+| Инструмент | Аргументы |
+|---|---|
+| `letopis_model` | `class?` |
+| `letopis_query` | `class`; `id`, `ids` или `filter`; `steps: [{ step, id?, ids?, filter? }]`, `asOf`, `withDeleted`, `sort: { field, dir }`, `limit`, `cursor`, `terminal`, `field` (поле агрегата) |
+| `letopis_history` | `class`, `id`, `kind?` (`versions`) |
+| `letopis_write` | `op` (`create`, `update`, `upsert`, `delete`), `class`; `id` или `ids` — цели `update` и `delete`; `data` — поля; `links: { Роль: id \| [id] \| null }`; `rev` — обязателен у `update`; `confirm`, `operation` — подтверждение удаления. Причину версий задаёт сервер (`mcp: letopis_write`), своей нет |
 
 ### Сырой SQL
 
@@ -2230,7 +2364,21 @@ const [{ n }] = await db.sql`select count(*)::int as n from "v2.shop".entity whe
 ```
 
 `` db.sql`…` `` выполняет запрос одной транзакцией под сессией подключения и RLS: видны те же строки, что и
-цепочкам. `db.transaction(fn)` даёт соединение postgres.js на всю транзакцию. При взаимной блокировке и ошибке
+цепочкам. Таблицы пишут с именем схемы (`"v2.shop".entity`): путь поиска роли схему letopis не содержит, и
+`from entity` даст `42P01`.
+
+Имя схемы — **один** идентификатор с точкой внутри, поэтому его берут в двойные кавычки целиком. Идентификатор
+postgres.js `sql(r.schema)` делит имя по точке (`"v2"."shop"`) — и запрос падает с `0A000` (cross-database
+references). Имя из переменной вставляют так:
+
+```ts
+const S = `"${r.schema}"`                                             // "v2.shop" — имя схемы целиком в кавычках
+const [{ n: products }] = await db.transaction((t) =>
+  t`select count(*)::int as n from ${t.unsafe(S)}.entity where class = ${'Product'}`)
+```
+
+`db.sql` — только шаблонный вызов; соединение postgres.js со всеми его помощниками (`t.unsafe`, `t(…)`) даёт
+`db.transaction(fn)`. `db.transaction(fn)` даёт соединение postgres.js на всю транзакцию. При взаимной блокировке и ошибке
 сериализации запрос и `fn` повторяются до трёх раз, поэтому `fn` должна выдерживать повтор. Писать сырым SQL тоже
 можно — те же триггеры проверят данные, а функции базы `merge` и `inc` доступны приложению.
 
@@ -2329,10 +2477,13 @@ npx letopis maintain --dsn "$ADMIN" --schema v2.shop --api-key "$KEY" --log=debu
 | `cause` | у события `error` — исходная ошибка: `{ name, message, code }` |
 
 **Маскировка.** Без настройки заменяются на `'***'` на любой глубине `detail`: значения полей с паролями, токенами,
-ключами, секретами и кредами — в том числе `password`, `pass`, `passwd`, `pwd`, `passphrase`, `secret`, `token`,
-`serviceKey`, `apiKey`, `api_key`, `credential`, `authorization`, `cookie`, `hash`, `material`, `totp`, `otp`;
-учётные данные в строке подключения (`postgres://***@host/db` — скрыт и пользователь); пароль в тексте SQL
-(`password '…'`). `redact` добавляет свои имена полей (персональные данные и т. п.).
+ключами, секретами и кредами — по точному имени: `password`, `passwd`, `passphrase`, `pwd`, `secret`, `token`,
+`apiKey`, `serviceKey`, `authorization`, `cookie`, `credential`, `credentials`, `hash`, `material`, `totp`, `otp`, — и
+составных имён с ними (`dbPassword`, `refreshToken`, `clientSecret`); слова, где такие буквы лишь внутри (`bypass`),
+не маскируются. Строка подключения в поле `dsn` пишется без пользователя, пароля и параметров —
+`postgres://localhost:5432/shop`; в тексте событий учётные данные вида `postgres://user:pass@` заменяются на
+`postgres://***@`. Пароль в тексте SQL (`password '…'`) — `'***'`. `redact` добавляет свои имена полей (персональные
+данные и т. п.).
 
 Не пишутся никогда: значения параметров SQL (у событий `sql` и `raw` — только их число); текст, `DETAIL`, `WHERE`,
 `HINT` и внутренний запрос ошибки PostgreSQL — в событии только SQLSTATE и имена ограничения, таблицы, колонки, схемы,
@@ -2350,7 +2501,8 @@ npx letopis maintain --dsn "$ADMIN" --schema v2.shop --api-key "$KEY" --log=debu
 rollback` оставит событие `delete`, а строки — на месте. Фиксацию такой записи доказывает только `tx.commit` с тем же
 `tx`; `tx.rollback` с ним — запись отменена; `commit_unknown` — исход неизвестен (повтор с тем же ключом).
 
-**Основные события.** Полный каталог с уровнями и описаниями — `lib/src/messages/log.ts` (`LOG_EVENTS`).
+**Основные события.** Полный каталог — `import { LOG_EVENTS } from 'letopis'`: объект «имя события →
+`{ level, ru }`» (уровень и описание), тип события — `LogEvent`.
 
 | Событие | Уровень | Когда | Главное в событии |
 |---|---|---|---|
@@ -2395,13 +2547,14 @@ await svc.close()      // и подключения, полученные чер
 
 ## 14. Справочник API
 
-Полный машинный список экспортов, методов и текстов ошибок — `lib/api-contract.json` в репозитории.
+Полный машинный список экспортов, методов и текстов ошибок — `api-contract.json` в корне пакета
+(`node_modules/letopis/api-contract.json`).
 
 ### Экспорты пакета
 
 | Точка входа | Что экспортирует |
 |---|---|
-| `letopis` | `connect`, `loose`, `up`, `createTenant`; операторы `ne`, `gt`, `gte`, `lt`, `lte`, `between`, `inList`, `like`, `ilike`, `starts`, `ends`, `has`, `hasAny`, `hasAll`, `exists`, `isNull`, `not`, `or`, `isOp`; `inc`, `isInc`, `cursorOf`; `idOf`, `uuidv5`, `v5Name`, `v5Id`; `LetopisError`, `ValidationError`, `fromDbError`; `syncModels`, `generateTypes`, `schemaToTs`; `compileValidator`, `applyDefaults`, `Registry`; `totpCode`, `hashPassword`, `verifyHash`; константы `DDL_REVISION`, `RESERVED_CLASS_NAMES`, `CHAIN_METHODS`, `DB_METHODS`; типы `Db`, `DbTx`, `TypedDb`, `SystemModels`, `Chain`, `Row`, `Expected` (строка `expect`: `{ id, rev, $action? }`), `DeleteOptions`, `RestoreOptions`, `Filter`, `Cursor`, `ConnectOptions`, `UpOptions`, `LoadOptions`, `LoadReport`, `WatchOptions`, `WatchEvent`, `AuthApi`, `AclApi`, `MaintainReport` и другие |
+| `letopis` | `connect`, `loose`, `up`, `createTenant`; операторы `ne`, `gt`, `gte`, `lt`, `lte`, `between`, `inList`, `like`, `ilike`, `starts`, `ends`, `has`, `hasAny`, `hasAll`, `exists`, `isNull`, `not`, `or`, `isOp`; `inc`, `isInc`, `cursorOf`; `idOf`, `uuidv5`, `v5Name`, `v5Id`; `LetopisError`, `ValidationError`, `fromDbError`; `syncModels`, `generateTypes`, `schemaToTs`; `compileValidator`, `applyDefaults`, `Registry`; `totpCode`, `hashPassword`, `verifyHash`; константы `DDL_REVISION`, `RESERVED_CLASS_NAMES`, `CHAIN_METHODS`, `DB_METHODS`, `LOG_EVENTS` (каталог событий журнала); типы `Db`, `DbTx`, `TypedDb`, `SystemModels`, `Chain`, `Row`, `Expected` (строка `expect`: `{ id, rev, $action? }`), `DeleteOptions`, `RestoreOptions`, `Filter`, `FieldFilter` (значение поля в фильтре: `Record<string, FieldFilter>` — фильтр, собранный во время выполнения), `Cursor`, `LogEvent`, `ConnectOptions`, `UpOptions`, `LoadOptions`, `LoadReport`, `WatchOptions`, `WatchEvent`, `AuthApi`, `AclApi`, `MaintainReport` и другие |
 | `letopis/model` | `hub`, `link`, `one`, `many`, `End`, типы `Infer`, `InferLinks`, `Model`, `ClassDef`, `ClassMeta`; `normalizeSchema`, `translatePattern`, тип `JsonSchema` |
 | `letopis/mcp` | `createMcpServer(db, опции)` — сервер MCP SDK с инструментами letopis; тип `McpOptions`: `write` — инструмент `letopis_write` (по умолчанию его нет), `maxRows` — строк в ответе (100, от 1 до 10 000), `maxBytes` — байт в ответе (50 000, от 1 000 до 50 000 000); `allowAclWrite` — `letopis_write` пишет и классы прав (по умолчанию — `acl_denied`); `allowSystemAdmin` — сессия в арендаторе System (по умолчанию — `user_session_required`); значение вне пределов — `invalid_data`. Нужен пакет `@modelcontextprotocol/server` ([раздел 13](#агенты-и-mcp)) |
 | CLI `letopis` | `sync`, `types`, `load`, `maintain`, `mcp` ([раздел 13](#13-эксплуатация)); у всех — `--log[=уровень]` ([«Логирование»](#логирование)); у `mcp` — `--dsn`, `--schema`, `--token` (или `LETOPIS_DSN`, `LETOPIS_SCHEMA`, `LETOPIS_TOKEN`) и `--write` |
@@ -2422,7 +2575,7 @@ await svc.close()      // и подключения, полученные чер
 | `idOf(класс, ключ)` | id объекта класса с ключом в арендаторе сессии |
 | `entity(строка \| цепочка)` | начать путь с готового узла |
 | `maintain()` | обслуживание ([раздел 13](#13-эксплуатация)) |
-| `refresh()`, `flushSignals()`, `close()` | перечитать классы; отправить сигналы сейчас; закрыть пул и подписки (у фасада `as()` — ничего не делает, в `db.begin()` — откат) |
+| `refresh()`, `flushSignals()`, `close()` | перечитать классы; отправить сигналы сейчас; закрыть пул и подписки (у фасада `as()` — ничего не делает, в `db.begin()` — откат); после `close()` любой вызов — `invalid_query` (`api.closed`) |
 
 ### Цепочка
 
@@ -2457,6 +2610,9 @@ await svc.close()      // и подключения, полученные чер
 сервиса: свои ключи API и пары «ключ + секрет» сервис выпускает и отзывает сам по сессии своего ключа, прочие свои
 креды — нет; последний действующий ключ сервиса не отзывается никем (`acl_denied`). С `totp` вход `verifyPassword` и
 `lookup` проверяет ещё и код TOTP (право `auth.totp`) и выдаёт сессию со способом `TOTP`.
+Срок `ttl` (`sessionFor`, `verifyPassword`, `issueApiKey`, `issueOtp` и другие) — число **секунд** больше нуля, короткая
+строка как у `connect({ maintain })` (`'15m'`, `'2h'`, `'30s'`, `'1d'`) или интервал PostgreSQL (`'15 minutes'`); иное —
+`invalid_data` (`access.bad_ttl`). Без `ttl` — 7 суток. `maxAttempts` у `issueOtp` — целое от 1 до 10, иначе `invalid_data`.
 Вид креда `kind` — `^[A-Z][A-Z0-9_]{1,31}$` (`PASSWORD`, `EMAIL`, `TELEGRAM` …); `SESSION`, `APIKEY`, `KEYSECRET`,
 `OTP`, `TOTP`, `KEY` и `LOCK` заняты. То же правило — у вида пароля `user.kind` в `createTenant` и
 `up({ tenant })`.
