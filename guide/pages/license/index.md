@@ -2,7 +2,7 @@
 
 letopis распространяется под лицензией **PolyForm Noncommercial License 1.0.0** (SPDX `PolyForm-Noncommercial-1.0.0`). Исходный код доступен; некоммерческое использование бесплатно и без разрешения; коммерческое — только по отдельной лицензии от владельца. Это не лицензия open source в смысле OSI.
 
-Юридическую силу имеет английский текст лицензии — файл [LICENSE в репозитории](https://github.com/alepri51/letopis/blob/dev/LICENSE) и [текст на polyformproject.org](https://polyformproject.org/licenses/noncommercial/1.0.0). Эта страница — пояснение к нему, а не его замена.
+Юридическую силу имеет английский текст лицензии — файл [LICENSE в репозитории](https://github.com/alepri51/letopis/blob/main/LICENSE) и [текст на polyformproject.org](https://polyformproject.org/licenses/noncommercial/1.0.0). Эта страница — пояснение к нему, а не его замена.
 
 ## Что можно без разрешения
 
@@ -40,4 +40,4 @@ Issue на GitHub публичный: не пишите в нём ничего �
 
 ## Исходники
 
-Код пакета, этот сайт и сервисы-примеры — в репозитории [github.com/alepri51/letopis](https://github.com/alepri51/letopis): пакет — каталог `lib/`, сайт — `guide/`, сервисы — `services/`. Полный текст лицензии — [LICENSE](https://github.com/alepri51/letopis/blob/dev/LICENSE).
+Код пакета, этот сайт и сервисы-примеры — в репозитории [github.com/alepri51/letopis](https://github.com/alepri51/letopis): пакет — каталог `lib/`, сайт — `guide/`, сервисы — `services/`. Полный текст лицензии — [LICENSE](https://github.com/alepri51/letopis/blob/main/LICENSE).

@@ -2,9 +2,9 @@
 
 Договоры с полной историей. Каждая правка — новая версия с автором и причиной. Документ можно открыть на любой момент, а подписанный договор помнит и версии черновика, из которого его подписали. Интерфейс собран из блоков shadcnblocks (`login1`, `navbar1`, `stats8`, `changelog1` — лента версий), сервер — Express и JSON API.
 
-**Сначала — исходники.** Сервисы лежат в [репозитории letopis](https://github.com/alepri51/letopis), а не в npm-пакете: `git clone https://github.com/alepri51/letopis.git && cd letopis` — все команды ниже выполняются из корня клона ([как запустить](./#run)).
+**Сначала — исходники.** Сервисы лежат в [репозитории letopis](https://github.com/alepri51/letopis), а не в npm-пакете: `git clone https://github.com/alepri51/letopis && cd letopis` — все команды ниже выполняются из корня клона ([как запустить](./#run)).
 
-**Запустить в Docker:** `docker compose -f services/compose.yaml up --build documents` → http://127.0.0.1:8084 (юрист `lawyer@pravo.ru` / `Pravo-2026!`, руководитель `head@pravo.ru` / `Head-2026!`). Демо с нуля — `FRESH=1` в `environment` сервиса `documents` в `services/compose.yaml`: схема пересоздаётся.
+**Запустить в Docker:** `docker compose -f services/compose.yaml up --build documents`, затем открыть адрес сервиса — по умолчанию http://127.0.0.1:8084, порт меняет переменная `DOCUMENTS_PORT` (юрист `lawyer@pravo.ru` / `Pravo-2026!`, руководитель `head@pravo.ru` / `Head-2026!`). Демо с нуля — `FRESH=1` в `environment` сервиса `documents` в `services/compose.yaml`: схема пересоздаётся.
 
 **Запустить руками:** база — `docker compose -f services/compose.yaml up -d pg`, затем `services/documents/run-local.sh`; шаги для PowerShell — в `services/documents/README.md`.
 

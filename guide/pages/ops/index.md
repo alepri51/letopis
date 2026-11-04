@@ -29,6 +29,16 @@
 
 <Example id="ops/02-sql-cache-signals" />
 
+**Имя схемы в своём SQL.** В имени схемы letopis есть точка (`v2.shop`), поэтому помощник postgres.js для имён — `` tx`… from ${tx(schema)}.entity` `` — не годится: он делит имя по точке, получается `"v2"."shop".entity`, и PostgreSQL отказывает (`0A000`, cross-database references are not implemented). Пишите имя схемы в двойных кавычках сами — целым запросом или фрагментом:
+
+```ts
+// продолжение примера выше: db — подключение, schema — 'v2.shop'
+const all = await db.transaction((tx) => tx.unsafe(`select count(*)::int as n from "${schema}".entity where class = $1`, ['Product']))
+const same = await db.transaction((tx) => tx`select count(*)::int as n from ${tx.unsafe(`"${schema}"`)}.entity where class = ${'Product'}`)
+```
+
+Значения передавайте параметрами (`$1` или `${…}` в шаблоне), а не вклеивайте в текст: в текст попадает только имя схемы, которое задаёте вы.
+
 Телеметрия запросов — опции `connect({ onQuery, slowMs })`: событие на каждый запрос цепочки (режим, классы, строки, время, `slow`). Её показывают панели «Под капотом» во всех сервисах-примерах.
 
 Журнал работы библиотеки — удаления, возвраты, входы, транзакции, ошибки с ключами — включают `connect({ log, logLevel })`, переменная `LETOPIS_LOG` или флаг `--log` командной строки: глава [«Логирование»](../logging/).
@@ -45,7 +55,7 @@
 | `letopis maintain` | обслуживание: истёкшие и погашенные сессии и коды, строки-замки удалённых классов |
 | `letopis mcp [--write]` | сервер MCP по stdio ([глава 15](../mcp/)) |
 
-Подключение — `--dsn` и `--schema`, вход — `--token` (токен сессии) или `--api-key` (ключ API); `letopis mcp` принимает только `--token`. Неизвестная команда — справка с кодом 2 ещё до подключения к базе. Запуск из репозитория без сборки: `node --import tsx lib/src/cli.ts <команда> …`.
+Подключение — `--dsn` и `--schema`, вход — `--token` (токен сессии) или `--api-key` (ключ API); `letopis mcp` принимает только `--token` и требует пакет `@modelcontextprotocol/server`. Неизвестная команда — справка с кодом 2 ещё до подключения к базе. В проекте, где установлен пакет `letopis`, команды запускают как `npx letopis <команда> …`.
 
 ## Резервные копии
 
@@ -62,8 +72,11 @@ pg_dumpall -d "$ADMIN_DSN" --roles-only -f roles.sql         # роли: они 
 ```sh
 psql -d "$ADMIN_DSN" -f roles.sql
 psql -d "$ADMIN_DSN" -c 'create extension if not exists pgcrypto schema public'   # схема — как на исходном стенде
+psql -d "$ADMIN_DSN" -c 'grant create on database letopis to letopis_owner'      # letopis — имя вашей базы
 pg_restore -d "$ADMIN_DSN" --no-owner --role=letopis_owner shop.dump    # или без --no-owner, если роли те же
 ```
+
+`pg_restore --role=letopis_owner` создаёт схему от имени роли-владельца, а в новой базе у неё нет права создавать схемы — без `grant create on database` восстановление падает с «permission denied for database». Сам `up()` такого права роли не даёт (схему он создаёт от администратора), так что шаг нужен в любой базе.
 
 В какой схеме `pgcrypto` на исходном стенде, покажет `select extnamespace::regnamespace from pg_extension where extname = 'pgcrypto'`. Копия всей базы (`pg_dump` без `-n`) расширение уже содержит — нужны только роли. Вместо `roles.sql` роли можно завести и заново: `up()` любой другой схемы на целевом стенде ставит `letopis_owner`, `letopis_app` и `pgcrypto`, а роль приложения — `up({ login })` (тогда восстанавливайте с `--no-owner`).
 
@@ -77,7 +90,7 @@ pg_restore -d "$ADMIN_DSN" --no-owner --role=letopis_owner shop.dump    # или
 update "v2.shop".secret set deleted_at = clock_timestamp() where kind = 'SESSION' and deleted_at is null;
 ```
 
-Ключи сервиса и API этим не гасятся: отзовите их `db.auth.revokeCredential(id)` или тем же `update` с `kind in ('APIKEY', 'KEYSECRET')`. Если ключей API не осталось, следующий `up()` выпустит новый ключ сервиса. SQL-рецепт не шлёт сигнал, по которому работающие процессы узнают о гашении, — поэтому процессы остановлены (или перезапустите их после).
+Ключи сервиса и API этим не гасятся: отзовите их `db.auth.revokeCredential(id)` или тем же `update` с `kind in ('APIKEY', 'KEYSECRET')` — `APIKEY` это ключи API, в том числе ключ сервиса из `up()`, `KEYSECRET` — пары «ключ + секрет» (`issueKeySecret`). Остальные строки таблицы `secret` этим рецептом не трогайте: `PASSWORD`, `TOTP` и другие креды входа, `KEY` (служебный ключ самой установки) и `LOCK` (строки-замки классов). Если ключей API не осталось, следующий `up()` выпустит новый ключ сервиса. SQL-рецепт не шлёт сигнал, по которому работающие процессы узнают о гашении, — поэтому процессы остановлены (или перезапустите их после).
 
 ## Обновление версии
 

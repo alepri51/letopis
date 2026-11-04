@@ -88,8 +88,8 @@ export default example({
         '`db.Order(order).line().withDeleted().restore({ all: true })` вернул бы обе строки — и Сенчу, которую убрали раньше и ' +
         'отдельно. Строки именно этого удаления отличает причина: отберите надгробия с причиной отмены заказа и верните ' +
         'их `restore({ expect: надгробия })` — по `{ id, rev }` каждой. Строка вернётся, только если её последняя версия — ' +
-        'то самое надгробие; иначе отказ `conflict` и ничего не восстановлено (так ловится случай «вещь тем временем ' +
-        'выдали другому» — [глава 7](../money/#одна-открытая-запись-на-объект-выдача-бронь-смена)). Причина — свободный ' +
+        'то самое надгробие; иначе отказ `conflict` и ничего не восстановлено (так ловится случай «строку после удаления ' +
+        'пересоздали и снова удалили» — [глава 7](../money/#участника-удалили-вещь-выдали-другому-и-приняли-участника-вернули)). Причина — свободный ' +
         'текст, поэтому делайте её своей для каждого удаления (здесь — с номером операции).',
       run: async ({ db }) => {
         const dead = await db.Order(d.order1).line().withDeleted().rows();
@@ -107,10 +107,12 @@ export default example({
     {
       title: 'Живой объект вернуть нельзя — ключ говорит почему',
       text:
-        '`restore({ expect })` работает только для удалённых: живой объект — `not_deleted`. Почему он жив, говорит ключ ' +
-        '`err.key`: `write.not_deleted` — объект не удалялся, `write.restore_already` — его уже вернули (заказ A-1 — в ' +
-        'шаге 3; так же отвечает второй из двух одновременных `restore({ expect })`), `write.restore_id_taken` — id занял ' +
-        'новый объект с тем же ключом (шаг 11).',
+        '`restore({ expect })` работает только для удалённых. Почему объект жив, говорит ключ `err.key`: ' +
+        '`write.restore_already` (`not_deleted`) — его уже вернули (заказ A-1 — в шаге 3; так же отвечает второй из двух ' +
+        'одновременных `restore({ expect })`), `write.restore_id_taken` (`not_deleted`) — id занял новый объект с тем же ' +
+        'ключом (шаг 11). Объект, который не удалялся вовсе (Ольга), с `expect` даёт `conflict` (`write.restore_stale`): ' +
+        'его последняя версия — не надгробие из `expect`. Ключ `write.not_deleted` бывает только у `restore({ all: true })` ' +
+        'без `expect`, когда все цели шага живы.',
       run: async ({ db }) => {
         const olga = (await db.Customer(d.olga).first())!;
         return {
@@ -131,7 +133,7 @@ export default example({
         const ghost = '00000000-0000-4000-8000-000000000000';
         const preview = await db.Order(ghost).delete().rows();
         const tombs = await db.Order(ghost).withDeleted().rows();
-        return { 'delete() — превью': preview, 'withDeleted()': tombs, 'ответ пользователю': preview.length || tombs.length ? 'найдено' : 'не найдено' };
+        return { 'delete() — предпросмотр': preview, 'withDeleted()': tombs, 'ответ пользователю': preview.length || tombs.length ? 'найдено' : 'не найдено' };
       },
     },
     {

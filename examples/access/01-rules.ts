@@ -9,7 +9,7 @@ export default example({
   title: 'Права: роль сотрудника, запрет удаления, право на отчёты',
   summary:
     'Права в letopis всегда включены и по умолчанию запрещают всё. Правило — связь «кто» (ресурс-группа) и «что» ' +
-    '(ресурс-объект) с разрешением и весом; `db.acl.grant` и `db.acl.deny` заводят их по роли и цели. Проверяет ' +
+    '(ресурс-объект) с разрешением и весом; db.acl.grant и db.acl.deny заводят их по роли и цели. Проверяет ' +
     'правила сама база — одинаково для библиотеки и для прямых SQL-запросов.',
   tables: ['entity'],
   classes: ['member', 'Resource', 'rule'],
@@ -17,8 +17,9 @@ export default example({
   steps: [
     {
       title: 'Магазин и второй сотрудник — Олег',
-      text: '`createTenant` с именем того же магазина заводит только пользователя. `db.acl.roles` даёт ему роль `staff` ' +
-        'в текущем арендаторе — это строка членства `member`.',
+      text: '`createTenant` с именем уже заведённого магазина «Ромашка» нового арендатора не заводит: он заводит ' +
+        'пользователя Олега и делает его участником «Ромашки» (без `user.roles` — владельцем). `db.acl.roles` ' +
+        'заменяет его роли на `staff` в текущем арендаторе — это строка членства `member`.',
       run: async ({ db, admin, schema, up }) => {
         d = await seedShop(db);
         oleg = (await createTenant(admin, schema, { name: 'Ромашка', user: { name: 'Олег', login: 'oleg@romashka.ru', password: 'Олег-2026!' } })).user!;
@@ -29,9 +30,10 @@ export default example({
       title: 'Правило: сотрудникам нельзя удалять товары',
       text:
         '`db.acl.deny` — запрет роли `staff` удалять товары с весом 50: сильнее правила «своим можно всё» (вес 10). ' +
-        '`db.acl.grant` разрешает той же роли отчёты — эндпоинты `shop.reports.*`. Под капотом — ресурсы ' +
+        '`db.acl.grant` разрешает той же роли отчёты — эндпоинты `shop.reports.*`. В базе это ресурсы ' +
         '`role:staff:ACCOUNT`, `class:Product:DELETE`, `api:shop.reports.*:API` и правила между ними; повтор вызова ничего ' +
-        'не меняет. `db.acl.list()` показывает правила арендатора — и эти, и «можно всё» от `createTenant`.',
+        'не меняет. `db.acl.list()` показывает правила арендатора — и эти, и «можно всё» от `createTenant`: группа ' +
+        '`authenticated:ACCOUNT` (все вошедшие; в арендатор пускают только его участников), `*` — любой класс.',
       run: async ({ db }) => {
         await db.acl.deny({ role: 'staff', delete: 'Product' });
         await db.acl.grant({ role: 'staff', api: 'shop.reports.*' });

@@ -13,7 +13,7 @@ import { exampleFiles } from './examples.ts';
 
 const ROOT = new URL('..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
 const TITLES: Record<string, string> = {
-  start: 'Старт с нуля', basics: '1. Что такое letopis', install: '2. Установка', models: '3. Модели', write: '4. Запись',
+  first: 'Первые 15 минут', start: 'Старт с нуля', basics: '1. Что такое letopis', install: '2. Установка', models: '3. Модели', write: '4. Запись',
   read: '5. Чтение', delete: '6. Удаление', money: '7. Транзакции и деньги', access: '8. Права', auth: '9. Вход',
   history: '10. История и время', watch: '11. Подписка, кэш, сигналы', load: '12. Массовая загрузка',
   ops: '13. Эксплуатация', logging: '14. Логирование', mcp: '15. MCP', errors: '16. Ошибки',

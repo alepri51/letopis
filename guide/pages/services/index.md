@@ -14,7 +14,7 @@
 Сервисы — не часть npm-пакета: их код, `services/compose.yaml` и скрипты запуска лежат в репозитории. Общий первый шаг для всех четырёх — получить исходники и перейти в корень клона:
 
 ```sh
-git clone https://github.com/alepri51/letopis.git
+git clone https://github.com/alepri51/letopis
 cd letopis
 ```
 
@@ -23,7 +23,21 @@ cd letopis
 - **в Docker** (нужен Docker с Compose): `docker compose -f services/compose.yaml up --build <сервис>`, где сервис — `salon`, `wallet`, `helpdesk` или `documents`; база PostgreSQL 18 поднимается тем же файлом;
 - **руками, без Docker для сервиса** (нужны Node 22 и PostgreSQL 18): база — `docker compose -f services/compose.yaml up -d pg` или своя, затем `services/<сервис>/run-local.sh`; шаги по отдельности и команды для PowerShell — в `services/<сервис>/README.md`.
 
-Адрес, демо-входы и что смотреть — на странице сервиса.
+**Порты и имя стенда.** Все порты открыты только на 127.0.0.1. По умолчанию: база — 15440, сайт с песочницей — 8080, салон — 8081, кошелёк — 8082, helpdesk — 8083, документы — 8084; имя проекта Compose — `letopis-guide`. Если порт занят или такой стенд уже запущен, задайте своё имя проекта (`-p`) и свои порты переменными `PG_PORT`, `GUIDE_PORT`, `SALON_PORT`, `WALLET_PORT`, `HELPDESK_PORT`, `DOCUMENTS_PORT`:
+
+```sh
+SALON_PORT=18081 PG_PORT=25440 docker compose -p my-letopis -f services/compose.yaml up --build salon
+```
+
+PowerShell:
+
+```powershell
+$env:SALON_PORT = '18081'; $env:PG_PORT = '25440'; docker compose -p my-letopis -f services/compose.yaml up --build salon
+```
+
+С другим `-p` у стенда свои контейнеры и своя база (том данных), прежний стенд не затрагивается; останавливать — с тем же `-p`: `docker compose -p my-letopis -f services/compose.yaml down`. Адрес сервиса — `http://127.0.0.1:<порт>`; дальше на страницах сервисов он назван «адрес сервиса».
+
+Адрес по умолчанию, демо-входы и что смотреть — на странице сервиса.
 
 ## Что дополняет каждый сервис
 

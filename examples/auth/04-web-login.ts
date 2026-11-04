@@ -4,32 +4,32 @@ import { hub } from 'letopis/model';
 import { z } from 'zod';
 import { example } from '../_shared/example.ts';
 
-// класс клуба: его описание есть только в арендаторе «Ромашка»
+// класс компании: его описание есть только в арендаторе «Ромашка»
 const Item = hub('Item', { code: z.string() }, { key: ['code'] });
 
-/** Серверная сессия веб-сервиса: токен из cookie → кто вошёл и в каком клубе. Клиент присылает только cookie. */
+/** Серверная сессия веб-сервиса: токен из cookie → кто вошёл и в какой компании. Клиент присылает только cookie. */
 const sessions = new Map<string, { account: string; tenant: string }>();
 let cookie: string;
 
 /**
- * Войти в клуб — одна функция: пароль, список клубов пользователя у базы, выбор клуба. Клуб пишется в серверную
- * сессию, а не берётся из параметра запроса: в чужой клуб база не пустит и сама (tenant_denied).
+ * Войти в компанию — одна функция: пароль, список компаний пользователя у базы, выбор компании. Компания пишется в
+ * серверную сессию, а не берётся из параметра запроса: в чужую компанию база не пустит и сама (tenant_denied).
  */
-async function enterClub(svc: Db, identifier: string, password: string, clubName?: string) {
+async function enterCompany(svc: Db, identifier: string, password: string, companyName?: string) {
   const ok = await svc.auth.verifyPassword({ identifier, password });
   if (!ok) return 'неверный логин или пароль';
-  const me = await svc.as(ok.account); // личный арендатор — только чтобы спросить, в каких клубах он состоит
-  const clubs = (await me.auth.tenants()).filter((t) => !t.personal);
-  const club = clubName === undefined ? clubs[0] : clubs.find((c) => c.name === clubName);
-  if (!club) {
+  const me = await svc.as(ok.account); // личный арендатор — только чтобы спросить, в каких компаниях он состоит
+  const companies = (await me.auth.tenants()).filter((t) => !t.personal);
+  const company = companyName === undefined ? companies[0] : companies.find((c) => c.name === companyName);
+  if (!company) {
     await svc.auth.revoke(ok.token);
-    return 'вы не состоите в этом клубе';
+    return 'вы не состоите в этой компании';
   }
-  sessions.set(ok.token, { account: ok.account, tenant: club.tenant });
-  return { cookie: ok.token, club: club.name };
+  sessions.set(ok.token, { account: ok.account, tenant: company.tenant });
+  return { cookie: ok.token, company: company.name };
 }
 
-/** Каждый запрос: сессия жива? — подключение от имени пользователя в его клубе на общем пуле сервиса. */
+/** Каждый запрос: сессия жива? — подключение от имени пользователя в его компании на общем пуле сервиса. */
 async function dbFor(svc: Db, token: string): Promise<Db | null> {
   const s = sessions.get(token);
   if (!s || !(await svc.auth.session(token))) {
@@ -42,39 +42,39 @@ async function dbFor(svc: Db, token: string): Promise<Db | null> {
 export default example({
   title: 'Вход для веб-сервиса: одно подключение сервиса и svc.as() на запрос',
   summary:
-    'Веб-сервис подключается к базе один раз — по ключу сервиса. Вход — одна функция: пароль, клуб из auth.tenants(), ' +
-    'клуб — в серверную сессию. Каждый запрос идёт через svc.as(аккаунт, { tenant }) на том же пуле, а не через ' +
+    'Веб-сервис подключается к базе один раз — по ключу сервиса. Вход — одна функция: пароль, компания из auth.tenants(), ' +
+    'компания — в серверную сессию. Каждый запрос идёт через svc.as(аккаунт, { tenant }) на том же пуле, а не через ' +
     'connect({ token }) на каждый вход. Выход — svc.auth.revoke(token); погашенный токен connect() не принимает: no_session.',
   tables: [],
   covers: ['db.as', 'auth.session', 'auth.verifyPassword', 'connect.token', 'error.no_session', 'nuance.web-login-one-pool', 'nuance.revoked-session-empty'],
   steps: [
     {
-      title: 'Войти в клуб — одна функция',
+      title: 'Войти в компанию — одна функция',
       text:
-        '`svc` — единственное подключение сервиса (`connect({ dsn, schema, apiKey })` при запуске). `enterClub` ' +
-        'проверяет пароль (`verifyPassword` → `{ account, token }`), спрашивает у базы клубы пользователя — ' +
+        '`svc` — единственное подключение сервиса (`connect({ dsn, schema, apiKey })` при запуске). `enterCompany` ' +
+        'проверяет пароль (`verifyPassword` → `{ account, token }`), спрашивает у базы компании пользователя — ' +
         '`svc.as(account)` открывает его личный арендатор, `auth.tenants()` отдаёт членства с `name` и `personal` — и ' +
-        'пишет выбранный клуб в серверную сессию под токеном. Клиент получает только токен в cookie. Свою таблицу ' +
-        '«логин → клуб» держать не нужно: членство хранит база.',
+        'пишет выбранную компанию в серверную сессию под токеном. Клиент получает только токен в cookie. Свою таблицу ' +
+        '«логин → компания» держать не нужно: членство хранит база.',
       run: async ({ db, svc, user }) => {
         await syncModels(db, [Item], { apply: true }); // скрыть
         await db.Item().create({ code: 'B-1' }).rows(); // скрыть
-        const r = await enterClub(svc, user.login, user.password);
+        const r = await enterCompany(svc, user.login, user.password);
         if (typeof r === 'string') return r;
         cookie = r.cookie;
-        return { 'клуб': r.club, 'серверная сессия': sessions.get(r.cookie), 'чужой клуб по имени': await enterClub(svc, user.login, user.password, 'Нет такого') };
+        return { 'компания': r.company, 'серверная сессия': sessions.get(r.cookie), 'чужая компания по имени': await enterCompany(svc, user.login, user.password, 'Нет такого') };
       },
     },
     {
       title: 'Каждый запрос — svc.as(аккаунт, { tenant })',
       text:
         'Обработчик берёт токен из cookie, проверяет сессию (`svc.auth.session(token)` — `null`, если она погашена или ' +
-        'истекла) и работает через `svc.as(account, { tenant })` — с правами пользователя в его клубе, на пуле сервиса. ' +
+        'истекла) и работает через `svc.as(account, { tenant })` — с правами пользователя в его компании, на пуле сервиса. ' +
         '`connect({ token })` на каждый вход так делать не стоит: каждый `connect()` по `dsn` создаёт свой пул (до `max` ' +
         'соединений, по умолчанию 10), и пользователи быстро исчерпают соединения PostgreSQL.',
       run: async ({ svc }) => {
         const u = (await dbFor(svc, cookie))!;
-        return { 'вещей в клубе': await u.Item().count(), 'сейчас': u.tenant === sessions.get(cookie)!.tenant ? 'клуб из серверной сессии' : u.tenant };
+        return { 'вещей в компании': await u.Item().count(), 'сейчас': u.tenant === sessions.get(cookie)!.tenant ? 'компания из серверной сессии' : u.tenant };
       },
     },
     {

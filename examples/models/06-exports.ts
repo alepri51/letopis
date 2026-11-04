@@ -88,13 +88,13 @@ export default example({
         const typed = await connect({ dsn: dsn.app, schema, token: up.tenant!.token!, models: shopModels });
         const shops = await typed.Shop({ name: 'Ромашка' }).count(); // класс Shop есть в моделях — типы строгие
         const name: string = 'Shop'; // имя из переменной
-        return { 'typed.Shop(…).count()': shops, 'loose(typed) — тот же объект': loose(typed) === typed, 'loose(typed)[name]().count()': await loose(typed)[name]().count() };
+        return { 'typed.Shop(…).count()': shops, 'loose(typed) — тот же объект': (loose(typed) as unknown) === typed, 'loose(typed)[name]().count()': await loose(typed)[name]().count() };
       },
     },
     {
       title: 'Зарезервированные имена и ревизия движка',
       text:
-        'Имена методов цепочки и `db` классам не дают: библиотека разбирает их раньше классов. Хаб с таким именем ' +
+        'Имена методов цепочки и `db` классам не дают: библиотека разбирает их раньше классов. Класс hub с таким именем ' +
         'отклоняют `hub()`, `syncModels` и база, связь — база (`invalid_class`).',
       run: async () => ({
         'методов цепочки': CHAIN_METHODS.length, 'методов db': DB_METHODS.length,
@@ -103,7 +103,7 @@ export default example({
       }),
     },
     {
-      title: 'Хаб с зарезервированным именем — отказ',
+      title: 'Класс hub с зарезервированным именем — отказ',
       text: '`hub("count", …)` отказывает сразу, до базы: шаг `db.count()` цепочка приняла бы за метод.',
       run: async () => hub('count', { n: z.number() }, {}),
       expect: { error: 'invalid_class' },

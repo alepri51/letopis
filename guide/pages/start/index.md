@@ -1,22 +1,28 @@
 # Старт с нуля: сервис по ключу
 
-Как установить letopis в свою базу, описать модель данных и заполнить её — за семь шагов, так, как устроено настоящее веб-приложение: установка и администраторская работа — отдельно, а сервис подключается своей ролью по **ключу сервиса**, без пароля администратора. Всё в одном процессе, для малого приложения, — [«Первые 15 минут»](../first/). Если letopis вам в новинку, сначала прочтите главу [«Что такое letopis»](../basics/what-is). Кто такие сервис, арендатор, пользователь и сессия, которые появятся в шагах, — на [карте понятий](../concepts/).
+Как установить letopis в свою базу, описать модель данных и заполнить её — за шесть шагов, так, как устроено настоящее веб-приложение: установка и администраторская работа (схема, арендаторы, массовая загрузка) — отдельно, от администратора базы, а веб-сервис подключается своей ролью по **ключу сервиса**, без пароля администратора. Всё в одном процессе, для малого приложения, — [«Первые 15 минут»](../first/). Если letopis вам в новинку, сначала прочтите главу [«Что такое letopis»](../basics/what-is). Кто такие сервис, арендатор, пользователь и сессия, которые появятся в шагах, — на [карте понятий](../concepts/); какие строки подключения, ключи и токены нужны и откуда они берутся — в [сводке значений](../first/#сводка-значений).
 
 ## Ключ сервиса — до первого up() {#service-key}
 
 ::: danger Ключ сервиса выдаётся один раз — задайте его заранее
 `up()` возвращает ключ сервиса `r.serviceKey` только при первой установке или когда в схеме не осталось ни одного ключа API, кроме отозванных. Повторный `up()` отвечает `serviceKey: null`: потерянный ключ второй раз не выдаётся, а в базе он хранится только хэшем. Без ключа сервис не подключится (`connect({ apiKey })`).
 
-Задайте ключ заранее — сгенерируйте его сами и передайте в `up()`, как делает скрипт ниже:
+Задайте ключ заранее — сгенерируйте его сами и передайте в `up()`, как делают пример и скрипт ниже:
 
 ```ts
+import { up, connect } from 'letopis'
+
 // lts_ и от 32 до 128 шестнадцатеричных знаков в нижнем регистре: node -e "console.log('lts_' + require('crypto').randomBytes(32).toString('hex'))"
-const SERVICE_KEY = process.env.SERVICE_KEY            // из файла с правами только владельца, не из репозитория
-const r = await up({ dsn: ADMIN_DSN, schema: 'myapp', serviceKey: SERVICE_KEY })   // ключ регистрируется, если такого ещё нет
-const svc = await connect({ dsn: APP_DSN, schema: r.schema, apiKey: SERVICE_KEY })   // APP_DSN — роль приложения, например r.login.dsn из up({ login })
+const SERVICE_KEY = process.env.SERVICE_KEY!           // из файла с правами только владельца, не из репозитория
+const ADMIN_DSN = process.env.ADMIN_DSN!               // администратор базы — только у процесса установки
+const r = await up({
+  dsn: ADMIN_DSN, schema: 'myapp', serviceKey: SERVICE_KEY,           // ключ регистрируется, если такого ещё нет
+  login: { user: 'myapp_app', password: process.env.APP_PASSWORD! },  // роль приложения: её строка — r.login.dsn
+})
+const svc = await connect({ dsn: r.login!.dsn!, schema: r.schema, apiKey: SERVICE_KEY })   // в приложении — APP_DSN из настроек
 ```
 
-Тогда ключ всегда у вас, а повторный `up()` с тем же ключом ничего не меняет. Подробно — опция [`serviceKey`](../reference/setup#up-servicekey) в справочнике.
+Тогда ключ всегда у вас, а повторный `up()` с тем же ключом ничего не меняет и отвечает `serviceKey: null`. В настоящем приложении установка и подключение — разные процессы: строку роли приложения (`r.login.dsn`) кладут в настройки приложения как `APP_DSN`. Подробно — опция [`serviceKey`](../reference/setup#up-servicekey) в справочнике.
 :::
 
 ## Что нужно
@@ -25,13 +31,23 @@ const svc = await connect({ dsn: APP_DSN, schema: r.schema, apiKey: SERVICE_KEY 
 - PostgreSQL 18 и роль-установщик (суперпользователь или роль с `CREATEROLE` и правом `CREATE` на базе — [какие права нужны](../install/#права-установщика)). Нет своей базы — PostgreSQL 18 в Docker по [рецепту запуска примеров](/#run); строка подключения администратора тогда — `postgres://postgres:guide@127.0.0.1:15440/letopis`.
 - лицензия: letopis — под [PolyForm Noncommercial 1.0.0](../license/): личное, учебное, исследовательское и некоммерческое использование бесплатно и без разрешения, коммерческое — по разрешению владельца ([как его получить](../license/#как-получить-разрешение)).
 
-## Семь шагов на примере
+## Шесть шагов на примере
 
 <Example id="start/01-from-zero" />
 
+Шаги 1–6 — путь от пустой базы до данных; последний шаг примера — уже обычная работа (правка задачи). Шаги 1, 2 и 6 — администраторская работа: они идут от администратора базы (`dsn.admin` в коде примера, `ADMIN_DSN` в скрипте). Шаги 3–5 — то, что делает веб-сервис: он подключается ролью приложения по ключу сервиса, а права в каждом запросе проверяет база.
+
+Если запустить пример у себя, в выводе шага 6 будет строка «letopis: администраторское подключение — RLS не действует, данные всех арендаторов видны». Это не ошибка, а предупреждение letopis: его печатает любое подключение с `allowBypassRls: true`. Массовой загрузке такое подключение и нужно: `db.load` пишет строки командой COPY от роли-владельца схемы в обход правил доступа (на подключении сервиса — отказ `admin_required`). Поэтому загрузку запускают отдельным процессом с паролем администратора — скриптом переноса, — а не из веб-сервиса.
+
 ## То же на вашей базе: скрипт
 
-В [репозитории letopis на GitHub](https://github.com/alepri51/letopis) лежит готовый скрипт [`guide/start/start.mjs`](https://github.com/alepri51/letopis/blob/main/guide/start/start.mjs) (рядом — его [`package.json`](https://github.com/alepri51/letopis/blob/main/guide/start/package.json) с `letopis` 3). Он ставит `letopis` из npm и делает те же семь шагов: схема `v2.myapp`, роль приложения `myapp_app` (её заводит `up({ login })`), арендатор «Альфа» с пользователем `vera@alpha.ru`, модель «Проект и задача», проект с тремя задачами цепочками и ещё задачи массовой загрузкой `db.load`.
+В [репозитории letopis на GitHub](https://github.com/alepri51/letopis) лежит готовый скрипт [`guide/start/start.mjs`](https://github.com/alepri51/letopis/blob/main/guide/start/start.mjs) (рядом — его [`package.json`](https://github.com/alepri51/letopis/blob/main/guide/start/package.json) с `letopis` 3). Он ставит `letopis` из npm и делает те же шесть шагов, печатая их номера: схема `v2.myapp` и роль приложения `myapp_app` (её заводит `up({ login })`), арендатор «Альфа» с пользователем `vera@alpha.ru`, вход Веры по ключу сервиса, модель «Проект и задача», проект с тремя задачами цепочками и ещё задачи массовой загрузкой `db.load`.
+
+Скрипту нужен PostgreSQL 18. Нет своей базы — запустите его в Docker по [рецепту на главной](/#run): строка администратора тогда — `postgres://postgres:guide@127.0.0.1:15440/letopis`, и скрипт берёт её сам. Своя база — передайте её строку в `ADMIN_DSN`.
+
+::: warning Без ADMIN_DSN скрипт идёт в базу из рецепта
+Если `ADMIN_DSN` не задан, скрипт подключается к `postgres://postgres:guide@127.0.0.1:15440/letopis`. Если на этом порту у вас работает другой PostgreSQL с таким паролем, схема `v2.myapp` и роль `myapp_app` появятся в нём. Работаете со своей базой — всегда задавайте `ADMIN_DSN` явно.
+:::
 
 Из клона репозитория:
 
@@ -39,7 +55,7 @@ const svc = await connect({ dsn: APP_DSN, schema: r.schema, apiKey: SERVICE_KEY 
 git clone https://github.com/alepri51/letopis.git
 cd letopis/guide/start
 npm install
-node start.mjs                                                        # база из docker run выше (127.0.0.1:15440)
+node start.mjs                                                        # база из Docker по рецепту (127.0.0.1:15440)
 ADMIN_DSN=postgres://postgres:ПАРОЛЬ@localhost:5432/letopis node start.mjs   # своя база
 ```
 
@@ -51,31 +67,40 @@ cd letopis\guide\start; npm install
 $env:ADMIN_DSN = 'postgres://postgres:ПАРОЛЬ@localhost:5432/letopis'; node start.mjs
 ```
 
-Без клона — скачайте `start.mjs` в пустую папку, поставьте пакеты `npm init -y && npm pkg set type=module && npm i letopis@3 zod postgres` и запустите так же. Повторный запуск безопасен: `up()` и `createTenant` ничего не дублируют, проект пишется через `upsert`, уже созданные задачи пропускаются, а загрузка с `existing: 'skip'` пропускает уже загруженные строки.
+Без клона — в пустой папке:
+
+```sh
+curl -O https://raw.githubusercontent.com/alepri51/letopis/main/guide/start/start.mjs
+npm init -y && npm pkg set type=module && npm i letopis@3 zod postgres@3
+ADMIN_DSN=postgres://postgres:ПАРОЛЬ@localhost:5432/letopis node start.mjs
+```
+
+PowerShell: `Invoke-WebRequest https://raw.githubusercontent.com/alepri51/letopis/main/guide/start/start.mjs -OutFile start.mjs`, затем те же команды `npm` и `$env:ADMIN_DSN = '…'; node start.mjs`. `postgres@3` — драйвер той же основной версии, на которой работает letopis: пул администратора из него скрипт передаёт в `createTenant`.
+
+Повторный запуск безопасен: `up()` и `createTenant` ничего не дублируют, проект пишется через `upsert`, уже созданные задачи пропускаются, а загрузка с `existing: 'skip'` пропускает уже загруженные строки.
 
 ## Своё приложение с нуля
 
 ```sh
-npm init -y && npm pkg set type=module && npm i letopis@3 zod postgres
+npm init -y && npm pkg set type=module && npm i letopis@3 zod postgres@3
 ```
 
-Дальше — тот же порядок, что в скрипте:
+Дальше — тот же порядок, что в примере и скрипте:
 
-1. Поставьте схему: `up()` от администратора базы. При первой установке он вернёт ключ сервиса `serviceKey` — сохраните его или задайте свой заранее ([выше](#service-key)).
-2. Заведите роль приложения: `up({ login: { user, password } })` — её строка подключения в `r.login.dsn`; или сами: `create role … login` и `grant letopis_app to …`.
-3. Заведите арендатора: `createTenant`.
-4. Подключитесь ролью приложения с ключом сервиса: `connect({ apiKey })`.
-5. Опишите модели на `letopis/model` и запишите их в базу: `syncModels` — **для каждого арендатора** (см. ниже).
-6. Пишите и читайте данные цепочками.
-7. Много данных сразу — `db.load` на администраторском подключении (`allowBypassRls: true`) с сессией пользователя нужного арендатора.
+1. Поставьте схему и заведите роль приложения: `up()` от администратора базы с `serviceKey` ([выше](#service-key)) и `login: { user, password }` — строка подключения роли в `r.login.dsn`. Роль можно завести и самим: `create role … login` и `grant letopis_app to …`.
+2. Заведите арендатора с первым пользователем: `createTenant`.
+3. Подключитесь ролью приложения с ключом сервиса — `connect({ apiKey })` — и работайте от имени пользователей: вход `svc.auth.verifyPassword`, затем `svc.as`.
+4. Опишите модели на `letopis/model` и запишите их в базу: `syncModels` — **для каждого арендатора** (см. ниже).
+5. Пишите и читайте данные цепочками.
+6. Много данных сразу — `db.load` на администраторском подключении (`allowBypassRls: true`) с сессией пользователя нужного арендатора; это работа отдельного процесса, не веб-сервиса.
 
-Второго арендатора заводит [`createTenant(admin, schema, opts)`](../reference/setup#export-createtenant): `admin` — пул `postgres(ADMIN_DSN)`, а не строка; как — [«Арендаторы и права»](../access/#завести-арендатора-createtenant).
+Второго арендатора заводит [`createTenant(admin, schema, opts)`](../reference/setup#export-createtenant): `admin` — пул `postgres(ADMIN_DSN)`, а не строка, `schema` — та же схема, что у `up()` (`r.schema`); как — [«Арендаторы и права»](../access/#завести-арендатора-createtenant).
 
 ::: warning Несколько арендаторов — модель в каждом
-Классы, которые записал `syncModels`, принадлежат **арендатору сессии**. Второй арендатор (второй клуб, салон, компания) их не видит и на первом же обращении к классу получает `invalid_class`. Вызывайте `syncModels` для каждого арендатора — на подключении с сессией этого арендатора, например при запуске приложения:
+Классы, которые записал `syncModels`, принадлежат **арендатору сессии**. Второй арендатор (второй клуб, салон, компания) их не видит и на первом же обращении к классу получает `invalid_class`. Вызывайте `syncModels` для каждого арендатора — на подключении с сессией этого арендатора, например при запуске приложения. Продолжение примера выше: `svc` — подключение сервиса из шага 3, `models` — список ваших моделей (в примере `[Project, Task]`), `tenants` — сохранённые результаты `createTenant`:
 
 ```ts
-for (const t of tenants) {   // t — результат createTenant: { tenant, user, … }
+for (const t of tenants) {   // t — результат createTenant: { tenant, user, token, created }
   const db = await svc.as(t.user, { tenant: t.tenant })
   await syncModels(db, models, { apply: true })   // повтор безопасен: неизменённые классы не трогаются
 }
