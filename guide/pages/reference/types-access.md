@@ -68,7 +68,7 @@ type AclOp = 'READ' | 'WRITE' | 'DELETE';
 /** Правило арендатора в виде обёртки. */
 interface AclRule {
   id: string;
-  /** Роль группы `role:<роль>:ACCOUNT`; null — группа не одной роли (все аккаунты или своя группа). */
+  /** Роль правила; null — правило не одной роли (все аккаунты или своя группа). */
   role: string | null;
   /** Группа всех аккаунтов арендатора: `authenticated:ACCOUNT` от createTenant или `everyone:ACCOUNT` обёртки. */
   everyone: boolean;
@@ -128,6 +128,10 @@ type AclTarget = string | ({ class: string } & { [column: string]: unknown });
 **Импорт:** `import type { AuthApi } from 'letopis'`. Каждый член с описанием, параметрами и ошибками — на странице [Вход: db.auth](./auth).
 
 ```ts
+/**
+ * Вход, креды и сессии (`db.auth`). Срок `ttl` у входа, ключей, кодов и сессий — число секунд или строка: короткая форма
+ * `'15m'`/`'2h'`/`'30s'`/`'1d'` либо интервал PostgreSQL `'15 minutes'`; иное — `invalid_data`.
+ */
 interface AuthApi {
   setPassword(a: { account: AccountRef; identifier: string; password: string; kind?: string; confirmed?: boolean; keepCurrent?: boolean }): Promise<string>;
   verifyPassword(a: { identifier: string; password: string; kind?: string; requireConfirmed?: boolean; ttl?: number | string; totp?: string }): Promise<LoginResult | null>;

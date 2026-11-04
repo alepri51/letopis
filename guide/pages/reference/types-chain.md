@@ -109,7 +109,7 @@ interface ChainMods {
 **Импорт:** `import type { ChainRef } from 'letopis'`
 
 ```ts
-/** Любая цепочка — с типами по моделям (`TypedChain`) или без них (`Chain`): аргумент `entity()` и значение слота. */
+/** Любая цепочка — с типами по моделям (`TypedChain`) или без них (`Chain`): аргумент `entity()` и значение шага роли (`.Роль.set(цепочка)`). */
 type ChainRef = Pick<ChainCore, 'ids'>;
 ```
 
@@ -138,9 +138,9 @@ interface Cursor {
 
 ```ts
 /**
- * Опции delete() (3.0): без confirm — превью; `{ confirm: true, expect }` — удалить ровно показанное превью;
+ * Опции delete(): без confirm — предпросмотр; `{ confirm: true, expect }` — удалить ровно показанный предпросмотр;
  * `{ confirm: true, all: true }` — осознанно удалить текущий состав целей без сверки (и без фильтра). `{ confirm: true }`
- * без expect и all — invalid_query (write.confirm_without_expect).
+ * без expect и all — invalid_query.
  */
 type DeleteOptions =
   | { confirm?: false; all?: boolean; expect?: undefined; reason?: string }
@@ -154,13 +154,13 @@ type DeleteOptions =
 
 ```ts
 /**
- * Ожидаемая строка `expect` у `restore()` и `delete({ confirm: true })` (A1, A2): строка ответа или её `id`,
- * `rev` (и `$action` превью удаления). Лишние поля строки не мешают.
+ * Ожидаемая строка `expect` у `restore()` и `delete({ confirm: true })`: строка ответа или её `id`, `rev` (и `$action`
+ * предпросмотра удаления). Лишние поля строки не мешают.
  */
 interface Expected {
   id: string;
   rev: number;
-  /** У строки превью — что с ней будет; строку ответа (с любым $action) можно передать как есть. */
+  /** У строки предпросмотра — что с ней будет; строку ответа (с любым $action) можно передать как есть. */
   $action?: Row['$action'];
   /** Строка-сводка предпросмотра (`$action: 'hidden'`, 3.0.1): что будет со скрытыми правами строками. */
   $hidden?: Row['$hidden'];
@@ -228,9 +228,9 @@ type Path = Record<string, Row>;
 
 ```ts
 /**
- * Опции restore() (3.0): `{ expect }` — надгробия, которые видел пользователь (ответ delete() или withDeleted()), с
+ * Опции restore(): `{ expect }` — надгробия, которые видел пользователь (ответ delete() или withDeleted()), с
  * `partial: true` — что можно; `{ all: true }` — осознанно вернуть все удалённые цели шага без сверки. Без expect и all —
- * invalid_query (write.restore_without_expect), и для явных id.
+ * invalid_query, и для явных id.
  */
 type RestoreOptions =
   | { expect: readonly Expected[]; partial?: boolean; all?: boolean; reason?: string }
@@ -260,9 +260,9 @@ interface Row<D = Record<string, unknown>, L = Record<string, string | string[]>
   /** Вид операции версии: create, update, delete, restore, … */
   op: string;
   reason?: string;
-  /** Надгробие: удалённая сущность (withDeleted) или версия удаления (versions). */
+  /** Надгробие: удалённый объект (withDeleted) или версия удаления (versions). */
   $deleted?: true;
-  /** Глубина узла при deep() (1 — прямой потомок); в превью удаления — уровень каскада (0 — цель). */
+  /** Глубина узла при deep() (1 — прямой потомок); в предпросмотре удаления — уровень каскада (0 — цель). */
   $depth?: number;
   /** Что сделал upsert. */
   $upsert?: 'created' | 'updated' | 'unchanged';
@@ -316,6 +316,6 @@ type StepFn = ((filter?: Filter) => Chain) & {
 **Импорт:** `import type { WriteRow } from 'letopis'`
 
 ```ts
-/** Строка ответа записи (результат upsert — $upsert, превью удаления — $action — поля Row). */
+/** Строка ответа записи (результат upsert — $upsert, предпросмотр удаления — $action — поля Row). */
 type WriteRow = Row;
 ```

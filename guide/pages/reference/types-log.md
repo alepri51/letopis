@@ -13,7 +13,7 @@ outline: [2, 2]
 **Импорт:** `import type { LogEvent } from 'letopis'`
 
 ```ts
-/** Событие логирования (каталог событий — lib/src/messages/log.ts). Поля без значения в событии отсутствуют. */
+/** Событие логирования (каталог событий — `LOG_EVENTS`). Поля без значения в событии отсутствуют. */
 interface LogEvent {
   /** Время события, ISO 8601 (UTC). */
   ts: string;
@@ -24,9 +24,9 @@ interface LogEvent {
   op?: string;
   /** Длительность операции, мс (с точностью до 0,1). */
   ms?: number;
-  /** Арендатор сессии фасада. */
+  /** Арендатор сессии подключения (db, db.as(), db.begin()). */
   tenant?: string;
-  /** Аккаунт фасада: аккаунт сессии или тот, от чьего имени действует db.as(). */
+  /** Аккаунт подключения: аккаунт сессии или тот, от чьего имени действует db.as(). */
   account?: string;
   /** Метка транзакции db.begin() или db.transaction(). */
   tx?: string;
@@ -79,9 +79,11 @@ type Logger = LogFn | LogObject;
 **Импорт:** `import type { LoginOptions } from 'letopis'`
 
 ```ts
-/** Роль приложения up({ login }). */
+/** Роль приложения up({ login }): `{ user, password }` (поле — `user`, не `name`). */
 interface LoginOptions {
+  /** Имя роли PostgreSQL для приложения, например `'shop_app'`: нет — up() её создаёт, есть — меняет пароль. */
   user: string;
+  /** Пароль роли: войдёт в строку подключения `r.login.dsn`. */
   password: string;
 }
 ```

@@ -19,7 +19,7 @@ interface ConnectOptions extends LogOptions {
   sql?: postgres.Sql;
   /** Схема установки, например `v2.salon`; имя без точки (`salon`) — как у `up()`: `v2.salon`. */
   schema: string;
-  /** Токен сессии; либо ключ `APIKEY` в `apiKey` (он же `service` — ключ сервиса) — его обменяют на сессию. */
+  /** Токен сессии; либо ключ API в `apiKey` (он же `service` — ключ сервиса) — его обменяют на сессию. */
   token?: string;
   apiKey?: string;
   service?: string;
@@ -202,8 +202,8 @@ interface TenantResult {
 ```ts
 /**
  * Подключение со строгими типами по моделям: `connect({ models })` или `connect<Models>()` с объявлениями
- * `letopis types`. Шаг — только известный класс или алиас (модели и системные классы), переходы — по концам, слоты — роли
- * класса; имена, известные только во время выполнения, — `loose(db)`. Модели без литеральных
+ * `letopis types`. Шаг — только известный класс или алиас (модели и системные классы), переходы — по концам, шаги ролей
+ * после глагола — роли класса; имена, известные только во время выполнения, — `loose(db)`. Модели без литеральных
  * имён (`AnyModel[]` вместо списка `as const`) строгим типам не помогут — тогда это `Db`.
  */
 type TypedDb<M extends readonly AnyModelLike[]> = string extends M[number]['name'] ? Db : DbCore & StepsOf<M>;

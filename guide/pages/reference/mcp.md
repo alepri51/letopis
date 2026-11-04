@@ -20,7 +20,7 @@ createMcpServer(db: DbCore, opts?: McpOptions): Promise<McpServer>
 
 **Импорт:** `import { createMcpServer } from 'letopis/mcp'`
 
-Сервер MCP для одного пользователя letopis: инструменты `letopis_model`, `letopis_query`, `letopis_history`, а с `{ write: true }` — ещё `letopis_write`. Подключение — сессия пользователя (`connect({ token })`) или фасад `db.as(пользователь)`. Транспорт выбирает приложение: `server.connect(транспорт)`, `serveStdio(() => createMcpServer(db))` или обработчик HTTP `createMcpHandler(() => createMcpServer(db))` из SDK; токен запроса HTTP проверяет приложение.
+Сервер MCP для одного пользователя letopis: инструменты `letopis_model`, `letopis_query`, `letopis_history`, а с `{ write: true }` — ещё `letopis_write`. Подключение — сессия пользователя (`connect({ token })`) или подключение `db.as(пользователь)`. Транспорт выбирает приложение: `server.connect(транспорт)`, `serveStdio(() => createMcpServer(db))` или обработчик HTTP `createMcpHandler(() => createMcpServer(db))` из SDK; токен запроса HTTP проверяет приложение.
 
 Сервер работает только с правами одного пользователя, поэтому подключение проверяется сразу, одним запросом к базе. Сервис может отдать агенту `db.as(пользователь)`: агент получает права пользователя, а ключ сервиса остаётся в процессе приложения. `serveStdio` и `createMcpHandler` — функции пакета `@modelcontextprotocol/server`: они вызывают фабрику на каждое соединение или каждый запрос HTTP, поэтому проверка подключения повторяется каждый раз. Встроенного HTTP-сервера нет: по токену запроса приложение само выбирает пользователя letopis. Пакет `@modelcontextprotocol/server` нужно установить отдельно: без него функция бросает ошибку с командой установки `npm i @modelcontextprotocol/server`.
 

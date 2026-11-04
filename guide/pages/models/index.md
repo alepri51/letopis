@@ -189,4 +189,4 @@ async function pricey(svc: DbCore, user: string, tenant: string) {
 
 ## Где это в сервисах
 
-[Салон записи](../services/salon) берёт готовую модель салона (`seeds: ['booking']`): мастера, услуги, слоты, брони. [Кошелёк](../services/wallet), [helpdesk](../services/helpdesk) и [документы](../services/documents) описывают свои модели на `letopis/model` и записывают их при запуске. ER-схема каждого сервиса — на его странице по ссылке.
+[Салон записи](../services/salon) берёт готовую модель салона (`seeds: ['booking']`): мастера, услуги, слоты, брони. [Кошелёк](../services/wallet), [helpdesk](../services/helpdesk) и [документы](../services/documents) описывают свои модели на `letopis/model` и записывают их при запуске. ER-схема каждого сервиса — на его странице.

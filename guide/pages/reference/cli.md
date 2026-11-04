@@ -15,7 +15,7 @@ outline: [2, 3]
 ### letopis sync {#cli-sync}
 
 ```sh
-letopis sync <модуль> --dsn <строка> --schema <v2.имя> (--token <токен> | --api-key <ключ>) [--apply | --check]
+letopis sync <модуль> --dsn <строка> --schema <схема> (--token <токен> | --api-key <ключ>) [--apply | --check]
 ```
 
 Сравнивает модели из модуля с описаниями классов в базе и, с `--apply`, записывает их. Берутся модели `hub()` и `link()` среди экспортов модуля (и элементов экспортированных массивов). Без `--apply` это сухой прогон: изменения выполняются и откатываются, поэтому ошибки базы видны уже в нём.
@@ -49,7 +49,7 @@ letopis sync <модуль> --dsn <строка> --schema <v2.имя> (--token <
 ### letopis types {#cli-types}
 
 ```sh
-letopis types --dsn <строка> --schema <v2.имя> (--token <токен> | --api-key <ключ>) [--out <файл>] [--system]
+letopis types --dsn <строка> --schema <схема> (--token <токен> | --api-key <ключ>) [--out <файл>] [--system]
 ```
 
 Печатает объявления TypeScript по модели из базы: для каждого класса арендатора сессии — интерфейсы `<Класс>Data` (поля) и `<Класс>Links` (концы) и `<Класс>Model` (имя, алиас, концы с классами целей и предки), а в конце — список `Models`. С ним `connect<Models>({ … })` даёт строгие типы цепочек и без моделей Zod. Классы арендатора System — системные и классы сидов пакета, например `booking`, — только с `--system`; без флага системные классы строгим типам даёт встроенный набор `SystemModels`.
@@ -81,7 +81,7 @@ letopis types --dsn <строка> --schema <v2.имя> (--token <токен> | 
 ### letopis load {#cli-load}
 
 ```sh
-letopis load <файлы…> --dsn <строка> --schema <v2.имя> (--token <токен> | --api-key <ключ>) [--class <Класс>]
+letopis load <файлы…> --dsn <строка> --schema <схема> (--token <токен> | --api-key <ключ>) [--class <Класс>]
   [--duplicates error|first|last] [--existing error|skip|update] [--commit-every <N>] [--initial]
 ```
 
@@ -124,7 +124,7 @@ letopis load <файлы…> --dsn <строка> --schema <v2.имя> (--token 
 ### letopis maintain {#cli-maintain}
 
 ```sh
-letopis maintain --dsn <строка> --schema <v2.имя> [--token <токен> | --api-key <ключ>]
+letopis maintain --dsn <строка> --schema <схема> [--token <токен> | --api-key <ключ>]
 ```
 
 Обслуживание установки — то же, что `db.maintain()`: одной транзакцией удаляет истёкшие и погашенные сессии, одноразовые коды, которые больше не действуют, и строки-замки удалённых классов и проверяет заполнение очереди сигналов. Журнал не трогает. Команду запускают по расписанию внешним планировщиком (cron и т. п.).
@@ -153,9 +153,10 @@ letopis maintain --dsn <строка> --schema <v2.имя> [--token <токен>
 ### letopis mcp {#cli-mcp}
 
 ```sh
-letopis mcp --dsn <строка> --schema <v2.имя> --token <токен пользователя> [--write]
+letopis mcp --dsn <строка> --schema <схема> --token <токен пользователя> [--write]
   (или LETOPIS_DSN, LETOPIS_SCHEMA, LETOPIS_TOKEN; ключ сервиса --api-key не принимается)
 у любой команды: --log[=debug|info|warn|error|off] — события JSON-строками в stderr (без значения — info)
+(<схема> — v2.<имя> или просто <имя>: shop — это v2.shop)
 ```
 
 Сервер MCP по stdio для клиентов MCP (Claude Desktop, Claude Code, Cursor) от имени одного пользователя — тот же сервер, что `createMcpServer()`. Нужен пакет `@modelcontextprotocol/server`. Строку подключения, схему и токен клиент передаёт флагами или переменными окружения `LETOPIS_DSN`, `LETOPIS_SCHEMA` и `LETOPIS_TOKEN`; флаг важнее переменной.

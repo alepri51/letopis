@@ -135,7 +135,7 @@ type SystemModels = readonly [
 ```ts
 /**
  * Цепочка с текущим классом C (у шага-роли с несколькими целями — их союз): терминалы отдают RowOf<C>, шаги — переходы
- * из концов, слоты — роли C, агрегаты — поля C.
+ * из концов, шаги ролей после глагола (`.Роль.set(…)`) — роли C, агрегаты — поля C.
  */
 type TypedChain<C, M extends readonly AnyModelLike[]> = Omit<ChainCore, Retyped> & {
   paths(): Promise<Path[]>;
@@ -168,8 +168,8 @@ type TypedChain<C, M extends readonly AnyModelLike[]> = Omit<ChainCore, Retyped>
   update(patch?: PatchOf<DataOf<C>>, opts?: { rev?: number; all?: boolean; reason?: string }): TypedChain<C, M>;
   upsert(data: Partial<DataOf<C>>, opts?: { reason?: string }): TypedChain<C, M>;
   /**
-   * Без опций — превью. `{ confirm: true, expect: превью }` — удалить ровно показанное (цели сужены фильтром, id, `tags()`,
-   * `owner()` или `limit()`); `{ confirm: true }` без `expect` — `invalid_query` (`write.confirm_without_expect`);
+   * Без опций — предпросмотр. `{ confirm: true, expect: предпросмотр }` — удалить ровно показанное (цели сужены фильтром, id, `tags()`,
+   * `owner()` или `limit()`); `{ confirm: true }` без `expect` — `invalid_query`;
    * осознанно удалить текущий состав без сверки — `{ confirm: true, all: true }`.
    */
   delete(opts?: DeleteOptions): TypedChain<C, M>;
