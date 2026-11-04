@@ -12,22 +12,33 @@
 ## Что нужно
 
 - Node 22 или новее;
-- PostgreSQL 18 и роль-установщик: суперпользователь или роль с `CREATEROLE` и правом `CREATE` на базе ([какие права нужны](../install/#права-установщика)). Нет своей базы — запустите PostgreSQL 18 в Docker и дождитесь готовности (репозиторий не нужен):
+- PostgreSQL 18 и роль-установщик: суперпользователь или роль с `CREATEROLE` и правом `CREATE` на базе ([какие права нужны](../install/#права-установщика)). Нет своей базы — запустите PostgreSQL 18 в Docker и дождитесь готовности (репозиторий не нужен). Порт и имя контейнера заданы переменными:
   ```sh
-  docker run -d --name pg18 -e POSTGRES_PASSWORD=guide -e POSTGRES_DB=letopis -p 127.0.0.1:15440:5432 postgres:18
-  until docker exec pg18 pg_isready -h 127.0.0.1 -U postgres -d letopis; do sleep 1; done
+  PORT=15440
+  NAME=pg18
+  docker run -d --name $NAME -e POSTGRES_PASSWORD=guide -e POSTGRES_DB=letopis -p 127.0.0.1:$PORT:5432 postgres:18
+  until docker exec $NAME pg_isready -h 127.0.0.1 -U postgres -d letopis; do sleep 1; done
+  export ADMIN_DSN=postgres://postgres:guide@127.0.0.1:$PORT/letopis
   ```
-  Строка подключения администратора — `postgres://postgres:guide@127.0.0.1:15440/letopis`. Пароль `guide` стоит в двух местах — в `POSTGRES_PASSWORD=guide` команды `docker run` и в строке подключения: меняете — меняйте в обоих. Порт 15440 занят — возьмите свободный, тоже в двух местах: первое число в `-p 127.0.0.1:15440:5432` и порт в строке (`-p 127.0.0.1:15441:5432` → `…@127.0.0.1:15441/letopis`). Остановить — `docker stop pg18`, запустить снова — `docker start pg18`. PowerShell — ожидание так: `do { Start-Sleep 1; docker exec pg18 pg_isready -h 127.0.0.1 -U postgres -d letopis } until ($LASTEXITCODE -eq 0)`.
+  PowerShell:
+  ```powershell
+  $PORT = 15440
+  $NAME = 'pg18'
+  docker run -d --name $NAME -e POSTGRES_PASSWORD=guide -e POSTGRES_DB=letopis -p "127.0.0.1:${PORT}:5432" postgres:18
+  do { Start-Sleep 1; docker exec $NAME pg_isready -h 127.0.0.1 -U postgres -d letopis } until ($LASTEXITCODE -eq 0)
+  $env:ADMIN_DSN = "postgres://postgres:guide@127.0.0.1:${PORT}/letopis"
+  ```
+  Другой порт или имя — смените их в `docker run` и в `ADMIN_DSN`: с переменными выше достаточно поменять `PORT` и `NAME`. Пароль `guide` стоит в двух местах — в `POSTGRES_PASSWORD=guide` команды `docker run` и в строке `ADMIN_DSN`: меняете — меняйте в обоих. Без `ADMIN_DSN` скрипт идёт в базу по умолчанию — `postgres://postgres:guide@127.0.0.1:15440/letopis`. Остановить — `docker stop pg18`, запустить снова — `docker start pg18`.
 - пакеты — в пустой папке проекта (`type=module` нужен для `await` на верхнем уровне; `tsx` запускает TypeScript):
   ```sh
   npm init -y && npm pkg set type=module && npm i letopis@3 zod postgres@3 && npm i -D tsx
   ```
   `postgres@3` — драйвер той же основной версии, на которой работает letopis: пул администратора из него передают в `createTenant`.
-- запуск примера: скопируйте скрипт кнопкой «Копировать», сохраните под именем над ним (здесь — `first-15.ts`) и запустите:
+- запуск примера: скопируйте скрипт кнопкой «Копировать», сохраните под именем над ним (здесь — `first-15.ts`) и запустите в том же окне терминала, где задан `ADMIN_DSN`:
   ```sh
-  ADMIN_DSN=postgres://postgres:guide@127.0.0.1:15440/letopis npx tsx first-15.ts
+  npx tsx first-15.ts
   ```
-  PowerShell: `$env:ADMIN_DSN = 'postgres://postgres:guide@127.0.0.1:15440/letopis'; npx tsx first-15.ts`. Роль приложения скрипт заводит сам (`up({ login })`); вывод сравните с блоком «Ожидаемый вывод» под скриптом.
+  В новом окне — со строкой: `ADMIN_DSN=postgres://postgres:guide@127.0.0.1:15440/letopis npx tsx first-15.ts`, в PowerShell — `$env:ADMIN_DSN = 'postgres://postgres:guide@127.0.0.1:15440/letopis'; npx tsx first-15.ts`. Роль приложения скрипт заводит сам (`up({ login })`); вывод сравните с блоком «Ожидаемый вывод» под скриптом.
 
 ## Четыре шага на примере
 

@@ -23,20 +23,27 @@ title: letopis — хранилище, которое помнит каждую 
 
 Так запускается любой пример сайта: скрипт сам ставит свою схему и заводит роль приложения, нужна только база.
 
-**1. PostgreSQL 18** — в Docker; запустить и дождаться, пока база примет подключения:
+**1. PostgreSQL 18** — в Docker. Порт и имя контейнера заданы переменными; запустить и дождаться, пока база примет подключения:
 
 ```sh
-docker run -d --name pg18 -e POSTGRES_PASSWORD=guide -e POSTGRES_DB=letopis -p 127.0.0.1:15440:5432 postgres:18
-until docker exec pg18 pg_isready -h 127.0.0.1 -U postgres -d letopis; do sleep 1; done
+PORT=15440
+NAME=pg18
+docker run -d --name $NAME -e POSTGRES_PASSWORD=guide -e POSTGRES_DB=letopis -p 127.0.0.1:$PORT:5432 postgres:18
+until docker exec $NAME pg_isready -h 127.0.0.1 -U postgres -d letopis; do sleep 1; done
+export ADMIN_DSN=postgres://postgres:guide@127.0.0.1:$PORT/letopis
 ```
 
-PowerShell — ожидание так: `do { Start-Sleep 1; docker exec pg18 pg_isready -h 127.0.0.1 -U postgres -d letopis } until ($LASTEXITCODE -eq 0)`.
+PowerShell:
 
-Что можно поменять в рецепте:
+```powershell
+$PORT = 15440
+$NAME = 'pg18'
+docker run -d --name $NAME -e POSTGRES_PASSWORD=guide -e POSTGRES_DB=letopis -p "127.0.0.1:${PORT}:5432" postgres:18
+do { Start-Sleep 1; docker exec $NAME pg_isready -h 127.0.0.1 -U postgres -d letopis } until ($LASTEXITCODE -eq 0)
+$env:ADMIN_DSN = "postgres://postgres:guide@127.0.0.1:${PORT}/letopis"
+```
 
-- **порт** `15440` занят — возьмите любой свободный, например `15441`: в `-p 127.0.0.1:15441:5432` и в строке `ADMIN_DSN` ниже (`…@127.0.0.1:15441/letopis`);
-- **имя контейнера** `pg18` занято — другое имя в `--name` и во всех командах `docker exec`, `docker stop`, `docker start`;
-- **пароль** `guide` — свой в двух местах: в `POSTGRES_PASSWORD=` и в строке `ADMIN_DSN` (`postgres://postgres:ваш-пароль@…`).
+Другой порт или имя — смените их в `docker run` и в `ADMIN_DSN`: с переменными выше достаточно поменять `PORT` и `NAME`. Пароль `guide` стоит в двух местах — в `POSTGRES_PASSWORD=` и в строке `ADMIN_DSN`: меняете — меняйте в обоих. Без `ADMIN_DSN` скрипты примеров идут в базу по умолчанию — `postgres://postgres:guide@127.0.0.1:15440/letopis`, то есть ровно в эту базу с портом 15440.
 
 Все значения, которые встречаются в примерах (`ADMIN_DSN`, `APP_DSN`, ключ сервиса, токены), — в [«Сводке значений»](/first/#сводка-значений).
 
@@ -45,18 +52,19 @@ PowerShell — ожидание так: `do { Start-Sleep 1; docker exec pg18 pg
 **2. Пакеты** — в пустой папке проекта:
 
 ```sh
-npm init -y && npm pkg set type=module && npm i letopis@3 zod postgres && npm i -D tsx
+npm init -y && npm pkg set type=module && npm i letopis@3 zod postgres@3 && npm i -D tsx
 ```
 
 `type=module` обязателен: скрипты используют `await` на верхнем уровне, в проекте CommonJS tsx их не запустит. `postgres` ставится явно: его импортируют скрипты, а под pnpm и yarn PnP зависимость letopis из своего кода не видна. Если примеру нужно что-то ещё (PGlite, SDK MCP), команда над его скриптом это называет.
 
-**3. Скрипт** — кнопка «Копировать» над скриптом, сохранить под именем, которое там написано (`hello.ts`), и запустить:
+**3. Скрипт** — кнопка «Копировать» над скриптом, сохранить под именем, которое там написано (`hello.ts`), и запустить в том же окне терминала, где задан `ADMIN_DSN`:
 
 ```sh
-ADMIN_DSN=postgres://postgres:guide@127.0.0.1:15440/letopis npx tsx hello.ts
+npx tsx hello.ts
 ```
 
-PowerShell: `$env:ADMIN_DSN = 'postgres://postgres:guide@127.0.0.1:15440/letopis'; npx tsx hello.ts`. Вывод сравните с блоком «Ожидаемый вывод» под скриптом: id, время и токены у вас будут свои. Остановить базу — `docker stop pg18`, запустить снова — `docker start pg18`.
+В новом окне терминала задайте строку заново: `ADMIN_DSN=postgres://postgres:guide@127.0.0.1:15440/letopis npx tsx hello.ts`, в PowerShell — `$env:ADMIN_DSN = 'postgres://postgres:guide@127.0.0.1:15440/letopis'; npx tsx hello.ts`. Вывод сравните с блоком «Ожидаемый вывод» под скриптом: id, время и токены у вас будут свои. Остановить базу — `docker stop pg18`, запустить снова — `docker start pg18` (или `$NAME`, если меняли имя).
+
 
 ## Основные действия
 
