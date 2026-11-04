@@ -1,25 +1,5 @@
 {
   "id": "models/06-exports",
-  "context": {
-    "schema": "v2.g_models_06_exports",
-    "dsn": {
-      "admin": "postgres://postgres:test@localhost:15433/letopis",
-      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
-    },
-    "user": {
-      "login": "anna@romashka.ru",
-      "password": "Ромашка-2026!"
-    },
-    "up": {
-      "serviceKey": "lts_283bb0568507503bed2eb71f25f78c65736dfbba24708c30ae800829892e19de",
-      "tenant": {
-        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "2a28ac80bc18e8be96159b2248ead4670cd7e7014488419c94d5b88492456664",
-        "created": true
-      }
-    }
-  },
   "initial": {
     "entity": [],
     "log": [],
@@ -152,5 +132,7 @@
       "secret": [],
       "signals": []
     }
-  ]
+  ],
+  "output": "Шаг 1. id объекта по ключу — без запроса к базе\n{\n  \"idOf совпал с id строки\": true,\n  \"uuidv5(v5Name(…), арендатор) — то же\": true,\n  \"v5Name\": \"[\\\"Shop\\\", \\\"Ромашка\\\"]\"\n}\n\nШаг 2. Пароль: хэш scrypt и проверка\n{\n  \"хэш начинается с\": \"scrypt$\",\n  \"верный\": true,\n  \"неверный\": false\n}\n\nШаг 3. Хэш, которому нужно слишком много памяти, — понятный отказ\nотказ, как и задумано: letopis: invalid_data: хэш пароля: параметры scrypt N=1048576, r=8, p=1 недопустимы или требуют больше 64 МБ памяти\n\nШаг 4. Валидатор и значения по умолчанию — те же проверки, что в базе\n{\n  \"ошибки на неполных данных\": [\n    \"price\"\n  ],\n  \"умолчания\": {\n    \"qty\": 1\n  },\n  \"ValidationError\": \"invalid_data\"\n}\n\nШаг 5. Неверный шаблон pattern — отказ invalid_class\nотказ, как и задумано: letopis: invalid_class: pattern \"^(K\" — неверное регулярное выражение (узел [\"sku\"])\n\nШаг 6. Типы TypeScript по модели и реестр\n{\n  \"generateTypes, начало\": \"export interface CategoryData {\",\n  \"schemaToTs\": \"{\\n  \\\"n\\\": number;\\n}\",\n  \"реестр — экземпляр Registry\": true\n}\n\nШаг 7. Строгие типы и loose(db)\n{\n  \"typed.Shop(…).count()\": 1,\n  \"loose(typed) — тот же объект\": true,\n  \"loose(typed)[name]().count()\": 1\n}\n\nШаг 8. Зарезервированные имена и ревизия движка\n{\n  \"методов цепочки\": 35,\n  \"методов db\": 22,\n  \"зарезервировано имён\": 59,\n  \"среди них where?\": false,\n  \"ревизия движка\": 11\n}\n\nШаг 9. Класс hub с зарезервированным именем — отказ\nотказ, как и задумано: letopis: invalid_class: hub(): имя count занято методом цепочки или корня db — шаг с таким именем до класса не дойдёт",
+  "exitCode": 0
 }

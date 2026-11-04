@@ -1,25 +1,28 @@
 /**
- * Песочница сайта: один прогон примера, присланного со страницы (`guide/server.mjs` → `POST /api/run`).
+ * Песочница сайта: один прогон самостоятельной программы, присланной со страницы (`guide/server.mjs` → `POST /api/run`).
  *
- *   echo '{"id":"basics/01-first-object","source":"…"}' | node --import tsx _runner/sandbox.ts   (из каталога examples/)
+ *   echo '{"source":"…текст программы…"}' | node --import tsx _runner/sandbox.ts   (из каталога examples/)
  *
- * Сервер сайта запускает этот файл отдельным процессом с рабочим каталогом examples/ — так tsx берёт
- * `examples/tsconfig.json` (letopis — исходниками ../lib/src), а пакеты — из `examples/node_modules`. Исходник
- * кладётся во временный каталог `examples/.sandbox-<случайное>/` — на той же глубине, что `<глава>/`, поэтому
- * относительные импорты примера (`../_shared/…`, `../../lib/…`) работают как в оригинале; каталог в .gitignore и
- * удаляется после прогона. Прогон идёт в свежей схеме `v2.sbx_<случайное>`, которую раннер удаляет в конце.
+ * Программа — тот же текст, что читатель видит на странице (самостоятельный вариант примера, `?standalone`), возможно
+ * правленый. Сервер сайта запускает этот файл отдельным процессом с рабочим каталогом examples/; он кладёт программу
+ * во временный каталог `examples/.sandbox-<случайное>/program.ts` (на той же глубине, что `<глава>/`, — относительные
+ * импорты работают как в оригинале; `letopis` — исходниками ../lib/src по `examples/tsconfig.json`) и выполняет её ещё
+ * одним процессом `node --import tsx program.ts` с `ADMIN_DSN` — база стенда (`ENTITY_DSN`, иначе `ADMIN_DSN`, иначе
+ * база примеров по умолчанию). Схему программа ставит сама (`up({ fresh: true })`). Каталог удаляется после прогона.
  *
- * Результат — одна строка после маркера `@@RESULT@@`: `{ snapshot, real, failures }` или `{ error }`. Всё, что пример
- * напечатал сам (`console.log`), идёт до маркера — сервер покажет это как вывод.
+ * Вывод программы (stdout и stderr одним потоком, в порядке появления) идёт в stdout этого процесса как есть; в конце —
+ * строка `@@RESULT@@{ exitCode, ms, timedOut }` или `@@RESULT@@{ error }`.
  */
+import { spawn } from 'node:child_process';
 import { mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
-import { ensureDatabase, adminSql } from './db.ts';
-import { ROOT, runExample } from './runner.ts';
 
 const MARK = '@@RESULT@@';
-const ID = /^[a-z0-9-]+\/\d{2}-[a-z0-9-]+$/;
+// examples/ — рабочий каталог процесса (его задаёт сервер сайта)
+const ROOT = join(import.meta.dirname, '..');
+const DSN = process.env.ENTITY_DSN ?? process.env.ADMIN_DSN ?? 'postgres://postgres:test@localhost:15433/letopis';
+const TIMEOUT = Number(process.env.SANDBOX_TIMEOUT_MS ?? 120_000);
 
 async function readStdin(): Promise<string> {
   const chunks: Buffer[] = [];
@@ -27,32 +30,45 @@ async function readStdin(): Promise<string> {
   return Buffer.concat(chunks).toString('utf8');
 }
 
-const tag = randomBytes(6).toString('hex');
-const dir = join(ROOT, `.sandbox-${tag}`);
+const write = (s: string | Buffer) => new Promise<void>((r) => process.stdout.write(s, () => r()));
+
+/** Выполнить программу отдельным процессом; её stdout и stderr — в наш stdout по мере появления. */
+function execute(file: string): Promise<{ exitCode: number | null; ms: number; timedOut: boolean }> {
+  return new Promise((resolve) => {
+    const started = Date.now();
+    const child = spawn(process.execPath, ['--import', 'tsx', file], {
+      cwd: ROOT,
+      env: { ...process.env, ADMIN_DSN: DSN },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    child.stdout.on('data', (c: Buffer) => process.stdout.write(c));
+    child.stderr.on('data', (c: Buffer) => process.stdout.write(c));
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      child.kill('SIGKILL');
+    }, TIMEOUT);
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      resolve({ exitCode: code, ms: Date.now() - started, timedOut });
+    });
+  });
+}
+
+const dir = join(ROOT, `.sandbox-${randomBytes(6).toString('hex')}`);
 let out: unknown;
 try {
-  const { id, source } = JSON.parse(await readStdin()) as { id?: unknown; source?: unknown };
-  if (typeof source !== 'string' || !source.trim()) throw new Error('нет исходника примера');
-  const name = typeof id === 'string' && ID.test(id) ? id : 'sandbox/01-sandbox';
+  const { source } = JSON.parse(await readStdin()) as { source?: unknown };
+  if (typeof source !== 'string' || !source.trim()) throw new Error('нет текста программы');
   // сервер запускает не больше одного прогона сразу: всё, что осталось от прошлых (прогон снят по времени), — мусор
   for (const n of readdirSync(ROOT)) if (n.startsWith('.sandbox-')) rmSync(join(ROOT, n), { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
-  const file = join(dir, `${name.split('/')[1]}.ts`);
-  writeFileSync(file, source);
-  await ensureDatabase();
-  const admin = adminSql();
-  try {
-    for (const { nspname } of await admin.unsafe(`select nspname from pg_namespace where nspname like 'v2.sbx\\_%'`)) {
-      await admin.unsafe(`drop schema if exists "${String(nspname).replace(/"/g, '""')}" cascade`);
-    }
-    const res = await runExample(file, admin, { id: name, schema: `v2.sbx_${tag}` });
-    out = { snapshot: res.snapshot, real: res.real, failures: res.failures };
-  } finally {
-    await admin.end({ timeout: 5 });
-  }
+  writeFileSync(join(dir, 'program.ts'), source);
+  out = await execute(join(dir, 'program.ts'));
 } catch (e) {
-  out = { error: (e as Error).stack ?? String(e) };
+  out = { error: (e as Error).message ?? String(e) };
 } finally {
   rmSync(dir, { recursive: true, force: true });
 }
-process.stdout.write(`\n${MARK}${JSON.stringify(out)}\n`, () => process.exit(0));
+await write(`\n${MARK}${JSON.stringify(out)}\n`);
+process.exit(0);

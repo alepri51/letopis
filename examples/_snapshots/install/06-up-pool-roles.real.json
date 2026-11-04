@@ -1,17 +1,5 @@
 {
-  "id": "install/06-up-options",
-  "context": {
-    "schema": "v2.g_install_06_up_options",
-    "dsn": {
-      "admin": "postgres://postgres:test@localhost:15433/letopis",
-      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
-    },
-    "user": {
-      "login": "anna@romashka.ru",
-      "password": "Ромашка-2026!"
-    },
-    "up": null
-  },
+  "id": "install/06-up-pool-roles",
   "initial": {
     "entity": [],
     "log": [],
@@ -65,5 +53,7 @@
       "secret": [],
       "signals": []
     }
-  ]
+  ],
+  "output": "Шаг 1. Установка через готовый пул, с ролями по умолчанию и первым арендатором\n{\n  \"created\": true,\n  \"revision\": 11,\n  \"арендатор создан\": true,\n  \"signals\": \"none\"\n}\n\nШаг 2. Режим none: подключение не слушает сигналы, кэш выключен\n{\n  \"кэш включён\": false,\n  \"слушателей\": 0\n}\n\nШаг 3. Помощники схемы из letopis/model\n{\n  \"one(Shop) — End\": true,\n  \"normalizeSchema\": {\n    \"type\": \"object\",\n    \"properties\": {\n      \"n\": {\n        \"type\": \"integer\",\n        \"minimum\": 1\n      }\n    }\n  },\n  \"translatePattern\": \"^[0-9]{3}$\"\n}",
+  "exitCode": 0
 }

@@ -57,24 +57,21 @@ const dedent = (text: string): string => {
 const lf = (text: string): string => text.split(String.fromCharCode(13) + String.fromCharCode(10)).join(String.fromCharCode(10));
 
 /** Тела функций `run` шагов — ровно тот код, что исполняется; строки с `// скрыть` убираются. */
-function stepCodes(file: string): { code: string; params: string[] }[] {
+function stepCodes(file: string): { code: string }[] {
   const src = lf(readFileSync(file, 'utf8'));
   const sf = ts.createSourceFile(file, src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
-  const codes: { code: string; params: string[] }[] = [];
+  const codes: { code: string }[] = [];
   const visit = (node: ts.Node): void => {
     if (ts.isPropertyAssignment(node) && node.name.getText(sf) === 'steps' && ts.isArrayLiteralExpression(node.initializer)) {
       for (const el of node.initializer.elements) {
-        if (!ts.isObjectLiteralExpression(el)) { codes.push({ code: '', params: [] }); continue; }
+        if (!ts.isObjectLiteralExpression(el)) { codes.push({ code: '' }); continue; }
         const run = el.properties.find((p) => p.name?.getText(sf) === 'run');
         let body = '';
         const fn = run && ts.isPropertyAssignment(run) ? run.initializer : run;
         if (fn && (ts.isArrowFunction(fn) || ts.isFunctionExpression(fn) || ts.isMethodDeclaration(fn)) && fn.body) {
           body = ts.isBlock(fn.body) ? src.slice(fn.body.getStart(sf) + 1, fn.body.getEnd() - 1) : fn.body.getText(sf);
         }
-        // что шаг берёт из ctx (dsn, schema, db…) — для блока «Дано» плеера
-        const p0 = fn && (ts.isArrowFunction(fn) || ts.isFunctionExpression(fn) || ts.isMethodDeclaration(fn)) ? fn.parameters[0] : undefined;
-        const params = p0 && ts.isObjectBindingPattern(p0.name) ? p0.name.elements.map((e) => (e.propertyName ?? e.name).getText(sf)) : [];
-        codes.push({ code: dedent(body.split('\n').filter((l) => !/\/\/\s*скрыть\s*$/.test(l)).join('\n')), params });
+        codes.push({ code: dedent(body.split('\n').filter((l) => !/\/\/\s*скрыть\s*$/.test(l)).join('\n')) });
       }
       return;
     }
@@ -302,8 +299,6 @@ interface StepRecord {
   title: string;
   text: string | null;
   code: string;
-  /** Что шаг берёт из ctx: dsn, schema, db… */
-  params: string[];
   html: string;
   result: unknown;
   error: { code: string | null; message: string; detail?: unknown; expected?: boolean } | null;
@@ -321,8 +316,6 @@ export interface RunOptions {
   id?: string;
   /** Схема прогона; по умолчанию `v2.g_<id>`. Песочница берёт свою, случайную. */
   schema?: string;
-  /** Исходник для показа в снимке (`source`); по умолчанию — текст файла. */
-  source?: string;
 }
 
 export async function runExample(
@@ -442,6 +435,16 @@ export async function runExample(
     else if (login && a.id === login.account) labels.name(String(a.id), nm || USER.name);
     else if (nm) labels.name(String(a.id), nm);
   }
+  // все строки схемы — и служебные, которых нет в показе, и удалённые (их последняя версия — в журнале): uuid в
+  // результатах шагов читается «Класс «имя»», а «id·N» остаётся только тому, чего в базе нет
+  const everything = (await admin.unsafe('select 1 from pg_namespace where nspname = $1', [schema])).length
+    ? [
+        ...await admin.unsafe(`
+          select e.id, e.class, e.data from ${q}.entity e left join (select id, min(seq) s from ${q}.log group by id) f using (id)
+          order by f.s nulls last, e.created_at, e.class, e.data::text`),
+        ...await admin.unsafe(`select id, class, data from ${q}.log order by seq`),
+      ]
+    : [];
   for (const x of [{ state: before }, ...raw]) {
     // сначала журнал (порядок записи), затем текущие строки — метки «Класс·N» и «·2» у одноимённых идут по времени
     // появления. Порядок записи детерминирован: шаги идут по очереди, каскад пишет надгробия в порядке id. Ранг id
@@ -449,6 +452,12 @@ export async function runExample(
     for (const e of [...x.state.log, ...x.state.entity]) labels.row(String(e.id), String(e.class), e.data);
     for (const l of x.state.log) labels.noteVersion(String(l.at), String(l.tx));
     labels.collectTimes(x);
+  }
+  for (const e of everything) labels.row(String(e.id), String(e.class), e.data);
+  // строки secret: на них ссылаются сессии (meta.cred) — «секрет APIKEY·1»
+  if (everything.length) {
+    const secrets = await admin.unsafe(`select id, kind from ${q}.secret where kind <> 'LOCK' order by created_at, kind, ident nulls last, id`);
+    for (const z of secrets) labels.row(String(z.id), `секрет ${z.kind}`, null);
   }
 
   const steps: StepRecord[] = [];
@@ -464,7 +473,7 @@ export async function runExample(
     const secretKey = (z: Rec) => JSON.stringify([z.account, z.kind, z.ident, z.created_at]);
     const newSecret = x.state.secret.filter((z) => !prev.secret.some((p) => secretKey(p) === secretKey(z) && p.deleted_at === z.deleted_at));
     prev = x.state;
-    const { code, params } = codes[i] ?? { code: '', params: [] };
+    const { code } = codes[i] ?? { code: '' };
     const uniq = [...new Set(x.signals)];
     const mask = (s: string) => s.replace(/[A-Za-z0-9_-]{12,}/g, (t) => (/\d/.test(t) ? '*' : t));
     const ordered = uniq.map((s, k) => ({ s, k })).sort((a, b) => (mask(a.s) < mask(b.s) ? -1 : mask(a.s) > mask(b.s) ? 1 : a.k - b.k)).map((x2) => x2.s);
@@ -474,7 +483,6 @@ export async function runExample(
       title: ex.steps[i].title,
       text: ex.steps[i].text ?? null,
       code,
-      params,
       html: await codeToHtml(code, { lang: 'ts', themes: { light: 'github-light', dark: 'github-dark' } }),
       result: labels.value(x.result),
       error: x.error
@@ -497,21 +505,13 @@ export async function runExample(
     secret: labels.value(before.secret.map(labelSecret)) as Rec[],
     counts: before.counts,
   };
-  // «Дано»: что раннер передаёт шагам в run(ctx) и чему это равно в этом прогоне; весь код примера — для показа
-  const given = {
-    schema: canonical, dsn: { admin: ADMIN_DSN, app: appDsn() }, user: { login: USER.login, password: USER.password },
-    up: r ? { serviceKey: r.serviceKey ?? null, tenant: r.tenant ?? null } : null,
-  };
-  const source = lf(opts.source ?? readFileSync(file, 'utf8'));
-  const sourceHtml = await codeToHtml(source, { lang: 'ts', themes: { light: 'github-light', dark: 'github-dark' } });
   return {
     id,
     snapshot: {
-      id, title: ex.title, summary: ex.summary ?? null, covers: ex.covers, tables: ex.tables ?? ['entity', 'log'],
-      context: labels.value(given), source, sourceHtml, initial, steps,
+      id, title: ex.title, summary: ex.summary ?? null, tables: ex.tables ?? ['entity', 'log'], initial, steps,
     },
     real: {
-      id, context: realValue(given),
+      id,
       initial: { entity: realValue(before.entity), log: realValue(before.log), secret: realValue(before.secret) }, steps: reals,
     },
     failures,

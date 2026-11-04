@@ -1,25 +1,5 @@
 {
   "id": "models/04-validation",
-  "context": {
-    "schema": "v2.g_models_04_validation",
-    "dsn": {
-      "admin": "postgres://postgres:test@localhost:15433/letopis",
-      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
-    },
-    "user": {
-      "login": "anna@romashka.ru",
-      "password": "Ромашка-2026!"
-    },
-    "up": {
-      "serviceKey": "lts_80043513ea03e054af9d06be66a4ed6888a129536d705c41d9e855154eb3f984",
-      "tenant": {
-        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "79eb463966421bd3c144c856ce7e3d308464beaaebbbacf7c830f337f6c38220",
-        "created": true
-      }
-    }
-  },
   "initial": {
     "entity": [],
     "log": [],
@@ -42,8 +22,8 @@
     {
       "result": [
         {
-          "at": "2026-11-03T19:06:20.8486+00:00",
-          "id": "897d1e8e-f7fb-536f-aa3f-cc087ec31eeb",
+          "at": "2026-11-04T05:15:10.653197+00:00",
+          "id": "4227b8b4-b516-5851-8110-e4155119a7b9",
           "op": "create",
           "rev": 1,
           "data": {
@@ -57,13 +37,13 @@
           "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "agent": "4ea5f142-2bac-51ff-8f5c-6bf6f6e002a1"
+          "agent": "3eda583c-30d1-595b-9c47-d4e23a2ad9fa"
         }
       ],
       "error": null,
       "entity": [
         {
-          "id": "897d1e8e-f7fb-536f-aa3f-cc087ec31eeb",
+          "id": "4227b8b4-b516-5851-8110-e4155119a7b9",
           "class": "Product",
           "rev": 1,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -77,16 +57,16 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "4ea5f142-2bac-51ff-8f5c-6bf6f6e002a1",
+          "agent": "3eda583c-30d1-595b-9c47-d4e23a2ad9fa",
           "reason": null,
-          "at": "2026-11-03 19:06:20.8486+00"
+          "at": "2026-11-04 05:15:10.653197+00"
         }
       ],
       "removed": [],
       "log": [
         {
           "seq": "35",
-          "id": "897d1e8e-f7fb-536f-aa3f-cc087ec31eeb",
+          "id": "4227b8b4-b516-5851-8110-e4155119a7b9",
           "rev": 1,
           "class": "Product",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -99,10 +79,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "4ea5f142-2bac-51ff-8f5c-6bf6f6e002a1",
+          "agent": "3eda583c-30d1-595b-9c47-d4e23a2ad9fa",
           "reason": null,
-          "at": "2026-11-03 19:06:20.8486+00",
-          "tx": "3881218"
+          "at": "2026-11-04 05:15:10.653197+00",
+          "tx": "3892595"
         }
       ],
       "secret": [],
@@ -127,7 +107,7 @@
       },
       "entity": [
         {
-          "id": "897d1e8e-f7fb-536f-aa3f-cc087ec31eeb",
+          "id": "4227b8b4-b516-5851-8110-e4155119a7b9",
           "class": "Product",
           "rev": 1,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -141,16 +121,16 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "4ea5f142-2bac-51ff-8f5c-6bf6f6e002a1",
+          "agent": "3eda583c-30d1-595b-9c47-d4e23a2ad9fa",
           "reason": null,
-          "at": "2026-11-03 19:06:20.8486+00"
+          "at": "2026-11-04 05:15:10.653197+00"
         }
       ],
       "removed": [],
       "log": [
         {
           "seq": "35",
-          "id": "897d1e8e-f7fb-536f-aa3f-cc087ec31eeb",
+          "id": "4227b8b4-b516-5851-8110-e4155119a7b9",
           "rev": 1,
           "class": "Product",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -163,10 +143,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "4ea5f142-2bac-51ff-8f5c-6bf6f6e002a1",
+          "agent": "3eda583c-30d1-595b-9c47-d4e23a2ad9fa",
           "reason": null,
-          "at": "2026-11-03 19:06:20.8486+00",
-          "tx": "3881218"
+          "at": "2026-11-04 05:15:10.653197+00",
+          "tx": "3892595"
         }
       ],
       "secret": [],
@@ -180,7 +160,7 @@
         "detail": {
           "rows": [
             {
-              "id": "897d1e8e-f7fb-536f-aa3f-cc087ec31eeb",
+              "id": "4227b8b4-b516-5851-8110-e4155119a7b9",
               "class": "Product",
               "problem": "данные: [{\"path\": [\"sku\"], \"keyword\": \"required\", \"message\": \"нарушено правило required\"}]"
             }
@@ -190,7 +170,7 @@
       },
       "entity": [
         {
-          "id": "897d1e8e-f7fb-536f-aa3f-cc087ec31eeb",
+          "id": "4227b8b4-b516-5851-8110-e4155119a7b9",
           "class": "Product",
           "rev": 1,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -204,16 +184,16 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "4ea5f142-2bac-51ff-8f5c-6bf6f6e002a1",
+          "agent": "3eda583c-30d1-595b-9c47-d4e23a2ad9fa",
           "reason": null,
-          "at": "2026-11-03 19:06:20.8486+00"
+          "at": "2026-11-04 05:15:10.653197+00"
         }
       ],
       "removed": [],
       "log": [
         {
           "seq": "35",
-          "id": "897d1e8e-f7fb-536f-aa3f-cc087ec31eeb",
+          "id": "4227b8b4-b516-5851-8110-e4155119a7b9",
           "rev": 1,
           "class": "Product",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -226,10 +206,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "4ea5f142-2bac-51ff-8f5c-6bf6f6e002a1",
+          "agent": "3eda583c-30d1-595b-9c47-d4e23a2ad9fa",
           "reason": null,
-          "at": "2026-11-03 19:06:20.8486+00",
-          "tx": "3881218"
+          "at": "2026-11-04 05:15:10.653197+00",
+          "tx": "3892595"
         }
       ],
       "secret": [],
@@ -244,7 +224,7 @@
       "error": null,
       "entity": [
         {
-          "id": "897d1e8e-f7fb-536f-aa3f-cc087ec31eeb",
+          "id": "4227b8b4-b516-5851-8110-e4155119a7b9",
           "class": "Product",
           "rev": 1,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -258,16 +238,16 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "4ea5f142-2bac-51ff-8f5c-6bf6f6e002a1",
+          "agent": "3eda583c-30d1-595b-9c47-d4e23a2ad9fa",
           "reason": null,
-          "at": "2026-11-03 19:06:20.8486+00"
+          "at": "2026-11-04 05:15:10.653197+00"
         }
       ],
       "removed": [],
       "log": [
         {
           "seq": "35",
-          "id": "897d1e8e-f7fb-536f-aa3f-cc087ec31eeb",
+          "id": "4227b8b4-b516-5851-8110-e4155119a7b9",
           "rev": 1,
           "class": "Product",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -280,10 +260,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "4ea5f142-2bac-51ff-8f5c-6bf6f6e002a1",
+          "agent": "3eda583c-30d1-595b-9c47-d4e23a2ad9fa",
           "reason": null,
-          "at": "2026-11-03 19:06:20.8486+00",
-          "tx": "3881218"
+          "at": "2026-11-04 05:15:10.653197+00",
+          "tx": "3892595"
         }
       ],
       "secret": [],
@@ -306,7 +286,7 @@
       "error": null,
       "entity": [
         {
-          "id": "897d1e8e-f7fb-536f-aa3f-cc087ec31eeb",
+          "id": "4227b8b4-b516-5851-8110-e4155119a7b9",
           "class": "Product",
           "rev": 1,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -320,16 +300,16 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "4ea5f142-2bac-51ff-8f5c-6bf6f6e002a1",
+          "agent": "3eda583c-30d1-595b-9c47-d4e23a2ad9fa",
           "reason": null,
-          "at": "2026-11-03 19:06:20.8486+00"
+          "at": "2026-11-04 05:15:10.653197+00"
         }
       ],
       "removed": [],
       "log": [
         {
           "seq": "35",
-          "id": "897d1e8e-f7fb-536f-aa3f-cc087ec31eeb",
+          "id": "4227b8b4-b516-5851-8110-e4155119a7b9",
           "rev": 1,
           "class": "Product",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -342,10 +322,10 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "4ea5f142-2bac-51ff-8f5c-6bf6f6e002a1",
+          "agent": "3eda583c-30d1-595b-9c47-d4e23a2ad9fa",
           "reason": null,
-          "at": "2026-11-03 19:06:20.8486+00",
-          "tx": "3881218"
+          "at": "2026-11-04 05:15:10.653197+00",
+          "tx": "3892595"
         }
       ],
       "secret": [],
@@ -357,7 +337,7 @@
       "result": null,
       "error": {
         "code": "invalid_class",
-        "message": "letopis: invalid_class: преобразования Zod не исполняются при записи: Guest.name (overwrite)",
+        "message": "letopis: invalid_class: в модели есть преобразования Zod, а при записи их никто не исполняет — значение записалось бы как есть; поля с преобразованием: Guest.name (overwrite)",
         "detail": {
           "rules": [
             {
@@ -369,7 +349,7 @@
       },
       "entity": [
         {
-          "id": "897d1e8e-f7fb-536f-aa3f-cc087ec31eeb",
+          "id": "4227b8b4-b516-5851-8110-e4155119a7b9",
           "class": "Product",
           "rev": 1,
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -383,16 +363,16 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "4ea5f142-2bac-51ff-8f5c-6bf6f6e002a1",
+          "agent": "3eda583c-30d1-595b-9c47-d4e23a2ad9fa",
           "reason": null,
-          "at": "2026-11-03 19:06:20.8486+00"
+          "at": "2026-11-04 05:15:10.653197+00"
         }
       ],
       "removed": [],
       "log": [
         {
           "seq": "35",
-          "id": "897d1e8e-f7fb-536f-aa3f-cc087ec31eeb",
+          "id": "4227b8b4-b516-5851-8110-e4155119a7b9",
           "rev": 1,
           "class": "Product",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
@@ -405,14 +385,16 @@
           "tags": [],
           "op": "create",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "4ea5f142-2bac-51ff-8f5c-6bf6f6e002a1",
+          "agent": "3eda583c-30d1-595b-9c47-d4e23a2ad9fa",
           "reason": null,
-          "at": "2026-11-03 19:06:20.8486+00",
-          "tx": "3881218"
+          "at": "2026-11-04 05:15:10.653197+00",
+          "tx": "3892595"
         }
       ],
       "secret": [],
       "signals": []
     }
-  ]
+  ],
+  "output": "Шаг 1. Класс «Товар»\n[\n  \"Product\"\n]\n\nШаг 2. Значение по умолчанию подставляет база\n[\n  {\n    \"at\": \"2026-11-04T05:15:12.171398+00:00\",\n    \"id\": \"912e7fee-41a8-5334-a037-42e1a40dce76\",\n    \"op\": \"create\",\n    \"rev\": 1,\n    \"data\": {\n      \"price\": 2500,\n      \"title\": \"Чайник\",\n      \"status\": \"draft\"\n    },\n    \"tags\": [],\n    \"class\": \"Product\",\n    \"links\": {},\n    \"owner\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n    \"author\": \"3defbabb-a94d-5359-8463-dc947de193e1\",\n    \"tenant\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n    \"agent\": \"32b9a228-fae3-5a06-8c5e-8e1c4c2bb2a8\"\n  }\n]\n\nШаг 3. Отрицательная цена — отказ\nотказ, как и задумано: letopis: invalid_data: данные не проходят описание класса Product: price — нарушено правило minimum\n\nШаг 4. Новое обязательное поле — ужесточение\nотказ, как и задумано: letopis: tightening_conflict: новому описанию класса Product не соответствуют строки\n\nШаг 5. Необязательное поле — безопасно\n{\n  \"updated\": [\n    \"Product\"\n  ]\n}\n\nШаг 6. Проверки refine база не выполняет\n{\n  \"created\": [\n    \"Coupon\"\n  ],\n  \"lost\": [\n    {\n      \"path\": \"Coupon.code\",\n      \"kind\": \"refine\"\n    }\n  ]\n}\n\nШаг 7. Преобразования Zod — отказ при syncModels\nотказ, как и задумано: letopis: invalid_class: в модели есть преобразования Zod, а при записи их никто не исполняет — значение записалось бы как есть; поля с преобразованием: Guest.name (overwrite)",
+  "exitCode": 0
 }

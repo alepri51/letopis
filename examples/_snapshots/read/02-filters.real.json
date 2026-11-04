@@ -1,25 +1,5 @@
 {
   "id": "read/02-filters",
-  "context": {
-    "schema": "v2.g_read_02_filters",
-    "dsn": {
-      "admin": "postgres://postgres:test@localhost:15433/letopis",
-      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
-    },
-    "user": {
-      "login": "anna@romashka.ru",
-      "password": "Ромашка-2026!"
-    },
-    "up": {
-      "serviceKey": "lts_b5963ea1980ed55aa0e3aca9220596de8e9c1b2b08a96aa4d4c40e18b7340fd0",
-      "tenant": {
-        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "64ba5e4b743eceb891b0aeef1124e976ccb82289146587ee602ab6a3018f3d2a",
-        "created": true
-      }
-    }
-  },
   "initial": {
     "entity": [],
     "log": [],
@@ -253,5 +233,7 @@
       "secret": [],
       "signals": []
     }
-  ]
+  ],
+  "output": "Шаг 1. Данные: четыре товара\n[\n  {\n    \"title\": \"Кружка\",\n    \"price\": 400,\n    \"labels\": [\n      \"стекло\"\n    ]\n  },\n  {\n    \"title\": \"Сенча\",\n    \"price\": 900,\n    \"labels\": [\n      \"хит\"\n    ]\n  },\n  {\n    \"title\": \"Пуэр\",\n    \"price\": 1500,\n    \"labels\": null\n  },\n  {\n    \"title\": \"Чайник\",\n    \"price\": 2500,\n    \"labels\": [\n      \"хит\",\n      \"стекло\"\n    ]\n  }\n]\n\nШаг 2. Сравнения: ne, gt, gte, lt, lte\n{\n  \"ne(900)\": [\n    \"Кружка\",\n    \"Пуэр\",\n    \"Чайник\"\n  ],\n  \"gt(1500)\": [\n    \"Чайник\"\n  ],\n  \"gte(1500)\": [\n    \"Пуэр\",\n    \"Чайник\"\n  ],\n  \"lt(900)\": [\n    \"Кружка\"\n  ],\n  \"lte(900)\": [\n    \"Кружка\",\n    \"Сенча\"\n  ]\n}\n\nШаг 3. Диапазон и список: between, inList\n{\n  \"between(500, 2000)\": [\n    \"Пуэр\",\n    \"Сенча\"\n  ],\n  \"inList(['K-1', 'M-1'])\": [\n    \"Кружка\",\n    \"Чайник\"\n  ]\n}\n\nШаг 4. Текст: like, ilike, starts, ends\n{\n  \"like('%а%')\": [\n    \"Кружка\",\n    \"Сенча\",\n    \"Чайник\"\n  ],\n  \"ilike('ч%')\": [\n    \"Чайник\"\n  ],\n  \"starts('T-')\": [\n    \"Пуэр\",\n    \"Сенча\"\n  ],\n  \"ends('-1')\": [\n    \"Кружка\",\n    \"Чайник\"\n  ]\n}\n\nШаг 5. Массивы: has, hasAny, hasAll\n{\n  \"has('хит')\": [\n    \"Сенча\",\n    \"Чайник\"\n  ],\n  \"hasAny(['стекло', 'акция'])\": [\n    \"Кружка\",\n    \"Чайник\"\n  ],\n  \"hasAll(['хит', 'стекло'])\": [\n    \"Чайник\"\n  ]\n}\n\nШаг 6. Есть ли поле: exists, isNull\n{\n  \"labels: exists(true)\": [\n    \"Кружка\",\n    \"Сенча\",\n    \"Чайник\"\n  ],\n  \"labels: exists(false)\": [\n    \"Пуэр\"\n  ],\n  \"specs: isNull()\": [\n    \"Кружка\",\n    \"Пуэр\",\n    \"Сенча\"\n  ]\n}\n\nШаг 7. Отрицание и «или»: not, or\n{\n  \"not('paid')\": [\n    \"A-1\"\n  ],\n  \"not(gte(1000))\": [\n    \"Кружка\",\n    \"Сенча\"\n  ],\n  \"or({ sku: 'K-1' }, { price: lt(500) })\": [\n    \"Кружка\",\n    \"Чайник\"\n  ]\n}\n\nШаг 8. Фильтр по концу и корневые категории\n{\n  \"товары «Лютика»\": [\n    \"Кружка\"\n  ],\n  \"корневые категории\": [\n    \"Посуда\",\n    \"Чай\"\n  ]\n}\n\nШаг 9. Без приведения типов\n{\n  \"price: 900\": [\n    \"Сенча\"\n  ],\n  \"price: '900'\": []\n}\n\nШаг 10. Оператор — это объект-маркер\n{\n  \"isOp(gt(1))\": true,\n  \"isOp(1)\": false\n}",
+  "exitCode": 0
 }

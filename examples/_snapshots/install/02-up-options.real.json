@@ -1,17 +1,5 @@
 {
   "id": "install/02-up-options",
-  "context": {
-    "schema": "v2.g_install_02_up_options",
-    "dsn": {
-      "admin": "postgres://postgres:test@localhost:15433/letopis",
-      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
-    },
-    "user": {
-      "login": "anna@romashka.ru",
-      "password": "Ромашка-2026!"
-    },
-    "up": null
-  },
   "initial": {
     "entity": [],
     "log": [],
@@ -95,5 +83,7 @@
       "secret": [],
       "signals": []
     }
-  ]
+  ],
+  "output": "Шаг 1. Установка с готовой моделью салона и своими настройками\n{\n  \"created\": true,\n  \"signals\": \"tenant\",\n  \"ourKey\": true\n}\n\nШаг 2. Режим сигналов хранится в схеме\n{\n  \"signals\": \"tenant\"\n}\n\nШаг 3. Сменить режим — только явно\n{\n  \"signals\": \"opaque\"\n}\n\nШаг 4. upgrade на свежей схеме ничего не делает\n{\n  \"upgraded\": false,\n  \"revision\": 11,\n  \"migrations\": []\n}\n\nШаг 5. fresh — поставить заново (данные теряются)\n{\n  \"created\": true,\n  \"signals\": \"class\",\n  \"newKey\": true\n}\n\nШаг 6. Три экземпляра сервиса запускают up() одновременно\n{\n  \"created\": 1,\n  \"reinstalled\": 2,\n  \"tenantCreated\": 1,\n  \"revisions\": [\n    11\n  ]\n}",
+  "exitCode": 0
 }

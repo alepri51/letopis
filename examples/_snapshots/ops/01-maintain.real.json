@@ -1,25 +1,5 @@
 {
   "id": "ops/01-maintain",
-  "context": {
-    "schema": "v2.g_ops_01_maintain",
-    "dsn": {
-      "admin": "postgres://postgres:test@localhost:15433/letopis",
-      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
-    },
-    "user": {
-      "login": "anna@romashka.ru",
-      "password": "Ромашка-2026!"
-    },
-    "up": {
-      "serviceKey": "lts_638e1333ac9a0b8894348fddac0dea809c1c7cbe223210f3af17bb0ac9a20eff",
-      "tenant": {
-        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "c72661271bd97d3eac5a3ecc36d27dc8bd2f63409a6d0cad9af84bc1c09a56e8",
-        "created": true
-      }
-    }
-  },
   "initial": {
     "entity": [],
     "log": [],
@@ -37,7 +17,7 @@
       "log": [],
       "secret": [],
       "signals": [
-        "session:a89335ab2dfc42ef"
+        "session:17f2c9b923ce1285"
       ]
     },
     {
@@ -68,5 +48,7 @@
       "secret": [],
       "signals": []
     }
-  ]
+  ],
+  "output": "Шаг 1. Сессии и коды копятся в secret\n{\n  \"выход паролем\": \"сессия погашена\",\n  \"вход по коду\": \"код использован\"\n}\n\nШаг 2. maintain() убирает лишнее\nletopis: администраторское подключение — RLS не действует, данные всех арендаторов видны\n{\n  \"skipped\": false,\n  \"sessions\": 1,\n  \"codes\": 1,\n  \"queue\": 0\n}\n\nШаг 3. Повторный вызов — убирать нечего\n{\n  \"skipped\": false,\n  \"sessions\": 0,\n  \"codes\": 0,\n  \"queue\": 0\n}",
+  "exitCode": 0
 }

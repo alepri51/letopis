@@ -1,25 +1,5 @@
 {
   "id": "errors/01-api-errors",
-  "context": {
-    "schema": "v2.g_errors_01_api_errors",
-    "dsn": {
-      "admin": "postgres://postgres:test@localhost:15433/letopis",
-      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
-    },
-    "user": {
-      "login": "anna@romashka.ru",
-      "password": "Ромашка-2026!"
-    },
-    "up": {
-      "serviceKey": "lts_f93b91bc2578c015e44c4ec800bf679f54385947a54f2a0217e422ef52691061",
-      "tenant": {
-        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "d22bfb6a821f7cbf724004f5572e6b30f680f5f231d379efc0463071b1c5abc9",
-        "created": true
-      }
-    }
-  },
   "initial": {
     "entity": [],
     "log": [],
@@ -145,7 +125,7 @@
       "result": {
         "code": "invalid_query",
         "key": "api.db_bad_value",
-        "message": "letopis: invalid_query: значение не того типа: invalid input syntax for type uuid: \"42\"",
+        "message": "letopis: invalid_query: база не приняла значение: оно не того типа, что поле или параметр запроса (ответ PostgreSQL: invalid input syntax for type uuid: \"42\")",
         "cause.code": "22P02"
       },
       "error": null,
@@ -172,7 +152,7 @@
       "result": null,
       "error": {
         "code": "invalid_query",
-        "message": "letopis: invalid_query: db.begin() принимает только опции { reason }, а не function: транзакцию открывает begin(), закрывают commit() и rollback()",
+        "message": "letopis: invalid_query: db.begin() принимает только объект опций с полем reason или ничего; передано значение типа function. Функцию begin() не вызывает: транзакцию открывает begin(), закрывают commit() и rollback()",
         "detail": null
       },
       "entity": [],
@@ -181,5 +161,7 @@
       "secret": [],
       "signals": []
     }
-  ]
+  ],
+  "output": "Шаг 1. target_not_found — правка того, чего нет\nотказ, как и задумано: letopis: target_not_found: update(patch, { rev }): у шага Shop нет цели\n\nШаг 2. id_mismatch — id не сходится с ключом\nотказ, как и задумано: letopis: id_mismatch: id не равен v5 от ключа класса Shop\n\nШаг 3. no_path — между классами нет связи\nотказ, как и задумано: letopis: no_path: нет перехода Category → Customer: ни один класс не ссылается на другой\n\nШаг 4. lock_unsupported — forUpdate с count()\nотказ, как и задумано: letopis: lock_unsupported: forUpdate() нельзя с count(): блокировка — только у чтения rows(), first(), ids()\n\nШаг 5. no_session — неверный ключ API\nотказ, как и задумано: letopis: no_session: неверный ключ\n\nШаг 6. user_session_required — MCP от имени сервиса\nотказ, как и задумано: letopis: user_session_required: createMcpServer: корень сервиса держит права auth.* (имперсонация, выпуск сессий) — агенту нужен фасад db.as(пользователь) или сессия пользователя\n\nШаг 7. tx_rolled_back — ошибку внутри транзакции поймали и проигнорировали\nотказ, как и задумано: letopis: tx_rolled_back: commit: PostgreSQL откатил транзакцию (в ней была ошибка)\n\nШаг 8. invalid_query — id шага не uuid\nотказ, как и задумано: letopis: invalid_query: Product(…): \"42\" — не uuid\n\nШаг 9. invalid_query — значение не того типа в сыром SQL\n{\n  \"code\": \"invalid_query\",\n  \"key\": \"api.db_bad_value\",\n  \"message\": \"letopis: invalid_query: база не приняла значение: оно не того типа, что поле или параметр запроса (ответ PostgreSQL: invalid input syntax for type uuid: \\\"42\\\")\",\n  \"cause.code\": \"22P02\"\n}\n\nШаг 10. invalid_query — забыли .rows()\nотказ, как и задумано: letopis: invalid_query: цепочка — не массив: length есть у строк ответа, а не у цепочки\n\nШаг 11. invalid_query — db.begin(функция)\nотказ, как и задумано: letopis: invalid_query: db.begin() принимает только объект опций с полем reason или ничего; передано значение типа function. Функцию begin() не вызывает: транзакцию открывает begin(), закрывают commit() и rollback()",
+  "exitCode": 0
 }

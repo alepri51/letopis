@@ -1,25 +1,5 @@
 {
   "id": "read/04-deep-paths",
-  "context": {
-    "schema": "v2.g_read_04_deep_paths",
-    "dsn": {
-      "admin": "postgres://postgres:test@localhost:15433/letopis",
-      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
-    },
-    "user": {
-      "login": "anna@romashka.ru",
-      "password": "Ромашка-2026!"
-    },
-    "up": {
-      "serviceKey": "lts_01affca0fbadf6de860755a264952cae0d504c6c7c68c4968c525e4a4ab66818",
-      "tenant": {
-        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-        "user": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "token": "2c4e242cc717651263680d9572280c8718e152e584c569e7d18ad7301692e22d",
-        "created": true
-      }
-    }
-  },
   "initial": {
     "entity": [],
     "log": [],
@@ -29,7 +9,7 @@
     {
       "result": [
         {
-          "at": "2026-11-03T19:06:49.471274+00:00",
+          "at": "2026-11-04T05:16:05.679761+00:00",
           "id": "7174b492-be79-5307-bb74-060c11cc6dd5",
           "op": "create",
           "rev": 1,
@@ -44,7 +24,7 @@
           "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
           "author": "3defbabb-a94d-5359-8463-dc947de193e1",
           "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "agent": "0c83bc9f-b303-57c3-b28b-bd144223937f"
+          "agent": "6a3e91b5-ab22-5b0f-b479-3a91639c6ce8"
         }
       ],
       "error": null,
@@ -129,5 +109,7 @@
       "secret": [],
       "signals": []
     }
-  ]
+  ],
+  "output": "Шаг 1. Данные и ещё один уровень дерева\n[\n  {\n    \"at\": \"2026-11-04T05:16:07.513879+00:00\",\n    \"id\": \"7174b492-be79-5307-bb74-060c11cc6dd5\",\n    \"op\": \"create\",\n    \"rev\": 1,\n    \"data\": {\n      \"name\": \"Улун\"\n    },\n    \"tags\": [],\n    \"class\": \"Category\",\n    \"links\": {\n      \"Parent\": \"e8d0eb60-d5ca-530b-aa99-0d4fba4313e5\"\n    },\n    \"owner\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n    \"author\": \"3defbabb-a94d-5359-8463-dc947de193e1\",\n    \"tenant\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n    \"agent\": \"138972a1-39fa-5ed5-a90e-b1c6fbe24889\"\n  }\n]\n\nШаг 2. Поддерево любой глубины\n[\n  {\n    \"name\": \"Зелёный чай\",\n    \"depth\": 1\n  },\n  {\n    \"name\": \"Улун\",\n    \"depth\": 2\n  }\n]\n\nШаг 3. Пути: заказ → строка → товар\n[\n  {\n    \"qty\": 2,\n    \"product\": \"Сенча\"\n  },\n  {\n    \"qty\": 1,\n    \"product\": \"Чайник\"\n  }\n]\n\nШаг 4. Свои имена узлов: alias\n[\n  {\n    \"qty\": 2,\n    \"product\": \"Сенча\"\n  },\n  {\n    \"qty\": 1,\n    \"product\": \"Чайник\"\n  }\n]\n\nШаг 5. count() и count({ paths: true })\n{\n  \"магазинов у заказов\": 1,\n  \"путей до них\": 2\n}",
+  "exitCode": 0
 }

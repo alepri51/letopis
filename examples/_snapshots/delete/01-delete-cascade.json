@@ -1,42 +1,11 @@
 {
   "id": "delete/01-delete-cascade",
   "title": "Удаление: предпросмотр, каскад, запрет, очистка конца",
-  "summary": "delete() без подтверждения — только предпросмотр: что удалится и как. С { confirm: true, expect: предпросмотр } удаляется ровно показанное, а что делать с концами, ведущими на них, решает действие при удалении у конца: cascade — удалить вместе, restrict — запретить, unset — очистить конец. Модель магазина — помощник _shared/shop.ts: его код — в «Весь код примера».",
-  "covers": [
-    "chain.delete",
-    "error.delete_restricted",
-    "error.conflict",
-    "nuance.cascade-unset-restrict",
-    "nuance.preview-depth",
-    "nuance.delete-as-shown",
-    "nuance.restore-partial"
-  ],
+  "summary": "delete() без подтверждения — только предпросмотр: что удалится и как. С { confirm: true, expect: предпросмотр } удаляется ровно показанное, а что делать с концами, ведущими на них, решает действие при удалении у конца: cascade — удалить вместе, restrict — запретить, unset — очистить конец. Модель магазина и функция seedShop, которая её наполняет, вставлены в начало программы примера.",
   "tables": [
     "entity",
     "log"
   ],
-  "context": {
-    "schema": "v2.g_delete_01_delete_cascade",
-    "dsn": {
-      "admin": "postgres://postgres:test@localhost:15433/letopis",
-      "app": "postgres://letopis_test_app:test@localhost:15433/letopis"
-    },
-    "user": {
-      "login": "anna@romashka.ru",
-      "password": "Ромашка-2026!"
-    },
-    "up": {
-      "serviceKey": "‹токен 1›",
-      "tenant": {
-        "tenant": "Ромашка",
-        "user": "Анна",
-        "token": "‹токен 2›",
-        "created": true
-      }
-    }
-  },
-  "source": "import type { Row } from 'letopis';\nimport { example } from '../_shared/example.ts';\nimport { seedShop, type ShopData } from '../_shared/shop.ts';\n\nlet d: ShopData;\nlet preview: Row[], shown: Row[], gone: Row[];\n\nexport default example({\n  title: 'Удаление: предпросмотр, каскад, запрет, очистка конца',\n  summary:\n    'delete() без подтверждения — только предпросмотр: что удалится и как. С { confirm: true, expect: предпросмотр } ' +\n    'удаляется ровно показанное, а что ' +\n    'делать с концами, ведущими на них, решает действие при удалении у конца: cascade — удалить вместе, ' +\n    'restrict — запретить, unset — очистить конец. Модель магазина — помощник _shared/shop.ts: его код — в «Весь код примера».',\n  tables: ['entity', 'log'],\n  covers: ['chain.delete', 'error.delete_restricted', 'error.conflict', 'nuance.cascade-unset-restrict', 'nuance.preview-depth', 'nuance.delete-as-shown', 'nuance.restore-partial'],\n  steps: [\n    {\n      title: 'Данные магазина',\n      text:\n        '`seedShop` — помощник сайта (`_shared/shop.ts`): записывает модель магазина и заводит магазины, товары, покупателей ' +\n        'и заказы. Для удаления важны концы: у строки заказа `line` конец `Order: one(Order).onDelete(\\'cascade\\')`, ' +\n        'у товара конец `Shop` без `onDelete` (по умолчанию `restrict`), у товара конец `Category` с `onDelete: \\'unset\\'`.',\n      run: async ({ db }) => {\n        d = await seedShop(db);\n        return 'готово';\n      },\n    },\n    {\n      title: 'Предпросмотр удаления заказа',\n      text:\n        'Строки заказа ссылаются на заказ с действием при удалении `cascade` — они удалятся вместе с ним. ' +\n        'В каждой строке предпросмотра — `$action` (что будет) и `$depth` (уровень каскада). У строк каскада `$action` ' +\n        'тоже `delete`: цель от каскада отличает `$depth` — 0 у самой цели, 1 и дальше у строк, которые уйдут вместе с ней. ' +\n        'В базе ничего не изменилось. Ответ сохраняем: подтверждение удаления принимает его в `expect`.',\n      run: async ({ db }) => (preview = await db.Order(d.order1).delete().rows()),\n    },\n    {\n      title: 'Удаляем заказ',\n      text:\n        '`delete({ confirm: true, expect: предпросмотр })` удаляет ровно показанное. Заказ и обе его строки ушли из ' +\n        '`entity`; в журнале три надгробия `delete`. История осталась.',\n      run: async ({ db }) => db.Order(d.order1).delete({ confirm: true, expect: preview }).rows(),\n    },\n    {\n      title: 'Магазин с товарами: предпросмотр показывает запрет',\n      text:\n        'Товары ссылаются на магазин с действием при удалении по умолчанию — `restrict`. ' +\n        'Предпросмотр помечает их `$action: restrict`.',\n      run: async ({ db }) => (preview = await db.Shop(d.lutik).delete().rows()).map((r) => ({ id: r.id, action: r.$action })),\n    },\n    {\n      title: 'Удалить магазин нельзя, пока есть товары',\n      text: 'Отказ `delete_restricted` со списком строк, которые мешают удалению. Ничего не удалено.',\n      run: async ({ db }) => db.Shop(d.lutik).delete({ confirm: true, expect: preview }).rows(),\n      expect: { error: 'delete_restricted' },\n    },\n    {\n      title: 'Удалить категорию — концы очистятся',\n      text:\n        'У товаров конец `Category` с действием при удалении `unset`. Удаляем «Посуду»: категория ушла, ' +\n        'а из конца `Category` у Чайника и Кружки она убрана (подсвечено) — это новая версия каждого товара. ' +\n        'Предпросмотр показывает их строками `$action: unset`.',\n      run: async ({ db }) => {\n        const p = await db.Category(d.dishes).delete().rows();\n        return db.Category(d.dishes).delete({ confirm: true, expect: p }).rows();\n      },\n    },\n    {\n      title: 'Пользователю показали предпросмотр заказа A-2',\n      text:\n        'Предпросмотр — снимок на момент вызова, а между показом и подтверждением база может измениться. Поэтому ' +\n        'предпросмотр сохраняют и при подтверждении передают в `expect`: удалится ровно показанное или ничего.',\n      run: async ({ db }) => {\n        shown = await db.Order(d.order2).delete().rows();\n        return shown;\n      },\n    },\n    {\n      title: 'Пока он смотрел, в заказ добавили строку',\n      run: async ({ db }) => db.Order(d.order2).line().create({ qty: 1, price: 2500 }).Product.set(d.kettle).rows(),\n    },\n    {\n      title: 'Подтверждение по старому предпросмотру — отказ',\n      text:\n        '`delete({ confirm: true, expect: показанное })` в той же транзакции, что и удаление, строит предпросмотр заново ' +\n        'и сравнивает его с `expect` — строки по `id`, их `rev` и `$action`. Не совпало — отказ `conflict` ' +\n        '(`write.preview_changed`): ничего не удалено, а новый предпросмотр — в `err.detail.preview`, его и показывают ' +\n        'пользователю.',\n      run: async ({ db }) => {\n        const answer = await db.Order(d.order2).delete({ confirm: true, expect: shown, reason: 'отмена заказа A-2' }).rows()\n          .then(() => 'удалено', (e) => {\n            if (e.code !== 'conflict') throw e;\n            shown = e.detail.preview; // новый предпросмотр — показать пользователю\n            return `${e.key}: ничего не удалено, покажите новый предпросмотр (${shown.length} строки)`;\n          });\n        return { 'ответ': answer, 'строк в заказе': await db.Order(d.order2).line().count() };\n      },\n    },\n    {\n      title: 'Подтверждение нового предпросмотра',\n      text:\n        'Пользователь посмотрел новый предпросмотр и подтвердил: он совпал с базой — удалены заказ и обе строки, ровно ' +\n        'как показано.',\n      run: async ({ db }) => {\n        gone = await db.Order(d.order2).delete({ confirm: true, expect: shown, reason: 'отмена заказа A-2' }).rows();\n        return gone;\n      },\n    },\n    {\n      title: 'Заказ вернули, а чайник в него тем временем добавили заново',\n      text:\n        'Ответ `delete` — надгробия этого удаления (`id` и `rev` каждой строки): сохраните его, по нему удалённое и ' +\n        'возвращают. Заказ возвращает `restore({ expect: ответ })` — id из `expect`, которых нет среди строк шага ' +\n        '(строки заказа), он пропускает. Сразу после этого в заказ снова положили чайник: строка с ключом «заказ + ' +\n        'товар» получила тот же id, что удалённая, и её история продолжилась версией `create`.',\n      run: async ({ db }) => {\n        const [order] = await db.Order(d.order2).restore({ expect: gone }).rows();\n        await db.Order(d.order2).line().create({ qty: 3, price: 2500 }).Product.set(d.kettle).rows();\n        return order;\n      },\n    },\n    {\n      title: 'Вернуть строки удаления — restore({ expect, partial: true })',\n      text:\n        'Строки заказа возвращают тем же ответом `delete`, одним вызовом. Без `partial` строка, которую уже не вернуть, ' +\n        'роняет весь вызов: ничего не восстановлено. С `partial: true` возвращаются строки, чья последняя версия — то ' +\n        'самое надгробие, а остальные приходят в ответе строками-пропусками `$action: \\'skip\\'` с причиной `$why`: ' +\n        '`reissued` — id занял новый живой объект с тем же ключом (здесь — чайник), `changed` — после удаления строку ' +\n        'пересоздавали, правили или удалили снова, `restored` — её уже вернули. Пропуски покажите пользователю: «не ' +\n        'вернулась — уже есть новая».',\n      run: async ({ db }) => db.Order(d.order2).line().restore({ expect: gone, partial: true }).rows(),\n    },\n  ],\n});\n",
-  "sourceHtml": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">import</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> type</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { Row } </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">from</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'letopis'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">import</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { example } </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">from</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> '../_shared/example.ts'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">import</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { seedShop, </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">type</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ShopData } </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">from</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> '../_shared/shop.ts'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">let</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> d</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> ShopData</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">let</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> preview</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> Row</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">[], shown</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> Row</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">[], gone</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> Row</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">[];</span></span>\n<span class=\"line\"></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">export</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> default</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> example</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Удаление: предпросмотр, каскад, запрет, очистка конца'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  summary:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">    'delete() без подтверждения — только предпросмотр: что удалится и как. С { confirm: true, expect: предпросмотр } '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">    'удаляется ровно показанное, а что '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">    'делать с концами, ведущими на них, решает действие при удалении у конца: cascade — удалить вместе, '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">    'restrict — запретить, unset — очистить конец. Модель магазина — помощник _shared/shop.ts: его код — в «Весь код примера».'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  tables: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'entity'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'log'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">],</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  covers: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'chain.delete'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'error.delete_restricted'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'error.conflict'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'nuance.cascade-unset-restrict'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'nuance.preview-depth'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'nuance.delete-as-shown'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'nuance.restore-partial'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">],</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  steps: [</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Данные магазина'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        '`seedShop` — помощник сайта (`_shared/shop.ts`): записывает модель магазина и заводит магазины, товары, покупателей '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'и заказы. Для удаления важны концы: у строки заказа `line` конец `Order: one(Order).onDelete(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">\\'</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">cascade</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">\\'</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">)`, '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'у товара конец `Shop` без `onDelete` (по умолчанию `restrict`), у товара конец `Category` с `onDelete: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">\\'</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">unset</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">\\'</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">`.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">        d </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> seedShop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        return</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'готово'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Предпросмотр удаления заказа'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'Строки заказа ссылаются на заказ с действием при удалении `cascade` — они удалятся вместе с ним. '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'В каждой строке предпросмотра — `$action` (что будет) и `$depth` (уровень каскада). У строк каскада `$action` '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'тоже `delete`: цель от каскада отличает `$depth` — 0 у самой цели, 1 и дальше у строк, которые уйдут вместе с ней. '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'В базе ничего не изменилось. Ответ сохраняем: подтверждение удаления принимает его в `expect`.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (preview </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order1).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">delete</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Удаляем заказ'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        '`delete({ confirm: true, expect: предпросмотр })` удаляет ровно показанное. Заказ и обе его строки ушли из '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        '`entity`; в журнале три надгробия `delete`. История осталась.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order1).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">delete</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ confirm: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, expect: preview }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Магазин с товарами: предпросмотр показывает запрет'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'Товары ссылаются на магазин с действием при удалении по умолчанию — `restrict`. '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'Предпросмотр помечает их `$action: restrict`.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (preview </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.lutik).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">delete</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">r</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ id: r.id, action: r.$action })),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Удалить магазин нельзя, пока есть товары'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Отказ `delete_restricted` со списком строк, которые мешают удалению. Ничего не удалено.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.lutik).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">delete</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ confirm: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, expect: preview }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      expect: { error: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'delete_restricted'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Удалить категорию — концы очистятся'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'У товаров конец `Category` с действием при удалении `unset`. Удаляем «Посуду»: категория ушла, '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'а из конца `Category` у Чайника и Кружки она убрана (подсвечено) — это новая версия каждого товара. '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'Предпросмотр показывает их строками `$action: unset`.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> p</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Category</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.dishes).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">delete</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Category</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.dishes).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">delete</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ confirm: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, expect: p }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Пользователю показали предпросмотр заказа A-2'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'Предпросмотр — снимок на момент вызова, а между показом и подтверждением база может измениться. Поэтому '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'предпросмотр сохраняют и при подтверждении передают в `expect`: удалится ровно показанное или ничего.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">        shown </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order2).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">delete</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> shown;</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Пока он смотрел, в заказ добавили строку'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order2).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">line</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ qty: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">2500</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).Product.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">set</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Подтверждение по старому предпросмотру — отказ'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        '`delete({ confirm: true, expect: показанное })` в той же транзакции, что и удаление, строит предпросмотр заново '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'и сравнивает его с `expect` — строки по `id`, их `rev` и `$action`. Не совпало — отказ `conflict` '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        '(`write.preview_changed`): ничего не удалено, а новый предпросмотр — в `err.detail.preview`, его и показывают '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'пользователю.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> answer</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order2).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">delete</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ confirm: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, expect: shown, reason: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'отмена заказа A-2'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">          .</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">then</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(() </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'удалено'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, (</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">e</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">            if</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (e.code </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!==</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'conflict'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">throw</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> e;</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">            shown </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> e.detail.preview; </span><span style=\"color:#6A737D;--shiki-dark:#6A737D\">// новый предпросмотр — показать пользователю</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">            return</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> `${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">e</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">key</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">}: ничего не удалено, покажите новый предпросмотр (${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">shown</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">length</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">} строки)`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">          });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'ответ'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: answer, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'строк в заказе'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order2).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">line</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">count</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">() };</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Подтверждение нового предпросмотра'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'Пользователь посмотрел новый предпросмотр и подтвердил: он совпал с базой — удалены заказ и обе строки, ровно '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'как показано.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">        gone </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order2).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">delete</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ confirm: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, expect: shown, reason: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'отмена заказа A-2'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> gone;</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Заказ вернули, а чайник в него тем временем добавили заново'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'Ответ `delete` — надгробия этого удаления (`id` и `rev` каждой строки): сохраните его, по нему удалённое и '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'возвращают. Заказ возвращает `restore({ expect: ответ })` — id из `expect`, которых нет среди строк шага '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        '(строки заказа), он пропускает. Сразу после этого в заказ снова положили чайник: строка с ключом «заказ + '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'товар» получила тот же id, что удалённая, и её история продолжилась версией `create`.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        const</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> [</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order2).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">restore</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ expect: gone }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order2).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">line</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ qty: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">3</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">2500</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).Product.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">set</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">        return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> order;</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Вернуть строки удаления — restore({ expect, partial: true })'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      text:</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'Строки заказа возвращают тем же ответом `delete`, одним вызовом. Без `partial` строка, которую уже не вернуть, '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'роняет весь вызов: ничего не восстановлено. С `partial: true` возвращаются строки, чья последняя версия — то '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'самое надгробие, а остальные приходят в ответе строками-пропусками `$action: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">\\'</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">skip</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">\\'</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">` с причиной `$why`: '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        '`reissued` — id занял новый живой объект с тем же ключом (здесь — чайник), `changed` — после удаления строку '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'пересоздавали, правили или удалили снова, `restored` — её уже вернули. Пропуски покажите пользователю: «не '</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'вернулась — уже есть новая».'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">      run</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">db</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order2).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">line</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">restore</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ expect: gone, partial: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  ],</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">});</span></span>\n<span class=\"line\"></span></code></pre>",
   "initial": {
     "entity": [],
     "log": [],
@@ -46,11 +15,8 @@
   "steps": [
     {
       "title": "Данные магазина",
-      "text": "`seedShop` — помощник сайта (`_shared/shop.ts`): записывает модель магазина и заводит магазины, товары, покупателей и заказы. Для удаления важны концы: у строки заказа `line` конец `Order: one(Order).onDelete('cascade')`, у товара конец `Shop` без `onDelete` (по умолчанию `restrict`), у товара конец `Category` с `onDelete: 'unset'`.",
+      "text": "`seedShop` (её код — в начале программы примера) записывает модель магазина и заводит магазины, товары, покупателей и заказы. У заказа здесь есть поле `status` — расширение модели главы 3. Для удаления важны концы: у строки заказа `line` конец `Order: one(Order).onDelete('cascade')`, у товара конец `Shop` без `onDelete` (по умолчанию `restrict`), у товара конец `Category` с `onDelete: 'unset'`.",
       "code": "d = await seedShop(db);\nreturn 'готово';",
-      "params": [
-        "db"
-      ],
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">d </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> seedShop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'готово'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span></code></pre>",
       "result": "готово",
       "error": null,
@@ -822,9 +788,6 @@
       "title": "Предпросмотр удаления заказа",
       "text": "Строки заказа ссылаются на заказ с действием при удалении `cascade` — они удалятся вместе с ним. В каждой строке предпросмотра — `$action` (что будет) и `$depth` (уровень каскада). У строк каскада `$action` тоже `delete`: цель от каскада отличает `$depth` — 0 у самой цели, 1 и дальше у строк, которые уйдут вместе с ней. В базе ничего не изменилось. Ответ сохраняем: подтверждение удаления принимает его в `expect`.",
       "code": "(preview = await db.Order(d.order1).delete().rows())",
-      "params": [
-        "db"
-      ],
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(preview </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order1).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">delete</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">())</span></span></code></pre>",
       "result": [
         {
@@ -1622,9 +1585,6 @@
       "title": "Удаляем заказ",
       "text": "`delete({ confirm: true, expect: предпросмотр })` удаляет ровно показанное. Заказ и обе его строки ушли из `entity`; в журнале три надгробия `delete`. История осталась.",
       "code": "db.Order(d.order1).delete({ confirm: true, expect: preview }).rows()",
-      "params": [
-        "db"
-      ],
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order1).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">delete</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ confirm: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, expect: preview }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
       "result": [
         {
@@ -2486,9 +2446,6 @@
       "title": "Магазин с товарами: предпросмотр показывает запрет",
       "text": "Товары ссылаются на магазин с действием при удалении по умолчанию — `restrict`. Предпросмотр помечает их `$action: restrict`.",
       "code": "(preview = await db.Shop(d.lutik).delete().rows()).map((r) => ({ id: r.id, action: r.$action }))",
-      "params": [
-        "db"
-      ],
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(preview </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.lutik).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">delete</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">r</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ id: r.id, action: r.$action }))</span></span></code></pre>",
       "result": [
         {
@@ -3228,14 +3185,11 @@
       "title": "Удалить магазин нельзя, пока есть товары",
       "text": "Отказ `delete_restricted` со списком строк, которые мешают удалению. Ничего не удалено.",
       "code": "db.Shop(d.lutik).delete({ confirm: true, expect: preview }).rows()",
-      "params": [
-        "db"
-      ],
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.lutik).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">delete</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ confirm: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, expect: preview }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
       "result": null,
       "error": {
         "code": "delete_restricted",
-        "message": "letopis: delete_restricted: на удаляемые строки ссылаются другие строки (onDelete: restrict)",
+        "message": "letopis: delete_restricted: удалению мешают ссылающиеся строки: видимых 1, скрытых правами 0 — ничего не удалено",
         "detail": {
           "rows": [
             {
@@ -3974,9 +3928,6 @@
       "title": "Удалить категорию — концы очистятся",
       "text": "У товаров конец `Category` с действием при удалении `unset`. Удаляем «Посуду»: категория ушла, а из конца `Category` у Чайника и Кружки она убрана (подсвечено) — это новая версия каждого товара. Предпросмотр показывает их строками `$action: unset`.",
       "code": "const p = await db.Category(d.dishes).delete().rows();\nreturn db.Category(d.dishes).delete({ confirm: true, expect: p }).rows();",
-      "params": [
-        "db"
-      ],
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> p</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Category</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.dishes).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">delete</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Category</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.dishes).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">delete</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ confirm: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, expect: p }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span></code></pre>",
       "result": [
         {
@@ -4723,7 +4674,7 @@
           "$new": false
         },
         {
-          "seq": "61",
+          "seq": "60",
           "id": "Category «Посуда»",
           "rev": 2,
           "class": "Category",
@@ -4741,7 +4692,7 @@
           "$new": true
         },
         {
-          "seq": "62",
+          "seq": "61",
           "id": "Product «Чайник»",
           "rev": 2,
           "class": "Product",
@@ -4772,7 +4723,7 @@
           "$new": true
         },
         {
-          "seq": "63",
+          "seq": "62",
           "id": "Product «Кружка»",
           "rev": 2,
           "class": "Product",
@@ -4809,9 +4760,6 @@
       "title": "Пользователю показали предпросмотр заказа A-2",
       "text": "Предпросмотр — снимок на момент вызова, а между показом и подтверждением база может измениться. Поэтому предпросмотр сохраняют и при подтверждении передают в `expect`: удалится ровно показанное или ничего.",
       "code": "shown = await db.Order(d.order2).delete().rows();\nreturn shown;",
-      "params": [
-        "db"
-      ],
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">shown </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order2).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">delete</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> shown;</span></span></code></pre>",
       "result": [
         {
@@ -5557,7 +5505,7 @@
           "$new": false
         },
         {
-          "seq": "61",
+          "seq": "60",
           "id": "Category «Посуда»",
           "rev": 2,
           "class": "Category",
@@ -5575,7 +5523,7 @@
           "$new": false
         },
         {
-          "seq": "62",
+          "seq": "61",
           "id": "Product «Чайник»",
           "rev": 2,
           "class": "Product",
@@ -5606,7 +5554,7 @@
           "$new": false
         },
         {
-          "seq": "63",
+          "seq": "62",
           "id": "Product «Кружка»",
           "rev": 2,
           "class": "Product",
@@ -5640,9 +5588,6 @@
       "title": "Пока он смотрел, в заказ добавили строку",
       "text": null,
       "code": "db.Order(d.order2).line().create({ qty: 1, price: 2500 }).Product.set(d.kettle).rows()",
-      "params": [
-        "db"
-      ],
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order2).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">line</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ qty: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">2500</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).Product.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">set</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
       "result": [
         {
@@ -6388,7 +6333,7 @@
           "$new": false
         },
         {
-          "seq": "61",
+          "seq": "60",
           "id": "Category «Посуда»",
           "rev": 2,
           "class": "Category",
@@ -6406,7 +6351,7 @@
           "$new": false
         },
         {
-          "seq": "62",
+          "seq": "61",
           "id": "Product «Чайник»",
           "rev": 2,
           "class": "Product",
@@ -6437,7 +6382,7 @@
           "$new": false
         },
         {
-          "seq": "63",
+          "seq": "62",
           "id": "Product «Кружка»",
           "rev": 2,
           "class": "Product",
@@ -6463,7 +6408,7 @@
           "$new": false
         },
         {
-          "seq": "64",
+          "seq": "63",
           "id": "line·4",
           "rev": 1,
           "class": "line",
@@ -6495,9 +6440,6 @@
       "title": "Подтверждение по старому предпросмотру — отказ",
       "text": "`delete({ confirm: true, expect: показанное })` в той же транзакции, что и удаление, строит предпросмотр заново и сравнивает его с `expect` — строки по `id`, их `rev` и `$action`. Не совпало — отказ `conflict` (`write.preview_changed`): ничего не удалено, а новый предпросмотр — в `err.detail.preview`, его и показывают пользователю.",
       "code": "const answer = await db.Order(d.order2).delete({ confirm: true, expect: shown, reason: 'отмена заказа A-2' }).rows()\n  .then(() => 'удалено', (e) => {\n    if (e.code !== 'conflict') throw e;\n    shown = e.detail.preview; // новый предпросмотр — показать пользователю\n    return `${e.key}: ничего не удалено, покажите новый предпросмотр (${shown.length} строки)`;\n  });\nreturn { 'ответ': answer, 'строк в заказе': await db.Order(d.order2).line().count() };",
-      "params": [
-        "db"
-      ],
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> answer</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order2).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">delete</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ confirm: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, expect: shown, reason: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'отмена заказа A-2'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  .</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">then</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(() </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'удалено'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, (</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">e</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">    if</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (e.code </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!==</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'conflict'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">throw</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> e;</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">    shown </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> e.detail.preview; </span><span style=\"color:#6A737D;--shiki-dark:#6A737D\">// новый предпросмотр — показать пользователю</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">    return</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> `${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">e</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">key</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">}: ничего не удалено, покажите новый предпросмотр (${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">shown</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">length</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">} строки)`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'ответ'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: answer, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'строк в заказе'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order2).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">line</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">count</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">() };</span></span></code></pre>",
       "result": {
         "ответ": "write.preview_changed: ничего не удалено, покажите новый предпросмотр (3 строки)",
@@ -7223,7 +7165,7 @@
           "$new": false
         },
         {
-          "seq": "61",
+          "seq": "60",
           "id": "Category «Посуда»",
           "rev": 2,
           "class": "Category",
@@ -7241,7 +7183,7 @@
           "$new": false
         },
         {
-          "seq": "62",
+          "seq": "61",
           "id": "Product «Чайник»",
           "rev": 2,
           "class": "Product",
@@ -7272,7 +7214,7 @@
           "$new": false
         },
         {
-          "seq": "63",
+          "seq": "62",
           "id": "Product «Кружка»",
           "rev": 2,
           "class": "Product",
@@ -7298,7 +7240,7 @@
           "$new": false
         },
         {
-          "seq": "64",
+          "seq": "63",
           "id": "line·4",
           "rev": 1,
           "class": "line",
@@ -7328,9 +7270,6 @@
       "title": "Подтверждение нового предпросмотра",
       "text": "Пользователь посмотрел новый предпросмотр и подтвердил: он совпал с базой — удалены заказ и обе строки, ровно как показано.",
       "code": "gone = await db.Order(d.order2).delete({ confirm: true, expect: shown, reason: 'отмена заказа A-2' }).rows();\nreturn gone;",
-      "params": [
-        "db"
-      ],
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">gone </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order2).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">delete</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ confirm: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, expect: shown, reason: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'отмена заказа A-2'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> gone;</span></span></code></pre>",
       "result": [
         {
@@ -8118,7 +8057,7 @@
           "$new": false
         },
         {
-          "seq": "61",
+          "seq": "60",
           "id": "Category «Посуда»",
           "rev": 2,
           "class": "Category",
@@ -8136,7 +8075,7 @@
           "$new": false
         },
         {
-          "seq": "62",
+          "seq": "61",
           "id": "Product «Чайник»",
           "rev": 2,
           "class": "Product",
@@ -8167,7 +8106,7 @@
           "$new": false
         },
         {
-          "seq": "63",
+          "seq": "62",
           "id": "Product «Кружка»",
           "rev": 2,
           "class": "Product",
@@ -8193,7 +8132,7 @@
           "$new": false
         },
         {
-          "seq": "64",
+          "seq": "63",
           "id": "line·4",
           "rev": 1,
           "class": "line",
@@ -8215,7 +8154,7 @@
           "$new": false
         },
         {
-          "seq": "65",
+          "seq": "64",
           "id": "Order «A-2»",
           "rev": 2,
           "class": "Order",
@@ -8237,7 +8176,7 @@
           "$new": true
         },
         {
-          "seq": "66",
+          "seq": "65",
           "id": "line·4",
           "rev": 2,
           "class": "line",
@@ -8259,7 +8198,7 @@
           "$new": true
         },
         {
-          "seq": "67",
+          "seq": "66",
           "id": "line·3",
           "rev": 2,
           "class": "line",
@@ -8292,9 +8231,6 @@
       "title": "Заказ вернули, а чайник в него тем временем добавили заново",
       "text": "Ответ `delete` — надгробия этого удаления (`id` и `rev` каждой строки): сохраните его, по нему удалённое и возвращают. Заказ возвращает `restore({ expect: ответ })` — id из `expect`, которых нет среди строк шага (строки заказа), он пропускает. Сразу после этого в заказ снова положили чайник: строка с ключом «заказ + товар» получила тот же id, что удалённая, и её история продолжилась версией `create`.",
       "code": "const [order] = await db.Order(d.order2).restore({ expect: gone }).rows();\nawait db.Order(d.order2).line().create({ qty: 3, price: 2500 }).Product.set(d.kettle).rows();\nreturn order;",
-      "params": [
-        "db"
-      ],
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> [</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order2).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">restore</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ expect: gone }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order2).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">line</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ qty: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">3</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">2500</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).Product.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">set</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> order;</span></span></code></pre>",
       "result": {
         "at": "t19",
@@ -9018,7 +8954,7 @@
           "$new": false
         },
         {
-          "seq": "61",
+          "seq": "60",
           "id": "Category «Посуда»",
           "rev": 2,
           "class": "Category",
@@ -9036,7 +8972,7 @@
           "$new": false
         },
         {
-          "seq": "62",
+          "seq": "61",
           "id": "Product «Чайник»",
           "rev": 2,
           "class": "Product",
@@ -9067,7 +9003,7 @@
           "$new": false
         },
         {
-          "seq": "63",
+          "seq": "62",
           "id": "Product «Кружка»",
           "rev": 2,
           "class": "Product",
@@ -9093,7 +9029,7 @@
           "$new": false
         },
         {
-          "seq": "64",
+          "seq": "63",
           "id": "line·4",
           "rev": 1,
           "class": "line",
@@ -9115,7 +9051,7 @@
           "$new": false
         },
         {
-          "seq": "65",
+          "seq": "64",
           "id": "Order «A-2»",
           "rev": 2,
           "class": "Order",
@@ -9137,7 +9073,7 @@
           "$new": false
         },
         {
-          "seq": "66",
+          "seq": "65",
           "id": "line·4",
           "rev": 2,
           "class": "line",
@@ -9159,7 +9095,7 @@
           "$new": false
         },
         {
-          "seq": "67",
+          "seq": "66",
           "id": "line·3",
           "rev": 2,
           "class": "line",
@@ -9181,7 +9117,7 @@
           "$new": false
         },
         {
-          "seq": "68",
+          "seq": "67",
           "id": "Order «A-2»",
           "rev": 3,
           "class": "Order",
@@ -9203,7 +9139,7 @@
           "$new": true
         },
         {
-          "seq": "69",
+          "seq": "68",
           "id": "line·4",
           "rev": 3,
           "class": "line",
@@ -9236,9 +9172,6 @@
       "title": "Вернуть строки удаления — restore({ expect, partial: true })",
       "text": "Строки заказа возвращают тем же ответом `delete`, одним вызовом. Без `partial` строка, которую уже не вернуть, роняет весь вызов: ничего не восстановлено. С `partial: true` возвращаются строки, чья последняя версия — то самое надгробие, а остальные приходят в ответе строками-пропусками `$action: 'skip'` с причиной `$why`: `reissued` — id занял новый живой объект с тем же ключом (здесь — чайник), `changed` — после удаления строку пересоздавали, правили или удалили снова, `restored` — её уже вернули. Пропуски покажите пользователю: «не вернулась — уже есть новая».",
       "code": "db.Order(d.order2).line().restore({ expect: gone, partial: true }).rows()",
-      "params": [
-        "db"
-      ],
       "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order2).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">line</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">restore</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ expect: gone, partial: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
       "result": [
         {
@@ -10006,7 +9939,7 @@
           "$new": false
         },
         {
-          "seq": "61",
+          "seq": "60",
           "id": "Category «Посуда»",
           "rev": 2,
           "class": "Category",
@@ -10024,7 +9957,7 @@
           "$new": false
         },
         {
-          "seq": "62",
+          "seq": "61",
           "id": "Product «Чайник»",
           "rev": 2,
           "class": "Product",
@@ -10055,7 +9988,7 @@
           "$new": false
         },
         {
-          "seq": "63",
+          "seq": "62",
           "id": "Product «Кружка»",
           "rev": 2,
           "class": "Product",
@@ -10081,7 +10014,7 @@
           "$new": false
         },
         {
-          "seq": "64",
+          "seq": "63",
           "id": "line·4",
           "rev": 1,
           "class": "line",
@@ -10103,7 +10036,7 @@
           "$new": false
         },
         {
-          "seq": "65",
+          "seq": "64",
           "id": "Order «A-2»",
           "rev": 2,
           "class": "Order",
@@ -10125,7 +10058,7 @@
           "$new": false
         },
         {
-          "seq": "66",
+          "seq": "65",
           "id": "line·4",
           "rev": 2,
           "class": "line",
@@ -10147,7 +10080,7 @@
           "$new": false
         },
         {
-          "seq": "67",
+          "seq": "66",
           "id": "line·3",
           "rev": 2,
           "class": "line",
@@ -10169,7 +10102,7 @@
           "$new": false
         },
         {
-          "seq": "68",
+          "seq": "67",
           "id": "Order «A-2»",
           "rev": 3,
           "class": "Order",
@@ -10191,7 +10124,7 @@
           "$new": false
         },
         {
-          "seq": "69",
+          "seq": "68",
           "id": "line·4",
           "rev": 3,
           "class": "line",
@@ -10213,7 +10146,7 @@
           "$new": false
         },
         {
-          "seq": "70",
+          "seq": "69",
           "id": "line·3",
           "rev": 3,
           "class": "line",
@@ -10241,5 +10174,6 @@
         "line"
       ]
     }
-  ]
+  ],
+  "output": "Шаг 1. Данные магазина\n\"готово\"\n\nШаг 2. Предпросмотр удаления заказа\n[\n  {\n    \"at\": \"‹время›\",\n    \"id\": \"‹id 1›\",\n    \"op\": \"create\",\n    \"rev\": 1,\n    \"data\": {\n      \"number\": \"A-1\",\n      \"status\": \"new\"\n    },\n    \"tags\": [],\n    \"class\": \"Order\",\n    \"links\": {\n      \"Shop\": \"‹id 2›\",\n      \"Customer\": \"‹id 3›\"\n    },\n    \"owner\": \"‹id 4›\",\n    \"author\": \"‹id 5›\",\n    \"tenant\": \"‹id 4›\",\n    \"agent\": \"‹id 6›\",\n    \"$action\": \"delete\",\n    \"$depth\": 0\n  },\n  {\n    \"at\": \"‹время›\",\n    \"id\": \"‹id 7›\",\n    \"op\": \"create\",\n    \"rev\": 1,\n    \"data\": {\n      \"qty\": 1,\n      \"price\": 2500\n    },\n    \"tags\": [],\n    \"class\": \"line\",\n    \"links\": {\n      \"Order\": \"‹id 1›\",\n      \"Product\": \"‹id 8›\"\n    },\n    \"owner\": \"‹id 4›\",\n    \"author\": \"‹id 5›\",\n    \"tenant\": \"‹id 4›\",\n    \"agent\": \"‹id 6›\",\n    \"$action\": \"delete\",\n    \"$depth\": 1\n  },\n  {\n    \"at\": \"‹время›\",\n    \"id\": \"‹id 9›\",\n    \"op\": \"create\",\n    \"rev\": 1,\n    \"data\": {\n      \"qty\": 2,\n      \"price\": 900\n    },\n    \"tags\": [],\n    \"class\": \"line\",\n    \"links\": {\n      \"Order\": \"‹id 1›\",\n      \"Product\": \"‹id 10›\"\n    },\n    \"owner\": \"‹id 4›\",\n    \"author\": \"‹id 5›\",\n    \"tenant\": \"‹id 4›\",\n    \"agent\": \"‹id 6›\",\n    \"$action\": \"delete\",\n    \"$depth\": 1\n  }\n]\n\nШаг 3. Удаляем заказ\n[\n  {\n    \"at\": \"‹время›\",\n    \"id\": \"‹id 1›\",\n    \"op\": \"delete\",\n    \"rev\": 2,\n    \"data\": {\n      \"number\": \"A-1\",\n      \"status\": \"new\"\n    },\n    \"tags\": [],\n    \"class\": \"Order\",\n    \"links\": {\n      \"Shop\": \"‹id 2›\",\n      \"Customer\": \"‹id 3›\"\n    },\n    \"owner\": \"‹id 4›\",\n    \"author\": \"‹id 5›\",\n    \"tenant\": \"‹id 4›\",\n    \"agent\": \"‹id 6›\",\n    \"$deleted\": true\n  },\n  {\n    \"at\": \"‹время›\",\n    \"id\": \"‹id 7›\",\n    \"op\": \"delete\",\n    \"rev\": 2,\n    \"data\": {\n      \"qty\": 1,\n      \"price\": 2500\n    },\n    \"tags\": [],\n    \"class\": \"line\",\n    \"links\": {\n      \"Order\": \"‹id 1›\",\n      \"Product\": \"‹id 8›\"\n    },\n    \"owner\": \"‹id 4›\",\n    \"author\": \"‹id 5›\",\n    \"tenant\": \"‹id 4›\",\n    \"agent\": \"‹id 6›\",\n    \"$deleted\": true\n  },\n  {\n    \"at\": \"‹время›\",\n    \"id\": \"‹id 9›\",\n    \"op\": \"delete\",\n    \"rev\": 2,\n    \"data\": {\n      \"qty\": 2,\n      \"price\": 900\n    },\n    \"tags\": [],\n    \"class\": \"line\",\n    \"links\": {\n      \"Order\": \"‹id 1›\",\n      \"Product\": \"‹id 10›\"\n    },\n    \"owner\": \"‹id 4›\",\n    \"author\": \"‹id 5›\",\n    \"tenant\": \"‹id 4›\",\n    \"agent\": \"‹id 6›\",\n    \"$deleted\": true\n  }\n]\n\nШаг 4. Магазин с товарами: предпросмотр показывает запрет\n[\n  {\n    \"id\": \"‹id 11›\",\n    \"action\": \"delete\"\n  },\n  {\n    \"id\": \"‹id 12›\",\n    \"action\": \"restrict\"\n  }\n]\n\nШаг 5. Удалить магазин нельзя, пока есть товары\nотказ, как и задумано: letopis: delete_restricted: удалению мешают ссылающиеся строки: видимых 1, скрытых правами 0 — ничего не удалено\n\nШаг 6. Удалить категорию — концы очистятся\n[\n  {\n    \"at\": \"‹время›\",\n    \"id\": \"‹id 13›\",\n    \"op\": \"delete\",\n    \"rev\": 2,\n    \"data\": {\n      \"name\": \"Посуда\"\n    },\n    \"tags\": [],\n    \"class\": \"Category\",\n    \"links\": {},\n    \"owner\": \"‹id 4›\",\n    \"author\": \"‹id 5›\",\n    \"tenant\": \"‹id 4›\",\n    \"agent\": \"‹id 6›\",\n    \"$deleted\": true\n  }\n]\n\nШаг 7. Пользователю показали предпросмотр заказа A-2\n[\n  {\n    \"at\": \"‹время›\",\n    \"id\": \"‹id 14›\",\n    \"op\": \"create\",\n    \"rev\": 1,\n    \"data\": {\n      \"number\": \"A-2\",\n      \"status\": \"paid\"\n    },\n    \"tags\": [],\n    \"class\": \"Order\",\n    \"links\": {\n      \"Shop\": \"‹id 2›\",\n      \"Customer\": \"‹id 15›\"\n    },\n    \"owner\": \"‹id 4›\",\n    \"author\": \"‹id 5›\",\n    \"tenant\": \"‹id 4›\",\n    \"agent\": \"‹id 6›\",\n    \"$action\": \"delete\",\n    \"$depth\": 0\n  },\n  {\n    \"at\": \"‹время›\",\n    \"id\": \"‹id 16›\",\n    \"op\": \"create\",\n    \"rev\": 1,\n    \"data\": {\n      \"qty\": 1,\n      \"price\": 1500\n    },\n    \"tags\": [],\n    \"class\": \"line\",\n    \"links\": {\n      \"Order\": \"‹id 14›\",\n      \"Product\": \"‹id 17›\"\n    },\n    \"owner\": \"‹id 4›\",\n    \"author\": \"‹id 5›\",\n    \"tenant\": \"‹id 4›\",\n    \"agent\": \"‹id 6›\",\n    \"$action\": \"delete\",\n    \"$depth\": 1\n  }\n]\n\nШаг 8. Пока он смотрел, в заказ добавили строку\n[\n  {\n    \"at\": \"‹время›\",\n    \"id\": \"‹id 18›\",\n    \"op\": \"create\",\n    \"rev\": 1,\n    \"data\": {\n      \"qty\": 1,\n      \"price\": 2500\n    },\n    \"tags\": [],\n    \"class\": \"line\",\n    \"links\": {\n      \"Order\": \"‹id 14›\",\n      \"Product\": \"‹id 8›\"\n    },\n    \"owner\": \"‹id 4›\",\n    \"author\": \"‹id 5›\",\n    \"tenant\": \"‹id 4›\",\n    \"agent\": \"‹id 6›\"\n  }\n]\n\nШаг 9. Подтверждение по старому предпросмотру — отказ\n{\n  \"ответ\": \"write.preview_changed: ничего не удалено, покажите новый предпросмотр (3 строки)\",\n  \"строк в заказе\": 2\n}\n\nШаг 10. Подтверждение нового предпросмотра\n[\n  {\n    \"at\": \"‹время›\",\n    \"id\": \"‹id 14›\",\n    \"op\": \"delete\",\n    \"rev\": 2,\n    \"data\": {\n      \"number\": \"A-2\",\n      \"status\": \"paid\"\n    },\n    \"tags\": [],\n    \"class\": \"Order\",\n    \"links\": {\n      \"Shop\": \"‹id 2›\",\n      \"Customer\": \"‹id 15›\"\n    },\n    \"owner\": \"‹id 4›\",\n    \"author\": \"‹id 5›\",\n    \"tenant\": \"‹id 4›\",\n    \"agent\": \"‹id 6›\",\n    \"reason\": \"отмена заказа A-2\",\n    \"$deleted\": true\n  },\n  {\n    \"at\": \"‹время›\",\n    \"id\": \"‹id 18›\",\n    \"op\": \"delete\",\n    \"rev\": 2,\n    \"data\": {\n      \"qty\": 1,\n      \"price\": 2500\n    },\n    \"tags\": [],\n    \"class\": \"line\",\n    \"links\": {\n      \"Order\": \"‹id 14›\",\n      \"Product\": \"‹id 8›\"\n    },\n    \"owner\": \"‹id 4›\",\n    \"author\": \"‹id 5›\",\n    \"tenant\": \"‹id 4›\",\n    \"agent\": \"‹id 6›\",\n    \"reason\": \"отмена заказа A-2\",\n    \"$deleted\": true\n  },\n  {\n    \"at\": \"‹время›\",\n    \"id\": \"‹id 16›\",\n    \"op\": \"delete\",\n    \"rev\": 2,\n    \"data\": {\n      \"qty\": 1,\n      \"price\": 1500\n    },\n    \"tags\": [],\n    \"class\": \"line\",\n    \"links\": {\n      \"Order\": \"‹id 14›\",\n      \"Product\": \"‹id 17›\"\n    },\n    \"owner\": \"‹id 4›\",\n    \"author\": \"‹id 5›\",\n    \"tenant\": \"‹id 4›\",\n    \"agent\": \"‹id 6›\",\n    \"reason\": \"отмена заказа A-2\",\n    \"$deleted\": true\n  }\n]\n\nШаг 11. Заказ вернули, а чайник в него тем временем добавили заново\n{\n  \"at\": \"‹время›\",\n  \"id\": \"‹id 14›\",\n  \"op\": \"restore\",\n  \"rev\": 3,\n  \"data\": {\n    \"number\": \"A-2\",\n    \"status\": \"paid\"\n  },\n  \"tags\": [],\n  \"class\": \"Order\",\n  \"links\": {\n    \"Shop\": \"‹id 2›\",\n    \"Customer\": \"‹id 15›\"\n  },\n  \"owner\": \"‹id 4›\",\n  \"author\": \"‹id 5›\",\n  \"tenant\": \"‹id 4›\",\n  \"agent\": \"‹id 6›\"\n}\n\nШаг 12. Вернуть строки удаления — restore({ expect, partial: true })\n[\n  {\n    \"at\": \"‹время›\",\n    \"id\": \"‹id 18›\",\n    \"op\": \"create\",\n    \"rev\": 3,\n    \"data\": {\n      \"qty\": 3,\n      \"price\": 2500\n    },\n    \"tags\": [],\n    \"class\": \"line\",\n    \"links\": {\n      \"Order\": \"‹id 14›\",\n      \"Product\": \"‹id 8›\"\n    },\n    \"owner\": \"‹id 4›\",\n    \"author\": \"‹id 5›\",\n    \"tenant\": \"‹id 4›\",\n    \"agent\": \"‹id 6›\",\n    \"$action\": \"skip\",\n    \"$why\": \"reissued\"\n  },\n  {\n    \"at\": \"‹время›\",\n    \"id\": \"‹id 16›\",\n    \"op\": \"restore\",\n    \"rev\": 3,\n    \"data\": {\n      \"qty\": 1,\n      \"price\": 1500\n    },\n    \"tags\": [],\n    \"class\": \"line\",\n    \"links\": {\n      \"Order\": \"‹id 14›\",\n      \"Product\": \"‹id 17›\"\n    },\n    \"owner\": \"‹id 4›\",\n    \"author\": \"‹id 5›\",\n    \"tenant\": \"‹id 4›\",\n    \"agent\": \"‹id 6›\"\n  }\n]"
 }
