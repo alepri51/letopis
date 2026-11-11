@@ -5,12 +5,12 @@ name: tag
 # версии без GitHub Release.
 #
 # Тег НЕ создаёт релиз и НЕ публикует пакет. Когда готов: Releases → «Draft a new release»
-# → выбрать тег → Publish. release.yml поставит в тело релиза описание релизного PR и
-# опубликует пакет в npm.
+# → выбрать тег → Publish. release.yml поставит в тело релиза раздел этой версии из
+# lib/CHANGELOG.md (scripts/release-notes.mjs) и опубликует пакет в npm.
 #
 # Контур: на каждое событие РОВНО ОДНО действие, ничего параллельно.
-#   push dev → ci (тесты)   |   merge в main → tag   |   publish Release → release (npm)
-# Тесты на main НЕ гоняются намеренно: merge несёт тот же коммит, что уже проверен на dev.
+#   push dev → ci (статические проверки)   |   merge в main → tag   |   publish Release → release (npm)
+# Проверки на main НЕ гоняются намеренно: merge несёт тот же коммит, что уже проверен на dev.
 #
 # Источник версии — lib/package.json: тег обязан равняться тому, что реально уедет в npm,
 # иначе тег и пакет разъедутся. Версию сверяет с последней записью lib/CHANGELOG.md

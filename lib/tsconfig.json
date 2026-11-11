@@ -7,9 +7,12 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "declaration": true,
-    "allowImportingTsExtensions": false,
     "forceConsistentCasingInFileNames": true,
-    "noEmit": true
+    "noEmit": true,
+    "allowJs": true,
+    "checkJs": true,
+    "allowImportingTsExtensions": true,
+    "noImplicitAny": false
   },
-  "include": ["src", "test", "bench"]
+  "include": ["src", "bench"]
 }
