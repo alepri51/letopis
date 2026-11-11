@@ -30,7 +30,33 @@ const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 // слово термина целиком, с окончанием до трёх букв («журнал» — «журнале», «журнала»)
 const RE = new RegExp(`(?<![\\p{L}\\p{N}_-])(${[...byWord.keys()].sort((a, b) => b.length - a.length).map(esc).join('|')})(\\p{L}{0,3})(?![\\p{L}\\p{N}_])`, 'giu');
 
-const SKIP = 'pre, code, a, h1, h2, h3, h4, h5, h6, button, textarea, input, svg, .lt-term, .lt-ex, .lt-flow, .lt-tt, .lt-sbx, .lt-mermaid, .mermaid';
+/**
+ * Пояснение для чтеца экрана: aria-describedby термина ссылается на скрытый элемент с определением. Определения — в
+ * одном скрытом контейнере вне разметки Vue (дочерний элемент body), по элементу на термин; видимая всплывашка — CSS
+ * (`.lt-term::after` в style.css).
+ */
+function defId(i: number): string {
+  const id = `lt-term-def-${i}`;
+  const known = document.getElementById(id);
+  if (known) {
+    known.textContent = TERMS[i].def; // глоссарий правят на живом сайте разработки — текст свежий
+    return id;
+  }
+  let box = document.getElementById('lt-term-defs');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'lt-term-defs';
+    box.hidden = true;
+    document.body.append(box);
+  }
+  const def = document.createElement('span');
+  def.id = id;
+  def.textContent = TERMS[i].def;
+  box.append(def);
+  return id;
+}
+
+const SKIP ='pre, code, a, h1, h2, h3, h4, h5, h6, button, textarea, input, svg, .lt-term, .lt-ex, .lt-flow, .lt-tt, .lt-sbx, .lt-mermaid, .mermaid';
 
 /** Расставить подсказки в тексте страницы page (повторный вызов на той же странице ничего не меняет). */
 export function annotate(root: HTMLElement, page: string): number {
@@ -55,7 +81,7 @@ export function annotate(root: HTMLElement, page: string): number {
       span.className = 'lt-term';
       span.tabIndex = 0;
       span.dataset.def = TERMS[i].def;
-      span.setAttribute('aria-description', TERMS[i].def);
+      span.setAttribute('aria-describedby', defId(i));
       word.replaceWith(span);
       span.append(word);
       count++;

@@ -23,25 +23,27 @@ export interface FlowDef {
 
 export const flows: Record<string, FlowDef> = {
   install: {
-    title: 'Установка и подключение',
-    example: 'install/01-up-and-connect',
+    title: 'Дом: установка и подключение',
+    example: 'install/01-setup-and-connect',
     code: `flowchart LR
-  up["up(): роли, функции,<br/>триггеры, политики"] --> stamp["штамп схемы:<br/>ревизия, версия, хэш SQL"]
-  stamp --> again["повторный up():<br/>ничего не меняет"]
-  stamp --> tenant["первый арендатор<br/>и пользователь"]
-  tenant --> conn{"connect():<br/>роль обходит RLS?"}
-  conn -- "нет, ключ сервиса" --> svc["сервис →<br/>as(пользователь)"]
-  conn -- "нет, токен сессии" --> token["подключение<br/>пользователя"]
-  conn -- "да, без allowBypassRls" --> deny["отказ bypass_rls"]
-  conn -- "да, allowBypassRls: true" --> admin["администраторское<br/>подключение"]`,
+  setup["setup(мастер-ключ, имя):<br/>роли, функции, политики"] --> stamp["штамп схемы:<br/>ревизия, версия, хэш SQL"]
+  stamp --> pass["консьерж и пропуск:<br/>роль letopis_c_имя и ключ"]
+  pass --> again["повторный setup():<br/>тот же пропуск"]
+  pass --> conn["connect(pass):<br/>консьерж, без цепочек"]
+  conn --> tenant["createTenant:<br/>квартира и её правила"]
+  tenant --> invite["invite → письмо →<br/>accept(token): жилец,<br/>прописка"]
+  invite --> room["корень квартиры:<br/>цепочки под правами жильца"]
+  conn --> open["open(ключ):<br/>вход жильца"]
+  open --> room
+  conn --> inq["in(квартира):<br/>консьерж внутри, полный доступ"]`,
     steps: {
-      1: { nodes: ['up', 'stamp'], note: 'up() ставит схему и пишет штамп: ревизию, версию пакета и хэш SQL.' },
-      2: { nodes: ['again'], note: 'Повторный up() видит ту же ревизию и ничего не ломает.' },
-      3: { nodes: ['tenant'], note: 'Первый арендатор «Ромашка» и его пользователь Анна.' },
-      4: { nodes: ['conn', 'svc'], note: 'Сервис входит по ключу и действует от имени Анны через as().' },
-      5: { nodes: ['conn', 'token'], note: 'Своё подключение по токену сессии Анны.' },
-      6: { nodes: ['conn', 'deny'], note: 'Роль, которая обходит RLS, без явного разрешения не пускают: bypass_rls.' },
-      7: { nodes: ['conn', 'admin'], note: 'С allowBypassRls: true — администраторское подключение, оно видит всех арендаторов.' },
+      1: { nodes: ['setup', 'stamp', 'pass'], note: 'setup() строит дом, пишет штамп и отдаёт пропуск консьержа.' },
+      2: { nodes: ['again'], note: 'Повторный setup() ничего не дублирует и отдаёт тот же пропуск.' },
+      3: { nodes: ['conn'], note: 'connect(pass) — консьерж: дверь дома, своих данных и цепочек у него нет.' },
+      4: { nodes: ['conn', 'tenant'], note: 'Квартира «Ромашка» и её правила; занятое имя — отказ exists.' },
+      5: { nodes: ['tenant', 'invite', 'room'], note: 'Приглашение Анне: письмо со ссылкой получает почтальон, accept(token) даёт аккаунт, прописку owner и корень квартиры.' },
+      6: { nodes: ['conn', 'open', 'room'], note: 'Вход по паролю — тот же аккаунт; неверный ключ — auth_failed.' },
+      7: { nodes: ['conn', 'inq'], note: 'Консьерж в квартире — для фоновых задач; список квартир дома.' },
     },
   },
 
@@ -52,6 +54,7 @@ export const flows: Record<string, FlowDef> = {
   chain["цепочка<br/>с глаголом"] --> pre{"проверки без базы:<br/>ключ upsert, условие update, данные"}
   pre -- "upsert без ключа" --> nokey["отказ no_key"]
   pre -- "update без фильтра, id и limit" --> nofilter["отказ invalid_query —<br/>все строки только с all: true"]
+  pre -- "модификатор после глагола" --> after["отказ invalid_query —<br/>ничего не записано"]
   pre --> find{"цели<br/>найдены?"}
   find -- "update: нет" --> empty["пустой ответ,<br/>не ошибка"]
   find -- "да или создать" --> trg["триггер: умолчания,<br/>проверка данных, id по ключу"]
@@ -59,15 +62,18 @@ export const flows: Record<string, FlowDef> = {
   same -- "нет" --> nover["версии нет"]
   same -- "да" --> ver["entity: новая rev,<br/>log: новая версия"]`,
     steps: {
-      1: { nodes: ['chain', 'trg', 'ver'], note: 'Модель магазина и магазин: создание — первая версия в entity и log.' },
+      1: { nodes: ['chain', 'trg', 'ver'], note: 'Магазин: создание — первая версия в entity и log.' },
       2: { nodes: ['chain', 'trg', 'ver'], note: 'Два товара — две строки, у каждой rev 1.' },
       3: { nodes: ['find', 'trg', 'same', 'ver'], note: 'update сливает патч с данными: остальные поля на месте, версия — новая.' },
       4: { nodes: ['find', 'trg', 'ver'], note: 'update по фильтру правит все найденные строки.' },
       5: { nodes: ['find', 'empty'], note: 'Ничего не нашлось — пустой ответ, а не ошибка.' },
-      6: { nodes: ['find', 'trg', 'ver'], note: 'upsert: такого ключа нет — создаётся новый объект.' },
-      7: { nodes: ['trg', 'same', 'nover'], note: 'upsert тех же данных: правка пустая, версии нет.' },
-      8: { nodes: ['trg', 'same', 'ver'], note: 'upsert заменяет данные целиком — новая версия.' },
-      9: { nodes: ['pre', 'nokey'], note: 'У класса нет ключа — upsert невозможен ещё до базы: no_key.' },
+      6: { nodes: ['pre', 'find', 'trg', 'ver'], note: 'sort и limit до глагола выбирают цели: правится один самый дорогой товар.' },
+      7: { nodes: ['find', 'trg', 'ver'], note: 'Ответ правки — в порядке sort() до глагола.' },
+      8: { nodes: ['pre', 'after'], note: 'limit после глагола ничего не сужает — отказ до записи.' },
+      9: { nodes: ['find', 'trg', 'ver'], note: 'upsert: такого ключа нет — создаётся новый объект.' },
+      10: { nodes: ['trg', 'same', 'nover'], note: 'upsert тех же данных: правка пустая, версии нет.' },
+      11: { nodes: ['trg', 'same', 'ver'], note: 'upsert заменяет данные целиком — новая версия.' },
+      12: { nodes: ['pre', 'nokey'], note: 'У класса нет ключа — upsert невозможен ещё до базы: no_key.' },
     },
   },
 
@@ -97,7 +103,7 @@ export const flows: Record<string, FlowDef> = {
     example: 'delete/01-delete-cascade',
     code: `flowchart TD
   prev["delete() без confirm:<br/>предпросмотр, база не меняется"]
-  go["delete({ confirm: true })"] --> who{"кто ссылается<br/>на цель?"}
+  go["delete({ confirm: true,<br/>expect: предпросмотр })"] --> who{"кто ссылается<br/>на цель?"}
   go -- "без фильтра, id и limit" --> nofilter["отказ invalid_query —<br/>все строки только с all: true"]
   who -- "никто" --> gone["цель удалена,<br/>надгробие в журнале"]
   who -- "конец cascade" --> casc["удалить и ссылающуюся строку —<br/>каскад идёт дальше"]
@@ -116,49 +122,60 @@ export const flows: Record<string, FlowDef> = {
   },
 
   access: {
-    title: 'Проверка прав: RLS и правила ACL',
-    example: 'access/01-rules',
+    title: 'Права: матрица со счётом',
+    example: 'access/01-residents',
     code: `flowchart TD
-  q["запрос сотрудника"] --> mine{"строка его<br/>арендатора?"}
+  q["запрос жильца"] --> mine{"строка его<br/>квартиры?"}
   mine -- "нет" --> hidden["не видна —<br/>политики доступа (RLS)"]
-  mine -- "да" --> rules{"правила:<br/>группа × объект"}
-  rules --> weight["выигрывает правило<br/>с большим весом"]
-  weight -- "deny сильнее allow" --> denied["отказ acl_denied"]
-  weight -- "allow" --> ok["разрешено"]`,
+  mine -- "да" --> cand["кандидаты: правила,<br/>чья группа и объект совпали"]
+  cand --> score["счёт = кто + что + поля<br/>+ запрет + вес"]
+  score --> pick{"наибольший счёт среди тех,<br/>чьё условие строка проходит"}
+  pick -- "только «можно»" --> ok["видна, разрешено"]
+  pick -- "только «нельзя»" --> denied["скрыта, acl_denied"]
+  pick -- "«можно» и «нельзя» вровень" --> tie["ничья: строка скрыта,<br/>ошибки нет"]
+  pick -- "никто не подошёл" --> def["правило по умолчанию:<br/>deny (setup defaultRule)"]`,
     steps: {
-      1: { nodes: [], note: 'Подготовка: магазин и второй сотрудник — Олег.' },
-      2: { nodes: ['rules'], note: 'Правило deny: сотрудникам нельзя удалять товары (вес больше, чем у allow).' },
-      3: { nodes: ['q', 'mine', 'rules', 'weight', 'ok'], note: 'acl.check: читать и писать Олегу можно, удалять — нет.' },
-      4: { nodes: ['q', 'mine', 'rules', 'weight', 'denied'], note: 'Олег удаляет товар — база отказывает: acl_denied.' },
-      5: { nodes: ['q', 'mine', 'hidden'], note: 'Чужой арендатор не видит даже класса: invalid_class.' },
+      1: { nodes: ['q', 'mine', 'cand', 'ok'], note: 'Анна — owner: правило роли owner разрешает ей всё в своей квартире.' },
+      2: { nodes: ['cand', 'score'], note: 'Роли staff: читать заказы (счёт 52), VIP — нельзя (счёт 54).' },
+      3: { nodes: [], note: 'Приглашение Олегу с ролью staff: письмо со ссылкой — почтальону.' },
+      4: { nodes: [], note: 'Олег принял приглашение по ссылке: аккаунт, прописка с ролью staff, сессия.' },
+      5: { nodes: ['q', 'mine', 'cand', 'score', 'pick', 'ok', 'denied'], note: 'Для каждой строки свой победитель: обычные заказы видны, VIP скрыт.' },
+      6: { nodes: ['cand', 'score', 'pick', 'def'], note: 'checkData — кандидаты по счёту; действие без правил решает правило по умолчанию.' },
+      7: { nodes: ['score', 'pick', 'ok'], note: 'Роль cashier с весом 60: у VIP-строки разрешение сильнее запрета.' },
+      8: { nodes: ['cand', 'score', 'pick', 'denied'], note: 'Роль выдаёт тот, кому это разрешает правило матрицы assign; без правила — role_denied.' },
+      9: { nodes: ['q', 'mine', 'hidden'], note: 'Чужая квартира не видит строк «Ромашки» и её своих классов; прописка — только приглашением.' },
     },
   },
 
   auth: {
-    title: 'Вход и сессии',
-    example: 'auth/01-login-factors',
+    title: 'Вход и ключи',
+    example: 'auth/01-keys',
     code: `flowchart LR
-  how{"способ входа"} --> pw["пароль:<br/>verifyPassword"]
-  how --> key["ключ API:<br/>verifyApiKey"]
-  how --> otp["одноразовый код:<br/>verifyOtp"]
-  how --> ext["внешняя учётная запись:<br/>auth.lookup → sessionFor"]
-  pw --> totp{"включён TOTP?"}
-  totp -- "да: код из приложения" --> sess["сессия: токен,<br/>строка SESSION в secret"]
-  totp -- "нет" --> sess
-  key --> sess
-  otp --> sess
-  ext --> sess
-  sess --> short["короткая сессия<br/>для другого процесса"]
-  sess --> revoke["отзыв ключа или сессий,<br/>смена пароля гасит остальные"]`,
+  how{"ключ"} --> pw["пароль<br/>(+TOTP)"]
+  how --> api["ключ API"]
+  how --> ks["ключ и секрет"]
+  how --> ext["внешний вход"]
+  how --> code["код из письма:<br/>requestCode → почтальон"]
+  pw --> open{"db.open(ключ):<br/>консьерж сверяет"}
+  api --> open
+  ks --> open
+  ext --> open
+  code --> list["tenantsOf:<br/>список квартир"]
+  list --> open
+  open -- "не подошёл" --> fail["auth_failed"]
+  open -- "TOTP включён,<br/>кода нет" --> totp["auth_failed:<br/>totp_required"]
+  open --> sess["сессия в квартире:<br/>токен, строка SESSION"]
+  sess --> keys["me.keys: свои ключи<br/>только этой квартиры"]
+  keys --> revoke["revoke: ключ<br/>и его сессии гаснут"]`,
     steps: {
-      1: { nodes: ['how', 'pw', 'totp', 'sess'], note: 'Пароль: верный даёт сессию, неверный — null, логин без учёта регистра.' },
-      2: { nodes: ['revoke'], note: 'Смена пароля гасит остальные сессии.' },
-      3: { nodes: ['how', 'key', 'sess'], note: 'Ключ API для интеграции — вход без пароля.' },
-      4: { nodes: ['revoke'], note: 'Отозванный ключ больше не входит.' },
-      5: { nodes: ['how', 'otp', 'sess'], note: 'Одноразовый код: успешная проверка его сжигает — второй раз тот же код не входит.' },
-      6: { nodes: ['pw', 'totp', 'sess'], note: 'Второй фактор TOTP: код из приложения-аутентификатора.' },
-      7: { nodes: ['how', 'ext', 'sess'], note: 'Внешняя учётная запись (Telegram) привязана к аккаунту: lookup находит его, сессию выдаёт сервис.' },
-      8: { nodes: ['sess', 'short'], note: 'Короткая сессия для другого процесса — его собственное подключение.' },
+      1: { nodes: ['how', 'pw', 'open', 'sess', 'fail'], note: 'Пароль Анны: верный открывает «Ромашку», неверный — auth_failed.' },
+      2: { nodes: ['how', 'api', 'open', 'sess', 'keys'], note: 'Ключ API для программы — вход без пароля.' },
+      3: { nodes: ['how', 'ks', 'open', 'sess', 'keys'], note: 'Ключ и секрет — для интеграции.' },
+      4: { nodes: ['how', 'ext', 'open', 'sess', 'keys'], note: 'Внешний вход (Telegram): токен провайдера проверило приложение.' },
+      5: { nodes: ['how', 'code', 'list', 'open', 'sess'], note: 'Вход кодом: requestCode отдаёт код почтальону, tenantsOf показывает квартиры человека, open входит в выбранную.' },
+      6: { nodes: ['pw', 'open', 'totp', 'sess'], note: 'Второй фактор TOTP: без кода из приложения — totp_required.' },
+      7: { nodes: ['keys', 'revoke'], note: 'Список своих ключей и отзыв: отозванный ключ больше не входит.' },
+      8: { nodes: ['how', 'pw', 'open', 'sess'], note: 'Вторая квартира — свой пароль: пароль открывает ровно одну квартиру.' },
     },
   },
 
@@ -176,6 +193,8 @@ export const flows: Record<string, FlowDef> = {
       2: { nodes: ['rd', 'ev'], note: 'Подписка с начала журнала: все события по порядку.' },
       3: { nodes: ['w', 'sig'], note: 'Изменение, пока подписки нет: событие ждёт в журнале.' },
       4: { nodes: ['keep', 'rd', 'ev'], note: 'Продолжить с курсора — без потерь и повторов.' },
+      5: { nodes: ['sig', 'rd', 'ev'], note: 'Цикл for await: события по мере сигналов, отставание видно по курсору.' },
+      6: { nodes: ['rd', 'ev'], note: 'Другая квартира получает только свои события — журнал читается под её правами.' },
     },
   },
 
@@ -183,7 +202,7 @@ export const flows: Record<string, FlowDef> = {
     title: 'Явная транзакция',
     example: 'money/01-transactions',
     code: `flowchart LR
-  begin["db.begin()"] --> work["записи и чтения<br/>одной транзакции"]
+  begin["me.begin()"] --> work["записи и чтения<br/>одной транзакции"]
   work --> locks["lock() и forUpdate():<br/>блокировки до конца"]
   work --> fine{"всё прошло?"}
   fine -- "да" --> commit["commit():<br/>записано всё"]
@@ -240,14 +259,14 @@ export const flows: Record<string, FlowDef> = {
     title: 'Первая заливка',
     example: 'load/02-initial',
     code: `flowchart LR
-  empty["пустая схема:<br/>только классы, аккаунты, права"] --> strip["TRUNCATE, снять триггеры,<br/>ограничения и индексы"]
+  empty["пустой дом:<br/>только классы, аккаунты, права"] --> strip["TRUNCATE, снять триггеры,<br/>ограничения и индексы"]
   strip --> copy["COPY … FREEZE<br/>все строки"]
   copy --> back["вернуть индексы и триггеры,<br/>проверки разом"]
   back --> analyze["ANALYZE, сигнал"]
   copy -. "любая ошибка" .-> undo["откат всего"]
-  full["в схеме уже есть данные"] --> notempty["отказ not_empty"]`,
+  full["в доме уже есть данные"] --> notempty["отказ not_empty"]`,
     steps: {
-      1: { nodes: ['empty'], note: 'Свежая установка и модель — данных ещё нет.' },
+      1: { nodes: ['empty'], note: 'Дом с моделью — данных ещё нет.' },
       2: { nodes: ['strip', 'copy', 'back', 'analyze'], note: 'Магазин и 300 товаров одной транзакцией через COPY.' },
       3: { nodes: ['full', 'notempty'], note: 'Вторая первая заливка невозможна: not_empty.' },
     },
@@ -257,15 +276,15 @@ export const flows: Record<string, FlowDef> = {
     title: 'ИИ-агент через MCP',
     example: 'mcp/01-agent-tools',
     code: `flowchart LR
-  agent["ИИ-агент"] --> srv["сервер MCP<br/>от имени пользователя"]
+  agent["ИИ-агент"] --> srv["сервер MCP<br/>от имени жильца"]
   srv --> model["letopis_model:<br/>классы и поля"]
   srv --> query["letopis_query:<br/>чтение JSON-цепочкой"]
   srv --> hist["letopis_history:<br/>версии объекта"]
   srv --> write{"letopis_write:<br/>версия указана?"}
   write -- "нет" --> refuse["отказ invalid_query"]
-  write -- "да, rev совпал" --> ok["записано —<br/>под правами пользователя"]`,
+  write -- "да, rev совпал" --> ok["записано —<br/>под правами жильца"]`,
     steps: {
-      1: { nodes: ['agent', 'srv'], note: 'Сервер MCP работает от имени пользователя и под его правами.' },
+      1: { nodes: ['agent', 'srv'], note: 'Сервер MCP работает от имени жильца и под его правами.' },
       2: { nodes: ['srv', 'model'], note: 'Агент узнаёт классы и их поля.' },
       3: { nodes: ['srv', 'query'], note: 'Чтение цепочкой, описанной в JSON.' },
       4: { nodes: ['srv', 'write', 'refuse'], note: 'Запись без версии — отказ: агент должен знать, что правит.' },

@@ -1,40 +1,33 @@
 <script setup lang="ts">
-// Схема Mermaid: рисуется в браузере, перерисовывается при смене темы.
+// Схема Mermaid: рисуется в браузере, перерисовывается при смене темы. Отрисовка и масштаб — mermaid.ts.
 import { onMounted, ref, watch } from 'vue';
 import { useData } from 'vitepress';
 import { keepHash } from './anchor';
+import { fitSvg, renderMermaid } from './mermaid';
 
 const props = defineProps<{ code: string }>();
 const { isDark } = useData();
 const box = ref<HTMLElement | null>(null);
 const error = ref('');
-// широкая схема (ER на много классов) ужата под колонку — её можно показать в натуральную величину с прокруткой
+// широкая схема (ER на много классов) ужата под колонку (не мельче MIN_SCALE, дальше — прокрутка вбок) — её можно
+// показать в натуральную величину
 const wide = ref(false);
 const full = ref(false);
-let natural = 0;
 let seq = 0;
 
-function fit() {
-  const svg = box.value?.querySelector('svg');
-  if (!svg) return;
-  svg.style.maxWidth = full.value ? 'none' : `${natural}px`;
-  svg.style.width = full.value ? `${natural}px` : '100%';
-}
 function toggle() {
   full.value = !full.value;
-  fit();
+  if (box.value) fitSvg(box.value, full.value);
 }
 
 async function render() {
   if (!box.value) return;
-  const mermaid = (await import('mermaid')).default;
-  mermaid.initialize({ startOnLoad: false, theme: isDark.value ? 'dark' : 'default', securityLevel: 'strict' });
   try {
-    const { svg } = await mermaid.render(`mmd-${Math.random().toString(36).slice(2)}-${seq++}`, decodeURIComponent(props.code));
+    const svg = await renderMermaid(`mmd-${Math.random().toString(36).slice(2)}-${seq++}`, decodeURIComponent(props.code), isDark.value);
+    if (!box.value) return;
     box.value.innerHTML = svg;
-    natural = box.value.querySelector('svg')?.viewBox.baseVal.width ?? 0;
+    const natural = fitSvg(box.value, full.value);
     wide.value = natural > box.value.clientWidth * 1.3;
-    fit();
     keepHash(); // схема выросла — якорь адреса мог уехать
     error.value = '';
   } catch (e) {
@@ -43,13 +36,13 @@ async function render() {
 }
 
 onMounted(render);
-watch(isDark, render);
+watch([isDark, () => props.code], render);
 </script>
 
 <template>
   <div class="lt-mermaid">
-    <button v-if="wide" class="lt-mermaid-zoom" @click="toggle">{{ full ? 'Вписать в ширину страницы' : 'Схема мелкая? Показать в натуральную величину' }}</button>
-    <div ref="box" />
+    <button v-if="wide" type="button" class="lt-mermaid-zoom" @click="toggle">{{ full ? 'Вернуть обычный масштаб' : 'Схема мелкая? Показать в натуральную величину' }}</button>
+    <div ref="box" class="lt-mermaid-svg" />
     <pre v-if="error" class="lt-mermaid-error">Схема не нарисовалась: {{ error }}</pre>
   </div>
 </template>
@@ -61,8 +54,11 @@ watch(isDark, render);
   border: 1px solid var(--vp-c-divider);
   border-radius: 8px;
   background: var(--vp-c-bg-soft);
-  overflow-x: auto;
   text-align: center;
+}
+/* прокрутка вбок — у схемы, а не у рамки: кнопка масштаба остаётся на месте */
+.lt-mermaid-svg {
+  overflow-x: auto;
 }
 .lt-mermaid-zoom {
   display: block;

@@ -5,7 +5,7 @@ import { withPreviews } from './preview';
 import { standalonePlugin } from './standalone';
 import { deadAnchors } from './anchors';
 
-// каталог guide/; примеры и их снимки (превью в разметке, самостоятельный вариант) — в корневом examples/, сайт их
+// каталог guide/; примеры и их снимки (предпросмотр в разметке, самостоятельный вариант) — в корневом examples/, сайт их
 // только читает
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const EXAMPLES = join(ROOT, '..', 'examples');
@@ -34,6 +34,8 @@ export default defineConfig({
     plugins: [standalonePlugin(ROOT)],
   },
   markdown: {
+    // подпись кнопки копирования у блоков кода (по умолчанию — английское «Copy Code»)
+    codeCopyButtonTitle: 'Копировать код',
     // ```mermaid → компонент <Mermaid>: схема рисуется в браузере
     config(md) {
       const fence = md.renderer.rules.fence!;
@@ -42,10 +44,10 @@ export default defineConfig({
         if (t.info.trim() === 'mermaid') return `<Mermaid code="${encodeURIComponent(t.content)}" />`;
         return fence(tokens, idx, options, env, self);
       };
-      // <Example id="…" /> → с превью внутри: заголовок и код первого шага видны, пока плеер грузит снимок
+      // <Example id="…" /> → с предпросмотром внутри: программа и её вывод видны, пока плеер грузит снимок
       md.core.ruler.push('lt-example-preview', (state) => {
         for (const t of state.tokens) {
-          if ((t.type === 'html_block' || t.type === 'html_inline') && t.content.includes('<Example')) t.content = withPreviews(t.content, ROOT);
+          if ((t.type === 'html_block' || t.type === 'html_inline') && t.content.includes('<Example')) t.content = withPreviews(t.content, ROOT, state.md);
         }
       });
     },
@@ -61,71 +63,103 @@ export default defineConfig({
         text: 'Начать',
         items: [
           { text: 'Первые 15 минут: один процесс', link: '/first/' },
-          { text: 'Старт с нуля: сервис по ключу', link: '/start/' },
+          { text: 'Старт с нуля: веб-сервис с пропуском', link: '/start/' },
+          { text: 'Что такое letopis', link: '/basics/what-is' },
+          { text: 'Карта понятий', link: '/concepts/' },
         ],
       },
       {
-        text: 'Главы',
+        text: 'Дом и люди',
         items: [
-          { text: '1. Что такое letopis', link: '/basics/what-is' },
-          { text: '2. Установка и подключение', link: '/install/' },
-          { text: '3. Модели', link: '/models/' },
-          { text: '4. Запись', link: '/write/' },
-          { text: '5. Чтение', link: '/read/' },
-          { text: '6. Удаление и восстановление', link: '/delete/' },
-          { text: '7. Транзакции и деньги', link: '/money/' },
-          { text: '8. Арендаторы и права', link: '/access/' },
-          { text: '9. Вход', link: '/auth/' },
-          { text: '10. История и время', link: '/history/' },
-          { text: '11. Подписка, кэш, сигналы', link: '/watch/' },
-          { text: '12. Массовая загрузка', link: '/load/' },
-          { text: '13. Эксплуатация', link: '/ops/' },
-          { text: '14. Логирование', link: '/logging/' },
-          { text: '15. ИИ-агенты: MCP', link: '/mcp/' },
-          { text: '16. Ошибки', link: '/errors/' },
-          { text: '17. Все нюансы', link: '/nuances/' },
-          { text: 'Карта понятий', link: '/concepts/' },
+          { text: 'Дом, пропуск, консьерж', link: '/house/' },
+          { text: 'Установка и подключение', link: '/install/' },
+          { text: 'Приглашения и почтальон', link: '/invites/' },
+          { text: 'Вход и ключи', link: '/auth/' },
+          { text: 'Квартиры и права', link: '/access/' },
+        ],
+      },
+      {
+        text: 'Данные',
+        items: [
+          { text: 'Модели: какие бывают классы', link: '/models/' },
+          { text: 'Модели: что внутри', link: '/models/inside' },
+          { text: 'Запись: создать, изменить, заменить', link: '/write/' },
+          { text: 'Запись: что внутри', link: '/write/inside' },
+          { text: 'Чтение: цепочки, фильтры, страницы', link: '/read/' },
+          { text: 'Удаление и восстановление', link: '/delete/' },
+          { text: 'Удаление: что внутри', link: '/delete/inside' },
+          { text: 'Транзакции и деньги', link: '/money/' },
+          { text: 'История и время', link: '/history/' },
+        ],
+      },
+      {
+        text: 'Работа приложения',
+        items: [
+          { text: 'Подписка, кэш и сигналы', link: '/watch/' },
+          { text: 'Массовая загрузка', link: '/load/' },
+          { text: 'Эксплуатация', link: '/ops/' },
+          { text: 'Логирование', link: '/logging/' },
+          { text: 'ИИ-агенты: MCP', link: '/mcp/' },
+          { text: 'Ошибки', link: '/errors/' },
+          { text: 'Ошибки: все коды и ключи', link: '/errors/codes' },
+          { text: 'Все нюансы', link: '/nuances/' },
+        ],
+      },
+      {
+        text: 'Рецепты',
+        items: [
+          { text: 'Веб-приложение с входом', link: '/recipes/web-login' },
+          { text: 'Несколько квартир', link: '/recipes/rooms' },
+          { text: 'Фоновые задачи консьержа', link: '/recipes/background' },
+          { text: 'Отмена удаления в веб-сервисе', link: '/recipes/undo' },
+        ],
+      },
+      {
+        // вложенные списки — пункты со ссылкой: в меню узкого экрана (theme/NavChapters.vue) они остаются ссылками на обзор
+        text: 'Справка',
+        items: [
+          {
+            text: 'Справочник API',
+            link: '/reference/',
+            collapsed: true,
+            items: [
+              { text: 'Цепочка', link: '/reference/chain' },
+              { text: 'Цепочка: запись', link: '/reference/write' },
+              { text: 'Корень квартиры', link: '/reference/db' },
+              { text: 'Вход, приглашения и ключи', link: '/reference/auth' },
+              { text: 'Права: me.acl', link: '/reference/acl' },
+              { text: 'Подписка и кэш', link: '/reference/watch' },
+              { text: 'Загрузка', link: '/reference/load' },
+              { text: 'Дом и консьерж', link: '/reference/setup' },
+              { text: 'Модели: letopis/model', link: '/reference/model' },
+              { text: 'Операторы фильтров', link: '/reference/filters' },
+              { text: 'Служебные экспорты', link: '/reference/utils' },
+              { text: 'MCP: letopis/mcp', link: '/reference/mcp' },
+              { text: 'Командная строка', link: '/reference/cli' },
+              { text: 'Типы', link: '/reference/types' },
+              { text: 'Типы: цепочка и запись', link: '/reference/types-chain' },
+              { text: 'Типы: модели', link: '/reference/types-model' },
+              { text: 'Типы: строгие типы', link: '/reference/types-typed' },
+              { text: 'Типы: права', link: '/reference/types-access' },
+              { text: 'Типы: подписка, кэш, загрузка, MCP', link: '/reference/types-watch' },
+              { text: 'Типы: журнал', link: '/reference/types-log' },
+              { text: 'Типы: дом, консьерж, ключи, ошибки', link: '/reference/types-setup' },
+            ],
+          },
           { text: 'Глоссарий', link: '/glossary/' },
           { text: 'Песочница', link: '/sandbox' },
+          {
+            text: 'Сервисы-примеры',
+            link: '/services/',
+            collapsed: true,
+            items: [
+              { text: 'Салон записи', link: '/services/salon' },
+              { text: 'Кошелёк и биллинг', link: '/services/wallet' },
+              { text: 'Helpdesk', link: '/services/helpdesk' },
+              { text: 'Документы с аудитом', link: '/services/documents' },
+            ],
+          },
           { text: 'Лицензия', link: '/license/' },
-        ],
-      },
-      {
-        text: 'Справочник API',
-        items: [
-          { text: 'Обзор', link: '/reference/' },
-          { text: 'Цепочка', link: '/reference/chain' },
-          { text: 'Цепочка: запись', link: '/reference/write' },
-          { text: 'Корень db', link: '/reference/db' },
-          { text: 'Вход: db.auth', link: '/reference/auth' },
-          { text: 'Права: db.acl', link: '/reference/acl' },
-          { text: 'Подписка и кэш', link: '/reference/watch' },
-          { text: 'Загрузка', link: '/reference/load' },
-          { text: 'Установка и подключение', link: '/reference/setup' },
-          { text: 'createTenant: арендатор', link: '/reference/setup#export-createtenant' },
-          { text: 'Модели: letopis/model', link: '/reference/model' },
-          { text: 'Операторы фильтров', link: '/reference/filters' },
-          { text: 'Служебные экспорты', link: '/reference/utils' },
-          { text: 'MCP: letopis/mcp', link: '/reference/mcp' },
-          { text: 'Командная строка', link: '/reference/cli' },
-          { text: 'Типы', link: '/reference/types' },
-          { text: 'Типы: цепочка и запись', link: '/reference/types-chain' },
-          { text: 'Типы: модели', link: '/reference/types-model' },
-          { text: 'Типы: строгие типы', link: '/reference/types-typed' },
-          { text: 'Типы: вход и права', link: '/reference/types-access' },
-          { text: 'Типы: подписка, загрузка, MCP', link: '/reference/types-watch' },
-          { text: 'Типы: журнал', link: '/reference/types-log' },
-          { text: 'Типы: подключение и ошибки', link: '/reference/types-setup' },
-        ],
-      },
-      {
-        text: 'Сервисы-примеры',
-        items: [
-          { text: 'Обзор', link: '/services/' },
-          { text: 'Салон записи', link: '/services/salon' },
-          { text: 'Кошелёк и биллинг', link: '/services/wallet' },
-          { text: 'Helpdesk', link: '/services/helpdesk' },
-          { text: 'Документы с аудитом', link: '/services/documents' },
         ],
       },
     ],
@@ -141,7 +175,8 @@ export default defineConfig({
     darkModeSwitchTitle: 'Тёмная тема',
     sidebarMenuLabel: 'Главы',
     returnToTopLabel: 'Наверх',
-    notFound: { title: 'Страница не найдена', quote: 'Такой страницы нет.', linkText: 'На главную' },
+    skipToContentLabel: 'К тексту страницы',
+    notFound: { title: 'Страница не найдена', quote: 'Такой страницы нет.', linkText: 'На главную', linkLabel: 'На главную' },
     search: {
       provider: 'local',
       options: {
@@ -150,7 +185,17 @@ export default defineConfig({
           modal: {
             noResultsText: 'Ничего не найдено',
             resetButtonTitle: 'Сбросить',
-            footer: { selectText: 'выбрать', navigateText: 'перейти', closeText: 'закрыть' },
+            backButtonTitle: 'Закрыть поиск',
+            displayDetails: 'Показать подробности',
+            footer: {
+              selectText: 'выбрать',
+              selectKeyAriaLabel: 'Ввод',
+              navigateText: 'перейти',
+              navigateUpKeyAriaLabel: 'Стрелка вверх',
+              navigateDownKeyAriaLabel: 'Стрелка вниз',
+              closeText: 'закрыть',
+              closeKeyAriaLabel: 'Escape',
+            },
           },
         },
       },

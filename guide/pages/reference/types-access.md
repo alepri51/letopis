@@ -4,23 +4,43 @@ outline: [2, 2]
 
 <!-- Страница собрана scripts/gen-api.ts из lib/src и coverage/api-docs.ts — не править руками. -->
 
-# Типы: вход и права
+# Типы: права
 
-Сессии и креды `db.auth`, правила и решения `db.acl`. Все темы — на странице [Типы](./types).
+Правила и решения `me.acl`: решение по действию API и по роли, кандидаты по счёту, цели и описания правил. Все темы — на странице [Типы](./types).
 
 ## AclApi {#type-aclapi}
 
-**Импорт:** `import type { AclApi } from 'letopis'`. Каждый член с описанием, параметрами и ошибками — на странице [Права: db.acl](./acl).
+**Импорт:** `import type { AclApi } from 'letopis'`. Каждый член с описанием, параметрами и ошибками — на странице [Права: me.acl](./acl).
 
 ```ts
 interface AclApi {
   check(endpoint: string): Promise<AclDecision>;
   checkData(className: string, op: AclOp): Promise<AclDataDecision>;
+  checkRole(role: string): Promise<AclDecision>;
   grant(spec: AclRuleSpec): Promise<AclRule[]>;
   deny(spec: AclRuleSpec): Promise<AclRule[]>;
   revoke(spec: Omit<AclRuleSpec, 'weight'>): Promise<number>;
   roles(account: string | { id: string }, roles?: readonly string[] | null): Promise<string[] | null>;
+  people(): Promise<AclPerson[]>;
   list(): Promise<AclRule[]>;
+}
+```
+
+## AclCandidate {#type-aclcandidate}
+
+**Импорт:** `import type { AclCandidate } from 'letopis'`
+
+```ts
+/** Правило-кандидат на строки класса: побеждает первый по счёту, чьё условие строке подходит. */
+interface AclCandidate {
+  /** id правила. */
+  rule: string;
+  score: number;
+  permission: 'allow' | 'deny';
+  /** Условие на строки — шаблон колонок; нет — правило на все строки. */
+  filter?: Record<string, unknown>;
+  /** Правило по умолчанию: действует, только если ни один кандидат строке не подошёл. */
+  default?: boolean;
 }
 ```
 
@@ -29,10 +49,14 @@ interface AclApi {
 **Импорт:** `import type { AclDataDecision } from 'letopis'`
 
 ```ts
-/** Решение по операции над классом: разрешено и, если есть, условие на строки (шаблон колонок). */
+/** Решение по операции над классом: кандидаты по убыванию счёта; для каждой строки побеждает свой. */
 interface AclDataDecision {
+  /** Хоть одно разрешающее правило: операция может затронуть часть строк или все. */
   allow: boolean;
-  filter?: Record<string, unknown>;
+  /** Разрешены все строки, без условий. */
+  all: boolean;
+  /** Правила-кандидаты по убыванию счёта (при равном — запрет первым). */
+  candidates: AclCandidate[];
 }
 ```
 
@@ -41,11 +65,16 @@ interface AclDataDecision {
 **Импорт:** `import type { AclDecision } from 'letopis'`
 
 ```ts
-/** Решение по ресурсу приложения (эндпоинту): можно ли к нему обратиться. */
+/** Решение по действию API: можно ли его выполнить. */
 interface AclDecision {
   allow: boolean;
-  /** Победившее правило: id, группа и объект (`alias` ресурсов), вес, разрешение. */
-  rule?: { id: string; group: string; object: string; weight: number; permission: 'allow' | 'deny' };
+  /**
+   * Победившее правило: id, группа и объект (`alias` ресурсов), вес, разрешение; `default` — правило по умолчанию
+   * (подходящих правил нет).
+   */
+  rule?: { id: string; group: string; object: string; weight: number; permission: 'allow' | 'deny'; default?: boolean };
+  /** Счёт победившего правила; у правила по умолчанию — 0. */
+  score?: number;
   /** Код и сообщение запрещающего правила (поля `code`, `message` строки `rule`). */
   code?: number;
   message?: string;
@@ -60,22 +89,39 @@ interface AclDecision {
 type AclOp = 'READ' | 'WRITE' | 'DELETE';
 ```
 
+## AclPerson {#type-aclperson}
+
+**Импорт:** `import type { AclPerson } from 'letopis'`
+
+```ts
+/** Человек квартиры в списке `me.acl.people()`: id аккаунта, его имя и роли прописки. Контакта нет. */
+interface AclPerson {
+  /** id аккаунта (как `me.account`, как `owner` и `author` строк). */
+  account: string;
+  /** Имя аккаунта: задаётся при принятии приглашения (`db.accept(token, { name })`); не задано — пустая строка. */
+  name: string;
+  /** Роли прописки в этой квартире. */
+  roles: string[];
+}
+```
+
 ## AclRule {#type-aclrule}
 
 **Импорт:** `import type { AclRule } from 'letopis'`
 
 ```ts
-/** Правило арендатора в виде обёртки. */
+/** Правило квартиры в виде обёртки. */
 interface AclRule {
   id: string;
-  /** Роль правила; null — правило не одной роли (все аккаунты или своя группа). */
+  /** Роль правила; null — правило не одной роли (все жильцы или своя группа). */
   role: string | null;
-  /** Группа всех аккаунтов арендатора: `authenticated:ACCOUNT` от createTenant или `everyone:ACCOUNT` обёртки. */
+  /** Группа всех жильцов квартиры: `authenticated:ACCOUNT` System или `everyone:ACCOUNT` обёртки. */
   everyone: boolean;
   /** Alias группы. */
   group: string;
-  op: AclOp | 'API';
-  /** Класс (`'*'` — все классы) или маска эндпоинта. */
+  /** Операция над строками, `'API'` — действие приложения, `'ROLE'` — выдача и снятие роли. */
+  op: AclOp | 'API' | 'ROLE';
+  /** Класс (`'*'` — все классы), маска действия API или роль (`'*'` — все роли). */
   target: string;
   /** Условие на строки — шаблон колонок. */
   condition?: Record<string, unknown>;
@@ -93,19 +139,24 @@ interface AclRule {
 ```ts
 /**
  * Что разрешить, запретить или снять: кому — ровно одно из `role` и `everyone` (иначе `invalid_data`), операции — с
- * классами, ресурсами приложения или с теми и другими.
+ * классами, действиями API, ролями или со всем сразу.
  */
 interface AclRuleSpec {
-  /** Роль членства в текущем арендаторе (как в `member.roles`). */
+  /** Роль прописки в квартире (как в `member.roles`). */
   role?: string;
-  /** Все аккаунты арендатора, кроме анонимных и теневых, — группа правил «можно всё» от createTenant. */
+  /** Все жильцы квартиры. */
   everyone?: true;
   read?: AclTarget | readonly AclTarget[];
   write?: AclTarget | readonly AclTarget[];
   delete?: AclTarget | readonly AclTarget[];
   /** Ресурсы приложения — маски эндпоинтов, как у `check()`: `'reports.*'` — `reports.daily`, но не `reports`. */
   api?: string | readonly string[];
-  /** Вес правила, целое от 1 до 999; по умолчанию 50 — сильнее правила «можно всё» (вес 10) от createTenant. */
+  /**
+   * Роли, которые можно выдавать и снимать (в приглашении, правкой и удалением прописки): имя роли или `'*'` — все роли
+   * (и приглашения без ролей).
+   */
+  assign?: string | readonly string[];
+  /** Вес правила, целое от 1 до 999 (по умолчанию 50); прибавляется к счёту правила. */
   weight?: number;
 }
 ```
@@ -118,88 +169,7 @@ interface AclRuleSpec {
 /**
  * Цель правила на строки: имя класса (правило действует и на потомков), `'*'` — все классы, или класс с условием на
  * строки — шаблоном колонок `owner`, `tenant`, `tags`, `data`, `links`, `id` (`'$actor'` — тот, от чьего имени запрос,
- * `'$tenant'` — рабочий арендатор): `{ class: 'Ticket', owner: '$actor' }`.
+ * `'$tenant'` — квартира): `{ class: 'Ticket', owner: '$actor' }`. Каждое поле условия прибавляет к счёту правила 1.
  */
 type AclTarget = string | ({ class: string } & { [column: string]: unknown });
-```
-
-## AuthApi {#type-authapi}
-
-**Импорт:** `import type { AuthApi } from 'letopis'`. Каждый член с описанием, параметрами и ошибками — на странице [Вход: db.auth](./auth).
-
-```ts
-/**
- * Вход, креды и сессии (`db.auth`). Срок `ttl` у входа, ключей, кодов и сессий — число секунд или строка: короткая форма
- * `'15m'`/`'2h'`/`'30s'`/`'1d'` либо интервал PostgreSQL `'15 minutes'`; иное — `invalid_data`.
- */
-interface AuthApi {
-  setPassword(a: { account: AccountRef; identifier: string; password: string; kind?: string; confirmed?: boolean; keepCurrent?: boolean }): Promise<string>;
-  verifyPassword(a: { identifier: string; password: string; kind?: string; requireConfirmed?: boolean; ttl?: number | string; totp?: string }): Promise<LoginResult | null>;
-  issueApiKey(a: { account: AccountRef; name?: string; ttl?: number | string }): Promise<{ key: string; id: string }>;
-  verifyApiKey(key: string): Promise<LoginResult | null>;
-  issueKeySecret(a: { account: AccountRef; name?: string }): Promise<{ key: string; secret: string; id: string }>;
-  verifyKeySecret(key: string, secret: string): Promise<LoginResult | null>;
-  enrollTotp(a: { account: AccountRef; issuer?: string; label?: string }): Promise<{ secret: string; uri: string }>;
-  verifyTotp(a: { account: AccountRef; code: string; window?: number }): Promise<boolean>;
-  totpEnabled(account: AccountRef): Promise<boolean>;
-  issueOtp(a: { account: AccountRef; identifier: string; kind?: string; ttl?: number | string; digits?: number; maxAttempts?: number }): Promise<{ code: string }>;
-  verifyOtp(a: { identifier: string; code: string; kind?: string }): Promise<LoginResult | null>;
-  link(a: { account: AccountRef; kind: string; identifier: string; meta?: Record<string, unknown>; confirmed?: boolean }): Promise<string>;
-  lookup(a: { kind: string; identifier: string; requireConfirmed?: boolean; ttl?: number | string; totp?: string }): Promise<LoginResult | null>;
-  credentials(account: AccountRef): Promise<Credential[]>;
-  revokeCredential(id: string, opts?: { keepCurrent?: boolean }): Promise<boolean>;
-  setFlags(id: string, flags: { confirmed?: boolean; enabled?: boolean }): Promise<boolean>;
-  sessionFor(account: AccountRef, opts?: { ttl?: number | string }): Promise<string>;
-  session(token: string): Promise<SessionInfo | null>;
-  refresh(opts?: { ttl?: number | string }): Promise<string>;
-  revoke(token?: string): Promise<boolean>;
-  revokeAll(account?: AccountRef): Promise<number>;
-  switch(tenant: string): Promise<void>;
-  tenants(): Promise<{ tenant: string; roles: string[]; name: string | null; personal: boolean }[]>;
-  purgeAccount(account: AccountRef): Promise<{ account: string; rows: number; versions: number; memberships: number; owned: number }>;
-}
-```
-
-## Credential {#type-credential}
-
-**Импорт:** `import type { Credential } from 'letopis'`
-
-```ts
-/** Кред без секретного материала. */
-interface Credential {
-  id: string;
-  kind: string;
-  /** Идентификатор (у TOTP — нет). */
-  ident: string | null;
-  confirmed: boolean;
-  enabled: boolean;
-  meta: Record<string, unknown>;
-  created_at: string;
-  expires_at: string | null;
-}
-```
-
-## SessionInfo {#type-sessioninfo}
-
-**Импорт:** `import type { SessionInfo } from 'letopis'`
-
-```ts
-/** Сведения о сессии по её токену (`db.auth.session()`). Время — строкой ISO 8601. */
-interface SessionInfo {
-  /** Аккаунт сессии. */
-  account: string;
-  /** Рабочий арендатор сессии: выбранный `auth.switch()` или собственный арендатор аккаунта. */
-  tenant: string;
-  /** Членство в рабочем арендаторе цело и арендатор включён; в собственном арендаторе — всегда true. */
-  member: boolean;
-  /** Когда сессия истечёт, если ею не пользоваться (подключение продлевает её само). */
-  expiresAt: string;
-  /** Время входа. */
-  loginAt: string;
-  /**
-   * Способы входа: вид креда, по которому вошли (`PASSWORD`, `APIKEY`, `KEYSECRET`, `OTP`, `TELEGRAM` и т. п.), `SERVICE` —
-   * сессию выпустил сервис (`sessionFor()`), `TOTP` — пройден второй фактор. У сессии от `createTenant()` список пуст.
-   */
-  methods: string[];
-}
 ```

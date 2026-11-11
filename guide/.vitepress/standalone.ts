@@ -2,16 +2,18 @@
  * Исполняемый пример → самостоятельная программа для читателя.
  *
  * Пример (`examples/<глава>/<NN>-<имя>.ts` в корне репозитория) объявлен через `example({ steps })`: шаги получают
- * параметром схему, подключения и строки подключения, помощники лежат в `examples/_shared/`. Здесь из него
+ * параметром мастер-ключ, имя дома, консьержа и корень квартиры, помощники лежат в `examples/_shared/`. Здесь из него
  * собирается обычный скрипт, который читатель запускает у себя: импорты слиты, код помощников вставлен целиком (вместо
  * `_shared/cli.ts`, который зовёт CLI в процессе, — `_shared/cli-npx.ts`: `npx letopis …` отдельным процессом),
- * подготовка схемы написана явно (`up()`, `connect()`, `svc.as()`), шаги идут подряд, и каждый печатает свой результат.
+ * подготовка написана явно (`setup()`, `connect(pass, { postman })`, `createTenant()`, `invite()` и `accept(token)`), шаги
+ * идут подряд, и каждый печатает свой результат. Почтальон-заглушка (`_shared/postman.ts`: ящик `mail`, `postman`,
+ * `lastLetter`) вставлен в программу всегда, когда есть квартира: из его ящика подготовка берёт ссылку-приглашение Анны.
  * Код шагов — тот же, что в файле примера; пометка `// скрыть` (строка не показывается в пошаговом показе) срезается,
  * сама строка остаётся. Пути к файлам репозитория (`new URL('../_shared/x.ts', import.meta.url)`,
  * `new URL('../../lib/sql/…', import.meta.url)`) заменяются на то, что есть у читателя: модуль, который программа
  * сама пишет рядом с собой, и каталог установленного пакета letopis.
  *
- * Скрипт не зависит от сайта: роль приложения заводит `up({ login })`, база по умолчанию — из рецепта запуска на
+ * Скрипт не зависит от сайта: дом строит сам (`demolish`, затем `setup`), база по умолчанию — из рецепта запуска на
  * главной (`DEFAULT_ADMIN_DSN`). В HTML страницы его вставляет `preview.ts`; модулем `examples/….ts?standalone` его
  * отдаёт плагин `standalonePlugin` (подключён в `config.ts`); `examples/run.ts` запускает его отдельным процессом и
  * пишет напечатанное в снимок (`output`).
@@ -25,10 +27,13 @@ interface Named { name: string; as?: string; type: boolean }
 interface Imports { order: string[]; byModule: Map<string, { def?: string; ns?: string; named: Named[]; typeOnly: boolean }> }
 
 const KIT_EXAMPLE = '_shared/example.ts';
+/** Почтальон-заглушка: подготовка квартиры зовёт Анну, и ссылка-приглашение приходит в его ящик. */
+const KIT_POSTMAN = '_shared/postman.ts';
 /** Помощник, который в программе читателя заменён другим: CLI в процессе → `npx letopis …`. */
 const KIT_SWAP: Record<string, string> = { '_shared/cli.ts': '_shared/cli-npx.ts' };
 /** Заголовки разделов программы для помощников. */
 const KIT_TITLE: Record<string, string> = {
+  '_shared/postman.ts': 'почтальон-заглушка: письма со ссылками и кодами — в ящик mail',
   '_shared/shop.ts': 'модель магазина и её данные',
   '_shared/cli-npx.ts': 'команда letopis в отдельном процессе',
   '_shared/proxy.ts': 'прокси, который рвёт соединение на COMMIT',
@@ -119,6 +124,12 @@ const template = (s: string) => '`' + s.replace(/\\/g, '\\\\').replace(/`/g, '\\
 /** Строка подключения администратора по умолчанию — база из рецепта запуска на главной (Docker, порт 15440). */
 export const DEFAULT_ADMIN_DSN = 'postgres://postgres:guide@127.0.0.1:15440/letopis';
 
+/**
+ * Имя дома программы: `example_<глава>_<NN>_<имя>`, не длиннее 41 знака (как `houseName('example_', id)` раннера
+ * примеров — по нему раннер сносит дом после прогона).
+ */
+export const houseName = (id: string) => `example_${id.replace(/[^a-z0-9]+/gi, '_').toLowerCase()}`.slice(0, 41).replace(/_+$/, '');
+
 /** Имя файла скрипта в своём проекте: `first/01-rental` → `rental.ts`. */
 export const scriptName = (id: string) => `${id.split('/').pop()!.replace(/^\d+-/, '')}.ts`;
 
@@ -199,23 +210,66 @@ export function standaloneInfo(file: string, guide: string): StandaloneInfo {
     return { text: `// ${name}: не найден вызов example({ … })\n`, file: name, packages: [], install: '', run: '', needsDb: false, internal: false, titles: [], expected: [] };
   }
 
-  // помощники _shared/*.ts — целиком, без export; их импорты сливаются с импортами примера
+  // почтальон-заглушка нужен подготовке квартиры (ссылка-приглашение Анны приходит в его ящик) — он идёт первым
+  const postmanKit = join(root, KIT_POSTMAN);
+  const tenantSetup = (stringOf(prop(def, 'setup', sf)?.initializer, sf) || 'tenant') !== 'none';
+  if (tenantSetup && !kits.includes(postmanKit)) kits.unshift(postmanKit);
+  // что программа берёт у почтальона-заглушки: имена из импорта примера и то, что нужно подготовке
+  const fromPostman = new Set<string>(tenantSetup ? ['mail', 'postman', 'lastLetter'] : []);
+  for (const st of sf.statements) {
+    if (!ts.isImportDeclaration(st) || fromKit((st.moduleSpecifier as ts.StringLiteral).text, file)?.rel !== KIT_POSTMAN) continue;
+    const nb = st.importClause?.namedBindings;
+    if (nb && ts.isNamedImports(nb)) for (const el of nb.elements) fromPostman.add((el.propertyName ?? el.name).getText(sf));
+  }
+  const declared = (st: ts.Statement): string[] =>
+    ts.isFunctionDeclaration(st) && st.name ? [st.name.text]
+      : ts.isVariableStatement(st) ? st.declarationList.declarations.map((d) => d.name.getText()) : [];
+
+  // помощники _shared/*.ts — целиком, без export (у почтальона — только то, что программа берёт); их импорты сливаются
+  // с импортами примера — только имена, которые в оставшемся коде помощника в самом деле есть
   const kitCode: string[] = [];
   for (const abs of kits) {
     const ksrc = lf(readFileSync(abs, 'utf8'));
     const ksf = ts.createSourceFile(abs, ksrc, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
-    const body: string[] = [];
-    for (const st of ksf.statements) {
-      if (ts.isImportDeclaration(st)) {
-        const spec = (st.moduleSpecifier as ts.StringLiteral).text;
-        // путь в репозиторий остаётся как есть (internal ниже его поймает): относительно файла помощника
-        addImport(imports, st, ksf, spec.startsWith('.') ? relative(root, resolve(dirname(abs), spec)).replace(/\\/g, '/') : spec);
-        continue;
-      }
-      body.push(statementText(st, ksrc, ksf));
-    }
     const rel = relative(root, abs).replace(/\\/g, '/');
-    kitCode.push(`// ---------- ${KIT_TITLE[rel] ?? 'помощники'} ----------\n${body.join('').trim()}`);
+    const body: string[] = [];
+    const kitImports: ts.ImportDeclaration[] = [];
+    const own = ksf.statements.filter((st) => !ts.isImportDeclaration(st));
+    kitImports.push(...ksf.statements.filter(ts.isImportDeclaration));
+    // у почтальона — только нужные объявления и то, на что они ссылаются (inviteAndAccept → lastLetter → mail)
+    const keep = new Set(own.filter((st) => rel !== KIT_POSTMAN || !declared(st).length || declared(st).some((n) => fromPostman.has(n))));
+    for (let grown = true; grown;) {
+      grown = false;
+      const kept = [...keep].map((st) => st.getText(ksf)).join('\n');
+      for (const st of own) {
+        if (keep.has(st) || !declared(st).some((n) => new RegExp(`\\b${n}\\b`).test(kept))) continue;
+        keep.add(st);
+        grown = true;
+      }
+    }
+    for (const st of own) if (keep.has(st)) body.push(statementText(st, ksrc, ksf));
+    const text = body.join('');
+    for (const st of kitImports) {
+      const spec = (st.moduleSpecifier as ts.StringLiteral).text;
+      // путь в репозиторий остаётся как есть (internal ниже его поймает): относительно файла помощника
+      const target = spec.startsWith('.') ? relative(root, resolve(dirname(abs), spec)).replace(/\\/g, '/') : spec;
+      const nb = st.importClause?.namedBindings;
+      if (nb && ts.isNamedImports(nb) && !st.importClause?.name) {
+        const kept = nb.elements.filter((el) => new RegExp(`\\b${el.name.text}\\b`).test(text));
+        if (!kept.length) continue;
+        if (kept.length < nb.elements.length) {
+          // только нужные имена: импорт печатается заново и разбирается как обычный
+          const only = ts.factory.updateImportDeclaration(st, st.modifiers, ts.factory.updateImportClause(st.importClause!,
+            st.importClause!.isTypeOnly, undefined, ts.factory.updateNamedImports(nb, kept)), st.moduleSpecifier, st.attributes);
+          const isf = ts.createSourceFile('import.ts', ts.createPrinter().printNode(ts.EmitHint.Unspecified, only, ksf),
+            ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+          addImport(imports, isf.statements[0] as ts.ImportDeclaration, isf, target);
+          continue;
+        }
+      }
+      addImport(imports, st, ksf, target);
+    }
+    kitCode.push(`// ---------- ${KIT_TITLE[rel] ?? 'помощники'} ----------\n${text.trim()}`);
   }
 
   const title = stringOf(prop(def, 'title', sf)?.initializer, sf);
@@ -239,6 +293,9 @@ export function standaloneInfo(file: string, guide: string): StandaloneInfo {
   const used = new Set(steps.flatMap((s) => s.params));
   const tenant = setup !== 'none';
   const need = (n: string) => used.has(n);
+  // модели дома: текст свойства models примера (`[Client]`, `shopModels`) — его отдают setup()
+  const modelsNode = prop(def, 'models', sf)?.initializer;
+  const models = tenant && modelsNode ? modelsNode.getText(sf) : '';
 
   // пути в репозиторий в коде примера → то, что есть у читателя
   const modules: { file: string; text: string }[] = [];
@@ -264,10 +321,6 @@ export function standaloneInfo(file: string, guide: string): StandaloneInfo {
     if (!lib.named.some((n) => n.name === name && n.as === as && !n.type)) lib.named.push({ name, as, type: false });
     lib.typeOnly = false;
   };
-  // без арендатора (setup: 'none') шаги, которым нужна роль приложения (dsn.app), получают её от up({ login })
-  const needApp = !tenant && steps.some((s) => /\bdsn\.app\b/.test(s.run));
-  if (tenant || needApp) want('up', 'install');
-  if (tenant || need('connect')) want('connect');
   const addPostgres = () => {
     if (!imports.byModule.has('postgres')) {
       imports.byModule.set('postgres', { def: 'postgres', named: [], typeOnly: false });
@@ -278,9 +331,14 @@ export function standaloneInfo(file: string, guide: string): StandaloneInfo {
       pg.def ??= 'postgres';
     }
   };
-  // база нужна, если её берут шаги; пример без неё (PGlite) запускается без ADMIN_DSN
-  const needDb = tenant || ['dsn', 'admin', 'schema'].some(need);
-  if (need('admin') || (!tenant && needDb)) addPostgres();
+  // дом нужен, если его берут шаги; пример без него (PGlite) запускается без ADMIN_DSN
+  const needDb = tenant || ['ADMIN_DSN', 'name', 'schema', 'admin'].some(need);
+  if (needDb) want('demolish');
+  if (tenant) {
+    want('setup');
+    want('connect');
+  } else if (need('connect')) want('connect');
+  if (need('admin')) addPostgres();
   const pgName = imports.byModule.get('postgres')?.def ?? 'postgres';
   if (modules.length) {
     if (!imports.byModule.has('node:fs')) {
@@ -292,50 +350,31 @@ export function standaloneInfo(file: string, guide: string): StandaloneInfo {
     fs.typeOnly = false;
   }
 
+  const anna = "{ email: 'anna@romashka.ru', password: 'Ромашка-2026!' }";
   const prep: string[] = needDb ? [
-    '// ADMIN_DSN — PostgreSQL 18 и пользователь с правами установщика; по умолчанию — база из Docker по рецепту на главной',
+    '// ADMIN_DSN — мастер-ключ: PostgreSQL 18 и пользователь с правами установщика; по умолчанию — база из Docker по рецепту на главной',
     `const ADMIN_DSN = process.env.ADMIN_DSN ?? '${DEFAULT_ADMIN_DSN}';`,
-    '// схема примера: каждый запуск начинает её заново',
-    `const schema = 'v2.example_${id.replace(/[^a-z0-9]+/gi, '_').toLowerCase()}';`,
+    tenant ? '// дом примера: каждый запуск строит его заново' : '// имя дома примера: шаги строят его сами (setup), а прежний дом с этим именем сносится',
+    `const name = '${houseName(id)}';`,
+    'await demolish(ADMIN_DSN, name, { quiet: true });',
   ] : [];
-  const credentials = "{ login: 'anna@romashka.ru', password: 'Ромашка-2026!' }";
-  if (need('user')) prep.push(`const user = ${credentials};`);
+  if (need('schema')) prep.push('const schema = `v2.${name}`;   // схема дома — для своего SQL');
   if (tenant) {
     prep.push(
-      '// схема, арендатор «Ромашка» с первым пользователем Анной и роль приложения для подключений сервиса',
-      'const installed = await install({',
-      '  dsn: ADMIN_DSN, schema, fresh: true, quiet: true,',
-      `  tenant: { name: 'Ромашка', user: { name: 'Анна', ${need('user') ? '...user' : credentials.slice(2, -2)} } },`,
-      "  login: { user: 'example_app', password: 'example-app-secret' },",
-      '});',
-      'const dsn = { admin: ADMIN_DSN, app: installed.login!.dsn! };',
-      '// сервис приложения входит по ключу установки; db — работа от имени Анны в арендаторе «Ромашка»',
-      'const svc = await connect({ dsn: dsn.app, schema, apiKey: installed.serviceKey! });',
-      'const db = await svc.as(installed.tenant!.user!, { tenant: installed.tenant!.tenant });',
+      `const { pass } = await setup(ADMIN_DSN, name, { ${models ? `models: ${models}, ` : ''}quiet: true });   // дом${models ? ' с моделями' : ''} и пропуск консьержа`,
+      '// консьерж: заводит квартиры, зовёт жильцов, впускает по ключам; письма со ссылками и кодами отдаёт почтальону',
+      'const db = await connect(pass, { postman });',
+      '// квартира «Ромашка» и её первый жилец — Анна (owner)',
+      "await db.createTenant('Ромашка');",
+      `const annaKey = ${anna};   // контакт Анны (он же имя для входа) и её пароль`,
+      '// консьерж зовёт Анну: ссылка-приглашение уходит ей письмом — у нас в ящик почтальона-заглушки',
+      "await (await db.in('Ромашка')).invite({ email: annaKey.email }, ['owner']);",
+      '// Анна открывает ссылку из письма и принимает приглашение, задав пароль',
+      "const { token } = lastLetter(annaKey.email, 'invite');",
+      "const me = await db.accept(token, { password: annaKey.password, name: 'Анна' });   // корень квартиры: me.Класс(…)",
     );
-  } else if (needApp) {
-    prep.push(
-      '// роль приложения (член группы letopis_app) заводит up({ login }) и возвращает её строку подключения; роль общая',
-      '// для всего сервера и остаётся, а схему шаги ставят сами — поэтому здесь она сразу удаляется',
-      'const prepared = await install({',
-      '  dsn: ADMIN_DSN, schema, fresh: true, quiet: true,',
-      "  login: { user: 'example_app', password: 'example-app-secret' },",
-      '});',
-      'const dsn = { admin: ADMIN_DSN, app: prepared.login!.dsn! };',
-      `const reset = ${pgName}(ADMIN_DSN, { onnotice: () => {} });`,
-      "await reset.unsafe('drop schema if exists \"' + schema + '\" cascade');",
-      'await reset.end();',
-    );
-  } else if (needDb) {
-    prep.push(
-      '// схему шаги ставят сами (up()) — прежняя схема примера удаляется, чтобы начать с пустой',
-      'const dsn = { admin: ADMIN_DSN };',
-      `const reset = ${pgName}(ADMIN_DSN, { onnotice: () => {} });`,
-      "await reset.unsafe('drop schema if exists \"' + schema + '\" cascade');",
-      'await reset.end();',
-    );
-  }
-  if (need('admin')) prep.push(`// SQL от администратора базы\nconst admin = ${pgName}(ADMIN_DSN, { onnotice: () => {} });`);
+  } else if (need('annaKey')) prep.push(`const annaKey = ${anna};`);
+  if (need('admin')) prep.push(`// SQL мастер-ключом\nconst admin = ${pgName}(ADMIN_DSN, { onnotice: () => {} });`);
   if (need('warnings')) {
     prep.push(
       '/** Выполнить функцию и собрать предупреждения, которые она напечатала через console.warn. */',
@@ -352,9 +391,7 @@ export function standaloneInfo(file: string, guide: string): StandaloneInfo {
     );
   }
   // в ctx — только то, что шаги в самом деле берут
-  const fields = [
-    ...(needDb ? ['schema', 'dsn'] : []), 'user', ...(tenant ? ['up: installed', 'svc', 'db'] : []), 'admin', 'connect', 'warnings',
-  ].filter((f) => need(f.split(':')[0]));
+  const fields = ['ADMIN_DSN', 'name', 'schema', 'pass', 'db', 'me', 'annaKey', 'admin', 'connect', 'warnings'].filter(need);
   prep.push(`// что шаги берут параметром\nconst ctx = { ${fields.join(', ')} };`);
 
   const stepFn = [
@@ -378,8 +415,7 @@ export function standaloneInfo(file: string, guide: string): StandaloneInfo {
   });
 
   const code = [preludeCode, ...kitCode, ...stepCode].join('\n');
-  // пакеты для npm i — по импортам; postgres ставится всегда: им пользуются createTenant и свой SQL, а под pnpm и yarn
-  // PnP зависимость letopis из своего кода не видна
+  // пакеты для npm i — по импортам: letopis, zod (модели) и то, что программа импортирует сама (postgres — свой SQL)
   const extra: string[] = [];
   if ([...imports.order].some((m) => m.startsWith('@electric-sql/pglite')) || /\bpglite\b/.test(code)) {
     extra.push('@electric-sql/pglite', '@electric-sql/pglite-socket');
@@ -388,10 +424,10 @@ export function standaloneInfo(file: string, guide: string): StandaloneInfo {
     /['"]mcp['"]/.test(code) || /\bletopis mcp\b/.test(code);
   if (mcp) extra.push('@modelcontextprotocol/server', '@modelcontextprotocol/client');
   const packages = [...new Set([
-    'letopis', 'zod', 'postgres',
+    'letopis', 'zod',
     ...imports.order.map(packageOf).filter((p): p is string => !!p && p !== 'tsx'),
     ...extra,
-  ])].map((p) => (p === 'letopis' ? 'letopis@3' : p === 'postgres' ? 'postgres@3' : p));
+  ])].map((p) => (p === 'letopis' ? 'letopis@4' : p === 'postgres' ? 'postgres@3' : p));
   const run = needDb ? `ADMIN_DSN=${DEFAULT_ADMIN_DSN} npx tsx ${name}` : `npx tsx ${name}`;
   const install = `npm init -y && npm pkg set type=module && npm i ${packages.join(' ')} && npm i -D tsx`;
   const internal = imports.order.some((m) => m.startsWith('.')) || /['"]\.\.\/(?:\.\.\/)?(?:_shared|lib)\//.test(code);
@@ -409,7 +445,7 @@ export function standaloneInfo(file: string, guide: string): StandaloneInfo {
     printImports(imports),
     ...kitCode,
     model ? `// ---------- модель и данные ----------\n${model}` : '',
-    `// ---------- подготовка${tenant ? ': схема, арендатор, сервис' : needDb ? ': схема' : ''} ----------\n${prep.join('\n')}`,
+    `// ---------- подготовка${tenant ? ': дом, консьерж, квартира «Ромашка» и Анна' : needDb ? ': имя дома' : ''} ----------\n${prep.join('\n')}`,
     stepFn.join('\n'),
     `// ---------- шаги ----------\n${stepCode.join('\n\n')}`,
     '// пулы подключений держат процесс открытым — выходим явно\nprocess.exit(0);',

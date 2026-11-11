@@ -4,7 +4,10 @@
  */
 import { reactive } from 'vue';
 
-export const players = reactive<Record<string, { step: number; want: number | null }>>({});
+/** Якорь плеера примера на странице (`#ex-…`): id корня плеера в Example.vue и ссылки на пример со схем. */
+export const exAnchor = (id: string): string => `ex-${id.replace(/[^a-z0-9]+/gi, '-')}`;
+
+export const players =reactive<Record<string, { step: number; want: number | null }>>({});
 
 /** Плеер `id` показывает шаг `step`. */
 export function report(id: string, step: number): void {

@@ -26,11 +26,11 @@ outline: [2, 2]
 
 [AnyModelLike](./types-typed#type-anymodellike) · [FieldFilterOf](./types-typed#type-fieldfilterof) · [FilterOf](./types-typed#type-filterof) · [ModelLike](./types-typed#type-modellike) · [OrOp](./types-typed#type-orop) · [PatchOf](./types-typed#type-patchof) · [RowOf](./types-typed#type-rowof) · [StepsOf](./types-typed#type-stepsof) · [SystemModels](./types-typed#type-systemmodels) · [TypedChain](./types-typed#type-typedchain)
 
-## [Типы: вход и права](./types-access)
+## [Типы: права](./types-access)
 
-Сессии и креды `db.auth`, правила и решения `db.acl`.
+Правила и решения `me.acl`: решение по действию API и по роли, кандидаты по счёту, цели и описания правил.
 
-[AclApi](./types-access#type-aclapi) · [AclDataDecision](./types-access#type-acldatadecision) · [AclDecision](./types-access#type-acldecision) · [AclOp](./types-access#type-aclop) · [AclRule](./types-access#type-aclrule) · [AclRuleSpec](./types-access#type-aclrulespec) · [AclTarget](./types-access#type-acltarget) · [AuthApi](./types-access#type-authapi) · [Credential](./types-access#type-credential) · [SessionInfo](./types-access#type-sessioninfo)
+[AclApi](./types-access#type-aclapi) · [AclCandidate](./types-access#type-aclcandidate) · [AclDataDecision](./types-access#type-acldatadecision) · [AclDecision](./types-access#type-acldecision) · [AclOp](./types-access#type-aclop) · [AclPerson](./types-access#type-aclperson) · [AclRule](./types-access#type-aclrule) · [AclRuleSpec](./types-access#type-aclrulespec) · [AclTarget](./types-access#type-acltarget)
 
 ## [Типы: подписка, кэш, загрузка, MCP](./types-watch)
 
@@ -40,12 +40,12 @@ outline: [2, 2]
 
 ## [Типы: журнал](./types-log)
 
-Опции журнала `connect({ log, logLevel, redact })`, событие журнала, логгер, каталог событий.
+Опции журнала `setup(…, { log, logLevel, redact })` и `connect(pass, { log, logLevel, redact })`, событие журнала, логгер, каталог событий.
 
-[LogEvent](./types-log#type-logevent) · [LogEventName](./types-log#type-logeventname) · [LogFn](./types-log#type-logfn) · [Logger](./types-log#type-logger) · [LoginOptions](./types-log#type-loginoptions) · [LoginResult](./types-log#type-loginresult) · [LogLevel](./types-log#type-loglevel) · [LogObject](./types-log#type-logobject) · [LogOptions](./types-log#type-logoptions) · [QueryEvent](./types-log#type-queryevent)
+[LogEvent](./types-log#type-logevent) · [LogEventName](./types-log#type-logeventname) · [LogFn](./types-log#type-logfn) · [Logger](./types-log#type-logger) · [LogLevel](./types-log#type-loglevel) · [LogObject](./types-log#type-logobject) · [LogOptions](./types-log#type-logoptions) · [QueryEvent](./types-log#type-queryevent)
 
-## [Типы: подключение, установка, ошибки](./types-setup)
+## [Типы: дом, консьерж, ключи, ошибки](./types-setup)
 
-Опции `connect()`, `up()` и `createTenant()`, их результаты, ошибки и прочие типы.
+Опции и результат `setup()`, опции `connect()`, почтальон и письмо, контакт, консьерж `House`, корень квартиры `Room` (`me`), ключи и приглашения, ошибки и прочие типы.
 
-[ConnectOptions](./types-setup#type-connectoptions) · [Db](./types-setup#type-db) · [DbCore](./types-setup#type-dbcore) · [DbTx](./types-setup#type-dbtx) · [Issue](./types-setup#type-issue) · [KeyedClass](./types-setup#type-keyedclass) · [TenantOptions](./types-setup#type-tenantoptions) · [TenantResult](./types-setup#type-tenantresult) · [TypedDb](./types-setup#type-typeddb) · [UpOptions](./types-setup#type-upoptions) · [UpResult](./types-setup#type-upresult)
+[Contact](./types-setup#type-contact) · [ContactAddress](./types-setup#type-contactaddress) · [Db](./types-setup#type-db) · [DbBase](./types-setup#type-dbbase) · [DbCore](./types-setup#type-dbcore) · [DbTx](./types-setup#type-dbtx) · [House](./types-setup#type-house) · [HouseOptions](./types-setup#type-houseoptions) · [Invitation](./types-setup#type-invitation) · [Invite](./types-setup#type-invite) · [InviteFrom](./types-setup#type-invitefrom) · [Issue](./types-setup#type-issue) · [Key](./types-setup#type-key) · [KeyedClass](./types-setup#type-keyedclass) · [KeyInfo](./types-setup#type-keyinfo) · [KeysApi](./types-setup#type-keysapi) · [Letter](./types-setup#type-letter) · [LetterMessage](./types-setup#type-lettermessage) · [Postman](./types-setup#type-postman) · [Room](./types-setup#type-room) · [RoomExtra](./types-setup#type-roomextra) · [SetupOptions](./types-setup#type-setupoptions) · [SetupResult](./types-setup#type-setupresult) · [TypedDb](./types-setup#type-typeddb)

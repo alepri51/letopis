@@ -155,12 +155,12 @@ function onTab(e: KeyboardEvent) {
   white-space: pre;
 }
 .lt-sbx-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
-.lt-sbx-hint { font-size: 12px; color: var(--vp-c-text-3); }
+.lt-sbx-hint { font-size: 12px; color: var(--vp-c-text-2); }
 .lt-sbx-error { margin-top: 8px; padding: 8px 10px; border-radius: 8px; background: var(--vp-c-danger-soft); color: var(--vp-c-danger-1); font-size: 13px; white-space: pre-wrap; }
 .lt-sbx-out { margin-top: 10px; font-size: 13px; }
 .lt-sbx-out-head { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
 .lt-sbx-out pre { margin: 6px 0 0; max-height: 420px; overflow: auto; font-size: 12px; line-height: 1.5; background: var(--vp-c-bg); padding: 8px 10px; border-radius: 6px; white-space: pre; }
-.lt-sbx-empty { margin: 6px 0 0; color: var(--vp-c-text-3); font-style: italic; }
+.lt-sbx-empty { margin: 6px 0 0; color: var(--vp-c-text-2); font-style: italic; }
 .lt-btn {
   border: 1px solid var(--vp-c-divider);
   border-radius: 8px;
@@ -169,7 +169,8 @@ function onTab(e: KeyboardEvent) {
   background: var(--vp-c-bg-soft);
   cursor: pointer;
 }
-.lt-btn.primary { background: var(--vp-c-brand-1); color: var(--vp-c-white); border-color: var(--vp-c-brand-1); }
+/* текст — цветом фона страницы: контраст 7:1 в светлой теме и 8.5:1 в тёмной */
+.lt-btn.primary { background: var(--vp-c-brand-1); color: var(--vp-c-bg); border-color: var(--vp-c-brand-1); }
 .lt-btn.ghost { background: transparent; }
 .lt-btn:disabled { opacity: 0.4; cursor: default; }
 </style>

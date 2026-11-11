@@ -9,6 +9,38 @@ html.dark .lt-ex-code pre {
   background-color: var(--vp-code-block-bg) !important;
 }
 
+/* Контраст на фоне блока кода (WCAG AA, 4.5:1). Подпись языка над блоком: text-3 (2.9:1) → text-2 (5.2:1 и 6.3:1). */
+:root {
+  --vp-code-lang-color: var(--vp-c-text-2);
+}
+/* Цвета github-light, которым на #f6f6f7 не хватает контраста, — на тон темнее (тот же оттенок, палитра GitHub Primer):
+   ключевые слова #D73A49 4.2 → #CF222E 5.0, комментарии #6A737D 4.5 → #5E6670 5.4, строки-теги #22863A 4.3 → #1A7F37
+   4.7, параметры #E36209 3.2 → #BC4C00 4.7; в github-dark на #161618 — комментарии #6A737D 3.8 → #8B949E 5.9.
+   Блоки VitePress и программы примеров (.vp-code) держат цвета в --shiki-light/--shiki-dark, шаги плеера
+   (.lt-ex-code) — светлый в color, тёмный в --shiki-dark. */
+html:not(.dark) :is(.vp-code, .lt-ex-code) span:is([style*='light:#D73A49' i], [style*='color:#D73A49' i]) { color: #cf222e !important; }
+html:not(.dark) :is(.vp-code, .lt-ex-code) span:is([style*='light:#6A737D' i], [style*='color:#6A737D' i]) { color: #5e6670 !important; }
+html:not(.dark) :is(.vp-code, .lt-ex-code) span:is([style*='light:#22863A' i], [style*='color:#22863A' i]) { color: #1a7f37 !important; }
+html:not(.dark) :is(.vp-code, .lt-ex-code) span:is([style*='light:#E36209' i], [style*='color:#E36209' i]) { color: #bc4c00 !important; }
+html.dark :is(.vp-code, .lt-ex-code) span[style*='dark:#6A737D' i] { color: #8b949e !important; }
+
+/* Строчный код в блоках «Осторожно» и «Опасно»: красный и жёлтый на розовом и жёлтом фоне — 4.2–4.4:1; цвет текста
+   блока, код выделен фоном (код в ссылке — цветом ссылки, как был). */
+.vp-doc :is(.custom-block.danger, .custom-block.caution, .custom-block.warning) :not(pre, a) > code {
+  color: var(--vp-c-text-1);
+}
+
+/* Программа примера (preview.ts, раскрашена при сборке): <code> внутри — без фона и отступов строчного кода. */
+.lt-ex-script > code {
+  display: block;
+  width: fit-content;
+  min-width: 100%;
+  padding: 0;
+  background: transparent;
+  font-size: inherit;
+  color: inherit;
+}
+
 /* Таблицам данных нужно место: на широком экране колонка текста шире стандартной. */
 @media (min-width: 1280px) {
   .VPDoc.has-aside .content-container {

@@ -213,7 +213,7 @@ interface SyncResult {
   created: string[];
   updated: string[];
   unchanged: string[];
-  /** Классы системного арендатора: их меняет только установка. */
+  /** Классы System при записи моделей в квартиру: общие классы дома пишут setup({ models }) и letopis sync. */
   skipped: string[];
   /** Правила refine, которых нет в базе (преобразования Zod syncModels отклоняет — model.transform_unsupported). */
   lost: LostRule[];

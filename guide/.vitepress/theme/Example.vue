@@ -10,7 +10,7 @@
  */
 import { computed, nextTick, onMounted, ref, shallowRef, useSlots, watch } from 'vue';
 import Sandbox from './Sandbox.vue';
-import { players, report } from './sync';
+import { exAnchor, players, report } from './sync';
 import { keepHash } from './anchor';
 
 type Rec = Record<string, any>;
@@ -81,7 +81,7 @@ const fits = (s: Snapshot, r: Real | null | undefined): Real | null =>
 // Снимок грузится лениво — только когда читатель раскрыл пошаговый показ; настоящие значения (*.real.json) — только
 // когда он открыл вкладку «Реальная таблица». Программа (слот) уже в HTML страницы и от снимка не зависит.
 const root = ref<HTMLElement | null>(null);
-const anchorId = `ex-${props.id.replace(/[^a-z0-9]+/gi, '-')}`;
+const anchorId = exAnchor(props.id);
 const realKey = `../../../examples/_snapshots/${props.id}.real.json`;
 const hasReal = !!realFiles[realKey];
 let loading: Promise<void> | null = null;
@@ -219,8 +219,8 @@ const isNew = (row: Rec) => row.$changed?.includes('*');
 const showOld = ref(false);
 const initialIds = computed(() => new Set((snap.value?.initial.entity ?? []).map((r) => r.id)));
 const quiet = (row: Rec) => initialIds.value.has(row.id) && !row.$changed?.length;
-// Служебные строки установки — их пишет up() от имени System (классы Class, Resource, rule, member, системные
-// аккаунты): десятки строк, среди которых тонут данные примера. Свёрнуты, пока их не покажут.
+// Служебные строки дома — их пишут setup() и консьерж от имени System (классы Class, Resource, rule, member, аккаунты
+// квартир, жильцов и консьержа): десятки строк, среди которых тонут данные примера. Свёрнуты, пока их не покажут.
 const showSys = ref(false);
 const isSys = (row: Rec | undefined) => row?.author === 'System';
 const rowKind = (row: Rec) => (quiet(row) ? 'old' : isSys(row) ? 'sys' : 'own');
@@ -234,7 +234,7 @@ const hiddenSys = computed(() => (step.value?.entity ?? []).filter((r) => rowKin
 const logRows = computed(() => (step.value?.log ?? []).map((row, k) => ({ row, n: k + 1 })).filter((x) => showSys.value || !isSys(x.row)));
 const hiddenSysLog = computed(() => (step.value?.log ?? []).filter(isSys).length);
 const sysText = (n: number) =>
-  showSys.value ? 'свернуть служебные строки установки' : `ещё ${rows(n)} — служебные строки установки: классы, ресурсы и правила прав, системные аккаунты (показать)`;
+  showSys.value ? 'свернуть служебные строки дома' : `ещё ${rows(n)} — служебные строки дома: классы, ресурсы и правила матрицы, аккаунты квартир и жильцов (показать)`;
 const oldText = (n: number) =>
   showOld.value ? 'свернуть строки, которые были до начала примера' : `ещё ${rows(n)} — были до начала примера и не менялись (показать)`;
 const changed = (row: Rec, key: string) => !isNew(row) && row.$changed?.includes(key);
@@ -614,16 +614,17 @@ function onKey(e: KeyboardEvent) {
       </div>
 
       <div v-if="show('secret')" class="lt-ex-table">
-        <div class="lt-ex-label">Таблица <code>secret</code> — пароли, ключи, сессии (сам секрет не показывается и в базе хранится хэшем)</div>
+        <div class="lt-ex-label">Таблица <code>secret</code> — ключи, приглашения, сессии (сам секрет не показывается; пароли, ключи и токены база хранит хэшем)</div>
         <div class="lt-scroll">
           <table class="lt-cards">
             <thead>
-              <tr><th>аккаунт</th><th>вид</th><th>идентификатор</th><th>подробности</th><th>создан</th><th>истекает</th><th>погашен</th></tr>
+              <tr><th>аккаунт</th><th>квартира</th><th>вид</th><th>идентификатор</th><th>подробности</th><th>создан</th><th>истекает</th><th>погашен</th></tr>
             </thead>
             <tbody>
-              <tr v-if="!step.secret.length"><td colspan="7" class="lt-empty">новых строк нет</td></tr>
+              <tr v-if="!step.secret.length"><td colspan="8" class="lt-empty">новых строк нет</td></tr>
               <tr v-for="(row, k) in step.secret" :key="k" :class="{ 'lt-new': row.$new }">
                 <td data-label="аккаунт">{{ row.account }}</td>
+                <td data-label="квартира">{{ fmt(row.tenant) }}</td>
                 <td data-label="вид"><code>{{ row.kind }}</code></td>
                 <td data-label="идентификатор">{{ fmt(row.ident) }}</td>
                 <td class="lt-data" data-label="подробности">{{ fmt(row.meta) }}</td>
@@ -692,7 +693,8 @@ function onKey(e: KeyboardEvent) {
   background: var(--vp-c-bg-soft);
   cursor: pointer;
 }
-.lt-btn.primary { background: var(--vp-c-brand-1); color: var(--vp-c-white); border-color: var(--vp-c-brand-1); }
+/* текст — цветом фона страницы: белый на синем в светлой теме (7:1), тёмный на светло-синем в тёмной (8.5:1) */
+.lt-btn.primary { background: var(--vp-c-brand-1); color: var(--vp-c-bg); border-color: var(--vp-c-brand-1); }
 .lt-btn.ghost { background: transparent; }
 .lt-btn:disabled { opacity: 0.4; cursor: default; }
 .lt-dot {
@@ -705,7 +707,7 @@ function onKey(e: KeyboardEvent) {
   cursor: pointer;
 }
 .lt-dot.done { background: var(--vp-c-brand-soft); }
-.lt-dot.active { background: var(--vp-c-brand-1); color: var(--vp-c-white); border-color: var(--vp-c-brand-1); }
+.lt-dot.active { background: var(--vp-c-brand-1); color: var(--vp-c-bg); border-color: var(--vp-c-brand-1); }
 .lt-dot.failed { border-color: var(--vp-c-danger-1); }
 .lt-dot.expected { border: 2px dashed var(--vp-c-warning-1); }
 .lt-ex-error.expected { background: var(--vp-c-warning-soft); color: var(--vp-c-text-1); }
@@ -754,7 +756,7 @@ function onKey(e: KeyboardEvent) {
   cursor: pointer;
 }
 .lt-tab.active { border-color: var(--vp-c-divider); background: var(--vp-c-bg); color: var(--vp-c-text-1); font-weight: 600; }
-.lt-ex-tabs-hint { margin: 0 0 5px 8px; font-size: 12px; color: var(--vp-c-text-3); }
+.lt-ex-tabs-hint { margin: 0 0 5px 8px; font-size: 12px; color: var(--vp-c-text-2); }
 .lt-ex-label { font-size: 13px; font-weight: 600; color: var(--vp-c-text-2); margin: 14px 0 6px; }
 .lt-scroll { overflow-x: auto; }
 .lt-ex-table table { width: 100%; border-collapse: collapse; font-size: 13px; display: table; margin: 0; }
@@ -763,14 +765,14 @@ function onKey(e: KeyboardEvent) {
 .lt-id { white-space: nowrap; font-weight: 600; }
 /* время, rev, действие — одной строкой: колонка «когда» не сжимается, таблица шире блока — прокрутка вбок */
 .lt-nw { white-space: nowrap; }
-.lt-key { color: var(--vp-c-text-3); }
+.lt-key { color: var(--vp-c-text-2); }
 .lt-data { min-width: 180px; }
 .lt-data > div { overflow-wrap: anywhere; }
 /* «Реальная таблица»: значения как в базе — моноширинно, uuid и время одной строкой; длинное разворачивается с переносом */
 .lt-ex-real td { font-family: var(--vp-font-family-mono); font-size: 12px; white-space: nowrap; }
 .lt-ex-real td.lt-empty { font-family: inherit; }
 .lt-wrap { display: block; min-width: 32ch; max-width: 70ch; white-space: pre-wrap; overflow-wrap: anywhere; }
-.lt-empty { color: var(--vp-c-text-3); text-align: center !important; font-style: italic; }
+.lt-empty { color: var(--vp-c-text-2); text-align: center !important; font-style: italic; }
 .lt-new td { background: var(--vp-c-green-soft); }
 .lt-chg { background: var(--vp-c-warning-soft); }
 .lt-removed td { background: var(--vp-c-danger-soft); text-decoration: line-through; color: var(--vp-c-text-2); }
@@ -810,7 +812,7 @@ function onKey(e: KeyboardEvent) {
   .lt-ex-table table.lt-cards thead { display: none; }
   .lt-ex-table table.lt-cards tr { border: 1px solid var(--vp-c-divider); border-radius: 8px; margin: 0 0 8px; padding: 4px 8px; }
   .lt-ex-table table.lt-cards td { border: 0; padding: 2px 0; white-space: normal; overflow-wrap: anywhere; min-width: 0; }
-  .lt-ex-table table.lt-cards td[data-label]::before { content: attr(data-label) ': '; color: var(--vp-c-text-3); font-weight: 600; }
+  .lt-ex-table table.lt-cards td[data-label]::before { content: attr(data-label) ': '; color: var(--vp-c-text-2); font-weight: 600; }
   .lt-ex-table table.lt-cards td.lt-data > div { padding-left: 10px; }
   .lt-ex-real td { white-space: normal; }
   .lt-wrap { min-width: 0; }

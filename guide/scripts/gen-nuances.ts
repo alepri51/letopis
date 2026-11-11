@@ -1,9 +1,9 @@
 /**
- * Глава 17 «Все нюансы»: страница собирается из guide/coverage/nuances.ts по темам (поле topic, порядок — TOPICS) — у
+ * Страница «Все нюансы»: собирается из guide/coverage/nuances.ts по темам (поле topic, порядок — TOPICS) — у
  * каждого нюанса ссылки прямо на исполняемые примеры, которые его показывают (поле covers примера: nuance.<id>):
  * страница главы и якорь плеера `#ex-<id примера>` (его ставит theme/Example.vue). Десять главных (поле top) — ещё и
  * на странице «Первые 15 минут»: список между метками `<!-- nuances:top -->` и `<!-- /nuances:top -->`. Нюанс, который
- * теперь ловит код (поле caught), получает отметку «ловит код» (план 2.0, этап 5, п. 3).
+ * теперь ловит код (поле caught), получает отметку «ловит код».
  *   cd guide && npx tsx scripts/gen-nuances.ts        (--check — только сверить, код 1 при расхождении)
  */
 import { readFile, readdir, writeFile } from 'node:fs/promises';
@@ -12,13 +12,21 @@ import nuances, { TOPICS, type Nuance, type Topic } from '../coverage/nuances.ts
 import { exampleFiles } from './examples.ts';
 
 const ROOT = new URL('..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
+/** Подпись ссылки — название страницы как в меню (.vitepress/config.ts); ключ — адрес страницы без ведущей косой черты. */
 const TITLES: Record<string, string> = {
-  first: 'Первые 15 минут', start: 'Старт с нуля', basics: '1. Что такое letopis', install: '2. Установка', models: '3. Модели', write: '4. Запись',
-  read: '5. Чтение', delete: '6. Удаление', money: '7. Транзакции и деньги', access: '8. Права', auth: '9. Вход',
-  history: '10. История и время', watch: '11. Подписка, кэш, сигналы', load: '12. Массовая загрузка',
-  ops: '13. Эксплуатация', logging: '14. Логирование', mcp: '15. MCP', errors: '16. Ошибки',
+  '': 'Главная', 'first/': 'Первые 15 минут: один процесс', 'start/': 'Старт с нуля: веб-сервис с пропуском',
+  'basics/what-is': 'Что такое letopis', 'concepts/': 'Карта понятий', 'house/': 'Дом, пропуск, консьерж',
+  'install/': 'Установка и подключение', 'invites/': 'Приглашения и почтальон', 'auth/': 'Вход и ключи',
+  'access/': 'Квартиры и права', 'models/': 'Модели: какие бывают классы', 'models/inside': 'Модели: что внутри',
+  'write/': 'Запись: создать, изменить, заменить', 'write/inside': 'Запись: что внутри',
+  'read/': 'Чтение: цепочки, фильтры, страницы', 'delete/': 'Удаление и восстановление', 'delete/inside': 'Удаление: что внутри',
+  'money/': 'Транзакции и деньги', 'history/': 'История и время', 'watch/': 'Подписка, кэш и сигналы',
+  'load/': 'Массовая загрузка', 'ops/': 'Эксплуатация', 'logging/': 'Логирование', 'mcp/': 'ИИ-агенты: MCP',
+  'errors/': 'Ошибки', 'errors/codes': 'Ошибки: все коды и ключи', 'recipes/web-login': 'Веб-приложение с входом',
+  'recipes/rooms': 'Несколько квартир', 'recipes/background': 'Фоновые задачи консьержа',
+  'recipes/undo': 'Отмена удаления в веб-сервисе',
 };
-const chapterUrl = (dir: string) => (dir === 'basics' ? 'basics/what-is' : `${dir}/`);
+const chapterUrl = (dir: string) => (dir === 'basics' ? 'basics/what-is' : dir === 'hello' ? '' : `${dir}/`);
 
 // десять главных: места 1–10, каждое ровно один раз
 const top = nuances.filter((n) => n.top !== undefined).sort((a, b) => a.top! - b.top!);
@@ -58,7 +66,10 @@ const href = (e: { id: string; dir: string }) => {
 };
 const caught = (n: Nuance) => (n.caught ? `<br>**Ловит код:** \`${n.caught}\`` : '');
 const row = (n: Nuance) => {
-  const links = (where.get(n.id) ?? []).map((e) => `[${md(`${TITLES[e.dir] ?? e.dir}: «${short(e.title)}»`)}](${href(e)})`).join('<br>') || '—';
+  const links = (where.get(n.id) ?? []).map((e) => {
+    const page = pageOf.get(e.id) ?? chapterUrl(e.dir);
+    return `[${md(`${TITLES[page] ?? e.dir}: «${short(e.title)}»`)}](${href(e)})`;
+  }).join('<br>') || '—';
   return `| ${n.text.replace(/\|/g, '\\|')}${caught(n)} | ${links} |`;
 };
 

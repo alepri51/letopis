@@ -1,20 +1,19 @@
 /**
  * Нюансы и ловушки letopis — каждый должен получить пример (поле `covers` с `nuance.<id>`).
- * Источники: карточки атласа (раздел «Инварианты и грабли»), раздел «Ограничения» README, CHANGELOG.
- * Список пополняется по главам; к концу работы (этап 5) покрытие проверяется строго.
+ * Источники: код lib/src и lib/sql, раздел «Ограничения» README. Покрытие проверяется строго (coverage --strict).
  * Страницу «Все нюансы» по темам и десять главных на странице «Первые 15 минут» пишет scripts/gen-nuances.ts.
  */
 
-/** Темы страницы «Все нюансы» — в порядке глав сайта (план 2.0, этап 5, п. 3). */
+/** Темы страницы «Все нюансы» — в порядке глав сайта. */
 export const TOPICS = {
-  install: 'Установка и подключение',
+  install: 'Дом и консьерж',
   models: 'Модели',
   write: 'Запись',
   read: 'Чтение',
   delete: 'Удаление и восстановление',
   money: 'Транзакции и деньги',
-  access: 'Арендаторы и права',
-  auth: 'Вход и сессии',
+  access: 'Квартиры и права',
+  auth: 'Вход, ключи и сессии',
   history: 'История и время',
   watch: 'Подписка, кэш, сигналы',
   load: 'Массовая загрузка',
@@ -31,7 +30,7 @@ export interface Nuance {
   /** Место среди десяти главных (1–10) — они же на странице «Первые 15 минут»; у остальных поля нет. */
   top?: number;
   /**
-   * Ловушку ловит код (план 2.0, этап 4): чем — код ошибки или предупреждение, например `'invalid_query'`.
+   * Ловушку ловит код: чем — код ошибки или предупреждение, например `'invalid_query'`.
    * На странице нюансов — отметка «ловит код».
    */
   caught?: string;
@@ -62,47 +61,48 @@ const nuances: Nuance[] = [
     source: 'lib/sql/10-core.sql, таблица secret',
   },
   {
-    id: 'up-idempotent',
+    id: 'setup-idempotent',
     topic: 'install',
-    text: 'Повторный up() безопасен: заново применяет ту же версию схемы, данные не трогает, ключ сервиса снова не выдаёт.',
-    source: 'lib/README.md, раздел 1; docs/atlas/F-BOOT.md',
+    text: 'Повторный setup() безопасен: накатывает функции движка заново, данные не трогает и отдаёт тот же пропуск (created: false).',
+    source: 'lib/src/up.ts:setup, setupCore',
   },
   {
-    id: 'service-key-once',
+    id: 'pass-same-rotate',
     topic: 'install',
     top: 1,
-    text: 'Ключ сервиса up() выдаёт только при первой установке или когда не осталось ни одного ключа API, кроме отозванных: истёкший или выключенный ключ тоже в счёт, нового не будет.',
-    source: 'lib/README.md, раздел 3',
+    text: 'setup() отдаёт пропуск консьержа: повторный вызов — тот же пропуск, setup(…, { rotate: true }) — новый, а прежний сразу перестаёт работать (connect по нему — auth_failed). В пропуске — пароль роли консьержа: храните его как секрет; он же лежит в базе и попадает в резервные копии.',
+    source: 'lib/src/up.ts:setupCore; lib/src/house.ts:connect',
   },
   {
     id: 'signals-mode-sticky',
     topic: 'install',
-    text: 'Режим сигналов хранится в схеме: up() без опции signals его не меняет; после смены — перезапуск процессов.',
-    source: 'lib/README.md, раздел 3',
+    text: 'Режим сигналов хранится в доме: setup() без опции signals его не меняет; после смены — перезапуск процессов.',
+    source: 'lib/src/up.ts:install',
   },
   {
-    id: 'fresh-drops-data',
+    id: 'demolish-drops-data',
     topic: 'install',
-    text: 'up({ fresh: true }) удаляет схему и ставит заново — данные теряются, ключ сервиса новый.',
-    source: 'lib/README.md, раздел 3',
+    text: 'demolish() сносит дом целиком: квартиры, данные, историю и роль консьержа. Дом другой ревизии движка setup() не обновляет — его сносят demolish() и строят заново, данные не переносятся.',
+    source: 'lib/src/up.ts:demolish, refuseOld',
   },
   {
-    id: 'up-concurrent',
+    id: 'default-rule',
     topic: 'install',
-    text: 'Одновременные up() одной схемы (несколько экземпляров сервиса при запуске) не мешают друг другу: накат идёт под блокировкой схемы — первый ставит или обновляет её, остальные ждут и делают повторный накат; первого арендатора (tenant) заводит один из них. up() разных схем друг друга не ждут.',
-    source: 'lib/README.md, раздел 3',
+    caught: 'acl_denied',
+    text: 'Правило по умолчанию (подходящих правил нет) переключает только мастер-ключ: setup(…, { defaultRule: \'allow\' }) или \'deny\'; без опции оно не меняется, у свежего дома — deny. Правилом его не изменить и не удалить: acl_denied (sql-access.rule_default_protected).',
+    source: 'lib/src/up.ts:setupCore (acl_set_default); lib/sql/50-acl.sql:trg_entity_acl',
   },
   {
     id: 'pglite-no-rls',
     topic: 'install',
-    text: 'Подключение к PGlite — суперпользователь (allowBypassRls), одно соединение, без LISTEN: права, изоляцию и гонки на нём не проверить.',
-    source: 'lib/README.md, раздел 3',
+    text: 'Консьерж подключается к PGlite суперпользователем, одним соединением и без LISTEN: права, изоляцию квартир и гонки на нём не проверить — setup({ pglite }) предупреждает об этом в warnings.',
+    source: 'lib/src/up.ts:setupCore (boot.pglite_no_rls)',
   },
   {
     id: 'engine-stamp',
     topic: 'install',
-    text: 'up() пишет штамп движка (ревизию схемы и версию пакета) в комментарий схемы; connect() предупреждает, если штамп не совпал с пакетом: схему не обновили после обновления пакета или её поставила более новая версия.',
-    source: 'lib/README.md, раздел 3; lib/src/up.ts:stampDrift',
+    text: 'setup() пишет штамп движка (ревизию и версию пакета) в комментарий схемы дома; connect() предупреждает, если штамп не совпал с пакетом: после обновления пакета не вызвали setup() или дом поставила более новая версия.',
+    source: 'lib/src/up.ts:stampDrift',
   },
   {
     id: 'sync-dry-run',
@@ -115,7 +115,7 @@ const nuances: Nuance[] = [
     id: 'key-case',
     topic: 'models',
     top: 4,
-    text: 'Значения ключа берутся как есть: email в разном регистре даёт разные id.',
+    text: 'Значения поля-ключа модели берутся как есть: email в разном регистре даёт разные id объекта. Это про ключ класса; контакт приглашения и входа сравнивается без учёта регистра.',
     source: 'lib/README.md, раздел 4',
   },
   {
@@ -170,7 +170,7 @@ const nuances: Nuance[] = [
     id: 'update-empty-target',
     topic: 'write',
     top: 7,
-    text: 'update без найденных строк возвращает пустой список без ошибки — проверяйте длину ответа. Фильтр по данным при гонке перепроверяется под блокировкой: из двух одновременных правок одной строки пройдёт одна, вторая получит пустой ответ. Правило «одна открытая запись на объект» так не удержать — его держит ключ; «прочитал — посчитал — записал» — forUpdate() в db.begin() или { rev }.',
+    text: 'update без найденных строк возвращает пустой список без ошибки — проверяйте длину ответа. Фильтр по данным при гонке перепроверяется под блокировкой: из двух одновременных правок одной строки пройдёт одна, вторая получит пустой ответ. Правило «одна открытая запись на объект» так не удержать — его держит ключ; «прочитал — посчитал — записал» — forUpdate() в me.begin() или { rev }.',
     source: 'lib/README.md, раздел 5; lib/src/write.ts:updateOp; пример money/05-one-open',
   },
   {
@@ -183,19 +183,19 @@ const nuances: Nuance[] = [
   {
     id: 'links-from-path',
     topic: 'write',
-    text: 'Концы создаваемой строки берутся из пути цепочки: db.Shop(shop).Product().create() ссылается на shop.',
+    text: 'Концы создаваемой строки берутся из пути цепочки: me.Shop(shop).Product().create() ссылается на shop.',
     source: 'lib/README.md, раздел 5',
   },
   {
     id: 'slots-atomic',
     topic: 'write',
-    text: 'Шаги ролей .Роль.set/unset/add/remove меняют links атомарно, без чтения списка.',
+    text: 'Шаги концов .Конец.set/unset/add/remove меняют links атомарно, без чтения списка.',
     source: 'lib/README.md, раздел 5',
   },
   {
     id: 'end-not-in-data',
     topic: 'write',
-    text: 'Конец связи не передают полем данных create(): для базы это лишнее поле — invalid_data (в issues — additionalProperties с пустым путём). Конец задают вызовом роли после глагола: create({ … }).Роль.set(id).',
+    text: 'Конец связи не передают полем данных create(): для базы это лишнее поле — invalid_data (в issues — additionalProperties с пустым путём). Конец задают шагом конца после глагола: create({ … }).Конец.set(id).',
     source: 'lib/README.md, раздел 5 «Концы: из пути и слоты»; пример write/02-ends-and-slots',
   },
   {
@@ -219,8 +219,8 @@ const nuances: Nuance[] = [
   {
     id: 'batch-own-queue',
     topic: 'write',
-    text: 'Очередь батча своя у каждого объекта подключения (db, db.as(), db.begin()); план выполняется от имени того объекта, через который его положили в очередь.',
-    source: 'lib/README.md, раздел 8',
+    text: 'Очередь батча своя у каждого корня квартиры и у каждой транзакции me.begin(): план выполняется от имени того корня, через который его поставили в очередь.',
+    source: 'lib/src/chain.ts:makeBatch',
   },
   {
     id: 'mods-after-verb',
@@ -261,7 +261,7 @@ const nuances: Nuance[] = [
   {
     id: 'filter-end-null',
     topic: 'read',
-    text: 'Роль конца в фильтре — id цели или null («конец пуст»): так находятся корневые узлы дерева.',
+    text: 'Конец в фильтре (по имени конца) — id цели или null («конец пуст»): так находятся корневые узлы дерева.',
     source: 'lib/README.md, раздел 6',
   },
   {
@@ -355,7 +355,7 @@ const nuances: Nuance[] = [
   {
     id: 'tx-all-or-nothing',
     topic: 'money',
-    text: 'db.begin(): записи фиксируются вместе commit(); ошибка — rollback(), не записано ничего.',
+    text: 'me.begin(): записи фиксируются вместе commit(); ошибка — rollback(), не записано ничего.',
     source: 'lib/README.md, раздел 8',
   },
   {
@@ -373,32 +373,32 @@ const nuances: Nuance[] = [
   {
     id: 'start-from-zero',
     topic: 'install',
-    text: 'С нуля: up() → роль приложения → createTenant → connect по ключу и вход → syncModels → данные.',
-    source: 'guide/start/start.mjs',
+    text: 'С нуля: setup(мастер-ключ, имя, { models }) → connect(pass, { postman }) → db.createTenant(квартира) → (await db.in(квартира)).invite({ email }, [\'owner\']) → почтальон доставляет ссылку с токеном → db.accept(token, { password }) → данные в корне жильца me.',
+    source: 'lib/src/up.ts:setup; lib/src/house.ts',
   },
   {
     id: 'mass-write-log-order',
     topic: 'write',
-    text: 'Правка многих строк одним оператором пишет их версии в журнал в порядке id, а не в порядке обхода таблицы: журнал одинаков от прогона к прогону. Так же упорядочены пакетная вставка (по порядку входа), загрузчик с existing: update и надгробия каскада.',
+    text: 'Правка многих строк одним оператором пишет их версии в журнал в порядке id, а не в порядке обхода таблицы: журнал одинаков от прогона к прогону. Так же упорядочены пакетная вставка (по порядку входа), загрузка letopis load --existing update и надгробия каскада.',
     source: 'lib/sql/60-write.sql:trg_entity_au (коммит 2f977c0); пример write/07-mass-journal-order',
   },
   {
     id: 'lock-all-writers',
     topic: 'money',
     text: 'Запись итога «прочитал — посчитал — записал» без защиты теряет параллельную правку. lock() и forUpdate() ставят второго писателя в очередь, но только если их берут все, кто правит эти данные; для сумм проще inc — база сама сложит приращения.',
-    source: 'lib/test/balance.test.ts №17; пример money/04-race',
+    source: 'lib/src/tx.ts, lib/src/chain.ts:lockedRead; пример money/04-race',
   },
   {
     id: 'update-filter-race',
     topic: 'money',
-    text: 'Фильтр update() по данным (не только id) при параллельной записи перепроверяется: найденные строки блокируются и читаются заново тем же запросом, правятся только всё ещё подходящие — из двух одновременных db.Item({ id, status: "free" }).update(…) пройдёт один, второй получит пустой ответ. Это защищает одну строку; решение «прочитал — проверил — записал» — forUpdate() в db.begin() или { rev } (conflict), правило «одна открытая … на …» — ключ.',
+    text: 'Фильтр update() по данным (не только id) при параллельной записи перепроверяется: найденные строки блокируются и читаются заново тем же запросом, правятся только всё ещё подходящие — из двух одновременных me.Item({ id, status: "free" }).update(…) пройдёт один, второй получит пустой ответ. Это защищает одну строку; решение «прочитал — проверил — записал» — forUpdate() в me.begin() или { rev } (conflict), правило «одна открытая … на …» — ключ.',
     source: 'lib/src/write.ts:updateOp, lib/src/chain.ts:lockedRead; пример money/05-one-open',
   },
   {
     id: 'begin-options-only',
     topic: 'money',
     caught: 'invalid_query',
-    text: 'db.begin() принимает только опции { reason } и не вызывает функцию: begin(async (tr) => …) — invalid_query (api.begin_arg). Транзакцию открывает begin(), закрывают tr.commit() или tr.rollback(): try { …; await tr.commit() } catch (e) { await tr.rollback(); throw e }.',
+    text: 'me.begin() принимает только опции { reason } и не вызывает функцию: begin(async (tr) => …) — invalid_query (api.begin_arg). Транзакцию открывает begin(), закрывают tr.commit() или tr.rollback(): try { …; await tr.commit() } catch (e) { await tr.rollback(); throw e }.',
     source: 'lib/src/index.ts:makeDb.begin; пример errors/01-api-errors',
   },
   {
@@ -410,40 +410,61 @@ const nuances: Nuance[] = [
   {
     id: 'registry-refresh',
     topic: 'watch',
-    text: 'Другое подключение узнаёт о новом классе по сигналу, с задержкой: описания классов оно держит в памяти (реестр классов); сразу — db.refresh().',
+    text: 'Другой процесс узнаёт о новом классе по сигналу, с задержкой: описания классов корень держит в памяти (реестр классов); сразу — me.refresh().',
     source: 'lib/src/index.ts:refresh; пример watch/02-quiet-cursor',
   },
   {
     id: 'login-case-insensitive',
     topic: 'auth',
-    text: 'Идентификатор при входе сравнивается без учёта регистра (Anna@ и anna@ — один вход).',
-    source: 'lib/README.md, раздел 10',
+    text: 'Контакт сравнивается без учёта регистра: Anna@ и anna@ — один аккаунт; один контакт — один аккаунт во всём доме. Сам адрес библиотека не разбирает и не приводит (+7 900… и +7900… — разные контакты): нормализация — дело приложения.',
+    source: 'lib/sql/80-auth.sql:contact_ident',
   },
   {
     id: 'password-change-revokes',
     topic: 'auth',
-    text: 'Смена пароля завершает остальные сессии аккаунта; keepCurrent оставляет текущую.',
-    source: 'lib/README.md, раздел 10',
+    text: 'Смена пароля (me.keys.setPassword) гасит остальные сессии жильца в этой квартире; keepCurrent (по умолчанию) оставляет текущую.',
+    source: 'lib/sql/80-auth.sql:key_set_password',
   },
   {
     id: 'deny-by-default',
     topic: 'access',
     top: 9,
-    text: 'Права включены всегда и по умолчанию запрещают всё; createTenant даёт правило «своим можно всё» (вес 10).',
-    source: 'lib/README.md, раздел 3',
+    text: 'Права включены всегда: без подходящего правила действует правило по умолчанию — на свежем доме «нельзя» (setup({ defaultRule: \'allow\' }) переключает). createTenant даёт роли owner «можно всё» и право выдавать любые роли с весом 100 000 — правила жильцов (вес до 999) его не перекроют.',
+    source: 'lib/sql/50-acl.sql:acl_pick; lib/sql/80-auth.sql:tenant_create',
   },
   {
     id: 'rule-weight',
     topic: 'access',
-    text: 'Правило с большим весом сильнее: запрет с весом 50 перекрывает «можно всё» с весом 10.',
-    source: 'lib/README.md, раздел 10 «Выдать право»',
+    text: 'Для каждой строки побеждает подходящее правило с наибольшим счётом: ключи маски «кто» + 1 за класс или действие + поля условия + 1 у запрета + вес. grant read Order (счёт 52) и deny { class: \'Order\', data: { vip: true } } (54): VIP-строки скрыты, остальные видны.',
+    source: 'lib/sql/50-acl.sql:acl_cands_for, acl_pick',
   },
   {
     id: 'tenant-classes',
     topic: 'access',
     top: 3,
-    text: 'Классы, записанные syncModels, принадлежат арендатору: другой арендатор не видит даже класса (invalid_class).',
-    source: 'пример access/01-rules',
+    text: 'Классы, записанные syncModels в корне квартиры, принадлежат ей: другая квартира не видит даже класса (invalid_class). Общие для всех квартир классы — setup(…, { models }) или letopis sync.',
+    source: 'lib/src/sync.ts:syncModels; lib/src/up.ts:setupCore',
+  },
+  {
+    id: 'acl-ambiguous',
+    topic: 'access',
+    caught: 'acl_ambiguous',
+    text: 'Два подходящих строке правила с равным наибольшим счётом, «можно» и «нельзя», — строка не видна и не правится, без ошибки, остальные строки класса читаются. Ошибку acl_ambiguous отдают me.acl.check, checkData и checkRole, а запись правила, которое спорит с действующим, — отказ rule_tie. Развести правила — весом или условием; кандидатов по счёту покажет me.acl.checkData().',
+    source: 'lib/sql/50-acl.sql:acl_pick',
+  },
+  {
+    id: 'rule-owner',
+    topic: 'access',
+    caught: 'acl_denied',
+    text: 'Правило меняет и снимает только тот, кто его завёл, или консьерж (sql-access.rule_foreign): правила консьержа и роли owner от createTenant жилец не снимет, а правила выписанного жильца остаются и действуют.',
+    source: 'lib/sql/50-acl.sql:trg_entity_acl',
+  },
+  {
+    id: 'member-invite-only',
+    topic: 'access',
+    caught: 'acl_denied',
+    text: 'Прописать человека можно только приглашением: member().create() и me.acl.roles() для непрописанного аккаунта — acl_denied (sql-access.member_invite_only). Позовите me.invite(контакт, роли) — почтальон доставит ссылку, человек примет её db.accept(token).',
+    source: 'lib/sql/50-acl.sql:trg_entity_acl',
   },
   {
     id: 'watch-cursor-resume',
@@ -460,63 +481,66 @@ const nuances: Nuance[] = [
   {
     id: 'mcp-user-rights',
     topic: 'mcp',
-    text: 'Сервер MCP работает с правами пользователя, чьим подключением создан; правка через letopis_write — только с rev.',
-    source: 'lib/README.md, раздел 13 «MCP»',
+    text: 'Сервер MCP работает с правами жильца, чьим корнем создан: корень консьержа (db.in(), db.as()) агенту не отдаётся (user_session_required); правка через letopis_write — только с rev.',
+    source: 'lib/src/mcp.ts:checkCredentials',
   },
   {
-    id: 'session-starts-personal',
+    id: 'key-one-tenant',
     topic: 'auth',
-    text: 'Свежая сессия входа работает в личном арендаторе аккаунта: классов компании там нет, шаг db.Item() — invalid_class «…сессия, похоже, в личном арендаторе». Арендаторов пользователя отдаёт auth.tenants() — с name и personal; в компанию сессию переводит auth.switch() — смена видна всем подключениям с этим токеном.',
-    source: 'lib/sql/20-context.sql:ctx, lib/sql/80-auth.sql:auth_switch',
+    caught: 'invalid_data',
+    text: 'Пароль, ключ API, ключ с секретом и внешний вход открывают ровно одну квартиру: db.open(ключ) входит в квартиру этого ключа. В другую квартиру человека зовут приглашением; пароли одного аккаунта в разных квартирах должны быть разными — совпавший запрещён (api.password_reused), по паролю библиотека и выбирает квартиру.',
+    source: 'lib/src/house.ts:assertNewPassword; lib/sql/80-auth.sql:invite_accept',
   },
   {
-    id: 'revoke-by-token',
+    id: 'logout-by-token',
     topic: 'auth',
-    text: 'Выход пользователя в веб-сервисе — svc.auth.revoke(token): сервис гасит сессию по токену из cookie (право auth.session), не подключаясь по нему; true — погашена, false — токен неверный, сессия погашена или истекла. revoke() без аргумента гасит сессию самого подключения — у сервиса это его собственный вход.',
-    source: 'lib/src/auth.ts:revoke, lib/sql/80-auth.sql:auth_logout_token; пример auth/02-sessions-tenants',
+    text: 'Выход в веб-сервисе — (await db.resume(токен)).close(): сессия гаснет, и токен из cookie больше не открывает квартиру (auth_failed). «Выйти на всех устройствах» — me.closeAll().',
+    source: 'lib/src/house.ts:wrapRoom close, closeAll',
   },
   {
     id: 'web-login-one-pool',
     topic: 'auth',
-    text: 'Веб-сервис подключается к базе один раз — по ключу сервиса — и на каждый запрос работает через svc.as(аккаунт, { tenant }) на том же пуле. connect({ token }) на каждый вход создаёт пул на пользователя (до max соединений, по умолчанию 10) и исчерпывает соединения PostgreSQL. Арендатора берите из серверной сессии, а не из параметра запроса.',
-    source: 'lib/src/index.ts:connect, makeDb.as; пример auth/04-web-login',
+    text: 'Веб-сервис подключается к дому один раз — connect(pass) — и на каждый запрос открывает корень жильца по токену из cookie: db.resume(токен); пул один на всех. Квартира — та, которую открыл ключ жильца: из параметра запроса её не берут.',
+    source: 'lib/src/house.ts:connect, resume',
   },
   {
-    id: 'purge-current-tenant',
+    id: 'leave-last-owner',
     topic: 'auth',
-    text: 'Владелец может стереть арендатора, в котором работает (purgeAccount): сессия возвращается в его личный арендатор.',
-    source: 'пример auth/02-sessions-tenants; lib/sql/90-time.sql:account_purge',
+    caught: 'last_owner',
+    text: 'Последний owner квартиры не может выписаться (me.leave()) или удалить аккаунт (me.deleteAccount(), db.deleteAccount(аккаунт)) — last_owner: сначала дайте роль owner другому жильцу.',
+    source: 'lib/sql/80-auth.sql:member_leave; lib/sql/90-time.sql:account_remove',
   },
   {
     id: 'account-delete-secrets',
     topic: 'auth',
-    text: 'Удаление аккаунта сразу стирает его строки secret — сессии, пароли, ключи, секреты TOTP, внешние учётные записи; сессии гаснут с сигналом, и кэш их ответов сбрасывается. Аккаунт System удалить нельзя (acl_denied).',
-    source: 'пример auth/03-delete-account; lib/sql/60-write.sql:trg_entity_bd_account, внешний ключ secret.account',
+    text: 'me.deleteAccount() удаляет аккаунт целиком: прописки во всех квартирах, ключи и сессии гаснут; строки, которыми он владел, остаются квартирам.',
+    source: 'lib/sql/80-auth.sql:account_delete_self; lib/sql/90-time.sql:account_remove',
   },
   {
     id: 'refresh-never-shortens',
     topic: 'auth',
-    text: 'auth.refresh({ ttl }) не укорачивает сессию и не продлевает дальше срока входа: новый срок — позднейшее из текущего и «сейчас + min(ttl, срок входа)».',
-    source: 'lib/sql/80-auth.sql:auth_refresh',
+    text: 'me.refreshSession({ ttl }) не укорачивает сессию и не продлевает её на больший срок, чем дали при входе: новый срок — позднейшее из текущего и «сейчас + min(ttl, срок входа)».',
+    source: 'lib/sql/80-auth.sql:session_refresh',
   },
   {
     id: 'revoked-session-empty',
     topic: 'auth',
+    caught: 'no_session',
     top: 10,
-    text: 'Отозванная или истёкшая сессия при чтении не даёт ошибки: запросы просто возвращают пустой результат. no_session бросают функции входа (auth.*) и connect() с неверным ключом или погашенным токеном — сервис проверяет сессию в начале каждого запроса.',
-    source: 'lib/sql/20-context.sql:ctx; сервис helpdesk',
+    text: 'Корень с погашенной или истёкшей сессией на любой вызов отвечает no_session — например, после me.leave(), me.closeAll(), смены пароля или отзыва ключа. В веб-сервисе проверяйте сессию в начале каждого запроса: db.resume(токен) отвечает auth_failed (api.session_closed).',
+    source: 'lib/sql/20-context.sql:ctx; lib/src/house.ts:resume',
   },
   {
     id: 'load-admin-only',
     topic: 'load',
-    text: 'db.load — только администраторское подключение (обход RLS и право стать владельцем схемы): иначе admin_required. От имени пользователя — опция as.',
-    source: 'lib/src/load.ts; пример load/01',
+    text: 'Загрузка — только мастер-ключом, командой letopis load: у корня квартиры метода load нет.',
+    source: 'lib/src/house.ts:HIDDEN; lib/src/cli.ts',
   },
   {
     id: 'initial-empty-schema',
     topic: 'load',
-    text: 'Первая заливка (load({ initial: true })) — только в пустую схему: допустимы классы, аккаунты, членства и права; иначе not_empty.',
-    source: 'lib/src/load.ts:initial; пример load/02',
+    text: 'Первая заливка (letopis load --initial) — только в пустой дом: допустимы строки системных классов (классы, аккаунты, прописки, права); иначе not_empty.',
+    source: 'lib/src/load.ts:initialSession',
   },
   {
     id: 'engine-checks-raw-sql',
@@ -528,27 +552,41 @@ const nuances: Nuance[] = [
     id: 'bad-uuid-letopis-error',
     topic: 'errors',
     caught: 'invalid_query',
-    text: 'id шага, список id и { id } в фильтре, которые не uuid (и null), — отказ invalid_query до запроса (query.bad_uuid). Значение не того типа, которое дошло до базы (SQLSTATE 22P02, например в db.sql), — тоже LetopisError с кодом invalid_query (api.db_bad_value), исходная ошибка драйвера — в err.cause. Свойство массива у цепочки (length, map…) — invalid_query «цепочка — не массив».',
+    text: 'id шага, список id и { id } в фильтре, которые не uuid (и null), — отказ invalid_query до запроса (query.bad_uuid). Значение не того типа, которое дошло до базы (SQLSTATE 22P02, например в me.sql), — тоже LetopisError с кодом invalid_query (api.db_bad_value), исходная ошибка драйвера — в err.cause. Свойство массива у цепочки (length, map…) — invalid_query «цепочка — не массив».',
     source: 'lib/src/sql.ts:compileFilter, lib/src/errors.ts:fromDbError, lib/src/chain.ts; пример errors/01-api-errors',
   },
   {
     id: 'chain-not-thenable',
     topic: 'read',
     top: 5,
-    text: 'У цепочки нет метода then: await db.Класс(…) отдаёт саму цепочку и ничего не читает — запрос выполняет терминал (rows, first, count…).',
+    text: 'У цепочки нет метода then: await me.Класс(…) отдаёт саму цепочку и ничего не читает — запрос выполняет терминал (rows, first, count…).',
     source: 'lib/src/chain.ts (then → undefined); пример write/06',
   },
   {
     id: 'cache-raced',
     topic: 'watch',
-    text: 'Ответ, во время чтения которого пришёл сигнал, способный его изменить (в том числе запоздалый сигнал своей же прошлой записи), в кэш не кладётся: такое же следующее чтение снова пойдёт в базу. Счётчик — raced в db.cache.stats().',
+    text: 'Ответ, во время чтения которого пришёл сигнал, способный его изменить (в том числе запоздалый сигнал своей же прошлой записи), в кэш не кладётся: такое же следующее чтение снова пойдёт в базу. Счётчик — raced в me.cache.stats().',
     source: 'lib/src/cache.ts (гонка запроса и сигнала); пример write/06',
   },
   {
-    id: 'service-enforces-2fa',
+    id: 'totp-enforced',
     topic: 'auth',
-    text: 'letopis не навязывает второй фактор: verifyPassword без totp даёт сессию и при включённом TOTP — требовать код должен сервис (totpEnabled).',
-    source: 'lib/src/auth.ts:verifyPassword; сервис helpdesk',
+    text: 'Подтверждённый TOTP letopis требует сам: пароль и внешний вход в эту квартиру без верного totp — отказ (api.totp_required). Ключ API, пара «ключ и секрет» и одноразовый код входа TOTP не спрашивают.',
+    source: 'lib/sql/80-auth.sql:auth_login_cred',
+  },
+  {
+    id: 'keys-recent-login',
+    topic: 'auth',
+    caught: 'acl_denied',
+    text: 'Править свои ключи (me.keys.*), менять контакт и удалять аккаунт можно 10 минут после интерактивного входа — паролем, кодом или внешним входом, с TOTP, если он включён. Из сессии по ключу API и из сессии accept у аккаунта, который уже был (ссылку могли переслать), — нельзя: acl_denied (sql-access.bind_denied).',
+    source: 'lib/sql/80-auth.sql:auth_self, auth_recent',
+  },
+  {
+    id: 'invite-one-time',
+    topic: 'auth',
+    caught: 'auth_failed',
+    text: 'Ссылка приглашения одноразовая и со сроком (7 дней по умолчанию): принятая, отменённая или просроченная — auth_failed (api.invite_inactive, причина — в err.params.status); новое приглашение того же контакта гасит прежнюю ссылку. Посмотреть приглашение, ничего не меняя, — db.invitation(token).',
+    source: 'lib/sql/80-auth.sql:invite_create, invite_accept',
   },
   {
     id: 'update-needs-filter',
@@ -561,14 +599,14 @@ const nuances: Nuance[] = [
     id: 'key-class-immutable',
     topic: 'write',
     caught: 'immutable_key',
-    text: 'Ключевые поля, класс, id, арендатор и владелец строки правкой не меняются — и сырым UPDATE тоже. Объект с другим ключом или классом — новый объект: создать его, перевести на него концы других строк и удалить прежний, одной транзакцией; у нового своя история, у прежнего она остаётся.',
+    text: 'Ключевые поля, класс, id, квартира и владелец строки правкой не меняются — и сырым UPDATE тоже. Объект с другим ключом или классом — новый объект: создать его, перевести на него концы других строк и удалить прежний, одной транзакцией; у нового своя история, у прежнего она остаётся.',
     source: 'lib/README.md, раздел 5 «Ключ и класс неизменны»; пример write/04-key-class-immutable',
   },
   {
     id: 'unknown-option',
     topic: 'install',
     caught: 'invalid_data',
-    text: 'Неизвестная опция connect(), up(), db.load(), db.watch() и createMcpServer() — отказ до подключения, с похожими именами в тексте и в err.params.similar: опечатка в опции не проходит молча.',
+    text: 'Неизвестная опция setup(), connect(), me.watch() и createMcpServer() — отказ до подключения, с похожими именами в тексте и в err.params.similar: опечатка в опции не проходит молча.',
     source: 'lib/README.md, раздел 4 «Строгий режим»; пример errors/03-strict-mcp-errors',
   },
   {
@@ -588,8 +626,40 @@ const nuances: Nuance[] = [
   {
     id: 'strict-types-loose',
     topic: 'models',
-    text: 'Подключение с моделями (connect({ models })) или с объявлениями letopis types даёт строгие типы: шаг — только класс моделей или системный, переход — только по концам, поля фильтра — поля класса. Имя класса, известное только во время выполнения, — через loose(db): то же подключение без строгих типов.',
+    text: 'Консьерж с моделями (connect(pass, { models })) или с объявлениями letopis types (параметр типа Models у connect) даёт корни квартир со строгими типами: шаг — только класс моделей или системный, переход — только по концам, поля фильтра — поля класса. Имя класса, известное только во время выполнения, — через loose(me): тот же корень без строгих типов.',
     source: 'lib/README.md, раздел 4 «Строгий режим»; пример models/06-exports',
+  },
+  {
+    id: 'rule-condition-contains',
+    topic: 'access',
+    caught: 'invalid_data',
+    text: 'Условие права — шаблон «содержит» (оператор @> PostgreSQL) по колонкам строки, а не фильтр цепочки: операторов в нём нет, grant с gt(…) или or(…) в условии — отказ invalid_data, ничего не записано. «Или» — это несколько правил: список целей заводит по правилу на каждую.',
+    source: 'lib/src/acl.ts:grant; lib/sql/50-acl.sql:acl_cands_for; пример access/02-score',
+  },
+  {
+    id: 'default-allow-everything',
+    topic: 'access',
+    text: 'setup({ defaultRule: \'allow\' }) разрешает всё, что не решили правила, — и чтение, и запись, и удаление квартиры (tenant.delete). Не открывает только внутренние права letopis.* (их выдают правила System) и выдачу ролей. Это режим прототипа, не дома с жильцами.',
+    source: 'lib/sql/95-seed.system.sql:acl_set_default; пример access/02-score',
+  },
+  {
+    id: 'acl-revoke-blind',
+    topic: 'access',
+    text: 'me.acl.revoke() правила, строк которого жилец не видит (нет права читать Resource и rule), отвечает 0 — «снимать нечего», без ошибки; с правом читать чужое правило — acl_denied. Число 0 не значит, что правила нет.',
+    source: 'lib/src/acl.ts:revoke; пример access/02-score',
+  },
+  {
+    id: 'leave-kills-keys',
+    topic: 'auth',
+    text: 'Выписка — me.leave() или me.acl.roles(аккаунт, null) — удаляет прописку, а с ней все ключи и сессии этого жильца в квартире, и открытую тоже; аккаунт и прописки в других квартирах остаются. Вернуться можно только по новому приглашению.',
+    source: 'lib/sql/80-auth.sql:member_leave; пример auth/03-leave-delete',
+  },
+  {
+    id: 'resident-only',
+    topic: 'auth',
+    caught: 'invalid_query',
+    text: 'Ключи (me.keys.*), смена контакта, выписка, удаление аккаунта и closeAll — только у жильца, вошедшего ключом (db.open, db.resume, db.accept). У консьержа в квартире (db.in(), db.as()) их нет — invalid_query (api.resident_only); удалить аккаунт жильца консьерж может своим методом db.deleteAccount(аккаунт).',
+    source: 'lib/src/house.ts:only; пример auth/03-leave-delete',
   },
 ];
 

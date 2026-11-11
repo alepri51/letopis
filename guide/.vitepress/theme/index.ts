@@ -9,13 +9,15 @@ import NavChapters from './NavChapters.vue';
 import PageOutline from './PageOutline.vue';
 import { annotate } from './glossary';
 import { resetTouch } from './anchor';
+import { localizeLabels } from './a11y';
 import './style.css';
 
-/** Обычная разметка темы, главы в меню-гамбургере, «На странице» над текстом на узком экране и подсказки глоссария в тексте каждой страницы (кроме самого глоссария). */
+/** Обычная разметка темы, главы в меню-гамбургере, «На странице» над текстом на узком экране, русские подписи для чтеца экрана (a11y.ts) и подсказки глоссария в тексте каждой страницы (кроме самого глоссария). */
 const Layout = defineComponent({
   setup() {
     const route = useRoute();
     const run = () => void nextTick(() => requestAnimationFrame(() => {
+      localizeLabels();
       const doc = document.querySelector<HTMLElement>('.vp-doc');
       if (doc && !route.path.includes('/glossary/')) annotate(doc, route.path);
     }));

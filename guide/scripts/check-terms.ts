@@ -1,5 +1,5 @@
 /**
- * Сверка словаря (план 2.0, этап 5, п. 2; тест-план 7.11 №1): одно слово на понятие. Канон — coverage/terms.ts.
+ * Сверка словаря: одно слово на понятие. Канон — coverage/terms.ts.
  * Статическая, без базы — поэтому идёт и в CI, и в шаге coverage команды prerelease.
  *
  * Что проверяет:
@@ -8,8 +8,8 @@
  * - то же в текстах примеров examples/** (title, summary, заголовки и тексты шагов — из исходника, без запуска),
  *   в описаниях справочника coverage/api-docs.ts и в схемах-плеерах .vitepress/theme/flows.ts;
  * - глоссарий: у каждой строки есть термин в terms.ts (первое слово строки), у каждого термина terms.ts есть строка
- *   (английской колонки нет: документация только на русском, английский снят в 2.0.0).
- * Страницы справочника (pages/reference/) и ошибок (pages/errors/) собраны из исходников lib — JSDoc и каталога
+ *   (английской колонки нет: документация только на русском).
+ * Страницы справочника (pages/reference/) и ошибок (pages/errors/index.md, pages/errors/codes.md) собраны из исходников lib — JSDoc и каталога
  * сообщений, которые сайт не правит: нарушения там только печатаются (предупреждение), правятся в lib. Описания
  * справочника, которые пишет сайт (coverage/api-docs.ts), проверяются строго.
  *
@@ -127,7 +127,8 @@ const errors: string[] = [];
 let pages = 0;
 for (const f of walk(join(ROOT, 'pages'), '.md')) {
   const r = rel(f);
-  const fromLib = r.startsWith('pages/reference/') || r === 'pages/errors/index.md';
+  // обе страницы ошибок собирает gen-errors.ts из каталога сообщений lib
+  const fromLib = r.startsWith('pages/reference/') || r === 'pages/errors/index.md' || r === 'pages/errors/codes.md';
   const raw = readFileSync(f, 'utf8').replace(/\r\n/g, '\n');
   scan(visibleMd(raw), raw, r, linesOf(raw), fromLib ? warns : hits);
   pages++;

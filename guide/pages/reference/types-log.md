@@ -6,7 +6,7 @@ outline: [2, 2]
 
 # Типы: журнал
 
-Опции журнала `connect({ log, logLevel, redact })`, событие журнала, логгер, каталог событий. Все темы — на странице [Типы](./types).
+Опции журнала `setup(…, { log, logLevel, redact })` и `connect(pass, { log, logLevel, redact })`, событие журнала, логгер, каталог событий. Все темы — на странице [Типы](./types).
 
 ## LogEvent {#type-logevent}
 
@@ -20,15 +20,15 @@ interface LogEvent {
   level: Exclude<LogLevel, 'off'>;
   /** Имя события: connect, read, write, delete, error, sql и др. */
   event: string;
-  /** Операция: терминал или глагол цепочки, метод db, auth, acl, инструмент MCP. */
+  /** Операция: терминал или глагол цепочки, метод дома или квартиры (в том числе keys.*), acl, инструмент MCP. */
   op?: string;
   /** Длительность операции, мс (с точностью до 0,1). */
   ms?: number;
-  /** Арендатор сессии подключения (db, db.as(), db.begin()). */
+  /** Квартира сессии фасада (корень квартиры, me.begin()). */
   tenant?: string;
-  /** Аккаунт подключения: аккаунт сессии или тот, от чьего имени действует db.as(). */
+  /** Аккаунт фасада: аккаунт сессии или жилец, от чьего имени действует консьерж (db.as(аккаунт, 'Мир')). */
   account?: string;
-  /** Метка транзакции db.begin() или db.transaction(). */
+  /** Метка транзакции me.begin() или me.transaction(). */
   tx?: string;
   /** Цепочка в читаемом виде: `Shop({"name":"A"}).Product.limit(10).rows()`; данные записи — только именами полей. */
   chain?: string;
@@ -74,32 +74,6 @@ type LogFn = (event: LogEvent) => unknown;
 type Logger = LogFn | LogObject;
 ```
 
-## LoginOptions {#type-loginoptions}
-
-**Импорт:** `import type { LoginOptions } from 'letopis'`
-
-```ts
-/** Роль приложения up({ login }): `{ user, password }` (поле — `user`, не `name`). */
-interface LoginOptions {
-  /** Имя роли PostgreSQL для приложения, например `'shop_app'`: нет — up() её создаёт, есть — меняет пароль. */
-  user: string;
-  /** Пароль роли: войдёт в строку подключения `r.login.dsn`. */
-  password: string;
-}
-```
-
-## LoginResult {#type-loginresult}
-
-**Импорт:** `import type { LoginResult } from 'letopis'`
-
-```ts
-/** Успешный вход: аккаунт и токен новой сессии. */
-interface LoginResult {
-  account: string;
-  token: string;
-}
-```
-
 ## LogLevel {#type-loglevel}
 
 **Импорт:** `import type { LogLevel } from 'letopis'`
@@ -129,7 +103,7 @@ interface LogObject {
 **Импорт:** `import type { LogOptions } from 'letopis'`
 
 ```ts
-/** Опции логирования connect() и up(). */
+/** Опции логирования connect() и setup(). */
 interface LogOptions {
   /**
    * Логгер: функция `(событие) => void` или объект с методами `debug`, `info`, `warn`, `error` (pino, console). Без него

@@ -5,12 +5,16 @@
  *   cd guide && npx tsx scripts/gen-api.ts --check         только сверить: код 1, если страница устарела, у пункта нет
  *                                                          описания или в coverage/api-docs.ts ключ, которого нет в API
  *
- * Инвентарь — из кода, как у scripts/coverage.ts: методы цепочки, корня и батча (CHAIN_METHODS, DB_METHODS,
- * BATCH_METHODS; объявления — ChainCore, StepFn, DbCore, Batch), члены AuthApi, AclApi, Subscription, Registry, End,
- * опции (ConnectOptions, UpOptions, …), экспорты точек входа (lib/api-contract.json), команды CLI (USAGE в
- * lib/src/cli.ts), инструменты MCP (lib/src/mcp.ts). Сигнатуры и типы — TypeScript Compiler API, описания — JSDoc; чего
- * в JSDoc нет — coverage/api-docs.ts (ключ — id пункта, как в covers примеров). Ссылки на примеры — по covers примеров
+ * Инвентарь — из кода, как у scripts/coverage.ts: методы цепочки и батча (CHAIN_METHODS, BATCH_METHODS; объявления —
+ * ChainCore, StepFn, Batch), корень квартиры (тип Room в lib/src/house.ts: DbCore без того, что Room исключает, и
+ * RoomExtra; имена сверяются с DB_METHODS), члены House (консьерж), KeysApi, AclApi, Subscription, Registry, End, опции
+ * (SetupOptions, HouseOptions, …), экспорты точек входа (lib/api-contract.json), команды CLI (USAGE в lib/src/cli.ts),
+ * инструменты MCP (lib/src/mcp.ts). Сигнатуры и типы — TypeScript Compiler API, описания — JSDoc; чего в JSDoc нет —
+ * coverage/api-docs.ts (ключ — id пункта, как в covers примеров). Ссылки на примеры — по covers примеров
  * examples/<глава>/*.ts.
+ *
+ * Имена в заголовках — как в README: `db` — консьерж из `connect(pass, { postman })` (пункты `house.*`), `me` — корень
+ * квартиры (тип в коде — `Room`; пункты `db.*` — имена DB_METHODS, `keys.*`, `acl.*`, `dbcache.*`).
  */
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, sep } from 'node:path';
@@ -70,11 +74,27 @@ function constArray(file: string, name: string): string[] {
   if (!ts.isArrayLiteralExpression(e)) throw new Error(`gen-api: ${name} — не список`);
   return e.elements.filter(ts.isStringLiteralLike).map((x) => x.text);
 }
+/** Ключи `Omit<База, 'a' | 'b'>` внутри псевдонима типа: `type Room = Omit<DbCore, 'load'> & …` → load. */
+function omitted(file: string, alias: string, base: string): string[] {
+  const d = find(file, ts.isTypeAliasDeclaration, alias);
+  let keys: string[] | null = null;
+  const visit = (n: ts.Node): void => {
+    if (ts.isTypeReferenceNode(n) && n.typeName.getText() === 'Omit' && n.typeArguments?.[0].getText() === base) {
+      const k = n.typeArguments[1];
+      keys = (ts.isUnionTypeNode(k) ? [...k.types] : [k])
+        .map((t) => (ts.isLiteralTypeNode(t) && ts.isStringLiteral(t.literal) ? t.literal.text : ''))
+        .filter(Boolean);
+    } else ts.forEachChild(n, visit);
+  };
+  visit(d.type);
+  if (!keys) throw new Error(`gen-api: в типе ${alias} (lib/src/${file}) нет Omit<${base}, …>`);
+  return keys;
+}
 
 // ---------- JSDoc ----------
 interface Doc { text: string; params: Record<string, string>; returns?: string; def?: string }
 /**
- * Ссылки на план, этапы, решения точек, ревью и 0.21 («(план 1.1, §2.4)», «(по умолчанию 100; решение 9 точки А)»)
+ * Ссылки на планы, этапы, решения точек и ревью («(план, §2.4)», «(по умолчанию 100; решение 9 точки А)»)
  * читателю сайта ничего не говорят: из скобок убираются такие части, пустые скобки — целиком.
  */
 const REF_PART = /^\s*(?:план(?:\s*[\d.]*\d)?|этап\s*\d+|§\s*[\d.]*\d(?:\s+предложения)?|п\.\s*\d+|решени[ея](?:\s+\d+)?\s+точки\s+[АБВ]|доработки после точки [АБВ]|ревью безопасности(?:\s*№\s*\d+)?|О\d+|[^,;]*\b0\.21\b[^,;]*|[^,;]*letopis import[^,;]*|импорт|как в 1\.0)\s*$/;
@@ -263,7 +283,7 @@ function typeLiteralMembers(t: ts.TypeNode): ts.TypeElement[] {
   return [];
 }
 
-// цепочка: ChainCore и шаги ролей StepFn
+// цепочка: ChainCore и шаги концов StepFn
 const chainCore = new Map(find('chain.ts', ts.isInterfaceDeclaration, 'ChainCore').members.map((m) => [m.name!.getText(), m]));
 const stepFn = find('chain.ts', ts.isTypeAliasDeclaration, 'StepFn');
 const slots = new Map(typeLiteralMembers(stepFn.type).filter((m) => m.name).map((m) => [m.name!.getText(), m]));
@@ -271,26 +291,30 @@ const callPart = (ts.isIntersectionTypeNode(stepFn.type) ? stepFn.type.types : [
   .map((t) => (ts.isParenthesizedTypeNode(t) ? t.type : t)).find(ts.isFunctionTypeNode)!;
 add({
   id: 'chain.step', kind: 'method', title: '.Класс(фильтр)', jsdoc: jsdocOf(stepFn), ...where(stepFn),
-  signature: [sigText('db.Класс', callPart), sigText('chain.Класс', callPart), sigText('chain.Роль', callPart)].join('\n'),
+  signature: [sigText('me.Класс', callPart), sigText('chain.Класс', callPart), sigText('chain.Конец', callPart)].join('\n'),
   params: paramsOf(callPart), returnType: returnTypeOf(callPart),
 });
 for (const name of constArray('types.ts', 'CHAIN_METHODS')) {
   if (EXCLUDED.has(`chain.${name}`)) continue;
   const m = chainCore.get(name) ?? slots.get(name);
   if (!m) throw new Error(`gen-api: метод цепочки ${name} не найден ни в ChainCore, ни в StepFn`);
-  add(memberItem(`chain.${name}`, slots.has(name) && !chainCore.has(name) ? `.Роль.${name}()` : `.${name}()`, m));
+  add(memberItem(`chain.${name}`, slots.has(name) && !chainCore.has(name) ? `.Конец.${name}()` : `.${name}()`, m));
 }
 
-// корень db: DbCore, свойство cache, батч
-const dbCore = new Map(find('index.ts', ts.isInterfaceDeclaration, 'DbCore').members.map((m) => [m.name!.getText(), m]));
+// корень квартиры: тип Room — DbCore без исключённых членов и RoomExtra (свои tenant, приглашения, ключи, выписка);
+// свойство cache, батч. Исключённое и не возвращённое RoomExtra (load, maintain) у корня квартиры не вызвать: загрузка и
+// обслуживание — команды CLI мастер-ключом, в справочнике это пункты cli.load и cli.maintain
+const dbCore = new Map(find('core.ts', ts.isInterfaceDeclaration, 'DbCore').members.map((m) => [m.name!.getText(), m]));
+const roomExtra = new Map(find('house.ts', ts.isInterfaceDeclaration, 'RoomExtra').members.map((m) => [m.name!.getText(), m]));
+const notInRoom = new Set(omitted('house.ts', 'Room', 'DbCore').filter((n) => !roomExtra.has(n)));
+const room = new Map([...[...dbCore].filter(([n]) => !notInRoom.has(n) && !roomExtra.has(n)), ...roomExtra]);
 for (const name of constArray('types.ts', 'DB_METHODS')) {
-  if (!EXCLUDED.has(`db.${name}`) && !dbCore.has(name)) throw new Error(`gen-api: db.${name} нет в DbCore`);
+  if (!EXCLUDED.has(`db.${name}`) && !notInRoom.has(name) && !room.has(name)) throw new Error(`gen-api: db.${name} нет ни в DbCore, ни в RoomExtra`);
 }
-for (const [name, m] of dbCore) {
-  const it = memberItem(`db.${name}`, `db.${name}${ts.isMethodSignature(m) ? '()' : ''}`, m);
-  add(it);
+for (const [name, m] of room) {
+  add(memberItem(`db.${name}`, `me.${name}${ts.isMethodSignature(m) ? '()' : ''}`, m));
   if (name === 'cache' && ts.isPropertySignature(m) && m.type) {
-    for (const cm of typeLiteralMembers(m.type)) add(memberItem(`dbcache.${cm.name!.getText()}`, `db.cache.${cm.name!.getText()}()`, cm));
+    for (const cm of typeLiteralMembers(m.type)) add(memberItem(`dbcache.${cm.name!.getText()}`, `me.cache.${cm.name!.getText()}()`, cm));
   }
 }
 const batch = find('chain.ts', ts.isTypeAliasDeclaration, 'Batch');
@@ -301,15 +325,18 @@ for (const name of constArray('types.ts', 'BATCH_METHODS')) {
   if (!items.has(`batch.${name}`)) throw new Error(`gen-api: batch.${name} нет в типе Batch`);
 }
 
-// db.auth, db.acl, подписка, реестр, конец связи
-for (const m of find('auth.ts', ts.isInterfaceDeclaration, 'AuthApi').members) add(memberItem(`auth.${m.name!.getText()}`, `db.auth.${m.name!.getText()}()`, m));
-for (const m of find('acl.ts', ts.isInterfaceDeclaration, 'AclApi').members) add(memberItem(`acl.${m.name!.getText()}`, `db.acl.${m.name!.getText()}()`, m));
+// консьерж, ключи жильца, права, подписка, реестр, конец связи
+for (const m of find('house.ts', ts.isInterfaceDeclaration, 'House').members) {
+  add(memberItem(`house.${m.name!.getText()}`, `db.${m.name!.getText()}${ts.isMethodSignature(m) ? '()' : ''}`, m));
+}
+for (const m of find('house.ts', ts.isInterfaceDeclaration, 'KeysApi').members) add(memberItem(`keys.${m.name!.getText()}`, `me.keys.${m.name!.getText()}()`, m));
+for (const m of find('acl.ts', ts.isInterfaceDeclaration, 'AclApi').members) add(memberItem(`acl.${m.name!.getText()}`, `me.acl.${m.name!.getText()}()`, m));
 for (const m of classMembers('watch.ts', 'Subscription')) {
   const n = m.name!.getText();
   const key = n === '[Symbol.asyncIterator]' ? 'asyncIterator' : n;
   add(memberItem(`subscription.${key}`, n === '[Symbol.asyncIterator]' ? 'for await (const ev of sub)' : `sub.${n}${ts.isMethodDeclaration(m) ? '()' : ''}`, m));
 }
-for (const m of classMembers('registry.ts', 'Registry')) add(memberItem(`registry.${m.name!.getText()}`, `db.registry.${m.name!.getText()}${ts.isMethodDeclaration(m) ? '()' : ''}`, m));
+for (const m of classMembers('registry.ts', 'Registry')) add(memberItem(`registry.${m.name!.getText()}`, `me.registry.${m.name!.getText()}${ts.isMethodDeclaration(m) ? '()' : ''}`, m));
 for (const m of classMembers('model.ts', 'End')) add(memberItem(`end.${m.name!.getText()}`, `конец.${m.name!.getText()}${ts.isMethodDeclaration(m) ? '()' : ''}`, m));
 
 // экспорты точек входа
@@ -413,21 +440,21 @@ for (const [entry, prefix, file] of ENTRIES) {
   }
 }
 
-// опции: члены интерфейсов (с наследованием — через типы TypeScript)
+// опции: члены интерфейсов и псевдонимов типов (с наследованием и Omit — через типы TypeScript)
 interface Group { prefix: string; iface: string; file: string; owner: string }
 const GROUPS: Group[] = [
-  { prefix: 'connect', iface: 'ConnectOptions', file: 'index.ts', owner: 'export.connect' },
-  { prefix: 'up', iface: 'UpOptions', file: 'up.ts', owner: 'export.up' },
-  { prefix: 'tenant', iface: 'TenantOptions', file: 'up.ts', owner: 'export.createTenant' },
+  { prefix: 'setup', iface: 'SetupOptions', file: 'up.ts', owner: 'export.setup' },
+  { prefix: 'connect', iface: 'HouseOptions', file: 'house.ts', owner: 'export.connect' },
   { prefix: 'watch', iface: 'WatchOptions', file: 'watch.ts', owner: 'db.watch' },
   { prefix: 'cache', iface: 'CacheOptions', file: 'cache.ts', owner: 'db.cache' },
-  { prefix: 'load', iface: 'LoadOptions', file: 'load.ts', owner: 'db.load' },
   { prefix: 'mcpopt', iface: 'McpOptions', file: 'mcp.ts', owner: 'mcp.createMcpServer' },
   { prefix: 'class', iface: 'ClassDef', file: 'model.ts', owner: 'model.hub' },
 ];
+const isOptionsDecl = (n: ts.Node): n is ts.InterfaceDeclaration | ts.TypeAliasDeclaration =>
+  ts.isInterfaceDeclaration(n) || ts.isTypeAliasDeclaration(n);
 const groupOf = new Map<string, Group>();
 for (const g of GROUPS) {
-  const decl = find(g.file, ts.isInterfaceDeclaration, g.iface);
+  const decl = find(g.file, isOptionsDecl, g.iface);
   const type = checker.getDeclaredTypeOfSymbol(checker.getSymbolAtLocation(decl.name)!);
   for (const p of checker.getPropertiesOfType(type)) {
     const d = (p.valueDeclaration ?? p.declarations?.[0]) as ts.PropertySignature | ts.MethodSignature | undefined;
@@ -447,11 +474,14 @@ for (const g of GROUPS) {
 // команды CLI — из USAGE
 const usage = find('cli.ts', ts.isVariableDeclaration, 'USAGE').initializer!;
 const usageText = ts.isNoSubstitutionTemplateLiteral(usage) || ts.isStringLiteral(usage) ? usage.text : '';
+// строка с отступом продолжает команду выше; строка без отступа и не «letopis …» — общая для всех команд (--log,
+// что такое мастер-ключ и дом): о ней — вступление страницы CLI, к последней команде она не относится
 const cli = new Map<string, string[]>();
 let lastCmd = '';
 for (const line of usageText.split('\n')) {
   const m = line.match(/^letopis (\w+)\b/);
-  if (m) { lastCmd = m[1]; cli.set(lastCmd, [line]); } else if (lastCmd && line.trim()) cli.get(lastCmd)!.push(line);
+  if (m) { lastCmd = m[1]; cli.set(lastCmd, [line]); } else if (/^\s/.test(line) && lastCmd && line.trim()) cli.get(lastCmd)!.push(line);
+  else lastCmd = '';
 }
 if (!cli.size) throw new Error('gen-api: в lib/src/cli.ts не найден USAGE');
 for (const [cmd, lines] of cli) {
@@ -459,7 +489,7 @@ for (const [cmd, lines] of cli) {
   const params: Param[] = [];
   const seen = new Set<string>();
   // позиционные аргументы и флаги: необязательные — в [ ]
-  // строки-пояснения в скобках (например, у mcp: «(или LETOPIS_DSN …; --api-key не принимается)») — не аргументы
+  // строки-пояснения в скобках (например, у mcp: «(или LETOPIS_PASS и LETOPIS_KEY; …)») — не аргументы
   const argText = lines.filter((l) => !/^\s*\(/.test(l)).join('\n');
   for (const m of argText.matchAll(/(\[?)(--[a-z][a-z-]*|<[^>]+>)(?:\s+(<[^>]+>|[a-z]+(?:\|[a-z]+)+))?/g)) {
     const name = m[2];
@@ -549,14 +579,14 @@ for (const file of exampleFiles()) {
 interface Section { title: string; intro?: string; ids: string[] }
 /** note — заметка после вступления: пункт covers без своего метода (якорь — как у пункта) и текст. */
 interface Page { file: string; title: string; intro: string; sections: Section[]; notes?: { id: string; title: string; text: string }[] }
-/** Таблица операторов — из реестра OPERATORS (lib/src/ops.ts; план 2.0, этап 3, п. 5), как в README и шпаргалке. */
+/** Таблица операторов — из реестра OPERATORS (lib/src/ops.ts), как в README и шпаргалке. */
 const OPS_INTRO = 'Оператор ставится значением поля в фильтре шага, простое значение — равенство. Колонка MCP — ключи JSON-фильтра инструмента `letopis_query`; `$or` ставится вместо всего фильтра.\n\n' + operatorTable();
 
 const PAGES: Page[] = [
   {
     file: 'chain', title: 'Цепочка',
-    intro: 'Цепочка — это вызовы подряд: `db.Класс(фильтр)` начинает путь, шаги переходят по связям, модификаторы уточняют выборку, глагол говорит, что сделать, а терминал отправляет запрос в базу. Пока не вызван терминал, база не тронута. Глаголы складывают план записи — что сделать с какими объектами; терминал выполняет весь план одной транзакцией.',
-    notes: [{ id: 'chain.then', title: 'Цепочка — не промис', text: 'У цепочки нет метода `then`: `await db.Класс(…)` без терминала отдаёт саму цепочку и ничего не читает. Имя `then` занято — класс так назвать нельзя.' }],
+    intro: 'Цепочка — это вызовы подряд: `me.Класс(фильтр)` начинает путь у корня квартиры, шаги переходят по концам, модификаторы уточняют выборку, глагол говорит, что сделать, а терминал отправляет запрос в базу. Пока не вызван терминал, база не тронута. Глаголы складывают план записи — что сделать с какими объектами; терминал выполняет весь план одной транзакцией. Корень квартиры `me` даёт консьерж `db` из `connect(pass)`: жильцу — `db.open(ключ)` или `db.accept(token)`, консьержу — `db.in(квартира)`; у самого `db` шагов классов нет.',
+    notes: [{ id: 'chain.then', title: 'Цепочка — не промис', text: 'У цепочки нет метода `then`: `await me.Класс(…)` без терминала отдаёт саму цепочку и ничего не читает. Имя `then` занято — класс так назвать нельзя.' }],
     sections: [
       { title: 'Шаг', ids: ['chain.step'] },
       { title: 'Модификаторы', intro: 'Модификатор уточняет цепочку и возвращает её продолжение: сколько строк, в каком порядке, на какой момент.', ids: ['chain.limit', 'chain.offset', 'chain.sort', 'chain.after', 'chain.asOf', 'chain.withDeleted', 'chain.deep', 'chain.exact', 'chain.alias', 'chain.tags', 'chain.owner', 'chain.entity', 'chain.forUpdate', 'chain.cache'] },
@@ -568,40 +598,35 @@ const PAGES: Page[] = [
     intro: 'Запись — те же цепочки: шаги выбирают объекты, глагол ставит запись в план, терминал (`rows()`, `first()`, `ids()`, `count()`, `paths()`) выполняет весь план одной транзакцией. Шаги, модификаторы и терминалы — на странице [Цепочка](./chain).',
     sections: [
       { title: 'Глаголы записи', intro: 'Глагол ставит запись в план. Исполняет план терминал (`rows()`, `first()`, `ids()`, `count()`, `paths()`). `update()` и `delete({ confirm: true, expect })` правят только цели, которые сузили фильтр, id, `tags()`, `owner()` или `limit()` хотя бы одного шага; все строки шага — явно, опцией `{ all: true }`, иначе `invalid_query` до записи. Подтверждённое удаление идёт только с `expect` — предпросмотром, который видел пользователь, а `restore()` — только с `expect` (надгробиями); без сверки — осознанно, `{ all: true }`.', ids: ['chain.create', 'chain.update', 'chain.upsert', 'chain.delete', 'chain.restore'] },
-      { title: 'Шаги ролей', intro: 'После глагола записи шаг роли без вызова задаёт конец: `.Роль.set(…)`, `.Роль.unset()`, у множественного конца ещё `.add(…)` и `.remove(…)`.', ids: ['chain.set', 'chain.unset', 'chain.add', 'chain.remove'] },
+      { title: 'Шаги концов', intro: 'После глагола записи шаг с именем конца без вызова задаёт конец: `.Конец.set(…)`, `.Конец.unset()`, у множественного конца ещё `.add(…)` и `.remove(…)`.', ids: ['chain.set', 'chain.unset', 'chain.add', 'chain.remove'] },
     ],
   },
   {
-    file: 'db', title: 'Корень db',
-    intro: '`db` — подключение, которое возвращает `connect()`. Классы модели — стартовые шаги цепочек (`db.Класс(фильтр)`), остальное — служебные методы и свойства. Транзакция `db.begin()` и подключение `db.as()` устроены так же.',
+    file: 'db', title: 'Корень квартиры',
+    intro: '`me` — корень квартиры (тип в коде — `Room`): с него начинаются цепочки (`me.Класс(фильтр)`), остальное — служебные методы и свойства. Жильцу корень дают `db.open(ключ)`, `db.resume(токен)` и `db.accept(token)` — с правами жильца; консьержу — `db.in(квартира)` (полный доступ) и `db.as(аккаунт, квартира)` (права жильца); `db` — консьерж из `connect(pass)`. Транзакция `me.begin()` — такой же корень с цепочками, транзакциями и сырым SQL, но без приглашений, ключей и выписки. Загрузки и обслуживания у корня квартиры нет: загрузка — команда `letopis load` мастер-ключом, обслуживание — `db.maintain()` консьержа или `letopis maintain`.',
     sections: [
-      { title: 'Свойства', ids: ['db.schema', 'db.token', 'db.tenant', 'db.registry'] },
-      { title: 'От имени другого аккаунта', ids: ['db.as'] },
+      { title: 'Свойства', ids: ['db.schema', 'db.token', 'db.tenant', 'db.tenantName', 'db.account', 'db.concierge', 'db.registry'] },
+      { title: 'Квартира', ids: ['db.deleteTenant'] },
       { title: 'Транзакции и сырой SQL', ids: ['db.begin', 'db.commit', 'db.rollback', 'db.lock', 'db.transaction', 'db.sql'] },
       { title: 'Батч', ids: ['db.batch', 'batch.run', 'batch.discard', 'batch.size'] },
       { title: 'Модель и id', ids: ['db.entity', 'db.idOf', 'db.refresh'] },
-      { title: 'Обслуживание', ids: ['db.maintain', 'db.flushSignals', 'db.close'] },
+      { title: 'Сигналы и закрытие', ids: ['db.flushSignals', 'db.close'] },
     ],
   },
   {
-    file: 'auth', title: 'Вход: db.auth',
-    intro: '`db.auth` — способы входа (креды), вход по ним и сессии. Проверку паролей, кодов и TOTP, выпуск сессий и подтверждение кредов вызывает сервис (права `auth.*`); обычному пользователю отвечают `acl_denied`.',
+    file: 'auth', title: 'Вход, приглашения и ключи',
+    intro: 'Вход — у консьержа `db`: пароль, ключ API, ключ с секретом и внешний вход открывают квартиру этого ключа, вход кодом (`db.requestCode`) доказывает контакт, а квартиру выбирают при входе; ответ — корень квартиры `me` с правами жильца. Новых людей зовут приглашением `me.invite(контакт, роли)`: ссылку с токеном доставляет почтальон из `connect(pass, { postman })`, человек принимает её `db.accept(token)` — пароль по желанию. Остальные ключи жилец заводит сам — `me.keys`, только свои и только в квартире, куда вошёл. Ключ, который не подошёл, — `auth_failed`, причину ответ не раскрывает.',
     sections: [
-      { title: 'Свойство', ids: ['db.auth'] },
-      { title: 'Пароли', ids: ['auth.setPassword', 'auth.verifyPassword'] },
-      { title: 'Ключи API', ids: ['auth.issueApiKey', 'auth.verifyApiKey', 'auth.issueKeySecret', 'auth.verifyKeySecret'] },
-      { title: 'TOTP', ids: ['auth.enrollTotp', 'auth.verifyTotp', 'auth.totpEnabled'] },
-      { title: 'Одноразовые коды', ids: ['auth.issueOtp', 'auth.verifyOtp'] },
-      { title: 'Внешние учётные записи', ids: ['auth.link', 'auth.lookup'] },
-      { title: 'Креды', ids: ['auth.credentials', 'auth.revokeCredential', 'auth.setFlags'] },
-      { title: 'Сессии', ids: ['auth.sessionFor', 'auth.session', 'auth.refresh', 'auth.revoke', 'auth.revokeAll'] },
-      { title: 'Арендаторы', ids: ['auth.tenants', 'auth.switch'] },
-      { title: 'Удаление аккаунта', ids: ['auth.purgeAccount'] },
+      { title: 'Вход', ids: ['house.open', 'house.resume', 'house.requestCode', 'house.tenantsOf'] },
+      { title: 'Приглашения', ids: ['db.invite', 'house.invitation', 'house.accept', 'db.invites', 'db.revokeInvite'] },
+      { title: 'Контакт и имя', ids: ['db.changeContact', 'db.changeName'] },
+      { title: 'Ключи жильца', ids: ['db.keys', 'keys.*'] },
+      { title: 'Сессия и выписка', ids: ['db.refreshSession', 'db.closeAll', 'db.leave', 'db.deleteAccount'] },
     ],
   },
   {
-    file: 'acl', title: 'Права: db.acl',
-    intro: 'Права проверяет база: правила (`rule`) и ресурсы (`Resource`) — обычные классы. `db.acl` только спрашивает решение для того, от чьего имени идёт запрос.',
+    file: 'acl', title: 'Права: me.acl',
+    intro: 'Права проверяет база по матрице: ресурсы (`Resource`) — маски «кто» и «что», правила (`rule`) связывают их. Для каждой строки, каждого действия API и каждой роли побеждает подходящее правило с наибольшим счётом: ключи маски «кто» + 1 за класс, действие или роль + поля условия + 1 у запрета + вес. Роль — тоже ресурс: выдать и снять её (позвать с ней, вписать в прописку) можно только по правилу `me.acl.grant({ role, assign })`, правило по умолчанию ролей не выдаёт. Ничья «можно» против «нельзя»: строка не видна, а `me.acl.check`, `checkData`, `checkRole` и запись спорящего правила отвечают `acl_ambiguous`; подходящих правил нет — правило по умолчанию (на свежем доме — «нельзя»). `me.acl` спрашивает решение для того, от чьего имени идёт запрос, и правит правила квартиры.',
     sections: [{ title: 'Методы', ids: ['db.acl', 'acl.*'] }],
   },
   {
@@ -614,15 +639,16 @@ const PAGES: Page[] = [
   },
   {
     file: 'load', title: 'Загрузка',
-    intro: 'Загрузчик пишет много строк любых классов быстрее цепочек: проверки — в коде, строки — через COPY. Работает только на администраторском подключении.',
-    sections: [{ title: 'Загрузчик', ids: ['db.load'] }],
+    intro: 'Загрузчик пишет много строк любых классов быстрее цепочек: проверки — в коде, строки — через `COPY`. Запускается только мастер-ключом — командой `letopis load`; у корня квартиры метода `load` нет.',
+    sections: [{ title: 'Команда', ids: ['cli.load'] }],
   },
   {
-    file: 'setup', title: 'Установка и подключение',
-    intro: '`up()` ставит или обновляет схему, `connect()` открывает подключение, `createTenant()` заводит арендатора с первым пользователем. Неизвестную опцию `up()` и `connect()` отклоняют с `invalid_data` и похожими именами до подключения.',
+    file: 'setup', title: 'Дом и консьерж',
+    intro: '`setup()` мастер-ключом строит или достраивает дом и отдаёт пропуск консьержа, `demolish()` сносит дом. `connect(pass, { postman })` подключает консьержа — `db`: квартиры, вход по ключам и кодам, приглашения, обслуживание; письма (ссылки приглашений и коды) доставляет почтальон — функция приложения. В квартиру консьерж входит `db.in()` или `db.as()`. Неизвестную опцию `setup()` и `connect()` отклоняют с `invalid_data` и похожими именами до подключения.',
     sections: [
-      { title: 'Функции', ids: ['export.up', 'export.connect', 'export.createTenant'] },
-      { title: 'Строгие типы', intro: '`connect({ models })` с моделями `letopis/model` или `connect<Models>()` с объявлениями `letopis types` дают подключение со строгими типами: шаг — только известный класс, переход — по концам, шаг роли — роль записываемого класса. Имя, известное только во время выполнения, — через `loose(db)`.', ids: ['export.loose'] },
+      { title: 'Дом', ids: ['export.setup', 'export.demolish'] },
+      { title: 'Консьерж', ids: ['export.connect', 'house.schema', 'house.createTenant', 'house.tenants', 'house.in', 'house.as', 'house.contactOf', 'house.deleteAccount', 'house.maintain', 'house.close'] },
+      { title: 'Строгие типы', intro: '`connect(pass, { models })` с моделями `letopis/model` или `connect<Models>(pass)` с объявлениями `letopis types` дают корни квартир со строгими типами: шаг — только известный класс, переход — по концам, шаг конца — конец записываемого класса. Без моделей корень принимает шагом любое имя (`me.Order()`) и проверяет его во время выполнения. Имя, известное только во время выполнения, — через `loose(me)`.', ids: ['export.loose'] },
     ],
   },
   {
@@ -637,28 +663,28 @@ const PAGES: Page[] = [
   },
   {
     file: 'filters', title: 'Операторы фильтров',
-    intro: 'Операторы ставятся значением поля в фильтре шага цепочки: `db.Product({ price: gt(100) })`. Все — из основного пакета: `import { gt, or } from \'letopis\'`.',
+    intro: 'Операторы ставятся значением поля в фильтре шага цепочки: `me.Product({ price: gt(100) })`. Все — из основного пакета: `import { gt, or } from \'letopis\'`.',
     sections: [
       { title: 'Операторы фильтров', intro: OPS_INTRO, ids: ['export.ne', 'export.gt', 'export.gte', 'export.lt', 'export.lte', 'export.between', 'export.inList', 'export.like', 'export.ilike', 'export.starts', 'export.ends', 'export.has', 'export.hasAny', 'export.hasAll', 'export.exists', 'export.isNull', 'export.not', 'export.or', 'export.isOp'] },
     ],
   },
   {
     file: 'utils', title: 'Служебные экспорты',
-    intro: 'Функции и константы пакета `letopis`, которые не относятся к подключению: приращение и курсор, id, ошибки, проверка данных, пароли. Операторы фильтров — на странице [Операторы фильтров](./filters).',
+    intro: 'Функции и константы пакета `letopis`, которые не относятся к дому и консьержу: приращение и курсор, id, ошибки, проверка данных, коды TOTP. Операторы фильтров — на странице [Операторы фильтров](./filters).',
     sections: [
       { title: 'Приращение и курсор', ids: ['export.inc', 'export.isInc', 'export.cursorOf'] },
       { title: 'id объектов', ids: ['export.idOf', 'export.uuidv5', 'export.v5Name', 'export.v5Id'] },
       { title: 'Ошибки', ids: ['export.LetopisError', 'export.ValidationError', 'export.fromDbError'] },
       { title: 'Проверка данных', ids: ['export.compileValidator', 'export.applyDefaults'] },
       { title: 'Реестр классов', ids: ['export.Registry', 'registry.*'] },
-      { title: 'Пароли и коды', ids: ['export.hashPassword', 'export.verifyHash', 'export.totpCode'] },
-      { title: 'Логирование', intro: 'Каталог событий журнала: имя, уровень, описание. Как включить журнал — `connect({ log, logLevel })`, `LETOPIS_LOG`, `--log`; глава «Логирование».', ids: ['export.LOG_EVENTS'] },
+      { title: 'Коды TOTP', ids: ['export.totpCode'] },
+      { title: 'Логирование', intro: 'Каталог событий журнала: имя, уровень, описание. Как включить журнал — `setup(…, { log, logLevel })`, `connect(pass, { log, logLevel })`, `LETOPIS_LOG`, `--log`; глава «Логирование».', ids: ['export.LOG_EVENTS'] },
       { title: 'Константы', ids: ['export.DDL_REVISION', 'export.RESERVED_CLASS_NAMES', 'export.CHAIN_METHODS', 'export.DB_METHODS'] },
     ],
   },
   {
     file: 'mcp', title: 'MCP: letopis/mcp',
-    intro: 'Сервер MCP даёт ИИ-агенту инструменты letopis от имени одного пользователя: права и арендатор — его сессии.',
+    intro: 'Сервер MCP даёт ИИ-агенту инструменты letopis от имени одного жильца: права и квартира — его ключа. Корень консьержа (`db.in()`, `db.as()`) агенту не отдаётся: полного доступа у агента нет.',
     sections: [
       { title: 'Сервер', ids: ['mcp.createMcpServer'] },
       { title: 'Инструменты', ids: ['mcptool.*'] },
@@ -666,8 +692,8 @@ const PAGES: Page[] = [
   },
   {
     file: 'cli', title: 'Командная строка',
-    intro: 'Команда `letopis` ставится вместе с пакетом. Подключение — `--dsn` и `--schema`, вход — `--token` (токен сессии) или `--api-key` (ключ API); `letopis mcp` принимает только `--token`.',
-    sections: [{ title: 'Команды', ids: ['cli.*'] }],
+    intro: 'Команда `letopis` ставится вместе с пакетом. Служебные команды `sync`, `types`, `load` и `maintain` работают мастер-ключом (обслуживание без мастер-ключа — `db.maintain()` консьержа): `--dsn` — строка подключения администратора PostgreSQL, `--schema` — имя дома из `setup()` (`shop` — это `v2.shop`). `letopis mcp` — сервер MCP для ИИ-агента: пропуск консьержа и ключ API жильца. У любой команды есть `--log[=уровень]` — события JSON-строками в stderr: `debug`, `info`, `warn`, `error` или `off`, без значения — `info`; без флага действует переменная `LETOPIS_LOG`. Загрузка `letopis load` — на странице [Загрузка](./load).',
+    sections: [{ title: 'Команды', ids: ['cli.sync', 'cli.types', 'cli.maintain', 'cli.mcp'] }],
   },
 ];
 
@@ -760,15 +786,16 @@ const TYPE_PAGES: { file: string; title: string; intro: string; src: string[] }[
   { file: 'types-chain', title: 'Типы: цепочка и запись', intro: 'Строки ответа, фильтры, опции глаголов и удаления, план записи, транзакции.', src: ['chain.ts', 'write.ts', 'sql.ts', 'tx.ts', 'types.ts', 'ops.ts'] },
   { file: 'types-model', title: 'Типы: модели', intro: 'Классы и концы `letopis/model`, реестр, синхронизация, проверка данных.', src: ['model.ts', 'sync.ts', 'registry.ts', 'validate.ts', 'jsonschema.ts', 'describe.ts'] },
   { file: 'types-typed', title: 'Типы: строгие типы', intro: 'Строгие типы цепочек и подключения: `connect({ models })`, `connect<Models>()`, `loose()`.', src: ['typed.ts'] },
-  { file: 'types-access', title: 'Типы: вход и права', intro: 'Сессии и креды `db.auth`, правила и решения `db.acl`.', src: ['auth.ts', 'acl.ts'] },
+  { file: 'types-access', title: 'Типы: права', intro: 'Правила и решения `me.acl`: решение по действию API и по роли, кандидаты по счёту, цели и описания правил.', src: ['auth.ts', 'acl.ts'] },
   { file: 'types-watch', title: 'Типы: подписка, кэш, загрузка, MCP', intro: 'Подписка и её события, кэш результатов, обслуживание, загрузчик, сервер MCP.', src: ['watch.ts', 'cache.ts', 'signals.ts', 'load.ts', 'admin.ts', 'mcp.ts'] },
-  { file: 'types-log', title: 'Типы: журнал', intro: 'Опции журнала `connect({ log, logLevel, redact })`, событие журнала, логгер, каталог событий.', src: ['log.ts'] },
-  { file: 'types-setup', title: 'Типы: подключение, установка, ошибки', intro: 'Опции `connect()`, `up()` и `createTenant()`, их результаты, ошибки и прочие типы.', src: [] },
+  { file: 'types-log', title: 'Типы: журнал', intro: 'Опции журнала `setup(…, { log, logLevel, redact })` и `connect(pass, { log, logLevel, redact })`, событие журнала, логгер, каталог событий.', src: ['log.ts'] },
+  { file: 'types-setup', title: 'Типы: дом, консьерж, ключи, ошибки', intro: 'Опции и результат `setup()`, опции `connect()`, почтальон и письмо, контакт, консьерж `House`, корень квартиры `Room` (`me`), ключи и приглашения, ошибки и прочие типы.', src: ['up.ts', 'house.ts'] },
 ];
 /** Интерфейсы, члены которых — пункты справочника: на странице типов — только объявление и ссылка. */
 const MEMBERS_ON: Record<string, [string, string]> = {
-  ChainCore: ['./chain', 'Цепочка'], DbCore: ['./db', 'Корень db'], AuthApi: ['./auth', 'Вход: db.auth'],
-  AclApi: ['./acl', 'Права: db.acl'], Subscription: ['./watch#db-watch', 'Подписка и кэш'], Registry: ['./utils#export-registry', 'Служебные экспорты'],
+  ChainCore: ['./chain', 'Цепочка'], DbCore: ['./db', 'Корень квартиры'], House: ['./setup#консьерж', 'Дом и консьерж'],
+  KeysApi: ['./auth#ключи-жильца', 'Вход, приглашения и ключи'], AclApi: ['./acl', 'Права: me.acl'],
+  Subscription: ['./watch#db-watch', 'Подписка и кэш'], Registry: ['./utils#export-registry', 'Служебные экспорты'],
 };
 const typePage = new Map<string, string>();
 for (const [n, d] of exportedTypes) {
@@ -802,19 +829,25 @@ for (const [entry] of ENTRIES) {
     if (!entryOf.has(n)) entryOf.set(n, entry === '.' ? 'letopis' : `letopis${entry.slice(1)}`);
   }
 }
-const CONNECT = '`db` — подключение из `connect()` (`import { connect } from \'letopis\'`)';
+const HOUSE = '`db` — консьерж из `connect(pass, { postman })` (`import { connect } from \'letopis\'`)';
+const ROOM = '`me` — корень квартиры: жильцу его дают `db.open(ключ)`, `db.resume(токен)`, `db.accept(token)`, ' +
+  `консьержу — \`db.in(квартира)\`, \`db.as(аккаунт, квартира)\`; ${HOUSE}`;
 /** Откуда объект метода: у методов объектов — кто его даёт. */
 const OWNER: Record<string, string> = {
-  chain: 'цепочка `db.Класс(…)`, `db` — из `connect()`',
-  db: `${CONNECT}; те же методы — у \`db.as()\` и транзакции \`db.begin()\``,
-  batch: `\`batch\` — из \`db.batch()\`; ${CONNECT}`,
-  auth: `\`db.auth\`; ${CONNECT}`,
-  acl: `\`db.acl\`; ${CONNECT}`,
-  subscription: `\`sub\` — из \`db.watch()\`; ${CONNECT}`,
-  dbcache: `\`db.cache\`; ${CONNECT}`,
-  registry: `\`db.registry\` (класс \`Registry\` — \`import { Registry } from 'letopis'\`); ${CONNECT}`,
+  chain: `цепочка \`me.Класс(…)\`; ${ROOM}`,
+  db: `${ROOM}; те же методы — у транзакции \`me.begin()\``,
+  house: HOUSE,
+  batch: `\`batch\` — из \`me.batch()\`; ${ROOM}`,
+  keys: '`me.keys` — у корня квартиры жильца: `db.open(ключ)`, `db.resume(токен)`, `db.accept(token)`; у консьержа в ' +
+    `квартире (\`db.in()\`, \`db.as()\`) — отказ \`invalid_query\`; ${HOUSE}`,
+  acl: `\`me.acl\`; ${ROOM}`,
+  subscription: `\`sub\` — из \`me.watch()\`; ${ROOM}`,
+  dbcache: `\`me.cache\`; ${ROOM}`,
+  registry: `\`me.registry\` (класс \`Registry\` — \`import { Registry } from 'letopis'\`); ${ROOM}`,
   end: 'конец создают `one()` и `many()` (`import { one, many } from \'letopis/model\'`)',
 };
+/** Члены RoomExtra: у транзакции `me.begin()` их нет — «Откуда» без «те же методы у транзакции». */
+const ROOM_ONLY = `${ROOM}; у транзакции \`me.begin()\` этого нет`;
 /** Строка «Импорт» у функции, класса, константы и «Откуда» у метода объекта. */
 function importOf(it: Item): string {
   const [prefix, name] = [it.id.slice(0, it.id.indexOf('.')), it.id.slice(it.id.indexOf('.') + 1)];
@@ -823,10 +856,11 @@ function importOf(it: Item): string {
     if (!from) throw new Error(`gen-api: ${it.id} нет в контракте`);
     return `**Импорт:** \`import { ${name} } from '${from}'\``;
   }
+  if (prefix === 'db' && roomExtra.has(name)) return `**Откуда:** ${ROOM_ONLY}.`;
   return OWNER[prefix] ? `**Откуда:** ${OWNER[prefix]}.` : '';
 }
-/** Пункты, у которых живые примеры показывают другое (End, normalizeSchema, load.withHistory): строки «Примеры» нет. */
-const NO_EXAMPLES = new Set(['model.End', 'model.normalizeSchema', 'load.withHistory']);
+/** Пункты, у которых живые примеры показывают другое (End, normalizeSchema): строки «Примеры» нет. */
+const NO_EXAMPLES = new Set(['model.End', 'model.normalizeSchema']);
 function renderOptions(g: Group, page: string): string[] {
   const opts = [...items.values()].filter((it) => it.kind === 'option' && it.group === g.prefix);
   const rows = opts.map((o) => {
@@ -850,7 +884,7 @@ function renderItem(it: Item, page: string): string[] {
   if (ps.length) {
     const head = it.kind === 'cli' ? 'Аргумент' : 'Параметр';
     out.push(`**${it.kind === 'class' ? 'Параметры конструктора' : 'Параметры'}**`, '', `| ${head} | Тип | По умолчанию | Описание |`, '|---|---|---|---|');
-    // у обязательного параметра значение по умолчанию из api-docs.ts — уточнение («один из двух» у --token и --api-key)
+    // у обязательного параметра значение по умолчанию из api-docs.ts — уточнение (например, «или переменная окружения»)
     for (const p of ps) out.push(`| ${codeCell(p.name)} | ${p.type ? codeCell(p.type) : ''} | ${p.optional || it.kind === 'tool' ? cell(p.def ?? '') : cell(p.def ?? 'обязательный')} | ${cell(p.text ?? '')} |`);
     out.push('');
   }

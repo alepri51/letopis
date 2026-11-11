@@ -4,70 +4,26 @@ outline: [2, 2]
 
 <!-- Страница собрана scripts/gen-api.ts из lib/src и coverage/api-docs.ts — не править руками. -->
 
-# Типы: подключение, установка, ошибки
+# Типы: дом, консьерж, ключи, ошибки
 
-Опции `connect()`, `up()` и `createTenant()`, их результаты, ошибки и прочие типы. Все темы — на странице [Типы](./types).
+Опции и результат `setup()`, опции `connect()`, почтальон и письмо, контакт, консьерж `House`, корень квартиры `Room` (`me`), ключи и приглашения, ошибки и прочие типы. Все темы — на странице [Типы](./types).
 
-## ConnectOptions {#type-connectoptions}
+## Contact {#type-contact}
 
-**Импорт:** `import type { ConnectOptions } from 'letopis'`
+**Импорт:** `import type { Contact } from 'letopis'`
 
 ```ts
-interface ConnectOptions extends LogOptions {
-  /** Строка подключения; либо готовый пул postgres.js в `sql`. */
-  dsn?: string;
-  sql?: postgres.Sql;
-  /** Схема установки, например `v2.salon`; имя без точки (`salon`) — как у `up()`: `v2.salon`. */
-  schema: string;
-  /** Токен сессии; либо ключ API в `apiKey` (он же `service` — ключ сервиса) — его обменяют на сессию. */
-  token?: string;
-  apiKey?: string;
-  service?: string;
-  /**
-   * Продлевать сессию раз в минуту работы (по умолчанию да); после простоя дольше минуты — до операции: истёкшая
-   * сессия тогда даёт `no_session`, а не анонимное чтение с пустым ответом, а подключение по `apiKey` обменивает ключ
-   * заново. `false` — без продления и без этой проверки.
-   */
-  refreshSession?: boolean;
-  /** Разрешить роль, которая обходит RLS (суперпользователь, `BYPASSRLS`, член роли-владельца), — администраторское подключение. */
-  allowBypassRls?: boolean;
-  /**
-   * Один процесс малого приложения: строка подключения администратора (или пул postgres.js). Второй
-   * пул — не больше двух соединений — открывается при первой надобности и служит только администраторским вызовам корня
-   * подключения: `load`, `maintain` и `syncModels`, с той же сессией.
-   * Цепочки и `db.sql` идут через пул приложения (`dsn`) под RLS. Роль строки — суперпользователь или роль с `SET` на
-   * роль-владельца, иначе `admin_required`. Пароль администратора в процессе приложения — только для малых приложений.
-   */
-  admin?: string | postgres.Sql;
-  /** Имя роли-владельца (по умолчанию `letopis_owner`). */
-  owner?: string;
-  /** Интервал отправки отложенного сигнала, мс (по умолчанию 100). */
-  notifyIntervalMs?: number;
-  /** Размер пула, если подключение создаёт сам `connect()`. */
-  max?: number;
-  /** Хук на каждый запрос цепочки (метрики, лог). */
-  onQuery?: (e: QueryEvent) => void;
-  /** Порог медленного запроса, мс: событие получает `slow`; без `onQuery` — `console.warn`. */
-  slowMs?: number;
-  /** Модели `letopis/model` — только для типов цепочек (`TypedDb`); описания классов берутся из базы. */
-  models?: readonly AnyModelLike[];
-  /**
-   * Слушать сигналы базы (`LISTEN`). `false` — для пула в режиме транзакций (PgBouncer): тогда реестр классов сам не
-   * обновляется (новые и изменённые классы подключение увидит после `db.refresh()`), подписка `watch()` только опрашивает
-   * журнал, а кэш результатов работает лишь с `cache: { ttlOnly: true }` — по сроку. В установке с
-   * `up({ signals: 'none' })` так всегда, только изменения классов подключение раз в 5 секунд проверяет само.
-   */
-  listen?: boolean;
-  /** Кэш результатов: срок по умолчанию, размер, `ttlOnly`; `false` — выключен. */
-  cache?: CacheOptions | false;
-  /**
-   * Запускать `maintain()` по расписанию: интервал — число миллисекунд или строка вроде `'15m'`, `'1h'`, от 1 мс до
-   * 2³¹−1 мс (около 24 суток); иначе `connect()` отказывает с `invalid_data`, не открывая соединений. Если обслуживание в
-   * этот момент уже ведёт другой процесс или ещё идёт прошлый запуск, запуск пропускается. `close()` ждёт, пока идущий
-   * запуск закончится.
-   */
-  maintain?: string | number;
-}
+/** Контакт в вызовах — ровно одна форма: { email }, { phone }, { telegram } или { kind, address }. */
+type Contact = { email: string } | { phone: string } | { telegram: string } | ContactAddress;
+```
+
+## ContactAddress {#type-contactaddress}
+
+**Импорт:** `import type { ContactAddress } from 'letopis'`
+
+```ts
+/** Контакт в нормальном виде: вид (email, phone, telegram, …) и адрес. */
+interface ContactAddress { kind: string; address: string }
 ```
 
 ## Db {#type-db}
@@ -75,13 +31,25 @@ interface ConnectOptions extends LogOptions {
 **Импорт:** `import type { Db } from 'letopis'`
 
 ```ts
-/** Подключение: служебные методы и классы как стартовые шаги цепочек — `db.Класс(фильтр)`. */
+/** Фасад: служебные методы и классы как стартовые шаги цепочек — `me.Класс(фильтр)`. */
 type Db = DbCore & { [className: string]: StepFn };
+```
+
+## DbBase {#type-dbbase}
+
+**Импорт:** `import type { DbBase } from 'letopis'`
+
+```ts
+/**
+ * Общее у фасадов цепочек — корня квартиры (`Room`), его `begin()` и служебного подключения: то, что принимают
+ * `syncModels`, `createMcpServer` и `loose`.
+ */
+type DbBase = Omit<DbCore, 'load' | 'maintain'>;
 ```
 
 ## DbCore {#type-dbcore}
 
-**Импорт:** `import type { DbCore } from 'letopis'`. Каждый член с описанием, параметрами и ошибками — на странице [Корень db](./db).
+**Импорт:** `import type { DbCore } from 'letopis'`. Каждый член с описанием, параметрами и ошибками — на странице [Корень квартиры](./db).
 
 ```ts
 interface DbCore {
@@ -89,7 +57,6 @@ interface DbCore {
   readonly token: string | null;
   readonly tenant: string | null;
   readonly registry: Registry;
-  readonly auth: AuthApi;
   readonly acl: AclApi;
   sql(strings: TemplateStringsArray, ...values: unknown[]): Promise<postgres.Row[]>;
   transaction<T>(fn: (tx: Tx) => Promise<T>): Promise<T>;
@@ -100,7 +67,6 @@ interface DbCore {
   watch(opts?: WatchOptions): Subscription;
   readonly cache: { clear(): void; stats(): CacheStats };
   entity(x: ChainRef | Row): Chain;
-  as(account: string | { id: string } | null, opts?: { owner?: string; tenant?: string }): Promise<Db>;
   begin(opts?: { reason?: string }): Promise<DbTx>;
   load(input: LoadInput, opts?: LoadOptions): Promise<LoadReport>;
   batch(name: string, opts?: { reason?: string }): Batch;
@@ -116,8 +82,89 @@ interface DbCore {
 **Импорт:** `import type { DbTx } from 'letopis'`
 
 ```ts
-/** Явная транзакция `db.begin()`: тот же API; ошибка любого запроса её ломает. */
+/** Явная транзакция `begin()`: тот же API; ошибка любого запроса её ломает. */
 type DbTx = Db;
+```
+
+## House {#type-house}
+
+**Импорт:** `import type { House } from 'letopis'`. Каждый член с описанием, параметрами и ошибками — на странице [Дом и консьерж](./setup#консьерж).
+
+```ts
+/** Консьерж: дверь дома. */
+interface House<M extends readonly AnyModelLike[] = readonly AnyModelLike[]> {
+  readonly schema: string;
+  open(key: Key): Promise<Room<M>>;
+  resume(token: string): Promise<Room<M>>;
+  invitation(token: string): Promise<Invitation>;
+  accept(token: string, opts?: { password?: string; name?: string; ttl?: string | number }): Promise<Room<M>>;
+  requestCode(to: Contact, opts?: { ttl?: string | number; digits?: number; maxAttempts?: number }): Promise<{ expiresAt: string }>;
+  tenantsOf(key: Contact & { code: string }): Promise<{ id: string; name: string }[]>;
+  createTenant(name: string): Promise<{ id: string; name: string }>;
+  in(tenant: string): Promise<Room<M>>;
+  as(account: string, tenant: string): Promise<Room<M>>;
+  tenants(): Promise<{ id: string; name: string }[]>;
+  contactOf(account: string): Promise<ContactAddress | null>;
+  deleteAccount(account: string): Promise<{ account: string; memberships: number; owned: number }>;
+  maintain(): Promise<MaintainReport>;
+  close(): Promise<void>;
+}
+```
+
+## HouseOptions {#type-houseoptions}
+
+**Импорт:** `import type { HouseOptions } from 'letopis'`
+
+```ts
+/**
+ * Опции подключения консьержа: почтальон (`postman`), пул (`max`), сигналы (`listen`, `notifyIntervalMs`), кэш
+ * результатов (`cache`), замер запросов (`onQuery`, `slowMs`), лог (`log`, `logLevel`, `redact`); `models` — только для
+ * строгих типов цепочек.
+ */
+type HouseOptions = Omit<ConnectOptions, 'dsn' | 'schema' | 'apiKey' | 'allowBypassRls'> & {
+  /** Доставка приглашений, кодов входа и смены контакта; без него invite, requestCode и changeContact — api.no_postman. */
+  postman?: Postman;
+};
+```
+
+## Invitation {#type-invitation}
+
+**Импорт:** `import type { Invitation } from 'letopis'`
+
+```ts
+/**
+ * Приглашение глазами того, у кого ссылка (db.invitation): квартира, кто позвал, кому (адрес под маской), роли, срок,
+ * статус и есть ли у контакта аккаунт в доме.
+ */
+interface Invitation {
+  tenant: string;
+  tenantName: string;
+  to: ContactAddress;
+  roles: string[];
+  from?: InviteFrom;
+  expiresAt: string;
+  /** active — можно принять; expired — истёк срок; revoked — отменено, заменено новым или погашено; used — уже принято. */
+  status: 'active' | 'expired' | 'revoked' | 'used';
+  hasAccount: boolean;
+}
+```
+
+## Invite {#type-invite}
+
+**Импорт:** `import type { Invite } from 'letopis'`
+
+```ts
+/** Приглашение в списке invites(): кому, роли, кто позвал (у приглашения консьержа from нет), срок. Токена нет. */
+interface Invite { id: string; to: ContactAddress; roles: string[]; from?: InviteFrom; expiresAt: string }
+```
+
+## InviteFrom {#type-invitefrom}
+
+**Импорт:** `import type { InviteFrom } from 'letopis'`
+
+```ts
+/** Кто позвал: аккаунт жильца и его имя (не задано — пустая строка). У приглашения от консьержа поля from нет. */
+interface InviteFrom { account: string; name: string }
 ```
 
 ## Issue {#type-issue}
@@ -131,6 +178,24 @@ interface Issue {
   keyword: string;
   message: string;
 }
+```
+
+## Key {#type-key}
+
+**Импорт:** `import type { Key } from 'letopis'`
+
+```ts
+/**
+ * Ключ жильца: контакт и пароль (+TOTP; tenant — проверка: пароль должен открывать именно эту квартиру, иначе отказ как у
+ * неверного пароля); контакт и код из письма (tenant — квартира, если у аккаунта их несколько); ключ API; ключ + секрет;
+ * внешний вход (токен провайдера консьерж проверил сам). Поля контакта — прямо в ключе: `{ phone: '+7…', password: '…' }`.
+ */
+type Key =
+  | (Contact & { password: string; tenant?: string; totp?: string; ttl?: string | number })
+  | (Contact & { code: string; tenant?: string; totp?: string; ttl?: string | number })
+  | { apiKey: string; ttl?: string | number }
+  | { key: string; secret: string; ttl?: string | number }
+  | { external: { kind: string; identifier: string }; totp?: string; ttl?: string | number };
 ```
 
 ## KeyedClass {#type-keyedclass}
@@ -147,51 +212,168 @@ interface KeyedClass {
 }
 ```
 
-## TenantOptions {#type-tenantoptions}
+## KeyInfo {#type-keyinfo}
 
-**Импорт:** `import type { TenantOptions } from 'letopis'`
+**Импорт:** `import type { KeyInfo } from 'letopis'`
 
 ```ts
-interface TenantOptions {
-  /**
-   * Имя арендатора — его аккаунта в System. Из имени вычисляется id арендатора, поэтому одно имя — всегда один и тот же
-   * арендатор.
-   */
-  name: string;
-  /** Правило арендатора «аутентифицированным можно всё» (READ, WRITE, DELETE; по умолчанию да). */
-  grantAll?: boolean;
-  /** Первый пользователь: аккаунт, членство в арендаторе с ролями roles, пароль и сессия в арендаторе. */
-  user?: {
-    name: string;
-    login: string;
-    password: string;
-    /**
-     * Вид пароля (по умолчанию PASSWORD) — как у auth.setPassword: `^[A-Z][A-Z0-9_]{1,31}$`, не служебный вид (SESSION,
-     * APIKEY, KEYSECRET, OTP, TOTP, KEY, LOCK); иначе invalid_data.
-     */
-    kind?: string;
-    /** Срок сессии: как ttl у auth (число секунд, '15m', интервал PostgreSQL '15 minutes'); по умолчанию 7 суток. */
-    ttl?: string | number;
-    /** Роли членства (по умолчанию ['owner']); роли уже существующего членства повтор не меняет. */
-    roles?: string[];
-  };
+interface KeyInfo { id: string; kind: string; ident: string | null; enabled: boolean; meta: Record<string, unknown>; createdAt: string; expiresAt: string | null }
+```
+
+## KeysApi {#type-keysapi}
+
+**Импорт:** `import type { KeysApi } from 'letopis'`. Каждый член с описанием, параметрами и ошибками — на странице [Вход, приглашения и ключи](./auth#ключи-жильца).
+
+```ts
+/** Ключи жильца — только в квартире, куда он вошёл, и только сам (после недавнего интерактивного входа). */
+interface KeysApi {
+  list(): Promise<KeyInfo[]>;
+  setPassword(a: { password: string; keepCurrent?: boolean }): Promise<string>;
+  enrollTotp(a?: { issuer?: string; label?: string }): Promise<{ secret: string; uri: string }>;
+  verifyTotp(code: string): Promise<boolean>;
+  issueApiKey(a?: { name?: string; ttl?: string | number }): Promise<{ key: string; id: string }>;
+  issueKeySecret(a?: { name?: string }): Promise<{ key: string; secret: string; id: string }>;
+  link(a: { kind: string; identifier: string; meta?: Record<string, unknown> }): Promise<string>;
+  revoke(id: string, opts?: { keepCurrent?: boolean }): Promise<boolean>;
 }
 ```
 
-## TenantResult {#type-tenantresult}
+## Letter {#type-letter}
 
-**Импорт:** `import type { TenantResult } from 'letopis'`
+**Импорт:** `import type { Letter } from 'letopis'`
 
 ```ts
-interface TenantResult {
-  /** id аккаунта-арендатора. */
-  tenant: string;
-  /** id аккаунта пользователя (если задан). */
-  user: string | null;
-  /** Токен сессии пользователя в арендаторе: connect({ token }) (если задан пользователь). */
-  token: string | null;
-  /** Арендатор создан этим вызовом (повтор с тем же именем — false). */
+/** Письмо почтальону: кому (контакт) и что. */
+interface Letter { to: ContactAddress; message: LetterMessage }
+```
+
+## LetterMessage {#type-lettermessage}
+
+**Импорт:** `import type { LetterMessage } from 'letopis'`
+
+```ts
+/**
+ * Что почтальон должен доставить: invite — приглашение (token — ссылка: с ним зовут db.invitation и db.accept), code —
+ * код входа (db.requestCode), contact — код смены контакта (me.changeContact).
+ */
+type LetterMessage =
+  | { kind: 'invite'; token: string; tenant: string; tenantName: string; roles: string[]; from?: InviteFrom; expiresAt: string }
+  | { kind: 'code'; code: string; expiresAt: string }
+  | { kind: 'contact'; code: string; expiresAt: string };
+```
+
+## Postman {#type-postman}
+
+**Импорт:** `import type { Postman } from 'letopis'`
+
+```ts
+/**
+ * Почтальон приложения: доставить письмо. Его вызывают внутри транзакции записи: ошибка — отказ операции
+ * (api.postman_failed, исходная ошибка — в cause) и откат. В базу через тот же дом почтальон, пока его вызывают, не ходит:
+ * соединение транзакции занято (у PGlite оно одно — вызов ждал бы вечно).
+ */
+type Postman = (letter: Letter) => void | Promise<void>;
+```
+
+## Room {#type-room}
+
+**Импорт:** `import type { Room } from 'letopis'`
+
+```ts
+/**
+ * Корень квартиры: цепочки по классам (`me.Order(…)`) и всё из RoomExtra. С моделями (`connect(pass, { models })`
+ * или `connect<Models>(pass)` с объявлениями `letopis types`) шаги типизированы: только известные классы, алиасы и
+ * роли; имена, известные только во время выполнения, — `loose(me)`.
+ */
+type Room<M extends readonly AnyModelLike[] = readonly AnyModelLike[]> = Omit<DbCore, 'load' | 'maintain' | 'tenant'>
+  & RoomExtra & (string extends M[number]['name'] ? { [className: string]: StepFn } : StepsOf<M>);
+```
+
+## RoomExtra {#type-roomextra}
+
+**Импорт:** `import type { RoomExtra } from 'letopis'`
+
+```ts
+/** Чем дополнен фасад квартиры. */
+interface RoomExtra {
+  readonly tenant: string;
+  readonly tenantName: string;
+  readonly account: string;
+  readonly concierge: boolean;
+  /**
+   * Позвать по контакту: ссылку (токен) получит только почтальон. Роли — те, что звавшему разрешает выдать матрица
+   * (`me.acl.grant({ role, assign })`); контакт уже прописан — already_member; прежнее приглашение контакта гаснет.
+   */
+  invite(to: Contact, roles: string[], opts?: { ttl?: string | number }): Promise<{ id: string; expiresAt: string }>;
+  /** Живые приглашения квартиры: свои; все — консьержу и тому, кому матрица разрешает их роли. */
+  invites(): Promise<Invite[]>;
+  revokeInvite(id: string): Promise<boolean>;
+  /**
+   * Сменить контакт аккаунта (имя для входа во всех квартирах). Без кода — почтальон доставит код на новый контакт; с
+   * кодом — контакт сменён. Занят другим аккаунтом — identifier_taken; неверный код — api.code_failed.
+   */
+  changeContact(to: Contact & { code: string }): Promise<{ contact: ContactAddress }>;
+  changeContact(to: Contact): Promise<{ expiresAt: string }>;
+  /**
+   * Сменить имя своего аккаунта: аккаунт один на дом, новое имя сразу видно во всех квартирах человека
+   * (`me.acl.people()`, `from.name` новых приглашений, строка `me.Account(me.account)`). Имя — строка от 1 до 200 знаков,
+   * пробелы по краям отбрасываются, иначе sql-access.name_args. Жильцу нужен недавний вход (как у changeContact); у
+   * корня `db.as(аккаунт, квартира)` — имя этого человека, без недавнего входа (за него ручается приложение); у корня
+   * `db.in` — api.resident_only. Ответ — имя, как оно записано.
+   */
+  changeName(name: string): Promise<{ name: string }>;
+  deleteTenant(): Promise<{ tenant: string; rows: number }>;
+  readonly keys: KeysApi;
+  leave(): Promise<void>;
+  deleteAccount(): Promise<void>;
+  closeAll(): Promise<number>;
+  refreshSession(opts?: { ttl?: string | number }): Promise<string>;
+}
+```
+
+## SetupOptions {#type-setupoptions}
+
+**Импорт:** `import type { SetupOptions } from 'letopis'`
+
+```ts
+interface SetupOptions extends LogOptions {
+  /** Модели вещей дома (общие классы, System): их записывает консьерж — syncModels({ apply: true }). */
+  models?: readonly import('./model.js').AnyModel[];
+  /** Сиды пакета (`booking`) или пути к своим файлам. */
+  seeds?: string[];
+  /** PGlite — PostgreSQL прямо в процессе Node (права там не проверяются: подключение суперпользователем). */
+  pglite?: boolean | PgliteOptions;
+  /** Режим сигналов. */
+  signals?: SignalMode;
+  /** Правило по умолчанию (все → *): deny на свежем доме; allow открывает всё, что не решено другими правилами. */
+  defaultRule?: 'deny' | 'allow';
+  /** Новый пароль роли и новый ключ консьержа: прежний пропуск сразу перестаёт работать. */
+  rotate?: boolean;
+  /** Сколько ждать базу, мс (по умолчанию 60 000). */
+  waitTimeoutMs?: number;
+  /** Без сообщений в консоль. */
+  quiet?: boolean;
+}
+```
+
+## SetupResult {#type-setupresult}
+
+**Импорт:** `import type { SetupResult } from 'letopis'`
+
+```ts
+interface SetupResult {
+  /** Пропуск консьержа: connect(pass). Повторный setup отдаёт тот же (rotate — новый). */
+  pass: string;
+  schema: string;
+  /** Дома не было — построен. */
   created: boolean;
+  revision: number;
+  analyzed: string[];
+  warnings: string[];
+  /** Итог записи моделей. */
+  models?: import('./sync.js').SyncResult;
+  /** setup({ pglite }): запущенный PGlite — остановить pglite.close(). */
+  pglite?: PgliteServer;
 }
 ```
 
@@ -201,87 +383,9 @@ interface TenantResult {
 
 ```ts
 /**
- * Подключение со строгими типами по моделям: `connect({ models })` или `connect<Models>()` с объявлениями
- * `letopis types`. Шаг — только известный класс или алиас (модели и системные классы), переходы — по концам, шаги ролей
- * после глагола — роли класса; имена, известные только во время выполнения, — `loose(db)`. Модели без литеральных
- * имён (`AnyModel[]` вместо списка `as const`) строгим типам не помогут — тогда это `Db`.
+ * Фасад со строгими типами по моделям. Шаг — только известный класс или алиас (модели и системные классы), переходы —
+ * по концам, шаги ролей после глагола — роли класса; имена, известные только во время выполнения, — `loose(db)`.
+ * Модели без литеральных имён (`AnyModel[]` вместо списка `as const`) строгим типам не помогут — тогда это `Db`.
  */
 type TypedDb<M extends readonly AnyModelLike[]> = string extends M[number]['name'] ? Db : DbCore & StepsOf<M>;
-```
-
-## UpOptions {#type-upoptions}
-
-**Импорт:** `import type { UpOptions } from 'letopis'`
-
-```ts
-interface UpOptions extends Omit<InstallOptions, 'schema' | 'upTo' | 'migrateFrom'>, LogOptions {
-  /** Администраторская строка подключения (роль-установщик). */
-  dsn?: string;
-  /** Готовый пул postgres.js вместо dsn (база уже существует). */
-  sql?: postgres.Sql;
-  /** Схема: полное имя v2.<имя> или только <имя> — версия структуры подставится сама. */
-  schema: string;
-  /** Удалить схему и поставить заново. ДАННЫЕ СХЕМЫ ТЕРЯЮТСЯ. */
-  fresh?: boolean;
-  /** Обновить схему отставшей ревизии 2.x: миграции и повторный накат; данные сохраняются. */
-  upgrade?: boolean;
-  /** Без сообщений в консоль. */
-  quiet?: boolean;
-  /** Сколько ждать базу, мс (по умолчанию 60 000). */
-  waitTimeoutMs?: number;
-  /**
-   * Запустить PGlite — PostgreSQL прямо в процессе Node — для разработки без своего сервера;
-   * подключение к нему — `connect({ dsn: r.pglite.dsn, schema: r.schema, listen: false, max: 1, allowBypassRls: true })`.
-   * Соединение у PGlite одно, поэтому одновременные транзакции и гонки на нём не проверить: для таких тестов и в CI нужен
-   * настоящий PostgreSQL.
-   */
-  pglite?: boolean | PgliteOptions;
-  /**
-   * Арендатор и его первый пользователь: после установки `up()` заводит их сам, как `createTenant()` с этими опциями, и
-   * кладёт итог в `r.tenant` — свой сид для этого не нужен.
-   */
-  tenant?: TenantOptions;
-  /**
-   * Роль приложения с логином: заводится или получает новый пароль и членство в роли приложения
-   * (`letopis_app`). Имя и пароль квотирует база (`format` с `%I` и `%L`). Привилегированную роль — суперпользователя,
-   * с `CREATEROLE`, `CREATEDB`, `REPLICATION`, `BYPASSRLS`, роль-владельца или её члена — up() не трогает
-   * (`invalid_data`). Строка подключения роли — `r.login.dsn`: с ней и `connect({ admin })` малое приложение работает
-   * одним процессом.
-   */
-  login?: LoginOptions;
-}
-```
-
-## UpResult {#type-upresult}
-
-**Импорт:** `import type { UpResult } from 'letopis'`
-
-```ts
-interface UpResult extends InstallResult {
-  /** Схемы не было — поставлена. */
-  created: boolean;
-  /** Схема была отставшей ревизии — обновлена. */
-  upgraded: boolean;
-  /** Ревизия движка после наката. */
-  revision: number;
-  /**
-   * Таблицы, у которых статистики не было и ANALYZE от роли владельца её собрал; оставшиеся без статистики — в
-   * `warnings`.
-   */
-  analyzed: string[];
-  /** up({ pglite }): запущенный PGlite — строка подключения и остановка. */
-  pglite?: PgliteServer;
-  /** up({ tenant }): арендатор (и его первый пользователь с сессией). */
-  tenant?: TenantResult;
-  /**
-   * up({ login }): роль приложения — заведена (`created`) или получила новый пароль; `dsn` — строка подключения роли
-   * (из `dsn` установки или PGlite; при готовом пуле `sql` её нет).
-   */
-  login?: { user: string; created: boolean; dsn?: string };
-  /**
-   * Предупреждения (версия сервера, таблицы без статистики, хабы с зарезервированными именами); без quiet каждое уже
-   * напечатано через console.warn.
-   */
-  warnings: string[];
-}
 ```

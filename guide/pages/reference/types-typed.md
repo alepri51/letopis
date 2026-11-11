@@ -59,7 +59,7 @@ interface ModelLike<N extends string = string, D = unknown, L = unknown, A exten
 
 ```ts
 /**
- * Результат `or(…)` (index.ts): оператор `or` и фильтры, которыми он типизирован; `F` — только для типов. В шаге класса C
+ * Результат `or(…)` (core.ts): оператор `or` и фильтры, которыми он типизирован; `F` — только для типов. В шаге класса C
  * фильтры внутри `or()` — фильтры-объекты класса C.
  */
 type OrOp<F = Record<string, unknown>> = Op & { readonly [K in typeof OP]: 'or' } & { readonly __filters?: F };

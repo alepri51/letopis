@@ -1,73 +1,69 @@
 /**
- * letopis с нуля на вашей базе: пустая установка, роль приложения, арендатор, своя модель, данные.
+ * letopis с нуля на вашей базе: дом, пропуск, почтальон, квартира и её хозяйка, своя модель, данные.
  *
- *   cd guide/start && npm install          (или в своей папке: npm init -y && npm pkg set type=module && npm i letopis@3 zod postgres)
+ *   cd guide/start && npm install          (или в своей папке: npm init -y && npm pkg set type=module && npm i letopis@4 zod)
  *   ADMIN_DSN=postgres://postgres:ПАРОЛЬ@localhost:5432/letopis node start.mjs
  *
- * Без ADMIN_DSN берётся postgres://postgres:guide@127.0.0.1:15440/letopis — например, из
+ * ADMIN_DSN — мастер-ключ: строка подключения администратора PostgreSQL. Без неё берётся
+ * postgres://postgres:guide@127.0.0.1:15440/letopis — например, из
  *   docker run -d --name pg18 -e POSTGRES_PASSWORD=guide -e POSTGRES_DB=letopis -p 127.0.0.1:15440:5432 postgres:18
- * Повторный запуск безопасен: up() и createTenant ничего не дублируют, существующие объекты пропускаются.
+ * HOUSE — имя дома (по умолчанию myapp: схема v2.myapp). Повторный запуск безопасен: setup() отдаёт тот же пропуск,
+ * квартира и хозяйка уже есть — скрипт входит её паролем, проект пишется через upsert, готовые задачи пропускаются.
  */
-import postgres from 'postgres';
-import { up, connect, createTenant, syncModels, LetopisError } from 'letopis';
+import { setup, connect, LetopisError } from 'letopis';
 import { hub, link } from 'letopis/model';
 import { z } from 'zod';
 
-const ADMIN = process.env.ADMIN_DSN ?? 'postgres://postgres:guide@127.0.0.1:15440/letopis';
-const SCHEMA = process.env.SCHEMA ?? 'myapp';
-const APP_ROLE = 'myapp_app', APP_PASSWORD = 'myapp-secret';
-// свой ключ сервиса — чтобы повторный запуск мог войти снова (lts_ и 32–128 шестнадцатеричных знаков)
-const SERVICE_KEY = process.env.SERVICE_KEY ?? 'lts_' + '0f1e2d3c4b5a6978'.repeat(2);
+const ADMIN_DSN = process.env.ADMIN_DSN ?? 'postgres://postgres:guide@127.0.0.1:15440/letopis';
+const HOUSE = process.env.HOUSE ?? 'myapp';
+const VERA = { email: 'vera@alpha.ru', password: 'Alpha-2026!' }; // контакт (он же имя для входа) и пароль
 
-// 1. Пустая установка: схема v2.myapp — таблицы, проверки, системные классы — и роль приложения: up({ login })
-// заводит её (повторный запуск обновляет пароль), включает в letopis_app и возвращает строку подключения r.login.dsn
-const r = await up({ dsn: ADMIN, schema: SCHEMA, serviceKey: SERVICE_KEY, quiet: true, login: { user: APP_ROLE, password: APP_PASSWORD } });
-console.log(`1. схема ${r.schema}: ${r.created ? 'поставлена' : 'уже была — накатили повторно'}; роль приложения ${r.login.user}`);
-
-// 2. Арендатор с первым пользователем: createTenant принимает пул postgres() администратора, а не строку
-const admin = postgres(ADMIN, { max: 1, onnotice: () => {} });
-const team = await createTenant(admin, r.schema, { name: 'Альфа', user: { name: 'Вера', login: 'vera@alpha.ru', password: 'Alpha-2026!' } });
-await admin.end();
-console.log(`2. арендатор «Альфа» ${team.created ? 'создан' : 'уже был'}, пользователь vera@alpha.ru`);
-
-// 3. Приложение: своя роль, ключ сервиса, вход пользователя
-const svc = await connect({ dsn: r.login.dsn, schema: r.schema, apiKey: SERVICE_KEY });
-const login = await svc.auth.verifyPassword({ identifier: 'vera@alpha.ru', password: 'Alpha-2026!' });
-const db = await svc.as(login.account, { tenant: team.tenant });
-console.log('3. вошли как Вера');
-
-// 4. Своя модель
+// Своя модель: проект и задачи в нём.
 const Project = hub('Project', { name: z.string(), deadline: z.iso.date().optional() }, { key: ['name'] });
 const Task = link('Task', { title: z.string(), done: z.boolean().default(false), hours: z.number().int().min(0).optional() }, {
   ends: { Project }, key: ['Project', 'title'],
 });
-const sync = await syncModels(db, [Project, Task], { apply: true });
-console.log(`4. модель: создано ${JSON.stringify(sync.created)}, без изменений ${JSON.stringify(sync.unchanged)}`);
 
-// 5. Данные (upsert — повторный запуск не падает на занятом ключе)
-const [site] = await db.Project().upsert({ name: 'Сайт', deadline: '2026-12-01' }).rows();
+// 1. Дом: setup() мастер-ключом строит схему с моделью и отдаёт пропуск консьержа; повтор — тот же пропуск
+const r = await setup(ADMIN_DSN, HOUSE, { models: [Project, Task], quiet: true });
+console.log(`1. дом ${r.schema}: ${r.created ? 'построен' : 'уже был — достроен'}; пропуск — в настройки приложения (например, LETOPIS_PASS)`);
+
+// 2. Консьерж: connect(pass, { postman }) — так подключается веб-сервис, мастер-ключ ему не нужен.
+// Почтальон — функция приложения, которая доставляет письма: библиотека сама ничего не шлёт. Здесь он учебный —
+// запоминает письма. В настоящем сервисе он отправляет ссылку вида https://ваш-сайт/invite/<token> почтой или СМС.
+const mail = [];
+const postman = async (letter) => { mail.push(letter); };
+const db = await connect(r.pass, { postman });
+console.log('2. консьерж подключён пропуском, почтальон задан');
+
+// 3. Квартира «Альфа» и её хозяйка Вера: в первый раз — приглашение и его принятие, потом — вход паролем.
+// invite() отдаёт письмо с токеном почтальону; страница по ссылке приняла бы его так же: db.accept(token, { password })
+let vera;
+if (!(await db.tenants()).some((t) => t.name === 'Альфа')) {
+  await db.createTenant('Альфа');
+  await (await db.in('Альфа')).invite({ email: VERA.email }, ['owner']);
+  const { token } = mail.at(-1).message; // токен приглашения — из письма
+  vera = await db.accept(token, { password: VERA.password, name: 'Вера' });
+  console.log('3. квартира «Альфа» заведена, Вера приняла приглашение (роль owner)');
+} else {
+  vera = await db.open(VERA);
+  console.log('3. квартира «Альфа» уже была — Вера вошла паролем');
+}
+
+// 4. Данные: проект (upsert — повторный запуск не падает на занятом ключе) и задачи
+const [site] = await vera.Project().upsert({ name: 'Сайт', deadline: '2026-12-01' }).rows();
 for (const [title, hours] of [['Макет', 8], ['Вёрстка', 16], ['Запуск', 2]]) {
-  await db.Project(site).Task().create({ title, hours }).rows().catch((e) => {
+  await vera.Project(site).Task().create({ title, hours }).rows().catch((e) => {
     if (!(e instanceof LetopisError && e.code === 'exists')) throw e; // уже есть с прошлого запуска
   });
 }
-const tasks = await db.Project(site).Task().sort('data.title').rows();
-console.log('5. задачи проекта «Сайт»:', tasks.map((t) => `${t.data.title} (${t.data.hours} ч)`).join(', '));
-console.log(`   часов всего: ${await db.Project(site).Task().sum('data.hours')}; история задачи «Макет»: ${(await db.Task(tasks.find((t) => t.data.title === 'Макет')).versions()).length} верс.`);
+const tasks = await vera.Project(site).Task().sort('data.title').rows();
+console.log('4. задачи проекта «Сайт»:', tasks.map((t) => `${t.data.title} (${t.data.hours} ч)`).join(', '));
 
-// 6. Много данных сразу: db.load — только администраторское подключение; сессия Веры задаёт арендатора «Альфа».
-// existing: 'skip' — при повторном запуске уже загруженные строки пропускаются
-const adm = await connect({ dsn: ADMIN, schema: r.schema, token: team.token, allowBypassRls: true });
-const report = await adm.load({
-  Project: [{ name: 'Приложение', deadline: '2027-03-01' }],
-  Task: [
-    { title: 'Тексты', hours: 4, Project: { $key: ['Сайт'] } },
-    { title: 'Фото', hours: 6, Project: { $key: ['Сайт'] } },
-    { title: 'Прототип', hours: 12, Project: { $key: ['Приложение'] } },
-  ],
-}, { existing: 'skip' });
-await adm.close();
-console.log(`6. загрузка: записано ${report.loaded}, пропущено ${report.skipped}; задач в «Сайте»: ${await db.Project(site).Task().count()}`);
+// 5. Чтение: итог и история
+const layout = tasks.find((t) => t.data.title === 'Макет');
+console.log(`5. часов всего: ${await vera.Project(site).Task().sum('data.hours')}; версий задачи «Макет»: ${(await vera.Task(layout).versions()).length}`);
 
-await svc.close();
-console.log('\nГотово. Дальше — главы «Модели», «Запись», «Чтение» на сайте документации.');
+await db.close();
+console.log(`\nГотово. Много данных сразу — команда мастер-ключом: npx letopis load файл.ndjson --dsn "$ADMIN_DSN" --schema ${HOUSE} --tenant Альфа.`);
+console.log('Дальше — главы «Модели», «Запись», «Чтение» на сайте документации.');

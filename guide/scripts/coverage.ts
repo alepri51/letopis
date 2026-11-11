@@ -4,16 +4,16 @@
  *   npx tsx scripts/coverage.ts [--strict] [--list]
  *
  * Инвентарь собирается из кода, а не руками:
- * - экспорты точек входа, методы цепочки, `db` и батча — `lib/api-contract.json`;
- * - опции `connect`, `up`, `watch`, `load`, кэша, MCP, методы `db.auth`, свойства описания класса — члены интерфейсов
- *   в `lib/src`;
+ * - экспорты точек входа, методы цепочки, корня квартиры (`db.*` — имена DB_METHODS) и батча — `lib/api-contract.json`;
+ * - опции `setup`, `connect`, `watch`, кэша, MCP, методы консьержа (`House`), ключей жильца (`KeysApi`) и прав
+ *   (`AclApi`), свойства описания класса — члены интерфейсов и псевдонимов типов в `lib/src`;
  * - коды ошибок — каталог базы (`LT_NAMES`), коды, которые бросает библиотека (`new LetopisError('…')`, `fail('…')`,
  *   `code: '…'`), и таблица раздела «Ошибки» README;
- * - режимы сигналов, команды CLI, инструменты MCP;
+ * - режимы сигналов, команды CLI (строки USAGE в `lib/src/cli.ts`), инструменты MCP;
  * - нюансы — ручной список `coverage/nuances.ts`.
  *
  * Пример объявляет, что покрывает, в `covers`. Неизвестный пункт в `covers` (опечатка) — всегда ошибка.
- * С `--strict` ошибка и непокрытый пункт (так будет к концу работы, этап 5).
+ * С `--strict` ошибка и непокрытый пункт.
  */
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, dirname, relative, sep } from 'node:path';
@@ -27,7 +27,7 @@ const LIB = join(ROOT, '..', 'lib');
 const strict = process.argv.includes('--strict');
 const list = process.argv.includes('--list');
 
-// Не входят в инвентарь: пока таких пунктов нет (снятое API 0.21, импорт из 0.21 и охранники `removed` сняты в 2.0.0).
+// Не входят в инвентарь: пунктов, которые нельзя вызвать из пакета, здесь нет (load и maintain корня — ниже, по типу Room).
 const OUT_OF_SCOPE = new Set<string>([]);
 const inventory = new Map<string, string>(); // пункт → группа
 const add = (group: string, prefix: string, names: Iterable<string>) => {
@@ -40,13 +40,12 @@ add('экспорты letopis', 'export', contract.exports['.'].values);
 add('экспорты letopis/model', 'model', contract.exports['./model'].values);
 add('экспорты letopis/mcp', 'mcp', contract.exports['./mcp'].values);
 add('методы цепочки', 'chain', contract.chain);
-add('методы db', 'db', contract.db);
 add('методы батча', 'batch', contract.batch);
 
-// ---------- члены интерфейсов ----------
+// ---------- члены интерфейсов и псевдонимов типов ----------
+const sourceOf = (file: string) => ts.createSourceFile(file, readFileSync(join(LIB, 'src', file), 'utf8'), ts.ScriptTarget.Latest, true);
 function members(file: string, name: string): string[] {
-  const src = readFileSync(join(LIB, 'src', file), 'utf8');
-  const sf = ts.createSourceFile(file, src, ts.ScriptTarget.Latest, true);
+  const sf = sourceOf(file);
   const out: string[] = [];
   const visit = (node: ts.Node): void => {
     if (ts.isInterfaceDeclaration(node) && node.name.text === name) {
@@ -58,15 +57,60 @@ function members(file: string, name: string): string[] {
   if (!out.length) throw new Error(`coverage: интерфейс ${name} не найден в lib/src/${file}`);
   return out;
 }
-// опции журнала (log, logLevel, redact) connect() и up() наследуют из LogOptions (lib/src/types.ts)
+/** Ключи `Omit<База, 'a' | 'b'>` в псевдониме типа: `type HouseOptions = Omit<ConnectOptions, 'dsn' | …>` → dsn, … */
+function omitted(file: string, alias: string, base: string): string[] {
+  const sf = sourceOf(file);
+  let keys: string[] | null = null;
+  const visit = (node: ts.Node): void => {
+    if (keys) return;
+    if (ts.isTypeAliasDeclaration(node) && node.name.text === alias) {
+      const find = (n: ts.Node): void => {
+        if (keys) return;
+        if (ts.isTypeReferenceNode(n) && n.typeName.getText(sf) === 'Omit' && n.typeArguments?.[0].getText(sf) === base) {
+          const k = n.typeArguments[1];
+          keys = (ts.isUnionTypeNode(k) ? [...k.types] : [k])
+            .map((t) => (ts.isLiteralTypeNode(t) && ts.isStringLiteral(t.literal) ? t.literal.text : '')).filter(Boolean);
+        } else ts.forEachChild(n, find);
+      };
+      find(node.type);
+    } else ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  if (!keys) throw new Error(`coverage: в типе ${alias} (lib/src/${file}) нет Omit<${base}, …>`);
+  return keys;
+}
+/** Свои члены псевдонима типа сверх Omit: литералы типа в пересечении (`type HouseOptions = Omit<…> & { postman?: … }`). */
+function ownMembers(file: string, alias: string): string[] {
+  const sf = sourceOf(file);
+  const out: string[] = [];
+  const visit = (node: ts.Node): void => {
+    if (ts.isTypeAliasDeclaration(node) && node.name.text === alias) {
+      const parts = ts.isIntersectionTypeNode(node.type) ? node.type.types : [node.type];
+      for (const t of parts) if (ts.isTypeLiteralNode(t)) for (const m of t.members) if (m.name) out.push(m.name.getText(sf));
+    } else ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return out;
+}
+// корень квартиры (тип Room, lib/src/house.ts) — DbCore без load и maintain: загрузка и обслуживание у него не
+// вызываются, это команды CLI мастер-ключом (cli.load, cli.maintain); tenant Room возвращает из RoomExtra
+const roomExtra = members('house.ts', 'RoomExtra');
+const notInRoom = omitted('house.ts', 'Room', 'DbCore').filter((n) => !roomExtra.includes(n));
+add('методы корня квартиры', 'db', (contract.db as string[]).filter((n) => !notInRoom.includes(n)));
+// опции журнала (log, logLevel, redact) setup() и connect() наследуют из LogOptions (lib/src/types.ts); HouseOptions —
+// опции ConnectOptions (lib/src/core.ts) без тех, что задаёт пропуск
 const logOptions = members('types.ts', 'LogOptions');
-add('опции connect()', 'connect', [...members('index.ts', 'ConnectOptions'), ...logOptions]);
-add('опции up()', 'up', new Set([...members('up.ts', 'UpOptions'), ...members('up.ts', 'InstallOptions'), ...logOptions].filter((n) => !['upTo', 'migrateFrom'].includes(n))));
+const houseOmit = omitted('house.ts', 'HouseOptions', 'ConnectOptions');
+add('опции setup()', 'setup', [...members('up.ts', 'SetupOptions'), ...logOptions]);
+// опции connect(pass): ConnectOptions без того, что задаёт пропуск, и свои опции HouseOptions (postman)
+add('опции connect()', 'connect', [...members('core.ts', 'ConnectOptions'), ...logOptions, ...ownMembers('house.ts', 'HouseOptions')]
+  .filter((n) => !houseOmit.includes(n)));
 add('опции watch()', 'watch', members('watch.ts', 'WatchOptions'));
-add('опции load()', 'load', members('load.ts', 'LoadOptions'));
 add('опции кэша', 'cache', members('cache.ts', 'CacheOptions'));
 add('опции MCP', 'mcpopt', members('mcp.ts', 'McpOptions'));
-add('методы db.auth', 'auth', members('auth.ts', 'AuthApi').filter((n) => n !== 'sessions'));
+add('методы консьержа', 'house', members('house.ts', 'House'));
+add('ключи жильца', 'keys', members('house.ts', 'KeysApi'));
+add('права me.acl', 'acl', members('acl.ts', 'AclApi'));
 add('свойства описания класса', 'class', members('model.ts', 'ClassDef'));
 
 // ---------- коды ошибок ----------
@@ -93,8 +137,17 @@ add('коды ошибок библиотеки', 'error', [...libCodes].filter(
 // ---------- режимы сигналов, CLI, инструменты MCP ----------
 const signalsTs = readFileSync(join(LIB, 'src', 'signals.ts'), 'utf8');
 add('режимы сигналов', 'signals', JSON.parse(signalsTs.match(/SIGNAL_MODES[^=]*=\s*(\[[^\]]*\])/)![1].replace(/'/g, '"')));
-const cliTs = readFileSync(join(LIB, 'src', 'cli.ts'), 'utf8');
-add('команды CLI', 'cli', new Set([...cliTs.matchAll(/(?:^|`)letopis (\w+) /gm)].map((m) => m[1])));
+// команды CLI — строки USAGE, которые начинаются с «letopis <команда>» (её же разбирает справочник, scripts/gen-api.ts)
+const cliSf = sourceOf('cli.ts');
+let usage = '';
+const findUsage = (node: ts.Node): void => {
+  if (ts.isVariableDeclaration(node) && node.name.getText(cliSf) === 'USAGE' && node.initializer
+    && (ts.isNoSubstitutionTemplateLiteral(node.initializer) || ts.isStringLiteral(node.initializer))) usage = node.initializer.text;
+  else ts.forEachChild(node, findUsage);
+};
+findUsage(cliSf);
+if (!usage) throw new Error('coverage: в lib/src/cli.ts не найден USAGE');
+add('команды CLI', 'cli', new Set([...usage.matchAll(/^letopis (\w+)\b/gm)].map((m) => m[1])));
 const mcpTs = readFileSync(join(LIB, 'src', 'mcp.ts'), 'utf8');
 add('инструменты MCP', 'mcptool', new Set([...mcpTs.matchAll(/'(letopis_(?:model|query|history|write))'/g)].map((m) => m[1])));
 
@@ -121,7 +174,7 @@ for (const file of exampleFiles()) {
   visit(sf);
 }
 // коды без примера — исключения с объяснением: примером не вызвать или сайт их не показывает
-// (их же примечания — на странице главы 16 «Ошибки»)
+// (их же примечания — на странице «Ошибки: все коды и ключи», pages/errors/codes.md)
 const EXEMPT: Record<string, string> = {
   'error.internal': 'внутренняя ошибка letopis (строка-замок семейства не создана или не найдена): примером не вызвать — её воспроизводит тест messages библиотеки',
 };
