@@ -1,4 +1,4 @@
--- letopis 1.0 — конвейер записи (план, §2.5, §2.7, §2.10, этап 1, п. 7–11).
+-- letopis — конвейер записи.
 --
 -- Приложение пишет обычными insert, update, delete; всё проверяют триггеры entity. У каждого
 -- триггера условие when (current_user <> владелец): изменения, которые делает функция владельца
@@ -12,8 +12,8 @@ return clock_timestamp();
 
 -- Внутренние блокировки (семейства, обслуживание) — строки-замки: строки вида LOCK таблицы secret, которой у
 -- приложения нет, а не advisory-блокировки. Advisory-блокировку берёт любая роль базы, а её ключ виден всем в pg_locks:
--- посторонняя роль занимала бы её и останавливала запись семейства или обслуживание для всех (ревью
--- безопасности №3, №2). id строки-замка — lock_id имени; строки семейств заводятся заранее (class_admit, seed_system),
+-- посторонняя роль занимала бы её и останавливала запись семейства или обслуживание для всех. id строки-замка —
+-- lock_id имени; строки семейств заводятся заранее (class_admit, seed_system),
 -- иначе строку вставляет первое обращение — и параллельное ждёт его транзакцию.
 -- lock_id — первые 16 байт sha256 имени: его считает каждая строка записи, а v5_id собирает jsonb и зовёт pgcrypto.
 create or replace function @SCHEMA@.lock_id(p_name text) returns uuid
@@ -29,8 +29,8 @@ declare
 begin
   if not exists (select 1 from @SCHEMA@.secret s where s.id = v) then
     -- имя — в meta, а не в ident: уникальный индекс ident сравнивает без регистра, и строка-замок семейства, чей корень
-    -- отличается от другого только регистром, не вставлялась — его блокировка молча не бралась (/security-review после
-    -- ревью безопасности №3). Строки нет и после вставки — ошибка, а не запись без блокировки.
+    -- отличается от другого только регистром, не вставлялась бы — его блокировка молча не бралась бы. Строки нет и после
+    -- вставки — ошибка, а не запись без блокировки.
     insert into @SCHEMA@.secret (id, account, kind, meta) values (v, '@SYSTEM@'::uuid, 'LOCK', jsonb_build_object('name', p_name))
     on conflict do nothing;
     if not exists (select 1 from @SCHEMA@.secret s where s.id = v) then
@@ -54,10 +54,10 @@ begin
   return found;
 end $$;
 
--- Блокировки семейства (этап 1, п. 10): писатели и загрузчик берут разделяемую блокировку корня семейства, ужесточение
--- описания и удаление класса — исключительную. Имя — арендатор корневого класса и имя корня (итоговое ревью
--- безопасности): ужесточение одноимённого класса в другом арендаторе запись сюда не останавливает; корень из System
--- (общий для всех арендаторов) — арендатор System. p_data — описание класса с resolved.
+-- Блокировки семейства: писатели и загрузчик берут разделяемую блокировку корня семейства, ужесточение
+-- описания и удаление класса — исключительную. Имя — квартира корневого класса и имя корня: ужесточение одноимённого
+-- класса в другой квартире запись сюда не останавливает; у корня из System (общего для всех квартир) — System.
+-- p_data — описание класса с resolved.
 create or replace function @SCHEMA@.family_name(p_tenant uuid, p_data jsonb) returns text
 language sql stable
 set search_path = pg_catalog, @SCHEMA@, pg_temp
@@ -83,8 +83,7 @@ end $$;
 -- занят, и сразу отпускает. Шлюз писатель проходит один раз за транзакцию: тот, кто уже держит строку-замок, у шлюза
 -- ждал бы исключительную, а та — его самого. Справка letopis.family_locks (подтранзакция, откат которой снимает
 -- блокировку, откатывает и её) пропускает только шлюз, строку-замок функция берёт всегда — повторно взятая своя
--- блокировка не ждёт: справку выставит и клиент, а без блокировки запись прошла бы мимо ужесточения (автоматическое
--- ревью коммита 1bc6584).
+-- блокировка не ждёт: справку выставит и клиент, а без блокировки запись прошла бы мимо ужесточения.
 create or replace function @SCHEMA@.family_lock(p_cls @SCHEMA@.entity, p_exclusive boolean) returns void
 language plpgsql volatile
 as $$
@@ -186,11 +185,10 @@ begin
   return d;
 end $$;
 
--- Разбор и нормализация концов (этап 1, п. 7): объявлены, обязательные на месте, у множественных
+-- Разбор и нормализация концов: объявлены, обязательные на месте, у множественных
 -- нет повторов, соблюдены min и max; uuid — в каноническом виде строчными. К таблицам не обращается:
 -- цели проверяет targets_bad() — триггером после оператора, одним запросом на все строки.
--- Ошибку не бросает: возвращает ключ каталога сообщений и параметры отказа (план 2.0, этап 3, п. 3; вызывающий бросает
--- ошибку по ним).
+-- Ошибку не бросает: возвращает ключ каталога сообщений и параметры отказа (вызывающий бросает ошибку по ним).
 create or replace function @SCHEMA@.links_shape(p_res jsonb, p_links jsonb, out links jsonb, out key text, out params jsonb)
 language plpgsql immutable
 as $$
@@ -253,20 +251,20 @@ begin
   end loop;
 end $$;
 
--- Цели концов набора строк (решение 2 точки А): существуют, принадлежат арендатору строки или
+-- Цели концов набора строк: существуют, принадлежат квартире строки или
 -- System и относятся к классу конца или его потомку. p_rows — [{class, tenant, links[, ends]}]
 -- (ends — описание концов, если его ещё нет в строке Class). При p_lock цели сначала блокируются
--- for key share в порядке id — каждая один раз на оператор, только свои и системные: строку чужого
--- арендатора не заблокировать и по ожиданию не обнаружить. Проверка идёт после блокировки, по
+-- for key share в порядке id — каждая один раз на оператор, только свои и системные: строку чужой
+-- квартиры не заблокировать и по ожиданию не обнаружить. Проверка идёт после блокировки, по
 -- свежим строкам: цель, которую успели удалить, не пройдёт. Класс цели
 -- прямо в списке конца — без поиска описания; иначе — предки из строки Class цели.
--- При p_acl ({tenant, account, plan} — план READ актора) цель ещё и должна быть видна актору (этап 5,
--- п. 6): строку, которую он не видит, нельзя использовать как цель — ответ тот же, что для
--- несуществующей. Цели-аккаунты (Account) не проверяются: на них ссылаются членства и владельцы.
+-- При p_acl ({tenant, account, plan} — план READ актора) цель ещё и должна быть видна актору: строку,
+-- которую он не видит, нельзя использовать как цель — ответ тот же, что для
+-- несуществующей. Цели-аккаунты (Account) не проверяются: на них ссылаются прописки и владельцы.
 -- Роль сеанса, к которой RLS не применяется (суперпользователь, BYPASSRLS, член владельца),
 -- видит любую строку, а пишет и строки, которых план актора не показывает: прятать от неё цель незачем, и p_acl
--- она не проверяет. До этого администраторское подключение с сессией без прав заводило ресурсы, а правило на них —
--- нет: target_not_found (внедрение, агентский прогон плана 2.0).
+-- она не проверяет — иначе подключение в обход RLS с сессией без прав заводило бы ресурсы, а правило на них — нет:
+-- target_not_found.
 -- Возвращает роль первой непрошедшей цели или null.
 create or replace function @SCHEMA@.targets_bad(p_rows jsonb, p_lock boolean, p_acl jsonb default null) returns text
 language plpgsql volatile
@@ -353,7 +351,7 @@ begin
   end if;
 end $$;
 
--- id класса с ключом — v5 от арендатора, класса и значений ключа (§2.3); у класса без ключа — null.
+-- id класса с ключом — v5 от квартиры, класса и значений ключа; у класса без ключа — null.
 create or replace function @SCHEMA@.key_id(p_res jsonb, p_class text, p_tenant uuid, p_data jsonb, p_links jsonb) returns uuid
 language sql immutable
 return case when jsonb_array_length(coalesce(p_res->'key', '[]'::jsonb)) = 0 then null else
@@ -368,9 +366,9 @@ language sql stable
 set search_path = pg_catalog, @SCHEMA@, pg_temp
 return coalesce((@SCHEMA@.class_row(p_class, p_tenant)).data->'resolved'->>'history', 'true') <> 'false';
 
--- Сигналы (план 1.1, §2.2): канал — имя схемы, нагрузка — по режиму установки '@SIGNALS@'
--- (up({ signals })): class — имя класса; tenant — «Класс@токен арендатора»; opaque — «токен класса@токен
--- арендатора»; none — сигналов нет. Сессии — session:<16 hex>, сброс — * (кроме none). Токен — первые
+-- Сигналы: канал — имя схемы, нагрузка — по режиму установки '@SIGNALS@'
+-- (setup({ signals })): class — имя класса; tenant — «Класс@токен квартиры»; opaque — «токен класса@токен
+-- квартиры»; none — сигналов нет. Сессии — session:<16 hex>, сброс — * (кроме none). Токен — первые
 -- 96 бит HMAC-SHA256 от «назначение:значение» на ключе сигналов (HMAC ключа строки KEY по
 -- 'letopis:signals', его отдаёт signal_key()): без ключа псевдоним не сопоставить с именем, а
 -- нагрузка детерминирована — PostgreSQL склеивает одинаковые сигналы транзакции.
@@ -409,9 +407,9 @@ begin
   end if;
 end $$;
 
--- Сигнал записи: пары «класс, арендатор» изменённых строк (арендатор null — System) → нагрузки по
--- режиму. Одинаковые пары склеиваются: транзакция, записавшая тысячу строк одного класса одного
--- арендатора, посылает один сигнал.
+-- Сигнал записи: пары «класс, квартира» изменённых строк (квартира null — System) → нагрузки по
+-- режиму. Одинаковые пары склеиваются: транзакция, записавшая тысячу строк одного класса одной
+-- квартиры, посылает один сигнал.
 create or replace function @SCHEMA@.signal(p_classes text[], p_tenants uuid[]) returns void
 language plpgsql volatile
 set search_path = pg_catalog, @SCHEMA@, pg_temp
@@ -474,7 +472,24 @@ begin
   return e;
 end $$;
 
--- Надгробие: последний снимок удалённой строки следующей версией с видом delete.
+-- Надгробие от имени p_author (агент — p_agent): последний снимок удалённой строки следующей версией с видом delete.
+-- Функции, которые удаляют квартиру, прописку или аккаунт, берут автора до удаления: после него контекст той же
+-- сессии уже не открывается (квартиры нет, сессия жильца погашена).
+create or replace function @SCHEMA@.tombstone_by(e @SCHEMA@.entity, p_author uuid, p_agent text) returns void
+language plpgsql volatile
+set search_path = pg_catalog, @SCHEMA@, pg_temp
+as $$
+begin
+  e.rev := e.rev + 1;
+  e.at := greatest(@SCHEMA@.now_ts(), e.at + interval '1 microsecond');
+  e.author := coalesce(p_author, '@SYSTEM@'::uuid);
+  e.agent := p_agent;
+  e.op := 'delete';
+  e.reason := nullif(current_setting('letopis.reason', true), '');
+  perform @SCHEMA@.log_version(e);
+end $$;
+
+-- Надгробие от имени актора сессии.
 create or replace function @SCHEMA@.tombstone(e @SCHEMA@.entity) returns void
 language plpgsql volatile
 set search_path = pg_catalog, @SCHEMA@, pg_temp
@@ -483,13 +498,7 @@ declare
   c record;
 begin
   select * into c from @SCHEMA@.ctx();
-  e.rev := e.rev + 1;
-  e.at := greatest(@SCHEMA@.now_ts(), e.at + interval '1 microsecond');
-  e.author := coalesce(c.author, '@SYSTEM@'::uuid);
-  e.agent := c.agent;
-  e.op := 'delete';
-  e.reason := nullif(current_setting('letopis.reason', true), '');
-  perform @SCHEMA@.log_version(e);
+  perform @SCHEMA@.tombstone_by(e, c.author, c.agent);
 end $$;
 
 -- Входящие ссылки на строку p_id, роли которых не принимают класс p_class (смена родителя класса).
@@ -506,7 +515,7 @@ as $$
 $$;
 
 -- Перечень видимых актору строк и число остальных — для ошибок restrict и ужесточения.
--- Видимость — та же, что у чтения (row_visible с планом READ актора), а не только арендатор.
+-- Видимость — та же, что у чтения (row_visible с планом READ актора), а не только квартира.
 create or replace function @SCHEMA@.visible_detail(p_rows jsonb, p_tenant uuid) returns jsonb
 language plpgsql stable
 set search_path = pg_catalog, @SCHEMA@, pg_temp
@@ -524,7 +533,7 @@ begin
   return jsonb_build_object('rows', vis, 'others', jsonb_array_length(p_rows) - jsonb_array_length(vis));
 end $$;
 
--- Класс для текста отказа (ревью безопасности №3): наименьший класс среди строк p_rows (строки целиком, to_jsonb), которые
+-- Класс для текста отказа: наименьший класс среди строк p_rows (строки целиком, to_jsonb), которые
 -- актор видит; не видит ни одной — null, и текст класса не называет. Строки берутся из самих данных, а не из таблицы:
 -- удалённые каскадом в этом же операторе её уже не найдут.
 create or replace function @SCHEMA@.visible_class(p_rows jsonb) returns text
@@ -536,9 +545,9 @@ return (select min(r->>'class') from jsonb_array_elements(p_rows) r, (select @SC
                                    array(select jsonb_array_elements_text(r->'tags')), r->'data', r->'links',
                                    (x.a->>'tenant')::uuid, (x.a->>'account')::uuid, x.a->'plan'));
 
--- Безопасно ли изменение описания класса (этап 1, п. 10): новые необязательные поля и концы,
+-- Безопасно ли изменение описания класса: новые необязательные поля и концы,
 -- метаданные, алиас, history, кэш. Всё остальное — ужесточение с проверкой строк, в том числе
--- любая правка условий anyOf и oneOf (1.0.1: прежде они не сравнивались, и строки не перепроверялись).
+-- любая правка условий anyOf и oneOf: без сравнения строки, которых новое условие не принимает, остались бы непроверенными.
 create or replace function @SCHEMA@.class_change_safe(o jsonb, n jsonb) returns boolean
 language sql immutable
 return
@@ -590,7 +599,7 @@ begin
     else
       bad := @SCHEMA@.validate_data(res->'rules', cls.validator, res->'vars', r.data);
       if bad <> '[]'::jsonb then
-        -- в русском тексте — нарушения без key и params (текст прежний), а в params строки — сами нарушения с ключами:
+        -- в русском тексте — нарушения без key и params, а в params строки — сами нарушения с ключами:
         -- по ним библиотека переведёт и их сообщения
         problem := @SCHEMA@.lt_text('sql-write.problem_data', jsonb_build_object('issues',
           (select jsonb_agg(x.i - 'key' - 'params' order by x.n) from jsonb_array_elements(bad) with ordinality x(i, n))::text));
@@ -609,8 +618,8 @@ begin
     if problem is null and p_incoming then
       inc := @SCHEMA@.incoming_conflicts(r.id, r.class, r.tenant);
       if inc <> '[]'::jsonb then
-        -- роль и id ссылающейся строки — только если актор её видит (доработки после точки Б; ревью безопасности №3:
-        -- о невидимой — ни роли, ни id); видимые ссылающиеся строки — первыми, затем по id
+        -- роль и id ссылающейся строки — только если актор её видит (о невидимой — ни роли, ни id); видимые
+        -- ссылающиеся строки — первыми, затем по id
         select i.v, coalesce(@SCHEMA@.row_visible(x.tenant, x.class, x.id, x.owner, x.tags, x.data, x.links,
                                                   (a->>'tenant')::uuid, (a->>'account')::uuid, a->'plan'), false) as seen
           into ref, vis
@@ -631,18 +640,18 @@ begin
   return outv;
 end $$;
 
--- Методы цепочки — зарезервированные имена (§2.14). Список подставляет установщик из
+-- Методы цепочки — зарезервированные имена. Список подставляет установщик из
 -- RESERVED_CLASS_NAMES (lib/src/types.ts): при изменении списка функция пересоздаётся накатом.
 create or replace function @SCHEMA@.reserved_names() returns text[]
 language sql immutable parallel safe
 return array[@RESERVED_NAMES@]::text[];
 
--- Правка класса p_class арендатора p_tenant меняет имена, по которым его строки находят правила прав: предков
--- (parent) или алиас (ревью безопасности №2). План прав берёт для класса имена предков и их алиасы
+-- Правка класса p_class квартиры p_tenant меняет имена, по которым его строки находят правила прав: предков
+-- (parent) или алиас. План прав берёт для класса имена предков и их алиасы
 -- (acl_plan_for), поэтому строки класса и его потомков попали бы под правила READ, WRITE и DELETE нового предка или
 -- алиаса — право WRITE на Class открывало бы чужие строки. Актору нужно право READ, WRITE и DELETE без условий на
--- все строки самого класса и каждого потомка своего арендатора, иначе acl_denied. Потомков у арендаторов класса
--- System план прав сессии System не видит — они пропускаются. Проверка — до
+-- все строки самого класса и каждого потомка своей квартиры, иначе acl_denied. Потомков класса System в квартирах
+-- план прав сессии System не видит — они пропускаются. Проверка — до
 -- правки (class_admit): план видит прежние имена, по которым строки уже защищены.
 create or replace function @SCHEMA@.class_acl_admit(p_class text, p_tenant uuid) returns void
 language plpgsql stable
@@ -652,12 +661,12 @@ begin
   perform @SCHEMA@.class_rows_admit(p_class, p_tenant, array['READ', 'WRITE', 'DELETE'], 'reparent');
 end $$;
 
--- Право актора на все строки класса p_class и каждого его потомка арендатора p_tenant: по каждой операции p_ops —
+-- Право актора на все строки класса p_class и каждого его потомка квартиры p_tenant: по каждой операции p_ops —
 -- без условий, иначе acl_denied «<что меняется>: нужно право <op> на все строки класса <класс>». Что меняется — p_what,
--- по нему ключ каталога (план 2.0, этап 3, п. 3): reparent, history, tighten; иное — готовый текст. Сам класс первым,
--- потомки — по глубине и имени; потомков у арендаторов класса System план сессии System не видит — они пропускаются.
+-- по нему ключ каталога: reparent, history, tighten; иное — готовый текст. Сам класс первым,
+-- потомки — по глубине и имени; потомков класса System в квартирах план сессии System не видит — они пропускаются.
 -- Зовут class_acl_admit (смена предков и алиаса), ужесточение (class_evolve) и смена history — включение и выключение
--- журнала (class_admit; доработки после точки Б).
+-- журнала (class_admit).
 create or replace function @SCHEMA@.class_rows_admit(p_class text, p_tenant uuid, p_ops text[], p_what text) returns void
 language plpgsql stable
 set search_path = pg_catalog, @SCHEMA@, pg_temp
@@ -676,7 +685,7 @@ begin
             order by jsonb_array_length(x.data->'resolved'->'ancestors'), x.data->>'name') loop
     foreach op in array p_ops loop
       chk := @SCHEMA@.acl_check_data(c, op);
-      if not coalesce((chk->>'allow')::boolean, false) or chk ? 'filter' then
+      if not coalesce((chk->>'all')::boolean, false) then
         p := jsonb_build_object('cls', p_class, 'op', op, 'target', c);
         case p_what
           when 'reparent' then perform @SCHEMA@.lt_fail('sql-write.reparent_needs_all', p);
@@ -689,10 +698,9 @@ begin
   end loop;
 end $$;
 
--- Есть ли в журнале версии строк класса p_name арендатора p_tenant (доработки после точки Б: удаление и пересоздание
--- класса, остаток Н2 ревью №2). У класса System — строки любого арендатора, кроме
--- арендаторов со своим классом с тем же именем: их строки — строки своего класса, как их резолвит class_row (ревью
--- безопасности №3: история такого класса не мешает администратору создать и удалить класс System)
+-- Есть ли в журнале версии строк класса p_name квартиры p_tenant (для удаления и пересоздания класса). У класса
+-- System — строки любой квартиры, кроме квартир со своим классом с тем же именем: их строки — строки своего класса,
+-- как их резолвит class_row (история такого класса не мешает создать и удалить класс System)
 create or replace function @SCHEMA@.class_has_history(p_name text, p_tenant uuid) returns boolean
 language sql stable
 set search_path = pg_catalog, @SCHEMA@, pg_temp
@@ -705,9 +713,9 @@ return exists (select 1 from @SCHEMA@.log l
                                                       and x.tenant <> '@SYSTEM@'::uuid))));
 
 -- Хранят ли историю строк удалённые потомки класса p_name: надгробия строк Class (последняя версия их id — удаление),
--- у которых в resolved.ancestors есть p_name (ревью безопасности №3). Правила находят старые версии строк и по алиасам
+-- у которых в resolved.ancestors есть p_name. Правила находят старые версии строк и по алиасам
 -- предков, а надгробие потомка их не записывает: пока такая история есть, предок не меняет алиас ни правкой, ни
--- удалением и созданием заново. У класса System — кроме арендаторов со своим одноимённым классом, как class_has_history
+-- удалением и созданием заново. У класса System — кроме квартир со своим одноимённым классом, как class_has_history
 create or replace function @SCHEMA@.class_orphan_history(p_name text, p_tenant uuid) returns boolean
 language sql stable
 set search_path = pg_catalog, @SCHEMA@, pg_temp
@@ -722,9 +730,9 @@ return exists (select 1 from @SCHEMA@.log t
                  and not exists (select 1 from @SCHEMA@.log z where z.id = t.id and z.rev > t.rev)
                  and @SCHEMA@.class_has_history(t.data->>'name', t.tenant));
 
--- Проверки строки Class сверх метасхемы (этап 1, п. 6): признак system, имя системного класса,
+-- Проверки строки Class сверх метасхемы: признак system, имя системного класса,
 -- имена связей и хабов против методов цепочки, однозначность имени конца во всей схеме,
--- алиас и право на смену предков и алиаса (ревью безопасности №2).
+-- алиас и право на смену предков и алиаса.
 create or replace function @SCHEMA@.class_admit(p_data jsonb, p_tenant uuid, out data jsonb, out validator jsonpath)
 language plpgsql volatile
 set search_path = pg_catalog, @SCHEMA@, pg_temp
@@ -748,8 +756,8 @@ begin
       perform @SCHEMA@.lt_fail('sql-write.system_name_taken', jsonb_build_object('name', p_data->>'name'));
     end if;
   end if;
-  -- родитель — под разделяемой блокировкой своего семейства (хвост ревью доработок после 1.2.0): удаление класса берёт
-  -- исключительную, поэтому родитель не удалится мимо нового потомка, а удалённый, пока ждали, class_prepare не найдёт
+  -- родитель — под разделяемой блокировкой своего семейства: удаление класса берёт исключительную, поэтому родитель не
+  -- удалится мимо нового потомка, а удалённый, пока ждали, class_prepare не найдёт
   if p_data->>'parent' is not null then
     tc := @SCHEMA@.class_row(p_data->>'parent', p_tenant);
     if tc.id is not null then
@@ -760,14 +768,13 @@ begin
   if data->>'kind' = 'link' and (data->>'name') = any (@SCHEMA@.reserved_names()) then
     perform @SCHEMA@.lt_fail('sql-write.link_name_reserved', jsonb_build_object('name', data->>'name'));
   end if;
-  -- и хаб (план 2.0, этап 4, п. 2): шаг с именем метода цепочки или корня db до класса не дойдёт. Прежние такие хабы
-  -- остаются (up() называет их в предупреждении), но их строку Class база больше не пишет — ни создание, ни правку
+  -- и хаб: шаг с именем метода цепочки или корня квартиры до класса не дойдёт. Такие хабы, заведённые мимо этой
+  -- проверки, остаются (setup() называет их в предупреждении), но их строку Class база не пишет — ни создание, ни правку
   if data->>'kind' = 'hub' and (data->>'name') = any (@SCHEMA@.reserved_names()) then
     perform @SCHEMA@.lt_fail('sql-write.hub_name_reserved', jsonb_build_object('name', data->>'name'));
   end if;
-  -- алиас — второе имя класса и для правил прав (ревью безопасности №2): совпади он с именем другого класса (в том
-  -- числе Class и системных) или с чужим алиасом арендатора и System, правила одного класса действовали бы на строки
-  -- другого
+  -- алиас — второе имя класса и для правил прав: совпади он с именем другого класса (в том числе Class и системных)
+  -- или с чужим алиасом квартиры и System, правила одного класса действовали бы на строки другого
   if data->>'alias' is not null
      and ((data->>'alias') = any (array['Class', 'Account', 'member', 'Resource', 'rule'])
           or exists (select 1 from @SCHEMA@.entity x
@@ -775,7 +782,7 @@ begin
                        and (x.data->>'name' = data->>'alias' or x.data->>'alias' = data->>'alias'))) then
     perform @SCHEMA@.lt_fail('sql-write.alias_taken', jsonb_build_object('alias', data->>'alias', 'cls', data->>'name'));
   end if;
-  -- и наоборот: имя класса — не чужой алиас арендатора и System, иначе правила, написанные для нового класса, действовали
+  -- и наоборот: имя класса — не чужой алиас квартиры и System, иначе правила, написанные для нового класса, действовали
   -- бы и на строки класса с этим алиасом
   if exists (select 1 from @SCHEMA@.entity x
              where x.class = 'Class' and x.tenant in (p_tenant, '@SYSTEM@'::uuid) and x.data->>'name' <> data->>'name'
@@ -785,22 +792,22 @@ begin
   -- описание до правки — для сравнения (нет — новый класс). Пути владельца (сид, class_evolve) сюда не заходят
   select x.data into prevd from @SCHEMA@.entity x
   where x.class = 'Class' and x.tenant = p_tenant and x.data->>'name' = data->>'name';
-  -- правка меняет предков или алиас (ревью безопасности №2): строки класса и потомков попали бы под правила
+  -- правка меняет предков или алиас: строки класса и потомков попали бы под правила
   -- других имён — нужно право READ, WRITE и DELETE без условий на все их строки. У нового класса строк ещё нет
   if prevd is not null
      and (prevd->'resolved'->'ancestors' is distinct from data->'resolved'->'ancestors'
           or prevd->>'alias' is distinct from data->>'alias') then
     perform @SCHEMA@.class_acl_admit(data->>'name', p_tenant);
   end if;
-  -- алиас класса, у которого удалённые потомки хранят историю строк (ревью безопасности №3): правила находят их старые
+  -- алиас класса, у которого удалённые потомки хранят историю строк: правила находят их старые
   -- версии и по алиасам предков, а надгробие потомка их не записывает — алиас не меняется
   if prevd is not null and prevd->>'alias' is distinct from data->>'alias'
      and @SCHEMA@.class_orphan_history(data->>'name', p_tenant) then
     perform @SCHEMA@.lt_fail('sql-write.alias_orphan_history', jsonb_build_object('cls', data->>'name'));
   end if;
-  -- history (доработки после точки Б): history: false выключает журнал. Одним правом WRITE на Class автор правки
+  -- history: false выключает журнал. Одним правом WRITE на Class автор правки
   -- останавливал бы аудит строк, на которые у него нет прав, поэтому смена развёрнутой history существующего класса
-  -- требует права READ и DELETE без условий на все строки класса и его потомков своего арендатора
+  -- требует права READ и DELETE без условий на все строки класса и его потомков своей квартиры
   if prevd is not null and prevd->'resolved'->'history' is distinct from data->'resolved'->'history' then
     perform @SCHEMA@.class_rows_admit(data->>'name', p_tenant, array['READ', 'DELETE'], 'history');
   end if;
@@ -844,7 +851,7 @@ begin
   if NEW.tenant <> c.tenant then
     perform @SCHEMA@.lt_fail('sql-write.foreign_tenant');
   end if;
-  -- аккаунты (с их категориями) — только в System: их пишет системный администратор (этап 5)
+  -- аккаунты (с их категориями) — только в System: в квартире строку Account не завести
   if NEW.class = 'Account' and NEW.tenant <> '@SYSTEM@'::uuid then
     perform @SCHEMA@.lt_fail('sql-write.account_tenant');
   end if;
@@ -894,15 +901,15 @@ begin
     NEW.id := kid;
   end if;
   -- воскрешение: номер версии продолжается от последней записи журнала; запись блокируется — параллельный restore того
-  -- же id ждёт (этап 6)
+  -- же id ждёт
   select l.rev, l.at, l.op, l.data into last from @SCHEMA@.log l where l.id = NEW.id order by l.rev desc limit 1 for update;
-  -- класс с историей строк в журнале (остаток Н2 ревью №2; доработки после точки Б): правила прав находят строки, и
+  -- класс с историей строк в журнале: правила прав находят строки, и
   -- старые версии тоже, по именам класса, предков и алиасов — класс с другим parent или alias подставил бы
-  -- старую историю под чужие правила. Поэтому, если журнал арендатора хранит версии строк класса с этим именем, класс
+  -- старую историю под чужие правила. Поэтому, если журнал квартиры хранит версии строк класса с этим именем, класс
   -- создаётся только заново и с тем же описанием, что в надгробии его строки Class. Надгробия нет (история осталась от
   -- класса System, удалённого раньше, или строку Class стёрли мимо триггеров) — отказ
   -- Так же — если историю хранят удалённые потомки класса (их правила находят старые версии и по алиасу предка), и
-  -- history прежняя (ревью безопасности №3; у описаний без ключа history в resolved — значение по умолчанию true)
+  -- history прежняя (у описаний без ключа history в resolved — значение по умолчанию true)
   if NEW.class = 'Class'
      and (@SCHEMA@.class_has_history(NEW.data->>'name', NEW.tenant) or @SCHEMA@.class_orphan_history(NEW.data->>'name', NEW.tenant))
      and not (coalesce(last.op = 'delete', false)
@@ -950,7 +957,7 @@ begin
   if NEW.id <> OLD.id or NEW.tenant <> OLD.tenant or NEW.owner <> OLD.owner or NEW.created_at <> OLD.created_at then
     perform @SCHEMA@.lt_fail('sql-write.immutable_columns');
   end if;
-  -- класс строки неизменен (план 2.0, редакция 2): смены класса нет ни правкой, ни функцией
+  -- класс строки неизменен: смены класса нет ни правкой, ни функцией
   if NEW.class <> OLD.class then
     perform @SCHEMA@.lt_fail('sql-write.class_immutable', jsonb_build_object('cls', OLD.class));
   end if;
@@ -1008,7 +1015,7 @@ begin
   return NEW;
 end $$;
 
--- После оператора insert (решение 2 точки А): все версии оператора — одной вставкой в журнал
+-- После оператора insert: все версии оператора — одной вставкой в журнал
 -- (по переходной таблице), сигнал — по одному на класс.
 create or replace function @SCHEMA@.trg_entity_ai() returns trigger
 language plpgsql security definer
@@ -1032,7 +1039,7 @@ begin
   join (select k.class, k.tenant from (select distinct a.class, a.tenant from added a) k
         where @SCHEMA@.history_on(k.class, k.tenant)) h on h.class = n.class and h.tenant = n.tenant
   order by n.at, n.id;  -- порядок seq — порядок входа, а не плана соединения
-  -- сигнал — по паре «класс, арендатор»
+  -- сигнал — по паре «класс, квартира»
   select array_agg(k.class), array_agg(k.tenant) into sc, st from (select distinct a.class, a.tenant from added a) k;
   perform @SCHEMA@.signal(sc, st);
   if sc && array['rule', 'Resource', 'member', 'Account', 'Class'] then
@@ -1073,7 +1080,7 @@ begin
   join (select k.class, k.tenant from (select distinct a.class, a.tenant from new_rows a) k
         where @SCHEMA@.history_on(k.class, k.tenant)) h on h.class = n.class and h.tenant = n.tenant
   order by n.id;  -- порядок seq не зависит от плана: правка многих строк пишет версии в порядке id
-  -- сигнал — по паре «класс, арендатор» (класс и арендатор строки неизменны)
+  -- сигнал — по паре «класс, квартира» (класс и квартира строки неизменны)
   select array_agg(k.class), array_agg(k.tenant) into sc, st
   from (select distinct n.class, n.tenant from new_rows n join old_rows o on o.id = n.id and o.rev <> n.rev) k;
   perform @SCHEMA@.signal(sc, st);
@@ -1086,11 +1093,11 @@ begin
     select * into n_row from new_rows x where x.id = cid;
     perform @SCHEMA@.class_evolve(o_row, n_row);
   end loop;
-  -- отключённый аккаунт: сессии гаснут (этап 5, п. 2), каждая — сигнал кэшу
+  -- отключённый аккаунт: сессии гаснут, каждая — сигнал кэшу
   for cid in select n.id from new_rows n join old_rows o on o.id = n.id
              where n.class = 'Account' and coalesce((o.data->>'enabled')::boolean, true)
                and not coalesce((n.data->>'enabled')::boolean, true) loop
-    perform @SCHEMA@.auth_kill(cid, null);
+    perform @SCHEMA@.auth_kill(cid, null, null);
   end loop;
   return null;
 end $$;
@@ -1120,9 +1127,9 @@ begin
   end loop;
   if not @SCHEMA@.class_change_safe(o.data->'resolved', n.data->'resolved') then
     -- ужесточение проверяет все строки семейства, в том числе невидимые актору, и отвечает их числом: пробное
-    -- ужесточение (maximum, enum, pattern…) было оракулом по чужим строкам (доработки после точки Б). Нужно право READ
-    -- без условий на все строки класса и потомков своего арендатора; строки других арендаторов (класс System) —
-    -- уровень установки, их число остаётся в others
+    -- ужесточение (maximum, enum, pattern…) было бы оракулом по чужим строкам. Нужно право READ
+    -- без условий на все строки класса и потомков своей квартиры; строки других квартир (класс System) —
+    -- уровень дома, их число остаётся в others
     perform @SCHEMA@.class_rows_admit(n.data->>'name', n.tenant, array['READ'], 'tighten');
     conflicts := @SCHEMA@.family_conflicts(classes, n.tenant, o.data->'resolved'->'ancestors' is distinct from n.data->'resolved'->'ancestors');
     if conflicts <> '[]'::jsonb then
@@ -1133,7 +1140,7 @@ begin
   end if;
 end $$;
 
--- Перед оператором delete: только read committed (§2.10).
+-- Перед оператором delete: только read committed.
 create or replace function @SCHEMA@.trg_entity_bd() returns trigger
 language plpgsql security definer
 set search_path = pg_catalog, @SCHEMA@, pg_temp
@@ -1145,12 +1152,12 @@ begin
   return null;
 end $$;
 
--- Перед удалением строки Account (ревизия 7, решение владельца). Строки secret аккаунта — сессии, хэши паролей и ключей,
+-- Перед удалением строки Account. Строки secret аккаунта — сессии, хэши паролей и ключей,
 -- секреты TOTP, внешние учётные записи — уносит каскад внешнего ключа secret.account в конце оператора, раньше триггера
 -- после него, поэтому сессии гаснут с сигналом session:<хэш> здесь: процессы сбрасывают кэш ответов этих сессий.
 -- Срабатывает для всех ролей, в том числе владельца: аккаунты удаляют и функции владельца — каскад trg_entity_ad и
--- account_purge. Строка Account у System не удаляется: ей принадлежат служебные строки secret (KEY — ключ прав и
--- сигналов, LOCK — строки-замки), которые каскад стёр бы, а без них установка не пишет.
+-- account_remove. Строка Account у System не удаляется: ей принадлежат служебные строки secret (KEY — ключ прав и
+-- сигналов, LOCK — строки-замки, CONCIERGE — пропуск консьержа), которые каскад стёр бы, а без них дом не пишет.
 create or replace function @SCHEMA@.trg_entity_bd_account() returns trigger
 language plpgsql security definer
 set search_path = pg_catalog, @SCHEMA@, pg_temp
@@ -1159,13 +1166,13 @@ begin
   if OLD.id = '@SYSTEM@'::uuid then
     perform @SCHEMA@.lt_fail('sql-write.system_account_delete');
   end if;
-  perform @SCHEMA@.auth_kill(OLD.id, null);
+  perform @SCHEMA@.auth_kill(OLD.id, null, null);
   return OLD;
 end $$;
 
 -- Действие со строкой, которая ссылается на удаляемые id (p_ids), по правилам её концов (p_ends):
 -- cascade сильнее restrict, restrict сильнее unset; null — строка на них не ссылается. Общее правило
--- для триггера удаления и превью delete_preview() (этап 4, п. 6): превью не расходится с удалением.
+-- для триггера удаления и предпросмотра delete_preview(): предпросмотр не расходится с удалением.
 create or replace function @SCHEMA@.ref_action(p_ends jsonb, p_links jsonb, p_ids uuid[]) returns text
 language sql immutable parallel safe
 return (
@@ -1178,8 +1185,8 @@ return (
                       where t::uuid = any (p_ids))) x
 );
 
--- Строки арендатора, которыми владел пользователь, переходят арендатору (выход из членства, §2.10):
--- новая версия каждой строки с журналом. Индекс entity_owner — только строки с владельцем-не арендатором.
+-- Строки квартиры, которыми владел пользователь, переходят квартире (выписка):
+-- новая версия каждой строки с журналом. Индекс entity_owner — только строки, владелец которых не квартира.
 create or replace function @SCHEMA@.owner_to_tenant(p_tenant uuid, p_user uuid) returns int
 language plpgsql volatile
 set search_path = pg_catalog, @SCHEMA@, pg_temp
@@ -1208,7 +1215,7 @@ begin
   return n;
 end $$;
 
--- После оператора delete (§2.5, этап 1, п. 8): надгробия, каскад по уровням, restrict по итогу.
+-- После оператора delete: надгробия, каскад по уровням, restrict по итогу.
 -- Строки, которые удалил сам оператор, каскад уже не видит, поэтому сырой delete любого набора
 -- связанных строк проходит без ошибки 27000. Надгробия уровня пишутся одной вставкой.
 create or replace function @SCHEMA@.trg_entity_ad() returns trigger
@@ -1237,18 +1244,21 @@ declare
   mems jsonb;
   lvl_mems jsonb;
   drows jsonb;
+  mrows jsonb;
+  svc boolean;
   own uuid[];
   cl @SCHEMA@.entity;
 begin
   select * into c from @SCHEMA@.ctx();
-  -- права в замыкании (этап 5, п. 6): DELETE на каждую удаляемую каскадом строку, WRITE — на строку,
+  svc := c.account is not null and c.service is null and coalesce('Service' = any (c.categories), false);
+  -- права в замыкании: DELETE на каждую удаляемую каскадом строку, WRITE — на строку,
   -- у которой снимается конец
   dplan := @SCHEMA@.acl_plan('DELETE');
   wplan := @SCHEMA@.acl_plan('WRITE');
   if exists (select 1 from @SCHEMA@.entity x join gone g on g.id = x.id) then
     perform @SCHEMA@.lt_fail('sql-write.recreated_in_statement');
   end if;
-  -- удаление класса (хвост ревью безопасности доработок после 1.2.0): проверки ниже — нет строк, потомков и истории —
+  -- удаление класса: проверки ниже — нет строк, потомков и истории —
   -- не видят строку, которую писатель ещё не зафиксировал, и она осталась бы без класса, а с ней история удалённого
   -- класса, от которой зависит смена алиаса предка. Писатели строк и создание потомка держат разделяемую блокировку
   -- семейства: исключительная ждёт их, и следующие операторы проверок видят зафиксированное
@@ -1256,8 +1266,8 @@ begin
     perform @SCHEMA@.family_lock(cl, true);
   end loop;
   for r in select g.id, g.tenant, g.data->>'name' as name from gone g where g.class = 'Class' loop
-    -- у класса System — строки и потомки любого арендатора, кроме арендаторов со своим одноимённым классом: их строки и
-    -- потомки относятся к своему классу (class_row; ревью безопасности №3)
+    -- у класса System — строки и потомки любой квартиры, кроме квартир со своим одноимённым классом: их строки и
+    -- потомки относятся к своему классу (class_row)
     own := case when r.tenant = '@SYSTEM@'::uuid
                 then array(select x.tenant from @SCHEMA@.entity x
                            where x.class = 'Class' and x.data->>'name' = r.name and x.tenant <> '@SYSTEM@'::uuid)
@@ -1268,7 +1278,7 @@ begin
                   and (x.tenant = r.tenant or r.tenant = '@SYSTEM@'::uuid and x.tenant <> all (own))) then
       perform @SCHEMA@.lt_fail('sql-write.class_not_empty', jsonb_build_object('cls', r.name));
     end if;
-    -- и история строк (остаток Н2; доработки после точки Б): удалённый класс с историей, созданный заново с другими
+    -- и история строк: удалённый класс с историей, созданный заново с другими
     -- предками или алиасом, подставил бы её под чужие правила — класс с историей строк не удаляется
     if @SCHEMA@.class_has_history(r.name, r.tenant) then
       perform @SCHEMA@.lt_fail('sql-write.class_has_history', jsonb_build_object('cls', r.name));
@@ -1285,14 +1295,14 @@ begin
   join (select d.class, d.tenant from (select distinct x.class, x.tenant from gone x) d
         where @SCHEMA@.history_on(d.class, d.tenant)) h on h.class = g.class and h.tenant = g.tenant
   order by g.id;
-  -- пары «класс, арендатор» для сигнала — строкой «класс арендатор» (пробела нет ни в имени, ни в uuid)
+  -- пары «класс, квартира» для сигнала — строкой «класс квартира» (пробела нет ни в имени, ни в uuid)
   select coalesce(array_agg(g.id), '{}'), coalesce(array_agg(distinct g.class), '{}'),
          coalesce(array_agg(distinct g.class || ' ' || g.tenant::text), '{}'),
          coalesce(jsonb_agg(jsonb_build_object('tenant', g.tenant, 'user', g.links->>'User')) filter (where g.class = 'member'), '[]'::jsonb)
     into lvl, classes, pairs, mems from gone g;
   all_ids := lvl;
   while cardinality(lvl) > 0 loop
-    -- кто ссылается на уровень: действие по правилам концов (общее с превью)
+    -- кто ссылается на уровень: действие по правилам концов (общее с предпросмотром)
     with refs as (
       select x.id, x.class, x.tenant, x.links from @SCHEMA@.entity x where x.ends && lvl
     ), cls as (
@@ -1322,9 +1332,16 @@ begin
     select coalesce(array_agg(d.id), '{}'), coalesce(array_agg(distinct d.class), '{}'),
            coalesce(array_agg(distinct d.class || ' ' || d.tenant::text), '{}'),
            jsonb_agg(to_jsonb(d)) filter (where not @SCHEMA@.acl_row_ok(dplan, d.class, d.id, d.owner, d.tenant, d.tags, d.data, d.links)),
-           coalesce(jsonb_agg(jsonb_build_object('tenant', d.tenant, 'user', d.links->>'User')) filter (where d.class = 'member'), '[]'::jsonb)
-      into lvl, lvl_classes, lvl_pairs, drows, lvl_mems from d;
-    -- класс отказавшей строки называется, только если актор её видит (ревью безопасности №3)
+           coalesce(jsonb_agg(jsonb_build_object('tenant', d.tenant, 'user', d.links->>'User')) filter (where d.class = 'member'), '[]'::jsonb),
+           jsonb_agg(to_jsonb(d) order by d.id) filter (where d.class in ('rule', 'Resource'))
+      into lvl, lvl_classes, lvl_pairs, drows, lvl_mems, mrows from d;
+    -- матрица в каскаде: entity_acl строк, удалённых от владельца схемы, не видит — правило по умолчанию, чужое правило
+    -- и чужой ресурс (например, правило другого жильца на удаляемом своём ресурсе) охраняет acl_delete_guard; раньше
+    -- проверки прав, как и в предпросмотре: отказ один и тот же
+    if mrows is not null then
+      perform @SCHEMA@.acl_delete_guard(gr.row_j, c.account, svc) from jsonb_array_elements(mrows) gr(row_j);
+    end if;
+    -- класс отказавшей строки называется, только если актор её видит
     if drows is not null then
       denied := @SCHEMA@.visible_class(drows);
       if denied is not null then
@@ -1356,12 +1373,12 @@ begin
     end loop;
     all_ids := all_ids || lvl;
   end loop;
-  -- выход из членства (и удаление аккаунта, которое снимает его членства): строки арендатора, которыми
-  -- владел участник, переходят арендатору (§2.10) — новой версией
+  -- выписка (и удаление аккаунта, которое снимает его прописки): строки квартиры, которыми
+  -- владел жилец, переходят квартире — новой версией
   for r in select distinct (m->>'tenant')::uuid as tenant, (m->>'user')::uuid as usr from jsonb_array_elements(mems) m order by 1, 2 loop
     perform @SCHEMA@.owner_to_tenant(r.tenant, r.usr);
   end loop;
-  -- удалённый аккаунт (ревизия 7): сессии погасил с сигналом триггер до удаления (trg_entity_bd_account), его строки
+  -- удалённый аккаунт: сессии погасил с сигналом триггер до удаления (trg_entity_bd_account), его строки
   -- secret стёр каскад внешнего ключа secret.account — идентификаторы входа свободны
   perform @SCHEMA@.signal(array_agg(split_part(x.p, ' ', 1)), array_agg(split_part(x.p, ' ', 2)::uuid))
   from (select distinct p from unnest(pairs) p) x;
@@ -1378,15 +1395,14 @@ begin
   return null;
 end $$;
 
--- Предпросмотр удаления (этап 4, п. 6): что удалит delete этих строк — те же уровни и то же правило
+-- Предпросмотр удаления: что удалит delete этих строк — те же уровни и то же правило
 -- ref_action(), что у триггера, но без изменений. Строки: action delete (цели — depth 0, каскад —
 -- уровень), unset (конец будет снят) и restrict (мешает удалению). Функция владельца ищет по
--- индексу ends без RLS (§3 «Индексы под RLS»), поэтому и цели, и выдачу пропускает через
+-- индексу ends без RLS (под RLS индекс GIN не используется), поэтому и цели, и выдачу пропускает через
 -- row_visible() — то же условие, что у политики чтения (как find_*): невидимых строк не раскрывает
--- ни id, ни классом. Невидимые строки замыкания (3.0.1) — в конце сводкой, по строке на действие (delete,
+-- ни id, ни классом. Невидимые строки замыкания — в конце сводкой, по строке на действие (delete,
 -- unset, restrict; только непустые): id и class — null, action — 'hidden:<действие>', depth — их число. Вид
--- результата прежний: тело ставит create or replace повторным накатом той же ревизии, а клиент, который
--- соединяет выдачу с entity по id, сводок не видит.
+-- результата у строк и сводок один, а клиент, который соединяет выдачу с entity по id, сводок не видит.
 create or replace function @SCHEMA@.delete_preview(p_ids uuid[]) returns table(id uuid, class text, action text, depth int)
 language plpgsql stable security definer
 set search_path = pg_catalog, @SCHEMA@, pg_temp
@@ -1402,11 +1418,14 @@ declare
   casc uuid[];
   d int := 0;
   out_rows jsonb := '[]'::jsonb;
+  c record;
+  svc boolean;
+  g record;
 begin
   if c_account is null then
     return;
   end if;
-  -- цели — только видимые: превью не подтверждает существование чужих строк
+  -- цели — только видимые: предпросмотр не подтверждает существование чужих строк
   select coalesce(array_agg(x.id order by x.id), '{}') into lvl
   from @SCHEMA@.entity x
   where x.id = any (p_ids) and @SCHEMA@.row_visible(x.tenant, x.class, x.id, x.owner, x.tags, x.data, x.links, c_tenant, c_account, c_plan);
@@ -1428,6 +1447,17 @@ begin
     out_rows := out_rows || (select coalesce(jsonb_agg(jsonb_build_array(u, 'delete', d)), '[]'::jsonb) from unnest(casc) u);
     all_ids := all_ids || casc;
     lvl := casc;
+  end loop;
+  -- матрица: удаление снесло бы правило по умолчанию, чужое правило или чужой ресурс — тот же отказ, что у самого
+  -- удаления (entity_acl у целей, acl_delete_guard в каскаде trg_entity_ad), а не строка delete в предпросмотре
+  for g in select to_jsonb(x) as r from @SCHEMA@.entity x
+           where x.id = any (all_ids) and x.class in ('rule', 'Resource')
+           order by x.id = any (p_ids) desc, x.id loop  -- цели первыми: их отказ — тот же, что у entity_acl при удалении
+    if svc is null then
+      select * into c from @SCHEMA@.ctx();
+      svc := c.account is not null and c.service is null and coalesce('Service' = any (c.categories), false);
+    end if;
+    perform @SCHEMA@.acl_delete_guard(g.r, c_account, svc);
   end loop;
   -- кто останется ссылаться на удалённое: снимаемые концы и мешающие строки
   out_rows := out_rows || (
@@ -1460,7 +1490,7 @@ create or replace trigger entity_au after update on @SCHEMA@.entity referencing 
   for each statement when (current_user <> '@OWNER_NAME@') execute function @SCHEMA@.trg_entity_au();
 create or replace trigger entity_bd before delete on @SCHEMA@.entity
   for each statement when (current_user <> '@OWNER_NAME@') execute function @SCHEMA@.trg_entity_bd();
--- удаление аккаунта — для всех ролей, в том числе владельца (каскад trg_entity_ad, account_purge): ревизия 7
+-- удаление аккаунта — для всех ролей, в том числе владельца (каскад trg_entity_ad, account_remove)
 create or replace trigger entity_bd_account before delete on @SCHEMA@.entity
   for each row when (OLD.class = 'Account') execute function @SCHEMA@.trg_entity_bd_account();
 create or replace trigger entity_ad after delete on @SCHEMA@.entity referencing old table as gone
@@ -1476,7 +1506,7 @@ alter table @SCHEMA@.entity enable always trigger entity_ad;
 
 -- ========================= merge, inc, links_patch =========================
 
--- Правка концов слотами (этап 4, п. 4): .Роль.set(), .unset(), а для множественных концов .add()
+-- Правка концов слотами: .Роль.set(), .unset(), а для множественных концов .add()
 -- и .remove() — атомарно над свежей строкой, без предварительного чтения списка. p_ops — список
 -- [{role, op: set | unset | add | remove, value}]: у set — id, список id или null; у add и remove —
 -- список id. Повтор в add не добавляется, отсутствующий в remove — пропускается. Проверку концов
@@ -1530,8 +1560,7 @@ begin
   return res;
 end $$;
 
--- Слияние патча (§2.5): повторяет deepMerge 0.21 без исключений — объекты сливаются рекурсивно,
--- массивы, скаляры и null заменяются. Ключи на $ — обычные данные.
+-- Слияние патча: объекты сливаются рекурсивно, массивы, скаляры и null заменяются. Ключи на $ — обычные данные.
 create or replace function @SCHEMA@.merge(base jsonb, patch jsonb) returns jsonb
 language plpgsql immutable parallel safe
 as $$
@@ -1556,7 +1585,7 @@ begin
   return res;
 end $$;
 
--- Приращение числа по пути (§2.5): путь только через существующие объекты; отсутствующее поле —
+-- Приращение числа по пути: путь только через существующие объекты; отсутствующее поле —
 -- ошибка без start; null и не число — ошибка и со start. Сумма считается в numeric точно.
 create or replace function @SCHEMA@.inc(data jsonb, path text[], delta numeric, start numeric default null) returns jsonb
 language plpgsql immutable parallel safe
@@ -1613,7 +1642,7 @@ begin
   foreach f in array array[
     'now_ts()', 'lock_id(text)', 'lock_row(text)', 'lock_try(text)', 'family_name(uuid, jsonb)', 'family_rows(uuid, jsonb)', 'family_lock(@SCHEMA@.entity, boolean)', 'class_set(jsonb)', 'class_accepts(jsonb, text, uuid)', 'role_accepts(text, uuid, text, text, uuid)',
     'apply_defaults(jsonb, jsonb)', 'links_shape(jsonb, jsonb)', 'targets_bad(jsonb, boolean, jsonb)', 'check_links(jsonb, jsonb, uuid, boolean, jsonb)', 'key_id(jsonb, text, uuid, jsonb, jsonb)',
-    'log_version(@SCHEMA@.entity)', 'sys_update(uuid, jsonb, jsonb, jsonpath, text)', 'tombstone(@SCHEMA@.entity)',
+    'log_version(@SCHEMA@.entity)', 'sys_update(uuid, jsonb, jsonb, jsonpath, text)', 'tombstone(@SCHEMA@.entity)', 'tombstone_by(@SCHEMA@.entity, uuid, text)',
     'incoming_conflicts(uuid, text, uuid)', 'visible_detail(jsonb, uuid)', 'visible_class(jsonb)', 'class_change_safe(jsonb, jsonb)',
     'family_conflicts(text[], uuid, boolean)', 'reserved_names()', 'class_acl_admit(text, uuid)', 'class_rows_admit(text, uuid, text[], text)', 'class_has_history(text, uuid)', 'class_orphan_history(text, uuid)', 'class_admit(jsonb, uuid)',
     'trg_entity_bi()', 'trg_entity_bu()', 'trg_entity_ai()', 'trg_entity_au()', 'history_on(text, uuid)', 'signal_token(text, text, bytea)', 'signal_raw(text[])', 'signal(text[], uuid[])', 'class_evolve(@SCHEMA@.entity, @SCHEMA@.entity)',

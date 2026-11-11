@@ -1,4 +1,4 @@
--- letopis 1.0 — поиск id для шагов цепочки (план, §2.7, §3 «Индексы под RLS», этап 3, п. 3).
+-- letopis — поиск id для шагов цепочки: индексы под RLS.
 --
 -- Под RLS PostgreSQL пользуется индексом только для операторов, помеченных leakproof (равенство
 -- uuid и текста); поиск внутри jsonb и массивов (@>) к ним не относится, и пометить его так может
@@ -54,16 +54,16 @@ as $$
       select y.* from (select x.* from @SCHEMA@.log x where x.id = c.id offset 0) y
       where y.at <= coalesce(p_at, 'infinity'::timestamptz)
       order by y.rev desc limit 1) w
-  -- класс — у последней версии на момент, а не среди версий классов шага (план 2.0, 7.1 №1)
+  -- класс — у последней версии на момент, а не среди версий классов шага
   where w.class = any (p_classes) and @SCHEMA@.link_ids(w.links) @> array[p_src]
 $$;
 
 -- id строк классов p_classes: по вложению в data (GIN entity_data), по целям концов (GIN entity_ends),
 -- по списку id (первичный ключ) или по классу (entity_class_tenant).
--- Арендатор строки — явным условием (доработки после точки Б): row_visible пропускает только строки арендатора
--- сессии и System и свои членства (member) в других арендаторах, поэтому поиск сразу берёт строки этих двух
--- арендаторов, а свои членства — отдельным запросом по концу User; иначе цена поиска росла с данными других
--- арендаторов с теми же именами классов. По списку id условие ничего не даёт — там первичный ключ.
+-- Квартира строки — явным условием: row_visible пропускает только строки квартиры сессии и System и свои прописки
+-- (member) в других квартирах, поэтому поиск сразу берёт строки этих двух квартир, а свои прописки — отдельным
+-- запросом по концу User; иначе цена поиска росла бы с данными других квартир с теми же именами классов. По списку id
+-- условие ничего не даёт — там первичный ключ.
 create or replace function @SCHEMA@.find_ids(p_classes text[], p_data jsonb, p_ends uuid[], p_ids uuid[],
   p_at timestamptz default null, p_dead boolean default false)
 returns table (id uuid, rev int)
@@ -107,7 +107,7 @@ begin
         where e.class = any (p_classes) and e.tenant = any (v_tenants)
           and @SCHEMA@.row_visible(e.tenant, e.class, e.id, e.owner, e.tags, e.data, e.links, c_tenant, c_account, c_plan);
     end if;
-    -- свои членства в других арендаторах: по концу User (GIN entity_ends)
+    -- свои прописки в других квартирах: по концу User (GIN entity_ends)
     if v_member then
       return query select e.id, e.rev from @SCHEMA@.entity e
         where e.class = 'member' and e.ends @> array[c_account] and not (e.tenant = any (v_tenants))
@@ -125,17 +125,17 @@ begin
         and (p_data is null or v.data @> p_data) and (p_ends is null or @SCHEMA@.link_ids(v.links) @> p_ends)
         and @SCHEMA@.row_visible(v.tenant, v.class, v.id, v.owner, v.tags, v.data, v.links, c_tenant, c_account, c_plan);
   elsif p_ends is not null then
-    -- по целям концов — от версий, ссылавшихся на первую цель (GIN log_ends); арендатор — после пробы
+    -- по целям концов — от версий, ссылавшихся на первую цель (GIN log_ends); квартира — после пробы
     return query select v.id, v.rev from @SCHEMA@.log_refs_at(p_classes, p_ends[1], p_at) v
       where (v.tenant = any (v_tenants) or v.class = 'member')
         and (v.op = 'delete') = p_dead
         and (p_data is null or v.data @> p_data) and @SCHEMA@.link_ids(v.links) @> p_ends
         and @SCHEMA@.row_visible(v.tenant, v.class, v.id, v.owner, v.tags, v.data, v.links, c_tenant, c_account, c_plan);
   else
-    -- арендатор id неизменен: условие до distinct on не меняет, какая
+    -- квартира id неизменна: условие до distinct on не меняет, какая
     -- версия id последняя (индекс log_class_tenant_at)
     -- кандидаты — по классу (индекс log_class_tenant_at), последняя версия id на момент — любого класса, и класс
-    -- проверяется у неё (план 2.0, 7.1 №1)
+    -- проверяется у неё
     return query select v.id, v.rev from (
         select distinct l.id from @SCHEMA@.log l
         where l.class = any (p_classes) and l.tenant = any (v_tenants) and l.at <= coalesce(p_at, 'infinity'::timestamptz)) c
@@ -146,7 +146,7 @@ begin
       where v.class = any (p_classes) and (v.op = 'delete') = p_dead
         and (p_data is null or v.data @> p_data) and (p_ends is null or @SCHEMA@.link_ids(v.links) @> p_ends)
         and @SCHEMA@.row_visible(v.tenant, v.class, v.id, v.owner, v.tags, v.data, v.links, c_tenant, c_account, c_plan);
-    -- свои членства в других арендаторах: версии, ссылавшиеся на аккаунт (GIN log_ends)
+    -- свои прописки в других квартирах: версии, ссылавшиеся на аккаунт (GIN log_ends)
     if v_member then
       return query select v.id, v.rev from @SCHEMA@.log_refs_at(array['member'], c_account, p_at) v
         where not (v.tenant = any (v_tenants))
@@ -159,7 +159,7 @@ end $$;
 
 -- Обратный переход: пары «откуда, куда» — строки классов p_classes, которые ссылаются на id из p_src
 -- (любым концом или только ролями p_roles). Соединение с развёрнутым списком id: на каждый id —
--- одна проба индекса entity_ends (решение 5 точки А: «ends && <массив>» на широких списках медленно).
+-- одна проба индекса entity_ends («ends && <массив>» на широких списках медленно).
 create or replace function @SCHEMA@.find_hop(p_classes text[], p_data jsonb, p_ends uuid[], p_roles text[], p_src uuid[],
   p_at timestamptz default null, p_dead boolean default false)
 returns table (src uuid, id uuid, rev int)

@@ -1,56 +1,57 @@
 /**
- * Каталог сообщений letopis (план 2.0, этап 3, п. 3): ключ → код ошибки, шаблон текста и, если нужно, своя подсказка
- * «что делать». Здесь разделы сливаются в MESSAGES (префикс ключа — имя раздела, ключи не повторяются), а render()
- * подставляет параметры; ошибки и тексты строит errors.ts — lerr, lmsg, lwarn.
+ * Каталог сообщений letopis: ключ → код ошибки, шаблон текста и, если нужно, своя подсказка «что делать». Здесь разделы
+ * сливаются в MESSAGES (префикс ключа — имя раздела, ключи не повторяются), а render() подставляет параметры; ошибки и
+ * тексты строит errors.ts — lerr, lmsg, lwarn.
  *
- * Как перевести место на ключ каталога — инструкция исполнителям (образцы: записи разделов api, query, access, sql-core, sql-write,
+ * Как завести запись и бросить ошибку по ней (образцы: записи разделов api, query, access, sql-core, sql-write,
  * sql-time и места, которые их бросают).
  *
  * 1. Раздел — по файлу, где брошена ошибка:
- *      api — index, chain, typed, errors, internal;  write — write, tx, load;  query — sql, ops;
+ *      api — core, house, chain, typed, errors, internal;  write — write, tx, load;  query — sql, ops;
  *      time — watch, admin, cache, signals;  access — auth, acl;  model — model, registry, sync, cli, validate,
- *      jsonschema, uuid;  boot — up, pglite;  mcp — mcp, describe;  log — log (и тексты логирования из index, tx);
- *      sql-core — sql/10, 15, 20, 30, 40;  sql-write — sql/60;  sql-access — sql/50, 80;
- *      sql-time — sql/70, 90, 95, 99 и sql/migrate.
+ *      jsonschema, uuid;  boot — up, pglite (и пропуск в house);  mcp — mcp, describe;  log — log (и тексты
+ *      логирования из core, tx);  sql-core — sql/10, 15, 20, 30, 40;  sql-write — sql/60;  sql-access — sql/50, 80;
+ *      sql-time — sql/70, 90, 95, 99.
  *    codes.ts — запись на каждый код: заголовок и подсказка. Новый код — ещё ErrorCode (types.ts), для кода базы —
  *    LT_NAMES (errors.ts) и error_catalog(), и строка таблицы «Ошибки» README с якорем `<a id="код"></a>`.
  * 2. Ключ — `<раздел>.<snake_case>`: что случилось, а не где (api.unknown_step, query.sort_field). Одно место — один
  *    ключ; одинаковый текст в разных разделах — разные ключи (api.validation_failed и sql-write.invalid_data).
  * 3. Запись — { code, ru, hint? }, поля в этом порядке:
- *    code — код, с которым место бросало ошибку: код не меняется (коды сверяет check:semver);
- *    ru — прежний текст буква в букву, без префикса «letopis: <код>: »; подстановка ${x} → параметр {имя};
- *    hint — только если подсказка кода из codes.ts к месту не подходит (образцы: api.connect_schema, sql-time.last_owner).
- *    Параметр печатается как `${x}` в шаблонной строке, поэтому прежний текст не меняется; лучше скаляры (строка,
- *    число). Похожие имена — params.similar (массив из similar() в errors.ts): «— похожие: a, b» lerr допишет сам, в
- *    шаблон их не пишут.
+ *    code — код ошибки места; код существующей записи не меняется (коды сверяет check:semver);
+ *    ru — текст без префикса «letopis: <код>: »; значение — параметр {имя};
+ *    hint — только если подсказка кода из codes.ts к месту не подходит (образцы: api.connect_schema,
+ *    sql-access.member_invite_only).
+ *    Параметр печатается как `${x}` в шаблонной строке; лучше скаляры (строка, число). Похожие имена — params.similar
+ *    (массив из similar() в errors.ts): «— похожие: a, b» lerr допишет сам, в шаблон их не пишут.
  *    Текст с двумя формами (род, число) — две записи или параметр без грамматики, а не склейка слов в коде.
  * 4. Вызов в TS:
  *      throw lerr('api.unknown_step', { name, similar: similar(name, names) });
- *      throw lerr('access.switch_not_root');
- *      throw lerr('<раздел>.<ключ>', { cls }, { detail: { id }, cause: e });   // detail и cause — как раньше
+ *      throw lerr('api.closed');
+ *      throw lerr('<раздел>.<ключ>', { cls }, { detail: { id }, cause: e });
  *    Текст не для ошибки (сообщение нарушения, описание) — lmsg(ключ, параметры); предупреждение — lwarn(ключ,
- *    параметры, { once }). Подкласс и помощник вида fail(текст) переходят на ключ так же (образец — ValidationError в
- *    errors.ts). Старый конструктор new LetopisError(код, текст) из переведённого места уходит целиком.
+ *    параметры, { once }). Подкласс и помощник вида fail(текст) берут ключ так же (образец — ValidationError в
+ *    errors.ts); new LetopisError(код, текст) с литеральным текстом не пишут.
  * 5. Вызов в SQL — перегрузка lt_fail(p_key text, p_params jsonb default '{}', p_detail jsonb default null)
  *    (lib/sql/15-errors.sql): код ошибки — из записи, текст база собирает из шаблона ru (его видит и сырой SQL), в
  *    DETAIL — поля p_detail и ещё key, params; их fromDbError переносит в поля ошибки (key, params):
  *      perform @SCHEMA@.lt_fail('sql-core.no_membership');
  *      perform @SCHEMA@.lt_fail('sql-write.invalid_data', jsonb_build_object('cls', NEW.class), jsonb_build_object('issues', bad));
  *    Параметры — jsonb_build_object со скалярами (список — array_to_string); без параметров — один аргумент, а не null
- *    (литерал без типа выбрал бы прежнюю lt_fail(имя, текст)). detail ошибки — прежний: без p_detail — {}, а место, где
- *    был raise без detail, — p_detail => 'null' (detail нет). Свой SQLSTATE не из каталога — lt_raise(p_code, p_key,
- *    p_params, p_detail). В функциях, которые исполняет приложение (inc, links_patch: lt_fail ему не выдан), — raise
- *    как прежде (errcode — SQLSTATE кода, message — префикс «letopis: <код>: » и текст), только текст — lt_text(ключ,
- *    параметры) (она выдана приложению), а detail — jsonb_build_object('key', ключ, 'params', параметры)::text; без
- *    своих полей — ещё 'nodetail', true (detail нет, как у raise без detail).
- *    Разделы sql-* установщик кладёт в базу при каждом up() (@MESSAGES@): новой ревизии и миграции не нужно.
- * 6. Готовый файл — убрать из PENDING_LITERALS в lib/scripts/check-docs.mjs (проверка «в LetopisError, fail и lt_fail не
- *    осталось литеральных текстов»). Затем cd lib && npm run typecheck, npm run check:docs, npm run api:contract и тесты
- *    модуля по одному файлу: тест, который сверял русский текст, остаётся зелёным без правки.
+ *    (литерал без типа выбрал бы перегрузку lt_fail(имя, текст)). detail ошибки: без p_detail — {}, с p_detail =>
+ *    'null' — detail нет. Свой SQLSTATE не из каталога — lt_raise(p_code, p_key, p_params, p_detail). В функциях,
+ *    которые исполняет приложение (inc, links_patch: lt_fail ему не выдан), — raise (errcode — SQLSTATE кода,
+ *    message — префикс «letopis: <код>: » и текст), только текст — lt_text(ключ, параметры) (она выдана приложению),
+ *    а detail — jsonb_build_object('key', ключ, 'params', параметры)::text; без своих полей — ещё 'nodetail', true
+ *    (detail нет, как у raise без detail).
+ *    Разделы sql-* установщик кладёт в базу при каждом setup() (@MESSAGES@): новой ревизии не нужно.
+ * 6. Затем cd lib && npm run typecheck, npm run check:docs (литеральные тексты в LetopisError, fail и lt_fail ловит
+ *    сверка literals) и npm run api:contract.
  * 7. Особые места. Разделы каталога контракт API читает регэкспами: код — из поля code: в кавычках, текст ошибки — из
- *    строки с префиксом letopis и двоеточием; в комментариях их в таком виде не пишут. up.ts и pglite.ts бросают обычный Error('letopis.up: ' + lmsg(…)) — подходящего кода нет. Сообщения нарушений
- *    (issues[].message: validate.ts, 30-validate.sql) — lmsg и lt_text с кодом invalid_data. Описания инструментов MCP и
- *    instructions — строки в mcp.ts рядом со схемами, тексты ответов — раздел mcp.
+ *    строки с префиксом letopis и двоеточием; в комментариях их в таком виде не пишут. up.ts и pglite.ts бросают
+ *    обычный Error с префиксом letopis.setup (у install() и checkServer() — letopis.up) и текстом lmsg(…) — подходящего
+ *    кода нет. Сообщения нарушений (issues[].message: validate.ts, 30-validate.sql) — lmsg и lt_text с кодом
+ *    invalid_data. Описания инструментов MCP и instructions — строки в mcp.ts рядом со схемами, тексты ответов —
+ *    раздел mcp.
  */
 import { access } from './access.js';
 import { api } from './api.js';

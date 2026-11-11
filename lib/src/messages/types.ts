@@ -1,10 +1,9 @@
 /**
- * Каталог сообщений letopis (план 2.0, этап 3, п. 3) — типы записей. Как перевести место на ключ и вызывать — шапка
- * index.ts.
+ * Каталог сообщений letopis — типы записей. Как завести запись и вызывать её — шапка index.ts.
  */
 
 /**
- * Коды ошибок letopis: каталог базы (SQLSTATE LT001–LT018, `error_catalog()` в lib/sql/15-errors.sql, `LT_NAMES` в
+ * Коды ошибок letopis: каталог базы (SQLSTATE LT001–LT022, `error_catalog()` в lib/sql/15-errors.sql, `LT_NAMES` в
  * errors.ts) и коды самой библиотеки. Новый код — сюда, в codes.ts (заголовок и подсказка) и в раздел «Ошибки» README
  * (с якорем `<a id="код"></a>`). `internal` — внутренняя ошибка базы: SQLSTATE XX000 с ключом каталога в DETAIL
  * (`lt_raise('XX000', ключ, …)`, fromDbError).
@@ -13,11 +12,11 @@ export type ErrorCode =
   | 'no_session' | 'target_not_found' | 'invalid_data' | 'undeclared_end' | 'tenant_denied' | 'acl_denied'
   | 'id_mismatch' | 'id_from_db' | 'immutable_key' | 'invalid_class'
   | 'tightening_conflict' | 'isolation_level' | 'recreated_in_statement' | 'delete_restricted'
-  | 'not_deleted'
+  | 'not_deleted' | 'acl_ambiguous' | 'last_owner' | 'auth_failed'
   | 'exists' | 'duplicate' | 'deleted' | 'conflict' | 'rev_ambiguous' | 'tx_required' | 'lock_unsupported'
   | 'commit_unknown' | 'tx_rolled_back' | 'no_key' | 'no_path' | 'invalid_query' | 'admin_required'
   | 'not_empty' | 'class_not_loadable' | 'bypass_rls'
-  | 'user_session_required' | 'confirmation_required' | 'internal';
+  | 'user_session_required' | 'confirmation_required' | 'postman_failed' | 'no_postman' | 'tenant_required' | 'internal';
 
 /**
  * Запись каталога: код ошибки, шаблон текста (`ru`), `{имя}` в шаблоне — параметр. `hint` — своя подсказка «что делать»;

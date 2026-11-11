@@ -4,7 +4,7 @@
 import type { Section } from './types.js';
 
 export const write = {
-  // write.ts — write.ts:checkReason: причина изменения (reason у глаголов, db.begin(), батча)
+  // write.ts — write.ts:checkReason: причина изменения (reason у глаголов, me.begin(), батча)
   'write.bad_reason': {
     code: 'invalid_query',
     ru: '{where}: reason — строка до 1000 символов',
@@ -96,7 +96,7 @@ export const write = {
   },
   // write.ts:precheckPlan (narrowed) — update() или delete({ confirm: true }), а ни у шага глагола, ни у шагов до него нет
   // фильтра, id, непустого tags(), owner() или limit() и раньше в цепочке нет create() или upsert(); у update() цель
-  // задаёт и data.id патча (план 2.0, этап 4, п. 2; 7.10 №2); call — сам вызов, cls — класс шага глагола
+  // задаёт и data.id патча; call — сам вызов, cls — класс шага глагола
   'write.no_filter': {
     code: 'invalid_query',
     ru: '{call} без фильтра ({cls}): ни у шага глагола, ни у шагов до него нет фильтра, id, непустого tags(), owner() или limit(), и раньше в цепочке нет create() или upsert() — правка прошла бы по всем строкам',
@@ -126,6 +126,14 @@ export const write = {
   'write.end_ambiguous': {
     code: 'invalid_query',
     ru: 'конец класса {cls} для шага {step} неоднозначен: роли {roles} — назовите шаг ролью или задайте конец шагом роли после глагола',
+  },
+  // конец из пути (pathEnds): create или upsert сразу после шага, чья строка сама ссылается на новую (переход вперёд или
+  // шаг — роль предыдущего класса), а у нового класса конца к нему нет — строка записалась бы без привязки; verb —
+  // глагол, from — шаг, cls — класс новой строки, roles — концы шага, которые ссылались бы на неё
+  'write.create_forward': {
+    code: 'invalid_query',
+    ru: '{verb}() после шага {from}: ссылку на новую строку {cls} держит {from} (конец {roles}), а у {cls} конца к {from} нет — строка записалась бы без привязки',
+    hint: 'создать и привязать одной транзакцией слотом у того, кто держит ссылку: me.Владелец(id).update({}).роль.set(me.Класс().create(данные))',
   },
   // конец из пути: шаг дал не одну сущность; count — сколько найдено
   'write.end_not_single': {
@@ -162,10 +170,19 @@ export const write = {
     code: 'conflict',
     ru: 'строку {id} успели изменить: версия {rev}, а не {expected} — перечитайте и повторите',
   },
-  // write.ts:explainMissing: строки видны, но RLS не дала их изменить; ids — через запятую
+  // write.ts:explainMissing: строки видны, но RLS не дала их изменить или удалить; verb — update или delete, cls —
+  // класс шага, ids — через запятую; detail — { ids, class, action }
   'write.rows_denied': {
     code: 'acl_denied',
-    ru: 'строки видны, но изменить их нельзя: {ids}',
+    ru: '{verb}() у {cls}: строки видны, но правила доступа не дают их изменить: {ids}',
+    hint: "нет правила на эту операцию с этими строками: для update — me.acl.grant({ role, write: 'Класс' }), для delete — me.acl.grant({ role, delete: 'Класс' }); у правила с условием строка должна ему подходить; проверить заранее — me.acl.checkData('Класс', 'WRITE' | 'DELETE')",
+  },
+  // write.ts:rowCheckDenied (create, upsert, update): новые значения строки не проходят правила записи (политика RLS
+  // WITH CHECK); verb — глагол, cls — класс; detail — { class, action }. Сырой SQL (me.sql) — api.row_check_denied
+  'write.row_check_denied': {
+    code: 'acl_denied',
+    ru: '{verb}() у {cls}: правила доступа не разрешают записать строку с такими значениями',
+    hint: "нет правила на запись класса для ваших ролей — me.acl.grant({ role, write: 'Класс' }) (право write покрывает create, update и upsert) — или у правила условие, которому новая строка не подходит. Условие owner: '$actor' и create(): владелец новой строки по умолчанию — квартира; чтобы владельцем был автор — ownerDefault: 'actor' у класса или шаг .owner(me.account) перед create(). Проверить заранее — me.acl.checkData('Класс', 'WRITE')",
   },
   // update(patch, { rev }): у шага больше одной цели; count — сколько
   'write.rev_many_targets': {
@@ -187,14 +204,14 @@ export const write = {
   'write.restore_id_taken': {
     code: 'not_deleted',
     ru: '{verb}(): id {ids} занят новым объектом с тем же ключом — create() по ключу удалённого берёт его id, восстанавливать нечего; ничего не восстановлено',
-    hint: 'объект с этим ключом уже живёт: прочитайте его (db.Класс(id).first()); перед create() по ключу удалённого проверьте db.Класс({ ключ }).withDeleted(); восстановить остальное — restore({ expect, partial: true })',
+    hint: 'объект с этим ключом уже живёт: прочитайте его (me.Класс(id).first()); перед create() по ключу удалённого проверьте me.Класс({ ключ }).withDeleted(); восстановить остальное — restore({ expect, partial: true })',
   },
-  // restore() живого объекта, который уже восстановили: за последним надгробием — restore (второй раунд 2.1, A2: другой
-  // запрос успел первым); ids — такие id; detail.ids, с expect — ещё detail.stale
+  // restore() живого объекта, который уже восстановили: за последним надгробием — restore (другой запрос успел
+  // первым); ids — такие id; detail.ids, с expect — ещё detail.stale
   'write.restore_already': {
     code: 'not_deleted',
     ru: '{verb}(): {ids} уже восстановлены — объекты живые, восстанавливать нечего; ничего не восстановлено',
-    hint: 'их вернул другой запрос: прочитайте их (db.Класс(id).first()); восстановить остальное — restore({ expect, partial: true })',
+    hint: 'их вернул другой запрос: прочитайте их (me.Класс(id).first()); восстановить остальное — restore({ expect, partial: true })',
   },
   // restore({ expect }): последняя версия id не та, что в expect, и это не «уже восстановлено» и не «id занят» — удалён
   // снова, не удалялся, гонка; ничего не восстановлено. ids — такие id; detail.ids — они же, detail.stale — все цели,
@@ -214,18 +231,18 @@ export const write = {
     code: 'invalid_query',
     ru: '{verb}({ expect }): expect — список строк { id, rev } (строки ответа; у delete — и строки-сводки предпросмотра как есть)',
   },
-  // delete({ expect }) без confirm: превью сравнивать не с чем
+  // delete({ expect }) без confirm: предпросмотр сравнивать не с чем
   'write.expect_without_confirm': {
     code: 'invalid_query',
     ru: 'delete({ expect }) — только с { confirm: true }: без него delete() и есть предпросмотр',
   },
-  // delete({ confirm: true, expect }): превью в транзакции удаления не совпало с показанным; detail.preview — новое превью
+  // delete({ confirm: true, expect }): предпросмотр в транзакции удаления не совпал с показанным; detail.preview — новый предпросмотр
   'write.preview_changed': {
     code: 'conflict',
     ru: 'delete({ confirm: true, expect }): предпросмотр изменился с тех пор, как его показали — ничего не удалено',
     hint: 'показать пользователю новый предпросмотр (err.detail.preview) и удалить с ним: delete({ confirm: true, expect: err.detail.preview })',
   },
-  // write.ts, checkRestrict (3.0.1): сверенный предпросмотр delete({ confirm: true, expect }) содержит мешающие строки
+  // write.ts, checkRestrict: сверенный предпросмотр delete({ confirm: true, expect }) содержит мешающие строки
   // (restrict) — видимые или сводку скрытых правами; отказ до удаления. visible — число видимых, others — скрытых;
   // detail — { rows: [{ id, class }], others }, как у отказа триггера (sql-write.delete_restricted)
   'write.delete_restricted': {
@@ -233,42 +250,42 @@ export const write = {
     ru: 'удалению мешают ссылающиеся строки: видимых {visible}, скрытых правами {others} — ничего не удалено',
     hint: 'показать пользователю мешающие строки (err.detail.rows); скрытые правами (err.detail.others) видит только их владелец — обратиться к нему; удалить или перевести мешающие строки (или сменить у их конца onDelete) и заново показать предпросмотр delete()',
   },
-  // write.ts, checkFullData и checkPatchEnds (3.0, вместо api.validation_failed_end): лишний ключ данных — конец класса
+  // write.ts, checkFullData и checkPatchEnds: лишний ключ данных — конец класса
   // (имя роли или класса на конце); keys — такие ключи, role — роль первого из них. Нарушения ValidationError дописывает
   // к тексту сам
   'write.link_in_data': {
     code: 'invalid_data',
-    ru: '{verb}() у {cls}: {keys} — связь, а не поле данных; конец задают путь цепочки или шаг роли после глагола: .{role}.set(id)',
-    hint: 'конец (связь) — не поле данных: путь цепочки (db.Владелец(id).Класс().create(…)) или шаг роли после глагола: db.Класс.create({ … }).Роль.set(id); у конца-списка — .Роль.add(id) / .Роль.remove(id), снять — .Роль.unset()',
+    ru: '{verb}() у {cls}: {keys} — связь, а не поле данных; конец задают путь цепочки или шаг конца после глагола: .{role}.set(id)',
+    hint: 'конец (связь) — не поле данных: путь цепочки (me.Владелец(id).Класс().create(…)) или шаг конца после глагола: me.Класс.create({ … }).Конец.set(id); у конца-списка — .Роль.add(id) / .Роль.remove(id), снять — .Роль.unset()',
   },
-  // 3.0: delete({ confirm: true }) без expect и без all — удаление не сверено с показанным превью
+  // delete({ confirm: true }) без expect и без all — удаление не сверено с показанным предпросмотром
   'write.confirm_without_expect': {
     code: 'invalid_query',
     ru: 'delete({ confirm: true }) без { expect }: удаление не сверено с предпросмотром, который видел пользователь — ничего не удалено',
-    hint: 'передайте expect из предпросмотра: const p = await db.Класс(id).delete().rows(); показать p пользователю; await db.Класс(id).delete({ confirm: true, expect: p }).rows(). Осознанно удалить текущий состав без сверки — delete({ confirm: true, all: true })',
+    hint: 'передайте expect из предпросмотра: const p = await me.Класс(id).delete().rows(); показать p пользователю; await me.Класс(id).delete({ confirm: true, expect: p }).rows(). Осознанно удалить текущий состав без сверки — delete({ confirm: true, all: true })',
   },
-  // 3.0: restore() без expect и без all — и для явных id: последнее надгробие могло смениться с тех пор, как его видели
+  // restore() без expect и без all — и для явных id: последнее надгробие могло смениться с тех пор, как его видели
   'write.restore_without_expect': {
     code: 'invalid_query',
     ru: 'restore() без { expect }: восстановление не сверено с надгробиями, которые видел пользователь — ничего не восстановлено',
-    hint: 'передайте expect — надгробия из ответа delete() или из db.Класс(id).withDeleted().rows(): restore({ expect }); восстановить то, что можно, — restore({ expect, partial: true }); осознанно вернуть все удалённые цели шага без сверки — restore({ all: true })',
+    hint: 'передайте expect — надгробия из ответа delete() или из me.Класс(id).withDeleted().rows(): restore({ expect }); восстановить то, что можно, — restore({ expect, partial: true }); осознанно вернуть все удалённые цели шага без сверки — restore({ all: true })',
   },
   // tx.ts — tx.ts:commitUnknown: связь оборвалась во время commit
   'write.commit_unknown': {
     code: 'commit_unknown',
     ru: 'связь оборвалась во время commit: транзакция могла зафиксироваться — проверьте исход повтором той же операции с тем же ключом',
   },
-  // tx.ts: запрос в завершённой транзакции db.begin()
+  // tx.ts: запрос в завершённой транзакции me.begin()
   'write.tx_done': {
     code: 'tx_required',
-    ru: 'транзакция db.begin() уже завершена',
-    hint: 'транзакция уже зафиксирована или откатана — откройте новую: `const tr = await db.begin()`',
+    ru: 'транзакция me.begin() уже завершена',
+    hint: 'транзакция уже зафиксирована или откатана — откройте новую: `const tr = await me.begin()`',
   },
-  // tx.ts: lock() в завершённой транзакции db.begin()
+  // tx.ts: lock() в завершённой транзакции me.begin()
   'write.lock_tx_done': {
     code: 'tx_required',
-    ru: 'lock(): транзакция db.begin() уже завершена',
-    hint: 'транзакция уже зафиксирована или откатана — откройте новую: `const tr = await db.begin()`',
+    ru: 'lock(): транзакция me.begin() уже завершена',
+    hint: 'транзакция уже зафиксирована или откатана — откройте новую: `const tr = await me.begin()`',
   },
   // tx.ts: commit() транзакции, в которой была ошибка, — PostgreSQL её откатил
   'write.tx_rolled_back': {
@@ -417,7 +434,7 @@ export const write = {
   // load(), initialSession(): подключение не может стать владельцем схемы
   'write.load_admin_required': {
     code: 'admin_required',
-    ru: 'загрузчику нужно администраторское подключение (connect({ allowBypassRls: true }) роли, которая может стать владельцем схемы)',
+    ru: 'загрузчику нужен мастер-ключ — роль, которая может стать владельцем схемы (суперпользователь или с SET на роль-владельца)',
   },
   // load({ as }): не uuid
   'write.load_as_not_uuid': {
@@ -428,7 +445,7 @@ export const write = {
   // load({ as, withHistory })
   'write.load_as_history': {
     code: 'invalid_data',
-    ru: 'load({ as }) и режим истории несовместимы: историю импортирует администратор',
+    ru: 'load({ as }) и режим истории несовместимы: историю импортирует загрузка без as',
     hint: 'историю (withHistory) загружать без as; от имени пользователя — загрузка без истории',
   },
   // load({ withHistory, existing: 'update' })
@@ -452,14 +469,14 @@ export const write = {
   // load({ initial, as })
   'write.load_initial_as': {
     code: 'invalid_data',
-    ru: 'первая заливка (initial) — от администратора, без { as }',
+    ru: 'первая заливка (initial) — мастер-ключом, без { as }',
     hint: 'убрать as; от имени пользователя — загрузка без initial',
   },
-  // load(): нет ни { tenant }, ни { as }, ни арендатора сессии
+  // load(): нет ни { tenant }, ни квартиры сессии
   'write.load_no_tenant': {
     code: 'invalid_data',
-    ru: 'load(): нет арендатора — сессия без арендатора и не задан { tenant }',
-    hint: 'передать load(…, { tenant }) или загружать в сессии с арендатором',
+    ru: 'load(): не задана квартира — { tenant } (CLI: --tenant <квартира>)',
+    hint: 'передать load(…, { tenant: id квартиры }) или в CLI --tenant <имя квартиры>',
   },
   // проход 1 — нарушение строки: класса $class нет в реестре
   'write.load_class_not_found': {
@@ -506,10 +523,10 @@ export const write = {
     code: 'target_not_found',
     ru: 'владелец {id} не найден',
   },
-  // loadPortion, initialSession: арендатора нет или он отключён
+  // loadPortion, initialSession: квартиры нет или она выключена
   'write.load_tenant_denied': {
     code: 'tenant_denied',
-    ru: 'арендатор {tenant} не найден или отключён',
+    ru: 'квартира {tenant} не найдена или выключена',
   },
   // explainTaken (existing: 'error') — нарушение: id занят живым объектом
   'write.load_exists': {
@@ -526,15 +543,15 @@ export const write = {
     code: 'exists',
     ru: 'загрузка отменена: часть объектов уже есть в базе',
   },
-  // check — нарушение строки: Account не в арендаторе System
+  // check — нарушение строки: Account не в System
   'write.load_account_tenant': {
     code: 'tenant_denied',
-    ru: 'аккаунты лежат в арендаторе System',
+    ru: 'аккаунты лежат в System',
   },
-  // check: конец Tenant строки member — не арендатор строки
+  // check: конец Tenant строки member — не квартира строки
   'write.load_member_tenant': {
     code: 'invalid_data',
-    ru: 'конец Tenant членства — арендатор строки',
+    ru: 'конец Tenant прописки — квартира строки',
   },
   // check: $tags — не список строк
   'write.load_tags': {
@@ -577,9 +594,9 @@ export const write = {
     ru: 'первая заливка — только в пустую схему: в entity и log, кроме строк системных классов (Class, Account, member, Resource, rule), ничего быть не должно',
   },
   // tx.ts, hintTxRetry: хвост к тексту взаимной блокировки или ошибки сериализации в явной транзакции (lmsg) — с
-  // пробелом и тире в начале; называет db.begin(), поэтому второй раз не дописывается
+  // пробелом и тире в начале; называет me.begin(), поэтому второй раз не дописывается
   'write.tx_retry_hint': {
     code: 'invalid_query',
-    ru: ' — откатите транзакцию и повторите весь блок db.begin()',
+    ru: ' — откатите транзакцию и повторите весь блок me.begin()',
   },
 } satisfies Section<'write'>;

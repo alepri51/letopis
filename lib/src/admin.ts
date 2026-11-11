@@ -1,9 +1,9 @@
 /**
- * Эксплуатация (план, этап 6, п. 7, 8): maintain и его запуск по расписанию. Всё проверяет база: функция владельца
- * 90-time.sql сама сверяет права (letopis.maintain — системный администратор или администраторское подключение).
+ * Эксплуатация: maintain. Всё проверяет база: функция владельца 90-time.sql сама сверяет права
+ * (letopis_allowed('letopis.maintain'): подключение по мастер-ключу — суперпользователь или роль, которая может стать
+ * владельцем схемы, — либо право letopis.maintain у актора сессии по правилам System: сид даёт его консьержу).
  */
-import { lerr, lmsg, lwarn, warnText } from './errors.js';
-import { safeErrorText, type Log } from './log.js';
+import { lerr, lmsg, warnText } from './errors.js';
 import { runTx, type Executor, type TxContext } from './tx.js';
 
 export interface MaintainReport {
@@ -12,8 +12,9 @@ export interface MaintainReport {
   /** Удалено сессий: истёкших и погашенных (выход, отзыв, смена пароля, отключение или удаление аккаунта). */
   sessions: number;
   /**
-   * Удалено одноразовых кодов (вид `OTP` и свои виды `OTP_<ИМЯ>` из `issueOtp({ kind })`): истёкших, использованных,
-   * заменённых новым и исчерпавших попытки.
+   * Удалено одноразовых секретов: кодов (вход `requestCode`, смена контакта) — истёкших, использованных, заменённых
+   * новым и исчерпавших попытки — **и истёкших приглашений** (одно число на оба вида; погашенное приглашение считается,
+   * когда истечёт его срок).
    */
   codes: number;
   /** Заполнение очереди сигналов PostgreSQL (0…1); больше половины — предупреждение. */
@@ -42,62 +43,21 @@ export async function maintain(a: AdminCtx): Promise<MaintainReport> {
   const b = r as { sessions: number; codes: number; queue: number };
   const report: MaintainReport = { skipped: false, sessions: b.sessions, codes: b.codes, queue: Number(b.queue) };
   const warn = queueWarning(report.queue);
-  // логгер задан — событие warning (time.signal_queue), иначе console.warn, как прежде
+  // логгер задан — событие warning (time.signal_queue), иначе console.warn
   if (warn) warnText(warn, 'time.signal_queue', a.txc.log, { queue: report.queue });
   return report;
 }
 
-/** Предупреждение о заполненной очереди сигналов (§2.12): больше половины — зависший слушатель. */
+/** Предупреждение о заполненной очереди сигналов: больше половины — зависший слушатель. */
 export function queueWarning(queue: number): string | null {
   return queue > 0.5 ? `letopis: ${lmsg('time.signal_queue', { pct: (queue * 100).toFixed(0) })}` : null;
 }
 
-/** Самый длинный интервал таймера Node.js — 2³¹−1 мс (около 24,8 суток): дольше таймер не ждёт и срабатывает сразу. */
-const MAX_TIMER_MS = 2 ** 31 - 1;
-
 /**
  * Короткая форма интервала — '500ms', '30s', '15m', '1h', '1d' (дробное число тоже) — в миллисекундах; другая строка —
- * null. Общая для connect({ maintain }) и срока ttl у auth (3.0.1).
+ * null. Срок ttl ключей и сессий (auth.ts, ttlOf).
  */
 export function shortIntervalMs(v: string): number | null {
   const m = /^(\d+(?:\.\d+)?)\s*(ms|s|m|h|d)$/.exec(v.trim());
   return m ? Number(m[1]) * { ms: 1, s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 }[m[2] as 'ms']! : null;
-}
-
-/**
- * Интервал расписания: число мс или строка '500ms', '30s', '15m', '1h', '1d' — конечный, от 1 мс до 2³¹−1 мс (около 24
- * суток); иначе invalid_data. Ноль, отрицательное, NaN и слишком длинный интервал таймер Node.js превращает в 1 мс —
- * обслуживание шло бы без перерыва.
- */
-export function parseInterval(v: unknown): number {
-  let ms = Number.NaN;
-  if (typeof v === 'number') ms = v;
-  else if (typeof v === 'string') ms = shortIntervalMs(v) ?? Number.NaN;
-  if (!Number.isFinite(ms) || ms < 1 || ms > MAX_TIMER_MS) {
-    const shown = typeof v === 'string' ? `'${v}'` : typeof v === 'number' || typeof v === 'boolean' || v == null ? String(v) : typeof v;
-    throw lerr('time.bad_interval', { value: shown });
-  }
-  return ms;
-}
-
-/**
- * Запуск maintain() по расписанию (connect({ maintain: '1h' }); ms — уже проверенный интервал): ошибки — предупреждением,
- * следующий запуск не начинается, пока идёт прежний. Возвращает остановку: она снимает таймер и ждёт конца идущего
- * запуска — close() закрывает пул после него, а не посреди транзакции.
- */
-export function scheduleMaintain(run: () => Promise<unknown>, ms: number, log?: Log): () => Promise<void> {
-  let stopped = false;
-  let current: Promise<void> | null = null;
-  const timer = setInterval(() => {
-    if (current || stopped) return;
-    current = run()
-      .then(() => {}, (e) => lwarn('time.maintain_failed', { message: safeErrorText(e) }, { log }))
-      .finally(() => (current = null));
-  }, ms);
-  timer.unref?.();
-  return async () => {
-    stopped = true;
-    clearInterval(timer);
-    await current;
-  };
 }

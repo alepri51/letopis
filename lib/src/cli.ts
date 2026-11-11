@@ -1,20 +1,22 @@
 #!/usr/bin/env node
 /**
- * CLI letopis (план, этап 2, п. 7; этап 4, п. 11; этап 6, п. 8): `letopis sync`, `types`, `load`, `maintain`; план 1.1,
- * §2.5 — `mcp`; план 2.0, этап 3, п. 8 — `sync --check`.
+ * CLI letopis: служебные команды дома — мастер-ключом (строка подключения администратора PostgreSQL) и именем дома.
  *
- *   letopis sync <модуль моделей> --dsn … --schema v2.x (--token … | --api-key …) [--apply | --check]
- *     --check — сухой прогон с кодом 1, если он нашёл изменения (создать или изменить); вместе с --apply — USAGE, код 2
- *   letopis types --dsn … --schema v2.x (--token … | --api-key …) [--out types.d.ts] [--system]
- *     --system — и классы арендатора System (системные, сиды пакета), без него — только классы арендатора сессии
- *   letopis load <файлы NDJSON…> --dsn … --schema v2.x (--token … | --api-key …) [--class C]
+ *   letopis sync <модуль моделей> --dsn <мастер-ключ> --schema <дом> [--apply | --check]
+ *     модели — общие классы дома (System), пишет их консьерж по пропуску из базы; --check — сухой прогон с кодом 1, если
+ *     он нашёл изменения (создать или изменить); вместе с --apply — USAGE, код 2
+ *   letopis types --dsn … --schema … [--out types.d.ts] [--system]
+ *     классы дома; --system — и системные классы движка (Class, Account, member, Resource, rule)
+ *   letopis load <файлы NDJSON…> --dsn … --schema … --tenant <квартира> [--class C]
  *     [--duplicates error|first|last] [--existing error|skip|update] [--commit-every N] [--initial]
- *     --initial — первая заливка (план 1.1, §2.3): пустая схема, одна транзакция, индексы и триггеры — после загрузки
- *   letopis maintain --dsn … --schema v2.x [--token … | --api-key …]
- *   letopis mcp --dsn … --schema v2.x --token … [--write]   — сервер MCP по stdio (план 1.1, §2.5); dsn, schema и
- *     token — ещё из LETOPIS_DSN, LETOPIS_SCHEMA, LETOPIS_TOKEN; только токен пользователя: --api-key — отказ
- *   --log[=уровень] — у любой команды (логирование 3.0): события JSON-строками в stderr, уровень debug|info|warn|error|off,
- *     без значения — info; без флага действует LETOPIS_LOG
+ *     [--with-history] [--agent <имя>]
+ *     --initial — первая заливка: пустой дом, одна транзакция, индексы и триггеры — после загрузки; --with-history —
+ *     каждая строка — версия объекта ($rev, $at, $op); --agent — исполнитель версий в журнале
+ *   letopis maintain --dsn … --schema …
+ *   letopis mcp --pass <пропуск> --api-key <ключ жильца> [--write] — сервер MCP по stdio от имени жильца; пропуск и ключ —
+ *     ещё из LETOPIS_PASS и LETOPIS_KEY
+ *   --log[=уровень] — у любой команды: события JSON-строками в stderr, уровень debug|info|warn|error|off, без значения —
+ *     info; без флага действует LETOPIS_LOG
  *   справка — USAGE (её же читает справочник сайта, guide/scripts/gen-api.ts)
  */
 import { parseArgs } from 'node:util';
@@ -22,22 +24,26 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { realpathSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
-import { connect } from './index.js';
+import { openDb } from './core.js';
+import { SYSTEM_ID, conciergePass } from './up.js';
+import { SCHEMA_VERSION } from './types.js';
 import { syncModels, generateTypes } from './sync.js';
 import type { AnyModel } from './model.js';
 import { lerr, lmsg } from './errors.js';
 import { stderrLog } from './log.js';
 import type { LogLevel, LogOptions } from './types.js';
 
-const USAGE = `letopis sync <модуль> --dsn <строка> --schema <схема> (--token <токен> | --api-key <ключ>) [--apply | --check]
-letopis types --dsn <строка> --schema <схема> (--token <токен> | --api-key <ключ>) [--out <файл>] [--system]
-letopis load <файлы…> --dsn <строка> --schema <схема> (--token <токен> | --api-key <ключ>) [--class <Класс>]
+const USAGE = `letopis sync <модуль> --dsn <мастер-ключ> --schema <дом> [--apply | --check]
+letopis types --dsn <мастер-ключ> --schema <дом> [--out <файл>] [--system]
+letopis load <файлы…> --dsn <мастер-ключ> --schema <дом> --tenant <квартира> [--class <Класс>]
   [--duplicates error|first|last] [--existing error|skip|update] [--commit-every <N>] [--initial]
-letopis maintain --dsn <строка> --schema <схема> [--token <токен> | --api-key <ключ>]
-letopis mcp --dsn <строка> --schema <схема> --token <токен пользователя> [--write]
-  (или LETOPIS_DSN, LETOPIS_SCHEMA, LETOPIS_TOKEN; ключ сервиса --api-key не принимается)
+  [--with-history] [--agent <имя>]
+letopis maintain --dsn <мастер-ключ> --schema <дом>
+letopis mcp --pass <пропуск> --api-key <ключ жильца> [--write]
+  (или LETOPIS_PASS и LETOPIS_KEY; агент работает только как жилец)
 у любой команды: --log[=debug|info|warn|error|off] — события JSON-строками в stderr (без значения — info)
-(<схема> — v2.<имя> или просто <имя>: shop — это v2.shop)`;
+(<мастер-ключ> — строка подключения администратора PostgreSQL, флаг --dsn или переменная LETOPIS_ADMIN_DSN;
+ <дом> — имя дома из setup(): shop — это v2.shop)`;
 
 /** Команды CLI: остальное — USAGE с кодом 2 ещё до подключения. */
 const COMMANDS = new Set(['sync', 'types', 'load', 'maintain', 'mcp']);
@@ -51,7 +57,7 @@ async function loadModels(path: string): Promise<AnyModel[]> {
 }
 
 /**
- * Флаг --log[=уровень] (логирование 3.0): вынимается из аргументов до parseArgs — у строкового флага parseArgs требует
+ * Флаг --log[=уровень]: вынимается из аргументов до parseArgs — у строкового флага parseArgs требует
  * значение, а --log без него значит info.
  */
 function logFlag(argv: string[]): { args: string[]; log: LogOptions } {
@@ -67,10 +73,11 @@ function logFlag(argv: string[]): { args: string[]; log: LogOptions } {
 
 /** Флаги CLI для parseArgs. */
 const OPTIONS = {
-  dsn: { type: 'string' }, schema: { type: 'string' }, token: { type: 'string' }, 'api-key': { type: 'string' },
+  dsn: { type: 'string' }, schema: { type: 'string' }, pass: { type: 'string' }, 'api-key': { type: 'string' }, tenant: { type: 'string' },
   apply: { type: 'boolean' }, out: { type: 'string' }, help: { type: 'boolean' },
   class: { type: 'string' }, duplicates: { type: 'string' }, existing: { type: 'string' }, 'commit-every': { type: 'string' },
   initial: { type: 'boolean' }, write: { type: 'boolean' }, system: { type: 'boolean' }, check: { type: 'boolean' },
+  'with-history': { type: 'boolean' }, agent: { type: 'string' },
 } as const;
 
 /**
@@ -99,61 +106,83 @@ export async function main(argv: string[]): Promise<number> {
   } catch (e) {
     const text = parseError(e);
     if (text === null) throw e;
-    // код выхода 1 — как у прочих ошибок до подключения (прежде — необработанное исключение parseArgs)
+    // код выхода 1 — как у прочих ошибок до подключения
     console.error(`letopis: ${text}`);
     return 1;
   }
   const { values, positionals } = parsed;
   const [cmd, arg] = positionals;
-  // клиенты MCP передают строку подключения и токен окружением (план 1.1, §2.5) — только для этой команды
+  // клиенты MCP передают пропуск и ключ окружением — только для этой команды
   if (cmd === 'mcp') {
-    values.dsn ??= process.env.LETOPIS_DSN || undefined;
-    values.schema ??= process.env.LETOPIS_SCHEMA || undefined;
-    values.token ??= process.env.LETOPIS_TOKEN || undefined;
+    values.pass ??= process.env.LETOPIS_PASS || undefined;
+    values['api-key'] ??= process.env.LETOPIS_KEY || undefined;
+  } else {
+    // мастер-ключ — и из окружения: флаг --dsn виден в списке процессов, пока команда работает
+    values.dsn ??= process.env.LETOPIS_ADMIN_DSN || undefined;
   }
-  // --help — всегда код 0; неизвестная команда — USAGE до подключения к базе (план 2.0, 7.5 №4)
+  // --help — всегда код 0; неизвестная команда — USAGE до подключения к базе
   if (values.help) {
     console.log(USAGE);
     return 0;
   }
   // --check — сухой прогон: вместе с --apply смысла нет
-  if (!cmd || !COMMANDS.has(cmd) || !values.dsn || !values.schema || (cmd === 'sync' && values.check && values.apply)) {
+  if (!cmd || !COMMANDS.has(cmd) || (cmd !== 'mcp' && (!values.dsn || !values.schema)) || (cmd === 'sync' && values.check && values.apply)) {
     console.log(USAGE);
     return cmd ? 2 : 0;
   }
   if (cmd === 'mcp') return mcp(values, log);
-  // загрузчику нужно администраторское подключение (§2.6, п. 1)
-  const db = await connect({ dsn: values.dsn, schema: values.schema, token: values.token, apiKey: values['api-key'], max: 2, ...log,
-    // maintain работает и на администраторском подключении без сессии; классы со строками синхронизирует
-    // администраторское подключение с сессией арендатора
-    ...(cmd === 'load' || cmd === 'maintain' || cmd === 'sync' ? { allowBypassRls: true } : {}) });
-  try {
-    if (cmd === 'sync') {
-      if (!arg) { console.log(USAGE); return 2; }
-      const r = await syncModels(db, await loadModels(arg), { apply: values.apply });
+  const schema = values.schema!.includes('.') ? values.schema! : `${SCHEMA_VERSION}.${values.schema!}`;
+  if (cmd === 'sync') {
+    if (!arg) { console.log(USAGE); return 2; }
+    const models = await loadModels(arg);
+    // модели — общие классы дома (System): их пишет консьерж; пропуск мастер-ключ читает из базы сам
+    const { connect } = await import('./house.js');
+    const house = await connect(await conciergePass(values.dsn!, schema), { max: 2, listen: false, cache: false, ...log });
+    try {
+      const r = await syncModels(await house.in(SYSTEM_ID) as never, models, { apply: values.apply });
       const counts = { created: r.created.length, updated: r.updated.length, unchanged: r.unchanged.length, skipped: r.skipped.length };
       console.log(lmsg(r.applied ? 'model.cli_sync_applied' : 'model.cli_sync_dry_run', counts));
       for (const [key, list] of [['model.cli_sync_list_create', r.created], ['model.cli_sync_list_update', r.updated], ['model.cli_sync_list_system', r.skipped]] as const) {
         if (list.length) console.log(`  ${lmsg(key, { names: list.join(', ') })}`);
       }
       for (const l of r.lost) console.log(`  ${lmsg('model.cli_sync_lost', { kind: l.kind, path: l.path })}`);
-      // --check (план 2.0, этап 3, п. 8): модели расходятся с базой — код 1, например для шага CI перед --apply
+      // --check: модели расходятся с базой — код 1, например для шага CI перед --apply
       return values.check && (r.created.length || r.updated.length) ? 1 : 0;
+    } finally {
+      await house.close();
     }
+  }
+  // прочие служебные команды — мастер-ключом напрямую: загрузка, обслуживание, типы
+  const db = await openDb({ dsn: values.dsn!, schema, max: 2, allowBypassRls: true, listen: false, cache: false, ...log });
+  try {
     if (cmd === 'load') {
       const files = positionals.slice(1);
-      if (!files.length) { console.log(USAGE); return 2; }
+      if (!files.length || !values.tenant) { console.log(USAGE); return 2; }
+      // квартира — по имени (как в createTenant: точное совпадение, затем без учёта регистра) или по id
+      let tenant = values.tenant;
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tenant)) {
+        const S = `"${schema.replace(/"/g, '""')}"`;
+        const [t] = await db.transaction((q) => q.unsafe(`select id from ${S}.entity where class = 'Account' and tenant = $1::uuid
+          and data->>'kind' = 'tenant'
+          and casefold(data->>'name') collate pg_unicode_fast = casefold($2::text) collate pg_unicode_fast
+          order by (data->>'name' = $2) desc limit 1`, [SYSTEM_ID, tenant]));
+        if (!t) throw lerr('api.tenant_unknown', { tenant });
+        tenant = String(t.id);
+      }
       // несколько файлов — одна загрузка и одна транзакция; в файле — объект на строку
       const rows: Record<string, unknown>[] = [];
       for (const f of files) {
         for (const line of (await readFile(f, 'utf8')).split(/\r?\n/)) if (line.trim()) rows.push(JSON.parse(line) as Record<string, unknown>);
       }
       const r = await db.load(rows, {
+        tenant,
         class: values.class,
         duplicates: values.duplicates as 'error' | 'first' | 'last' | undefined,
         existing: values.existing as 'error' | 'skip' | 'update' | undefined,
         commitEvery: values['commit-every'] ? Number(values['commit-every']) : undefined,
         initial: values.initial,
+        ...(values['with-history'] ? { withHistory: true } : {}),
+        ...(values.agent !== undefined ? { agent: values.agent } : {}),
       });
       console.log(JSON.stringify(r));
       return 0;
@@ -164,11 +193,7 @@ export async function main(argv: string[]): Promise<number> {
       return 0;
     }
     if (cmd === 'types') {
-      // реестр сессии без действующей сессии (токен истёк, погашен, неверен или не задан) пуст, и команда выдала бы
-      // пустой результат с кодом 0, а с --out затёрла бы им файл. acl.check ничего не пишет, а без сессии отказывает
-      // no_session — тогда выход с кодом 1, файл не тронут
-      await db.acl.check('letopis.cli');
-      // --system — и классы арендатора System: системные и классы сидов пакета (например, booking)
+      // классы дома (System); --system — и системные классы движка
       const text = generateTypes(db.registry, { includeSystem: values.system === true });
       if (values.out) await writeFile(values.out, text);
       else console.log(text);
@@ -182,38 +207,41 @@ export async function main(argv: string[]): Promise<number> {
 }
 
 /**
- * letopis mcp (план 1.1, §2.5): сервер MCP по stdio от имени одного пользователя. Только токен сессии пользователя —
- * ключ сервиса даёт все права auth.* (имперсонация, выпуск сессий) и лежал бы на машине агента. Модуль mcp.js и SDK
- * грузятся только здесь: letopis --help и прочие команды работают без SDK. В stdout — только протокол (предупреждения
- * connect() идут в stderr); процесс живёт, пока клиент не закроет stdin.
+ * letopis mcp: сервер MCP по stdio от имени одного жильца — пропуск дома и ключ API жильца: агент получает только права
+ * жильца в его квартире, полного доступа консьержа у него нет. Модуль mcp.js и SDK грузятся только здесь: letopis --help
+ * и прочие команды работают без SDK. В stdout — только протокол (предупреждения идут в stderr); процесс живёт, пока
+ * клиент не закроет stdin.
  */
-async function mcp(v: { dsn?: string; schema?: string; token?: string; 'api-key'?: string; write?: boolean }, log: LogOptions = {}): Promise<number> {
-  if (v['api-key'] !== undefined) {
-    console.error(lerr('model.mcp_api_key_refused').message);
-    return 2;
-  }
-  if (!v.token) {
+async function mcp(v: { pass?: string; 'api-key'?: string; write?: boolean }, log: LogOptions = {}): Promise<number> {
+  // агент — всегда жилец: пропуск консьержа открывает дом, ключ API жильца — его квартиру и его права
+  if (!v.pass || !v['api-key']) {
     console.error(lerr('model.mcp_token_required').message);
     return 2;
   }
   const { createMcpServer } = await import('./mcp.js');
-  const db = await connect({ dsn: v.dsn!, schema: v.schema!, token: v.token, max: 4, ...log });
+  const { connect } = await import('./house.js');
+  const house = await connect(v.pass, { max: 4, ...log });
+  const db = await house.open({ apiKey: v['api-key'] }).catch(async (e: unknown) => {
+    await house.close();
+    throw e;
+  });
   try {
     const opts = { write: v.write === true };
     // учётные данные — до начала протокола: отказ виден кодом выхода и текстом в stderr
-    await createMcpServer(db, opts);
+    await createMcpServer(db as never, opts);
     const { serveStdio } = await import('@modelcontextprotocol/server/stdio');
     const closed = new Promise<void>((resolve) => {
       process.stdin.once('end', resolve);
       process.stdin.once('close', resolve);
     });
     // экземпляр сервера — на соединение (и на пробу server/discover): ревизию протокола выбирает клиент
-    const handle = serveStdio(() => createMcpServer(db, opts), { onerror: (e) => console.error(`letopis mcp: ${e.message}`) });
+    const handle = serveStdio(() => createMcpServer(db as never, opts), { onerror: (e) => console.error(`letopis mcp: ${e.message}`) });
     await closed;
     await handle.close();
     return 0;
   } finally {
     await db.close();
+    await house.close();
   }
 }
 

@@ -1,7 +1,7 @@
 {
   "name": "letopis",
-  "version": "3.0.1",
-  "description": "Letopis (летопись): хранилище версионированных сущностей на PostgreSQL 18 — целостность, история, арендаторы и права проверяет сама база, поверх — цепочки через точку. ИИ-агенту — AGENT-CHEATSHEET.md и llms.txt в пакете; исходный код доступен (PolyForm Noncommercial 1.0.0)",
+  "version": "4.0.0",
+  "description": "Letopis (летопись): хранилище версионированных сущностей на PostgreSQL 18 — целостность, история, квартиры и права проверяет сама база, поверх — цепочки через точку. ИИ-агенту — AGENT-CHEATSHEET.md и llms.txt в пакете; исходный код доступен (PolyForm Noncommercial 1.0.0)",
   "keywords": [
     "postgres",
     "postgresql",
@@ -65,7 +65,6 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.build.json --noEmit",
     "typecheck:all": "tsc --noEmit",
-    "test": "tsx --test --test-concurrency=1 --test-force-exit test/*.test.ts",
     "check:docs": "node scripts/check-docs.mjs",
     "check:package": "node scripts/check-package.mjs",
     "seed:booking": "tsx scripts/gen-seed-booking.mjs",
@@ -74,6 +73,7 @@
     "prepublishOnly": "npm run typecheck && npm run check:docs && npm run build",
     "check:semver": "node scripts/check-semver.mjs",
     "prerelease": "node scripts/prerelease.mjs",
+    "cheatsheet": "node scripts/run-cheatsheet.mjs",
     "soak": "tsx bench/soak.mjs"
   },
   "dependencies": {

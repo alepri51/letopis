@@ -1,4 +1,4 @@
--- letopis 1.0 — каталог ошибок базы (план, §7.1, этап 1, п. 7).
+-- letopis — каталог ошибок базы.
 -- У ошибок letopis собственный класс кодов SQLSTATE «LT»; текст — «letopis: <имя>: <сообщение>»,
 -- детали — JSON в поле DETAIL. Текст «цель не найдена» одинаков для несуществующей и чужой цели.
 
@@ -10,7 +10,7 @@ as $$
     ('LT002', 'target_not_found',       'letopis: target_not_found: цель не найдена'),
     ('LT003', 'invalid_data',           'letopis: invalid_data: данные не проходят описание класса'),
     ('LT004', 'undeclared_end',         'letopis: undeclared_end: конец не объявлен в классе'),
-    ('LT005', 'tenant_denied',          'letopis: tenant_denied: чужой арендатор'),
+    ('LT005', 'tenant_denied',          'letopis: tenant_denied: чужая квартира'),
     ('LT006', 'acl_denied',             'letopis: acl_denied: отказ по правилам доступа'),
     ('LT007', 'id_mismatch',            'letopis: id_mismatch: id не равен v5 от ключа'),
     ('LT008', 'id_from_db',             'letopis: id_from_db: id класса без ключа выдаёт база'),
@@ -20,7 +20,11 @@ as $$
     ('LT014', 'isolation_level',        'letopis: isolation_level: операция разрешена только в read committed'),
     ('LT015', 'recreated_in_statement', 'letopis: recreated_in_statement: id удалён и создан заново одним оператором'),
     ('LT017', 'delete_restricted',      'letopis: delete_restricted: удалению мешают ссылающиеся строки'),
-    ('LT018', 'not_deleted',            'letopis: not_deleted: объект не удалён — restore только для удалённых')
+    ('LT018', 'not_deleted',            'letopis: not_deleted: объект не удалён — restore только для удалённых'),
+    ('LT019', 'acl_ambiguous',          'letopis: acl_ambiguous: правила с равным счётом спорят — доступ не определить'),
+    ('LT020', 'last_owner',             'letopis: last_owner: квартира осталась бы без owner'),
+    ('LT021', 'exists',                 'letopis: exists: уже есть'),
+    ('LT022', 'auth_failed',            'letopis: auth_failed: ключ не подошёл')
 $$;
 
 create or replace function @SCHEMA@.lt_raise(p_code text, p_name text, p_msg text, p_detail jsonb default null)
@@ -44,9 +48,9 @@ begin
   perform @SCHEMA@.lt_raise(coalesce(c, 'LT000'), p_name, p_msg, p_detail);
 end $$;
 
--- Каталог сообщений базы (план 2.0, этап 3, п. 3): ключ → имя ошибки и русский шаблон, {имя} — параметр. Строки
--- подставляет установщик (@MESSAGES@) из разделов sql-* каталога библиотеки (lib/src/messages). Обновляет обычный up(),
--- как прочие функции.
+-- Каталог сообщений базы: ключ → имя ошибки и русский шаблон, {имя} — параметр. Строки
+-- подставляет установщик (@MESSAGES@) из разделов sql-* каталога библиотеки (lib/src/messages). Обновляет каждый
+-- setup(), как прочие функции.
 create or replace function @SCHEMA@.message_catalog() returns table (key text, name text, ru text)
 language sql immutable parallel safe
 as $catalog$
@@ -74,8 +78,8 @@ end $$;
 -- Ошибка по ключу каталога сообщений: имя (и SQLSTATE) — из каталога, текст — русский шаблон с параметрами (его видит
 -- сырой SQL), в DETAIL — поля p_detail и ещё key, params: библиотека переносит их в поля ошибки (key, params).
 -- Без параметров — один аргумент: литерал без типа вторым аргументом выбрал бы lt_fail(имя, текст).
--- p_detail — прежний DETAIL места: не передан — {} (так всегда делала lt_raise); JSON null (p_detail => 'null') — DETAIL
--- не было (место бросало raise без detail): в DETAIL признак nodetail, и у ошибки библиотеки detail нет, как раньше.
+-- p_detail — DETAIL места: не передан — {} (как у lt_raise); JSON null (p_detail => 'null') — место без DETAIL: в DETAIL
+-- признак nodetail, и у ошибки библиотеки detail нет.
 create or replace function @SCHEMA@.lt_fail(p_key text, p_params jsonb default '{}'::jsonb, p_detail jsonb default null)
 returns void
 language plpgsql

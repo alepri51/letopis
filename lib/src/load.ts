@@ -1,15 +1,15 @@
 /**
- * Загрузчик (план, §2.6, этап 4, п. 11): массовая запись для администратора. Данные проверяет код
+ * Загрузчик: массовая запись по мастер-ключу (подключение, которое может стать владельцем схемы). Данные проверяет код
  * библиотеки (валидатор на TypeScript из того же описания, что у базы), а в базу строки уходят
  * командой COPY от роли владельца — без триггеров и RLS и, в режиме по умолчанию, без запросов на
  * пачку. Единственное, чего код проверить не может, — объекты вне загрузки: их сверяет один запрос
  * в конце с блокировкой for key share до фиксации (отложенный внешний ключ одним запросом).
- * Режим доверия убран решением 2 точки А: этот запрос стоит 0,1–1,3 % времени загрузки.
+ * Режима доверия без этого запроса нет: он стоит 0,1–1,3 % времени загрузки.
  *
  *   await db.load({ Org: orgs, Staff: staff })            // объект «класс → строки»
  *   await db.load(rows)                                    // массив или поток строк с полем $class
  *
- * Первая заливка (план 1.1, §2.3, этап 3) — load(rows, { initial: true }) и initialSession: пустая схема,
+ * Первая заливка — load(rows, { initial: true }) и initialSession: пустая схема,
  * одна транзакция, без индексов и триггеров на время COPY (FREEZE), перестройка в конце.
  *
  * Строка — объект: поля данных и роли концов на верхнем уровне; $class — класс строки, $ext —
@@ -59,7 +59,7 @@ export interface LoadOptions {
   withHistory?: boolean;
   /** Класс строк без $class (CLI --class). */
   class?: string;
-  /** Арендатор строк (по умолчанию — арендатор сессии). */
+  /** Квартира строк (id). */
   tenant?: string;
   /**
    * Исполнитель записи — строка, которую журнал сохранит в поле `agent` загруженных версий рядом с автором (по умолчанию
@@ -67,9 +67,9 @@ export interface LoadOptions {
    */
   agent?: string;
   /**
-   * Загрузка от имени пользователя (§2.6, п. 10): автор версий — он; арендатор (по умолчанию —
-   * собственный аккаунта) доступен ему; право WRITE на каждый класс и условия ACL на новые (и в
-   * existing: 'update' — прежние) значения строк; цели концов ему видны; владелец — по ownerDefault.
+   * Загрузка от имени пользователя: автор версий — он; он прописан в квартире загрузки; право WRITE на каждый класс и
+   * условия ACL на новые (и в existing: 'update' — прежние) значения строк; цели концов ему видны; владелец — по
+   * ownerDefault.
    */
   as?: string;
   /**
@@ -81,8 +81,8 @@ export interface LoadOptions {
 }
 
 /**
- * Все опции load(): неизвестная — invalid_data с похожими (checkOptions; план 2.0, 7.10 №4). Фасад db.load() сверяет их
- * до пула администратора (index.ts), load() — ещё раз до проверки прав.
+ * Все опции load(): неизвестная — invalid_data с похожими (checkOptions). Фасад db.load() (core.ts) сверяет их
+ * раньше прочих проверок, load() — ещё раз до проверки прав.
  */
 export const LOAD_OPTIONS = {
   duplicates: true, existing: true, batch: true, commitEvery: true, withHistory: true, class: true, tenant: true,
@@ -122,7 +122,7 @@ export interface LoadIssue {
 export type LoadInput = Record<string, readonly Raw[]> | readonly Raw[] | Iterable<Raw> | AsyncIterable<Raw>;
 
 export interface LoadEnv {
-  /** Пул администраторского подключения. */
+  /** Пул подключения (загрузка — по мастер-ключу: admin). */
   sql: Sql;
   schema: string;
   tenant: string | null;
@@ -133,7 +133,7 @@ export interface LoadEnv {
   session?: InitialState;
 }
 
-/** Классы, строки которых первая заливка сохраняет и возвращает: описания классов, аккаунты, членства, права. */
+/** Классы, строки которых первая заливка сохраняет и возвращает: описания классов, аккаунты, прописки, права. */
 const SYSTEM_CLASSES = ['Class', 'Account', 'member', 'Resource', 'rule'];
 
 /** Внутренние настройки первой заливки — для разбивки замера (bench/initial-load.mjs); в публичные типы не входят. */
@@ -162,7 +162,7 @@ export interface InitialState {
   /** id строк системных классов и объектов, уже записанных сессией: первичного ключа на время загрузки нет. */
   ids: Set<string>;
   pending: Pending[];
-  /** Арендатор → классы записанных строк: сигнал в конце сессии. */
+  /** Квартира → классы записанных строк: сигнал в конце сессии. */
   touched: Map<string, Set<string>>;
   freeze: boolean;
 }
@@ -268,7 +268,7 @@ interface Shaped {
   links: Record<string, string | string[]>;
   /** $tags строки (по умолчанию — без тегов). */
   tags?: string[];
-  /** $owner строки (по умолчанию — арендатор или ownerDefault). */
+  /** $owner строки (по умолчанию — квартира или ownerDefault). */
   owner?: string;
   error?: { code: string; message: string; issues?: Issue[] };
 }
@@ -332,7 +332,7 @@ function shape(reg: Registry, tenant: string, cls: ClassInfo, raw: Raw, check: b
   return { data: full, links };
 }
 
-/** id строки: класс с ключом — v5 от ключа; без ключа — от $ext или от случайной части (§2.3). */
+/** id строки: класс с ключом — v5 от ключа; без ключа — от $ext или от случайной части. */
 function idOfRow(reg: Registry, tenant: string, cls: ClassInfo, raw: Raw): string | { error: string } {
   if (!cls.key.length) {
     if (raw.$ext !== undefined) return typeof raw.$ext === 'string' ? v5Id(tenant, cls.name, [raw.$ext]) : { error: lmsg('write.load_ext_string') };
@@ -403,11 +403,11 @@ const COPY_CHUNK = 262144;
 const tick = (): Promise<void> => new Promise((r) => setImmediate(r));
 
 /**
- * COPY … from stdin. postgres.js 3.4 теряет ошибку сервера, пришедшую после конца потока: запрос
+ * COPY … from stdin. postgres.js 3.4 теряет ошибку PostgreSQL, пришедшую после конца потока: запрос
  * уже разрешён потоком, а колбэк завершения не вызывается — промис повис бы. Поэтому reject
  * запроса перехватывается до начала потока и отклоняет ожидание. Строки склеиваются в куски до
  * COPY_CHUNK символов: запись в сокет на каждую строку стоила дороже подготовки самой строки
- * (замер первой заливки, план 1.1, этап 3), а границы сообщений протокол COPY не связывает со строками.
+ * (замер первой заливки), а границы сообщений протокол COPY не связывает со строками.
  */
 async function copyLines(conn: Sql, text: string, lines: string[]): Promise<void> {
   if (!lines.length) return;
@@ -442,7 +442,7 @@ async function copyLines(conn: Sql, text: string, lines: string[]): Promise<void
 }
 
 /**
- * Загрузить строки (§2.6). Одна транзакция (или порции commitEvery): описания классов под
+ * Загрузить строки. Одна транзакция (или порции commitEvery): описания классов под
  * разделяемыми блокировками семейств, проверки в коде, COPY пачками, запрос по целям вне загрузки,
  * сигнал, ANALYZE для больших загрузок. Ошибка любой строки отменяет загрузку (порцию) — отчёт
  * называет строки и нарушения.
@@ -461,7 +461,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
     if (opts.existing !== undefined && opts.existing !== 'error') throw lerr('write.load_initial_existing');
     if (asAcc !== undefined) throw lerr('write.load_initial_as');
   }
-  const tenant = opts.tenant ?? asAcc ?? env.tenant;
+  const tenant = opts.tenant ?? env.tenant;
   if (!tenant) throw lerr('write.load_no_tenant');
   const dupMode = opts.duplicates ?? 'error';
   const existing = opts.existing ?? 'error';
@@ -495,7 +495,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
   let aclRan = false;
   /** Цели ссылок порции (load({ as })): id → первая строка и роль — для проверки видимости. */
   const targets = new Map<string, { line: number; role: string }>();
-  /** Владельцы ($owner) порции, кроме арендатора: id → первая строка; сверяются запросом в конце. */
+  /** Владельцы ($owner) порции, кроме квартиры: id → первая строка; сверяются запросом в конце. */
   const owners = new Map<string, number>();
   // в первой заливке таблицы заблокированы сессией: читать — на её соединении
   const reg0 = await readRegistry(ini?.conn ?? env.sql);
@@ -623,7 +623,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       }
       // описания классов под разделяемыми блокировками семейств, затем — свежие
       const roots = [...new Set(portion.map((i) => p1[i]!.cls.ancestors[p1[i]!.cls.ancestors.length - 1]))].sort();
-      // ключ блокировки — арендатор корневого класса и имя корня (корень из System — ключ System)
+      // ключ блокировки — квартира корневого класса и имя корня (корень из System — ключ System)
       for (const r of roots) await conn.unsafe(`select ${S}.family_lock(${S}.class_row($1, $2::uuid), false)`, [r, tenant]);
       const reg = await readRegistry(conn as unknown as Sql);
       // класс строки, удалённый между первым чтением реестра и блокировкой семейства, — отказ, а не прежнее описание
@@ -633,7 +633,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       }
       if (issues.any) issues.fail();
       const [{ ts, xid }] = await conn.unsafe(`select clock_timestamp()::text as ts, pg_current_xact_id()::text as xid`);
-      // от имени пользователя: арендатор доступен ему, планы прав READ и WRITE; класс без права — отказ
+      // от имени пользователя: он прописан в квартире (acl_subject), планы прав READ и WRITE; класс без права — отказ
       if (asAcc) {
         const [{ s: subj }] = await conn.unsafe(`select ${S}.acl_subject($1::uuid, $2::uuid) as s`, [asAcc, tenant]);
         acl = { read: subj.read as Record<string, unknown>, write: subj.write as Record<string, unknown> };
@@ -698,7 +698,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       }
       if (issues.any) issues.fail();
       if (ini) {
-        // цели, владельцы и арендатор — в конце сессии, по перестроенным индексам
+        // цели, владельцы и квартира — в конце сессии, по перестроенным индексам
         report.external += external.size;
         ini.pending.push({ reg, tenant: tenant!, external, owners: new Map(owners) });
         for (const id of inLoad.keys()) ini.ids.add(id);
@@ -707,7 +707,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
         for (const c of classesTouched) set.add(c);
         return;
       }
-      // цели вне загрузки — один запрос в конце с блокировкой до фиксации (§2.6, п. 7)
+      // цели вне загрузки — один запрос в конце с блокировкой до фиксации
       const ext = [...external.keys()].sort();
       report.external += ext.length;
       if (ext.length) {
@@ -741,11 +741,11 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
           issues.add({ line: t.line, code: 'target_not_found', message: lmsg('write.load_target_not_found', { role: t.role }), id: h.id as string });
         }
       }
-      // арендатор существует и включён
+      // квартира существует и включена
       const [acc] = await conn.unsafe(`select coalesce((data->>'enabled')::boolean, true) as enabled from ${S}.entity where id = $1::uuid and class = 'Account'`, [tenant]);
       if (!acc || !acc.enabled) issues.add({ line: portion.length ? portion[0] + 1 : 0, code: 'tenant_denied', message: lmsg('write.load_tenant_denied', { tenant }) });
       if (issues.any) issues.fail();
-      // сигнал — функцией базы, как у триггеров: нагрузка по режиму сигналов установки (план 1.1)
+      // сигнал — функцией базы, как у триггеров: нагрузка по режиму сигналов дома
       if (classesTouched.size) {
         const touched = [...classesTouched];
         await conn.unsafe(`select ${S}.signal($1::text[], $2::uuid[])`, [touched, touched.map(() => tenant)]);
@@ -756,7 +756,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       await conn.unsafe('commit');
     } catch (e) {
       failed = e;
-      // обрыв: в мёртвое соединение не пишут и в пул его не возвращают (план 2.0, 7.4 №7)
+      // обрыв: в мёртвое соединение не пишут и в пул его не возвращают
       if (!ini) await rollbackAfter(conn, e);
     } finally {
       if (!ini) release(conn, failed);
@@ -808,7 +808,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       issues.add({ line: i + 1, code: sh.error.code, message: sh.error.message, id: p1[i]!.id, class: cls.name, ...(sh.error.issues ? { issues: sh.error.issues } : {}) });
       return null;
     }
-    // аккаунты — только в System; членство лежит в арендаторе, в которого вступают (как в триггерах)
+    // аккаунты — только в System; прописка лежит в той квартире, куда прописан аккаунт (как в триггерах)
     if (cls.name === 'Account' && tenant !== SYSTEM_ID) {
       issues.add({ line: i + 1, code: 'tenant_denied', message: lmsg('write.load_account_tenant'), id: p1[i]!.id, class: cls.name });
       return null;
@@ -832,7 +832,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       sh.owner = own.toLowerCase();
       if (lastVersion && sh.owner !== tenant && !owners.has(sh.owner)) owners.set(sh.owner, i + 1);
     }
-    // концы прошлых версий — часть снимка: их цели могли удалить позже (§2.6, п. 3)
+    // концы прошлых версий — часть снимка: их цели могли удалить позже
     if (!lastVersion) return sh;
     for (const [role, v] of Object.entries(sh.links)) {
       const allowed = asList(cls.ends[role].class);
@@ -861,11 +861,11 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
   }
 
   /**
-   * Правила, которые валидатор на TypeScript оставляет базе (`pattern`: шаблон арендатора процесс приложения не
-   * исполняет — ревью, ReDoS), — запросом к базе на пачку строк классов с ними и до записи: COPY идёт мимо триггеров.
+   * Правила, которые валидатор на TypeScript оставляет базе (`pattern`: шаблон из описания класса процесс приложения не
+   * исполняет — ReDoS), — запросом к базе на пачку строк классов с ними и до записи: COPY идёт мимо триггеров.
    * Нарушения — в отчёт с номером строки, как у проверки в коде.
    *
-   * Цена — на каждую строку (в режиме истории — на каждую версию), поэтому (замер против 1.0.1 — засевка полигона была на 42 %
+   * Цена — на каждую строку (в режиме истории — на каждую версию), поэтому (замер: без этих мер засевка полигона на 42 %
    * медленнее, 40 % времени — здесь): одинаковые класс и данные проверяются один раз, строки классов читаются один
    * раз на пачку, а полный разбор `validate_data` идёт только у строк, которых не пропустил общий `validator` класса.
    * Правил `extra` в `validator` нет, но сюда доходят строки, прошедшие валидатор на TypeScript, — у него те же правила,
@@ -923,7 +923,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
   }
 
   /**
-   * Первая заливка — конвейером (решение точки А плана 1.1): следующая пачка готовится, пока база пишет текущую.
+   * Первая заливка — конвейером: следующая пачка готовится, пока база пишет текущую.
    * Подготовка уступает циклу событий каждые 256 строк — иначе COPY в полёте не получал бы следующих кусков, пока
    * идёт синхронная работа. Отказ записи до её await ловит пустой обработчик (иначе — необработанный отказ
    * процесса); при ошибке подготовки запись в полёте доходит до конца, и откат идёт по готовому соединению.
@@ -984,7 +984,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       if (!sh || issues.any) continue;
       if (live.has(id)) {
         // строка с тем же id, но другого класса (класс строки сменили мимо триггеров): правка
-        // прошла бы мимо триггеров с данными, проверенными по чужой схеме, — exists (план 2.0, 7.2 №4)
+        // прошла бы мимо триггеров с данными, проверенными по чужой схеме, — exists
         const was = live.get(id)!;
         if (was !== cls.name) {
           issues.add({ line: i + 1, code: 'exists', message: lmsg('write.load_other_class', { was, cls: cls.name }), id, class: cls.name });
@@ -996,9 +996,9 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
       const cur = reg.find(cls.name) ?? cls;
       const prev = past.get(id);
       const rev = prev ? prev.rev + 1 : 1;
-      // время воскрешённого объекта — не раньше его прошлой версии (монотонность, §2.10)
+      // время воскрешённого объекта — не раньше его прошлой версии (монотонность)
       const atv = prev && Date.parse(prev.at) >= Date.parse(ts) ? new Date(Date.parse(prev.at) + 1).toISOString() : ts;
-      // владелец — $owner, по ownerDefault класса от имени пользователя, иначе арендатор (§2.10)
+      // владелец — $owner, по ownerDefault класса от имени пользователя, иначе квартира
       const owner = sh.owner ?? (asAcc && cur.ownerDefault === 'actor' ? asAcc : tenant!);
       const tags = sh.tags ?? [];
       if (acl) rowsAcl.push({ i, class: cls.name, id, owner, tags, data: sh.data, links: sh.links });
@@ -1149,7 +1149,7 @@ export async function load(env: LoadEnv, input: LoadInput, opts: LoadOptions = {
 
 /**
  * Определения из каталога: ограничения (первичный ключ, уникальные), внешние ключи других таблиц на entity и log
- * (secret.account, ревизия 7), прочие индексы, триггеры с режимом, колонки.
+ * (secret.account), прочие индексы, триггеры с режимом, колонки.
  */
 async function catalogOf(conn: Sql, S: string) {
   const rels = [`${S}.entity`, `${S}.log`];
@@ -1178,7 +1178,7 @@ async function catalogOf(conn: Sql, S: string) {
 }
 
 /**
- * Первая заливка (план 1.1, §2.3): загрузки fn — одной транзакцией в пустую схему. Блокировка таблиц до
+ * Первая заливка: загрузки fn — одной транзакцией в пустую схему. Блокировка таблиц до
  * проверки; в схеме только строки системных классов (иначе not_empty); они (с seq и tx
  * журнала) и определения ограничений, индексов и триггеров из каталога (с режимом включения tgenabled:
  * pg_get_triggerdef его не передаёт) сохраняются в памяти; внешний ключ secret.account снимается до TRUNCATE и
@@ -1216,9 +1216,9 @@ export async function initialSession<T>(env: LoadEnv, fn: (s: InitialSession) =>
     const triggers = tune.keepTriggers ? [] : cat.triggers;
     const keys = tune.keepKeys ? [] : cat.constraints;
     const indexes = cat.indexes.filter((i) => !(tune.keepGin && /\busing gin\b/i.test(i.def)));
-    // 4. TRUNCATE; триггеры, ограничения и индексы — снять. Внешний ключ secret.account на entity (ревизия 7) — до
+    // 4. TRUNCATE; триггеры, ограничения и индексы — снять. Внешний ключ secret.account на entity — до
     // TRUNCATE при любом keepKeys: таблицу, на которую ссылается внешний ключ, TRUNCATE без неё не очищает, а secret
-    // (ключ установки, сессии, креды) заливка не трогает
+    // (ключ подписи дома, сессии, ключи аккаунтов) заливка не трогает
     for (const f of cat.foreign) await q(`alter table ${f.tbl} drop constraint ${ident(f.name)}`);
     await q(`truncate ${S}.entity, ${S}.log`);
     for (const t of triggers) await q(`drop trigger ${ident(t.name)} on ${t.tbl}`);

@@ -1,7 +1,6 @@
 /**
- * Строгие типы цепочек по моделям (план 2.0, этап 4, п. 1; типы шагов, строк и фильтров — план 1.0, этап 3, п. 9).
- * `connect({ models })` — модели letopis/model — или `connect<Models>()` — объявления `letopis types` (generateTypes,
- * sync.ts) — дают TypedDb без индексных сигнатур:
+ * Строгие типы цепочек по моделям: модели letopis/model или объявления `letopis types` (generateTypes, sync.ts) дают
+ * TypedDb без индексных сигнатур:
  * - шаг от корня — только известный класс или алиас: моделей подключения и системных (встроенный набор SystemModels);
  * - переходы цепочки выводятся из концов, как в resolveHop (lib/src/sql.ts): от класса C — роли его семейства (C и
  *   потомков) и классы, связанные с семейством C концом в любую сторону (роль, имя которой совпало с именем класса,
@@ -10,8 +9,8 @@
  *   у необязательного;
  * - поля фильтров, `or()` и агрегатов `sum`, `avg`, `min`, `max`, `countBy` — поля класса.
  * Чего типы не знают: возврат к узлу связи из пути (pivot) от класса, с которым связь не связана концом, и роль чужого
- * класса шагом. Это и имена, известные только во время выполнения, — через loose(db) (index.ts): проверки во время
- * выполнения те же. db.as(), db.begin(), db.batch() и entity() отдают цепочки без строгих типов (Db, Batch, Chain).
+ * класса шагом. Это и имена, известные только во время выполнения, — через loose(db) (core.ts): проверки во время
+ * выполнения те же. me.begin(), me.batch() и entity() отдают цепочки без строгих типов (Db, Batch, Chain).
  * Модель описана структурно (ModelLike), поэтому основная точка входа не зависит от Zod.
  */
 import type { ChainCore, ChainRef } from './chain.js';
@@ -137,7 +136,7 @@ type ObjectFilterOf<C> = C extends unknown
   : never;
 
 /**
- * Результат `or(…)` (index.ts): оператор `or` и фильтры, которыми он типизирован; `F` — только для типов. В шаге класса C
+ * Результат `or(…)` (core.ts): оператор `or` и фильтры, которыми он типизирован; `F` — только для типов. В шаге класса C
  * фильтры внутри `or()` — фильтры-объекты класса C.
  */
 export type OrOp<F = Record<string, unknown>> = Op & { readonly [K in typeof OP]: 'or' } & { readonly __filters?: F };
@@ -145,7 +144,7 @@ export type OrOp<F = Record<string, unknown>> = Op & { readonly [K in typeof OP]
 /** Фильтр шага класса C: id, список id, строка ответа, or(…) из фильтров класса или объект полей и ролей. */
 export type FilterOf<C> = string | string[] | { id: string; class: string } | OrOp<ObjectFilterOf<C>> | ObjectFilterOf<C>;
 
-/** Патч update: поля любой глубины необязательны; inc() — только у числовых полей (§2.5). */
+/** Патч update: поля любой глубины необязательны; inc() — только у числовых полей. */
 export type PatchOf<T> = {
   [P in keyof T]?: T[P] extends number | undefined ? T[P] | IncMarker
     : T[P] extends readonly unknown[] | undefined ? T[P]

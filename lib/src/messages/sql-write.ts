@@ -84,7 +84,7 @@ export const sqlWrite = {
     ru: 'на строку ссылается строка, которой актор не видит, и она не принимает класс',
   },
   // class_rows_admit(): нет права без условий на все строки класса {target} (сам класс {cls} или его потомок); что
-  // меняется — p_what: reparent, history, tighten; иной p_what — прежний готовый текст {what}
+  // меняется — p_what: reparent, history, tighten; иной p_what — готовый текст {what}
   'sql-write.reparent_needs_all': {
     code: 'acl_denied',
     ru: 'класс {cls} меняет предков или алиас: нужно право {op} на все строки класса {target}',
@@ -118,8 +118,8 @@ export const sqlWrite = {
     code: 'invalid_class',
     ru: 'имя связи {name} совпадает с методом цепочки',
   },
-  // хаб с зарезервированным именем (план 2.0, этап 4, п. 2; 7.10 №3): прежние такие хабы up() оставляет и называет в
-  // предупреждении (boot.reserved_hubs), но описание их строки Class база больше не пишет
+  // хаб с зарезервированным именем: такие хабы, заведённые мимо этой проверки, setup() оставляет и называет в
+  // предупреждении (boot.reserved_hubs), но описание их строки Class база не пишет
   'sql-write.hub_name_reserved': {
     code: 'invalid_class',
     ru: 'имя хаба {name} совпадает с методом цепочки',
@@ -147,11 +147,11 @@ export const sqlWrite = {
   },
   'sql-write.foreign_tenant': {
     code: 'tenant_denied',
-    ru: 'запись в чужого арендатора',
+    ru: 'запись в чужую квартиру',
   },
   'sql-write.account_tenant': {
     code: 'tenant_denied',
-    ru: 'аккаунты лежат в арендаторе System',
+    ru: 'аккаунты лежат в System',
   },
   'sql-write.class_not_found': {
     code: 'invalid_class',
@@ -168,7 +168,7 @@ export const sqlWrite = {
   },
   'sql-write.member_tenant': {
     code: 'invalid_data',
-    ru: 'конец Tenant членства — арендатор строки',
+    ru: 'конец Tenant прописки — квартира строки',
   },
   'sql-write.id_from_db': {
     code: 'id_from_db',
@@ -189,9 +189,9 @@ export const sqlWrite = {
   },
   'sql-write.immutable_columns': {
     code: 'immutable_key',
-    ru: 'id, арендатора, владельца и время создания менять нельзя',
+    ru: 'id, квартиру, владельца и время создания менять нельзя',
   },
-  // класс строки неизменен (план 2.0, редакция 2): смены класса нет
+  // класс строки неизменен: смены класса нет
   'sql-write.class_immutable': {
     code: 'immutable_key',
     ru: 'класс строки {cls} неизменен: объект другого класса — новый объект',

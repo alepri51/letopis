@@ -1,17 +1,17 @@
 /**
- * Сигналы базы по режимам установки (план 1.1, §2.2, этап 2): разбор нагрузки и токены.
+ * Сигналы базы по режимам установки: разбор нагрузки и токены.
  *
- * Канал — имя схемы; нагрузку строит функция базы signal() по режиму up({ signals }):
- *   - class — `Booking` (как в 1.0); tenant — `Booking@<токен арендатора>`;
- *   - opaque — `<токен класса>@<токен арендатора>`; none — сигналов нет;
+ * Канал — имя схемы; нагрузку строит функция базы signal() по режиму setup({ signals }):
+ *   - class — `Booking`; tenant — `Booking@<токен квартиры>`;
+ *   - opaque — `<токен класса>@<токен квартиры>`; none — сигналов нет;
  *   - погашенная сессия — `session:<16 hex>` (кроме none).
  * Токен — первые 96 бит HMAC-SHA256 от «назначение:значение» на ключе сигналов (signal_key(): HMAC
  * ключа строки KEY по 'letopis:signals'), 24 строчных шестнадцатеричных знака. Имя класса не содержит
  * `@`, `:` и `*` (метасхема Class), поэтому нагрузка разбирается однозначно.
  *
- * Процесс с ключом (право letopis.signals, сид выдаёт его сервисам) узнаёт классы по токенам и сбрасывает
- * кэш с точностью до арендатора. Процесс без ключа работает «грубо»: в режиме tenant сбрасывает класс во
- * всех арендаторах, в режиме opaque любой сигнал сбрасывает весь кэш.
+ * Процесс с ключом (право letopis.signals, сид выдаёт его консьержу) узнаёт классы по токенам и сбрасывает
+ * кэш с точностью до квартиры. Процесс без ключа работает «грубо»: в режиме tenant сбрасывает класс во
+ * всех квартирах, в режиме opaque любой сигнал сбрасывает весь кэш.
  */
 import { createHmac } from 'node:crypto';
 import { ACL_CLASS_NAMES } from './types.js';
@@ -30,11 +30,11 @@ export type Signal =
   | { kind: 'all' }
   /** `session:<тег>` — погашенная сессия (тег — начало sha256 токена). */
   | { kind: 'session'; tag: string }
-  /** Запись класса; tenant — токен арендатора, null — все арендаторы (System, режим class, процесс без ключа). */
+  /** Запись класса; tenant — токен квартиры, null — все квартиры (System, режим class, процесс без ключа). */
   | { kind: 'class'; cls: string; tenant: string | null }
   /** Режим opaque, процесс без ключа: что записано, неизвестно. */
   | { kind: 'opaque' }
-  /** Незнакомый токен класса: класса нет в реестрах процесса (класс другого арендатора или новый). */
+  /** Незнакомый токен класса: класса нет в реестрах процесса (класс другой квартиры или новый). */
   | { kind: 'unknown'; tenant: string | null }
   /** Нагрузка не по режиму установки: режим сменили без перезапуска процесса или сигнал поддельный. */
   | { kind: 'foreign' };
@@ -82,7 +82,7 @@ export class Signals {
     return createHmac('sha256', this.key!).update(`${purpose}:${value}`, 'utf8').digest('hex').slice(0, 24);
   }
 
-  /** Токен арендатора для записей кэша и фильтра подписки; null — точности по арендатору нет. */
+  /** Токен квартиры для записей кэша и фильтра подписки; null — точности по квартире нет. */
   tenantToken(id: string | null | undefined): string | null {
     if (!id || !this.key || (this.mode !== 'tenant' && this.mode !== 'opaque')) return null;
     let t = this.tenants.get(id);
@@ -105,7 +105,7 @@ export class Signals {
       return tail === null && NAME.test(head) ? { kind: 'class', cls: head, tenant: null } : { kind: 'foreign' };
     }
     if (tail === null || !TOKEN.test(tail)) return { kind: 'foreign' };
-    // токен System — строки, общие для всех арендаторов: сброс класса везде
+    // токен System — строки, общие для всех квартир: сброс класса везде
     const tenant = this.key && tail !== this.system ? tail : null;
     if (this.mode === 'tenant') return NAME.test(head) ? { kind: 'class', cls: head, tenant } : { kind: 'foreign' };
     if (!TOKEN.test(head)) return { kind: 'foreign' };

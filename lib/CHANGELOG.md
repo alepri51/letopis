@@ -4,6 +4,196 @@
 «Версии и совместимость» в README; шаг версии сверяет `npm run check:semver`. С 1.4.2 у правки ядра (библиотеки и SQL)
 в конце пункта указан источник находки: «Источник: тест», «пример», «сервис», «ревью», «soak» или «внедрение».
 
+## [4.0.0] — 2026-11-10
+
+Мажор: дом, консьерж, квартиры и ключи вместо `up()` + `connect()` + `createTenant()`; приглашения по ссылке через
+почтальона приложения; матрица прав со счётом, в которой роль — такой же ресурс, как класс. Ревизия движка 12; схемы
+прежних ревизий пакет не обновляет — дом сносит `demolish()` и заново строит `setup()`, данные не переносятся.
+Обратной совместимости нет: прежние вызовы удалены без псевдонимов.
+
+### Безопасность
+- `createTenant(admin, schema, { name, user })` искал арендатора по имени. Повторный вызов с чужим логином прописывал
+  вызывающего в чужого арендатора с ролью `owner` и выдавал ему токен сессии жертвы без проверки пароля: пароль
+  записывался только для нового логина, а `new_session` вызывался всегда. На этом держались «Добавить сотрудника» на
+  сайте и в README и все четыре демо-сервиса. Функция удалена; квартиры заводит консьерж (`db.createTenant(имя)`,
+  занятое имя — `exists`), людей прописывает только приглашение (`me.invite` → `db.accept(token)`). Источник: ревью.
+- Прописку нельзя завести или перенести на другой аккаунт записью `member` — только приглашением
+  (`sql-access.member_invite_only`). Источник: ревью.
+- Токен приглашения, код входа и код смены контакта не возвращаются ни жильцу, ни консьержу: их получает только
+  почтальон приложения (`connect(pass, { postman })`), которого библиотека зовёт в той же транзакции, что и запись. В
+  базе — только хэш. Источник: ревью.
+- Аккаунт при `db.accept` определяется контактом приглашения: у аккаунта один контакт на весь дом, он же имя для входа.
+  Owner одной квартиры не может позвать чужое имя для входа, сам принять приглашение и получить ключ к чужому аккаунту.
+  Источник: ревью.
+- Роль — ресурс матрицы: выдать и снять роль (в приглашении, правкой и удалением прописки) можно, только если правило
+  разрешает это звавшему (`me.acl.grant({ role, assign })`); иначе `sql-access.role_denied`. Право писать `member` само
+  ролей не даёт: раньше оно равнялось праву позвать человека с ролью `owner` и поставить `owner` себе, а запрет с
+  условием на `member` открывал приглашения. Источник: ревью.
+- `db.accept` заново проверяет по матрице право звавшего: он выписан или потерял право на роли приглашения — отказ
+  `api.invite_lost`, приглашение гаснет. Источник: ревью.
+- Правило «owner → всё можно» квартиры заводит `createTenant` с весом 100 000 и владельцем-консьержем; вес правил
+  жильцов — не больше 999 (`sql-access.rule_weight`), условие даёт счёту не больше 1000: запрет жильца против owner
+  не действует, снять правило owner жилец не может. Источник: ревью.
+- Ключ открывает ровно одну квартиру; пароль аккаунта в другой квартире — отказ (`api.password_reused`): сверка и запись
+  ключа идут одной транзакцией под замком контакта, два одновременных `accept` с одним паролем не проходят оба. Пять
+  таких отказов по одному приглашению гасят его (`api.invite_attempts`): по пересланной ссылке пароль не перебрать.
+  Источник: ревью.
+- Сессия из `accept` аккаунта, который уже был, не считается недавним входом: правка ключей, смена контакта и удаление
+  аккаунта — после входа паролем или кодом. Источник: ревью.
+- Строка, на которой правила с равным счётом спорят, не видна и не правится, а остальные строки класса читаются:
+  жилец с правом писать правила не может спорным правилом уронить чтение класса у других. Источник: ревью.
+- Агент MCP работает только как жилец: `createMcpServer(me)` принимает корень квартиры, открытый ключом жильца;
+  консьержу (`db.in`, `db.as`) — отказ `mcp.resident_required`. Источник: ревью.
+- Чужое правило или ресурс матрицы не удаляются и каскадом: предпросмотр `delete()` и само удаление отвечают
+  `rule_foreign` / `resource_foreign`; правило по умолчанию каскадом тоже не удаляется (`rule_default_protected`).
+  Источник: ревью.
+- У каждого дома своя служебная роль `letopis_a_<имя>` (длинное имя — хэш), в неё входит только роль консьержа этого
+  дома: ключ консьержа одного дома не работает из роли другого. `demolish()` сносит и её. Ключ консьержа
+  (`letopis_key`, `letopis_bypass`) и ключи `lts_…` маскируются в событиях лога и в тексте сбоя логгера. Источник:
+  ревью.
+- Имя квартиры уникально без учёта регистра: «Мир» и «мир» — одна квартира (`exists` с именем занявшей). Источник:
+  ревью.
+- Корень квартиры с погашенной сессией (выписка, выход, смена пароля) на любой вызов отвечает `no_session`, а не пустым
+  ответом. Источник: внедрение.
+
+### Добавлено
+- Кто за что отвечает: библиотека придумывает, хранит (только хэш, срок, счёт попыток) и проверяет секреты — ссылку
+  приглашения и коды; почтальон приложения только доставляет. Приложение просит выдать секрет (`me.invite`,
+  `db.requestCode`, `me.changeContact`), а не отправить его.
+- `setup(ADMIN_DSN, 'shop', { models, seeds, pglite, signals, defaultRule, rotate, waitTimeoutMs, quiet })` — строит
+  или достраивает дом и отдаёт пропуск консьержа; повторный вызов отдаёт тот же пропуск, `rotate` — новый (прежний
+  гаснет сразу). `demolish(ADMIN_DSN, 'shop')` — сносит дом и его роли.
+- `connect(pass, { postman })` → консьерж (`House`): `open(ключ)`, `resume(токен)`, `invitation(token)`,
+  `accept(token, { password?, name? })`, `requestCode(контакт)`, `tenantsOf({ …контакт, code })`, `createTenant(имя)`,
+  `in(квартира)`, `as(аккаунт, квартира)`, `tenants()`, `deleteAccount(аккаунт)`, `maintain()`, `close()`. Методов
+  вещей у консьержа нет.
+- Корень квартиры (`Room`, в текстах — `me`): цепочки `me.Класс(…)` и `invite`, `invites`, `revokeInvite`,
+  `changeContact`, `deleteTenant`, `keys.*` (`list`, `setPassword`, `enrollTotp`, `verifyTotp`, `issueApiKey`,
+  `issueKeySecret`, `link`, `revoke`), `leave`, `deleteAccount`, `closeAll`, `refreshSession`; свойства `tenant`,
+  `tenantName`, `account`, `concierge`.
+- Почтальон: `connect(pass, { postman })`, вызов `postman({ to, message })`: `to` — контакт `{ kind, address }`,
+  `message` — `{ kind: 'invite', token, tenant, tenantName, roles, from?, expiresAt }`, `{ kind: 'code', code,
+  expiresAt }` или `{ kind: 'contact', code, expiresAt }`. Ошибка почтальона — откат записи и код `postman_failed`
+  (исходная ошибка — `err.cause`); почтальона нет — код `no_postman` до обращения к базе. Типы `Letter`,
+  `LetterMessage`, `Postman`, `Contact`, `ContactAddress`, `InviteFrom`.
+- Приглашение по ссылке: `me.invite({ email } | { phone } | { telegram } | { kind, address }, роли, { ttl })` →
+  `{ id, expiresAt }`; контакт уже прописан — `sql-access.already_member`; новое приглашение на тот же контакт гасит
+  прежнее. `db.invitation(token)` — посмотреть, ничего не меняя: `{ tenant, tenantName, to (адрес под маской), roles,
+  from?, expiresAt, status, hasAccount }`, `status` — `active | expired | revoked | used`. `db.accept(token,
+  { password?, name? })` — один вызов и для нового человека, и для существующего аккаунта; пароль по желанию.
+  `me.invites()` → `{ id, to, roles, from?, expiresAt }`, `me.revokeInvite(id)`: свои приглашения — звавшему, все —
+  консьержу и тому, кому матрица разрешает их роли. Типы `Invite`, `Invitation`.
+- Вход: `db.open({ …контакт, password, tenant? })` — пароль сам выбирает квартиру; `tenant` — проверка: пароль открывает
+  другую квартиру или такой нет — `api.auth_failed`, как у неверного пароля. Кодом — `db.requestCode(контакт)` →
+  `{ expiresAt }` (ответ одинаков, есть такой жилец или нет), `db.tenantsOf({ …контакт, code })` → квартиры аккаунта
+  (код не гаснет), `db.open({ …контакт, code, tenant? })`; квартир несколько, а `tenant` не задан — код
+  `tenant_required` со списком в `detail.tenants`. Неверный код — `api.code_failed` и в `tenantsOf`, и в `open`; пять
+  неверных вводов гасят код.
+- `db.resume(токен)` с погашенной или истёкшей сессией — `api.session_closed` («сессия закрыта или истекла», код
+  `auth_failed`).
+- `db.contactOf(аккаунт)` — контакт аккаунта жильца (`{ kind, address }`); только у консьержа.
+- Отказ записи цепочкой без права называет глагол и класс: `write.row_check_denied` («create() у Order: правила доступа
+  не разрешают записать строку с такими значениями», `detail` — `{ class, action }`) и `write.rows_denied` с глаголом и
+  классом; `api.row_check_denied` остаётся у записи сырым SQL.
+- `restore({ expect, partial: true })`: у восстановленной строки `$action: 'restore'`, у пропущенной — `'skip'`.
+- `demolish(ADMIN_DSN, имя, { quiet })`: дома с таким именем нет — без ошибки, `{ schema, dropped: false }`; неизвестная
+  опция — отказ `api.unknown_option`.
+- `createMcpServer` с консьержем (`connect(pass)`, `db.in`, `db.as`) — отказ `mcp.resident_required`, код
+  `user_session_required`.
+- `db.tenants()` и `db.tenantsOf(…)` отдают квартиры по имени, по возрастанию.
+- `me.changeName(имя)` — человек меняет имя своего аккаунта (после недавнего входа, как `changeContact`); приложение
+  от лица человека — на корне `db.as(аккаунт, квартира)`, без недавнего входа; на корне `db.in` — `api.resident_only`.
+  Имя — от 1 до 200 знаков, пробелы по краям отбрасываются, иначе `sql-access.name_args`; ответ `{ name }`. Новое имя
+  сразу видно во всех квартирах человека; правка — новая версия строки `Account` в журнале. Прямая правка строки
+  `Account` цепочкой остаётся закрытой.
+- `setup()` дома с именем, которое уже занято домом в другой базе того же сервера PostgreSQL, — отказ
+  `boot.house_elsewhere`: роли дома общие на сервер, и второй дом с тем же именем менял пароль роли консьержа — пропуск
+  первого дома переставал работать. `demolish()` не трогает роли, которые держит дом с этим именем в другой базе.
+- `me.acl.people()` — люди квартиры: `[{ account, name, roles }]` по имени, затем по id аккаунта; в ответе те, чью
+  прописку (`member`) вызывающий видит по матрице (хозяин и консьерж в квартире — все, жилец без правила на чтение
+  `member` — только он сам); контактов нет, людей других квартир так не узнать. Тип `AclPerson`. Имя нового аккаунта
+  (`db.accept(token, { name })`) по умолчанию — пустая строка: адрес контакта именем не становится.
+- Опечатка в имени метода (`me.invitee()`, `.rowz()`): отказ `api.unknown_step` называет среди похожих и методы —
+  `me.invite()`, `.rows()`, — а подсказка говорит, что это может быть опечатка в имени метода, а не класс.
+- Глагол записи без терминала, к которому обратились как к ответу (`res.json(цепочка)`, `.length`), — отказ
+  `api.verb_not_run` с подсказкой про `.rows()`, `.first()`, `.ids()`, `.count()` (раньше — «цепочка — не массив»).
+- Неизвестная опция глагола записи (`create`, `update`, `upsert`, `delete`, `restore`) — отказ `api.unknown_option`, а
+  не молчаливый пропуск: `create(data, { owner })` больше не проходит (владелец новой строки — шаг `.owner(аккаунт)`).
+- Смена контакта: `me.changeContact(новый)` → код почтальоном на новый контакт → `me.changeContact(новый + code)`: имя
+  для входа меняется во всех квартирах; занят — `sql-access.identifier_taken`.
+- Матрица со счётом: для каждой строки, каждого действия API и каждой роли побеждает правило с наибольшим счётом (+1 за
+  ключ маски группы, +1 за класс, действие или роль, +1 за поле условия, +1 у запрета, плюс вес). Правило по умолчанию
+  «все → *» (deny; `setup({ defaultRule: 'allow' })` переключает) нельзя изменить или удалить; ролей оно не выдаёт.
+  Правило меняет и удаляет только тот, кто его завёл, или консьерж: правка чужого правила (вес, `enabled`,
+  `permission`), в том числе правил owner и консьержа, — `rule_foreign`; `rule_reserved` — только за попытку поставить
+  признаки `default` и `concierge`.
+- Роль в матрице: категория ресурса `ROLE`, `me.acl.grant({ role: 'manager', assign: 'staff' })` («manager может
+  выдавать и снимать роль staff»; `assign: '*'` — все роли), `me.acl.checkRole(роль)`; у правила в `acl.list()` —
+  `op: 'ROLE'`.
+- Ничья «можно» против «нельзя»: строка скрыта, роль не выдаётся; ошибку `acl_ambiguous` отдают `acl.check`,
+  `acl.checkData`, `acl.checkRole`. Запись правила, которое при тех же масках и равном счёте спорит с действующим, —
+  отказ `sql-access.rule_tie` с обоими правилами в тексте; обратное решение поверх правила той же пары (`deny` после
+  `grant` и наоборот) — отказ `sql-access.rule_flip`: сначала `revoke`.
+- `acl.check` → `{ allow, rule, score }`, `rule.default` у правила по умолчанию; `acl.checkData` →
+  `{ allow, all, candidates }`; тип `AclCandidate`.
+- `db.deleteAccount(аккаунт)` — консьерж удаляет аккаунт жильца целиком: прописки, ключи, контакт, сессии; строки жильца
+  переходят квартирам. Ответ `{ account, memberships, owned }`; последний owner какой-то квартиры — `last_owner`.
+  Источник: внедрение.
+- `db.maintain()` — обслуживание у консьержа: истёкшие и погашенные сессии, использованные и истёкшие коды, истёкшие
+  приглашения. Тип `MaintainReport`.
+- Коды ошибок `acl_ambiguous`, `last_owner`, `exists`, `auth_failed`, `postman_failed`, `no_postman`,
+  `tenant_required`; события лога `setup`, `setup.step`, `tenant.delete`, `auth.invite`, `member.leave`,
+  `account.delete`.
+- Подсказки (`err.hint`) у `api.password_reused`, `api.key_form`, `api.resident_only`, `api.tenant_unknown`,
+  `sql-access.tenant_exists`, `sql-access.resident_only`, `sql-access.bind_denied`, `sql-access.acl_ambiguous`, у
+  отказов приглашения (`api.invite_unknown`, `api.invite_inactive`, `api.invite_lost`, `api.invite_attempts`) и у
+  `sql-access.role_denied`, `sql-access.invite_denied`.
+- CLI: `letopis load … --tenant <квартира>`; `letopis mcp --pass <пропуск> --api-key <ключ жильца>`
+  (`LETOPIS_PASS`, `LETOPIS_KEY`). PGlite: предупреждение «права не проверяются» (`boot.pglite_no_rls`).
+
+### Изменено
+- `letopis sync` пишет модели консьержем как общие классы дома (System); `letopis types` выводит классы дома,
+  `--system` — и системные классы движка.
+- Имена `tenantName`, `account`, `concierge`, `invite`, `invites`, `revokeInvite`, `changeContact`, `changeName`, `deleteTenant`,
+  `keys`, `leave`, `deleteAccount`, `closeAll`, `refreshSession` зарезервированы (`DB_METHODS`); `as` и `auth` — нет.
+- Ревизия движка 12 (`FIRST_REVISION` = `DDL_REVISION` = 12): `connect` и `setup` на схеме прежней ревизии отказывают
+  `boot.schema_old` с подсказкой `demolish`.
+- `last_owner` — на любом пути, где квартира теряет последнего owner включённого аккаунта: `leave()`,
+  `acl.roles(аккаунт, null)` и роли без `owner`, правка и удаление прописки цепочкой, удаление аккаунта — жильцом и
+  консьержем; удаление квартиры не проверяется. Текст называет квартиру по имени — «квартира «Ромашка» осталась бы без
+  owner» (`params.name`; `detail` — `{ tenant, name }`). Источник: внедрение.
+- `create()` и `upsert()` сразу после шага, чья строка сама ссылается на новую (переход вперёд,
+  `Customer(c).Contact()`), ставят конец к этому шагу, если он есть у нового класса, а если нет — отказ
+  `write.create_forward`, а не строка без привязки. Создать и привязать одной транзакцией:
+  `me.Customer(c).update({}).Contact.set(me.Contact().create(…))`. Источник: внедрение.
+- `db.in`, `db.as`, `db.open({ …, tenant })` и `letopis load --tenant` находят квартиру по имени без учёта регистра
+  (сначала точное совпадение).
+- Времена в ответах — поля `expiresAt`, `createdAt`, строки ISO 8601 (`invite`, `invites`, `invitation`, `requestCode`,
+  `keys.list`, `refreshSession`).
+- В текстах ошибок корень квартиры называется `me` (`me.acl.grant`, `me.begin()`, `me.Класс(…)`), консьерж — `db`.
+- Неверный аргумент метода цепочки или корня квартиры — отказ `invalid_query` при вызове, а не `TypeError`, ошибка
+  PostgreSQL или молчаливый пропуск: `sort(['a', 'b'])`, `sort()` — `query.sort_field`; `sort('data.a', 'asc', 'data.b')`,
+  `sort('data.a', 'DESC')` — `api.sort_args` (поле сортировки одно); аргумент не того типа — `api.bad_arg` (`limit(null)`,
+  `limit(-1)`, `asOf(5)`, `alias(5)`, `cache(5)`, `create(данные, 'причина')`, `delete({ confirm: 'yes' })`, `me.lock()`,
+  `me.commit('x')`, `` me.sql('select …') ``); лишний аргумент — `api.extra_arg` (`withDeleted(false)`, `rows(5)`,
+  `me.deleteAccount(аккаунт)`); `Класс(5)`, `owner({})`, `me.revokeInvite()` — `query.bad_uuid`; `after(null)` —
+  `query.cursor_shape`; неизвестная опция `count()`, `cache()`, `me.batch()`, `me.refreshSession()` — `api.unknown_option`.
+  Источник: агенты.
+
+### Удалено
+| Удалено | Чем заменяется |
+|---|---|
+| `up()`, `up({ login, tenant, fresh, upgrade, serviceKey })`, `UpOptions`, `UpResult`, `LoginOptions` | `setup`, `demolish` |
+| `createTenant(admin, …)`, `TenantOptions`, `TenantResult`, `sys_grant_all` | `db.createTenant(имя)`; правило «owner → *» у квартиры |
+| `connect({ dsn, schema, token, apiKey, service, admin, owner, allowBypassRls, refreshSession, maintain, sql })`, `ConnectOptions` | `connect(pass, опции)`, `db.open`, `db.resume`, `db.maintain()` |
+| `db.auth` (`verifyPassword`, `verifyOtp`, `verifyApiKey`, `verifyKeySecret`, `lookup`, `issueOtp`, `session`, `sessionFor`, `tenants`, `switch`, `purgeAccount` …), `AuthApi`, `LoginResult`, `Credential`, `SessionInfo`, `hashPassword`, `verifyHash` | `db.open(ключ)`, `db.requestCode`, `me.keys.*`, `me.deleteAccount()` |
+| `db.as(аккаунт, { tenant, owner })` | `db.as(аккаунт, квартира)` у консьержа |
+| роль `admin` в System и её правила, право `auth.*`, категории аккаунтов `Anonymous` и `Shadow` | — |
+| `createMcpServer({ allowSystemAdmin })` | — |
+| миграции `sql/migrate/`, `refuse1x` | `demolish()` + `setup()` |
+| `APP_DSN`, `SERVICE_KEY`, CLI `--token` | пропуск |
+| общая служебная роль `letopis_app` у домов | своя роль дома `letopis_a_<имя>` |
+
 ## [3.0.1] — 2026-11-04
 
 Патч по полному ревью сайта и пакета: API и ревизия движка (11) прежние. Новое тело функции `delete_preview` схема

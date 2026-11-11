@@ -1,5 +1,5 @@
 /**
- * Цепочки чтения (план, этап 3, п. 1, 6, 7, 11): `t.Класс(фильтр).Связь().Класс().rows()`.
+ * Цепочки чтения: `t.Класс(фильтр).Связь().Класс().rows()`.
  *
  * db и цепочка — Proxy над реестром классов: имя класса, его алиас или имя роли (конца) — шаг пути.
  * Шаг-роль ведёт именно этим концом: `t.Folder(f).Parent()` — родительская папка,
@@ -7,12 +7,12 @@
  * узлу (pivot): от него ветвится следующий шаг. Модификаторы возвращают новую цепочку; терминалы
  * строят один запрос (sql.ts) и исполняют его транзакцией под сессией (tx.ts).
  *
- * Запись (этап 4): глаголы create, update, upsert, delete — звенья плана; слоты
+ * Запись: глаголы create, update, upsert, delete — звенья плана; слоты
  * `.Роль.set/unset/add/remove` правят концы записываемой версии. Терминал цепочки с глаголами
  * исполняет весь план одной транзакцией (write.ts): продолжение идёт от результата глагола.
- * Этап 6: restore; versions(); кэш результатов .cache() (cache.ts).
+ * Ещё restore; versions(); кэш результатов .cache() (cache.ts).
  */
-import { lerr, lwarn, similar, type LetopisError } from './errors.js';
+import { badArg, flagOption, lerr, lwarn, noExtraArgs, optionsArg, shown, similar, type LetopisError } from './errors.js';
 import { sessionTag, type ResultCache } from './cache.js';
 import type { ClassInfo, Registry } from './registry.js';
 import {
@@ -20,8 +20,9 @@ import {
   type AggSpec, type BuiltQuery, type ReadMode, type Step,
 } from './sql.js';
 import type { Executor } from './tx.js';
-import { CHAIN_METHODS, OP, type ChainMods, type Cursor, type Filter, type Path, type QueryEvent, type Row } from './types.js';
+import { CHAIN_METHODS, DB_METHODS, OP, type ChainMods, type Cursor, type Filter, type Path, type QueryEvent, type Row } from './types.js';
 import { NOLOG, guarded, traced, type Log, type LogEventName } from './log.js';
+import { PG_UUID_RE } from './uuid.js';
 import {
   completeIssues, dropUndefined, execBatch, execPlan, lockIds, precheckPlan, slotRole, type DeleteOptions, type Expected, type PlanOp,
   type PlanResult, type RestoreOptions, type Slot, type SlotValue, type WriteRow,
@@ -30,24 +31,22 @@ import {
 export interface ChainCtx {
   readonly reg: Registry;
   readonly schema: string;
-  /** Где исполнять: отдельной транзакцией из пула или в явной транзакции db.begin(). */
+  /** Где исполнять: отдельной транзакцией из пула или в явной транзакции me.begin(). */
   readonly exec: Executor;
-  /** Арендатор сессии. */
+  /** Квартира сессии. */
   readonly tenant: () => string | null;
-  /** Аккаунт сессии (с имперсонацией — тот, от чьего имени): арендатор равен ему — личный арендатор. */
+  /** Аккаунт сессии (у консьержа в db.as() — жилец, от чьего имени он действует). */
   readonly account?: () => string | null;
-  /** Фасад входит по токену сессии (connect({ token }), ключ API): без арендатора сессии шаг — sessionless(). */
-  readonly hasToken?: () => boolean;
-  /** Владелец новых строк по умолчанию (db.as(…, { owner })). */
+  /** Владелец новых строк по умолчанию (параметр owner фасада makeDb; корни квартир его не задают). */
   readonly owner?: string;
   readonly onQuery?: (e: QueryEvent) => void;
   readonly slowMs?: number;
   /** Цепочка из батча: план копится в очереди до batch.run(). */
   readonly batch?: BatchRef;
-  /** Причина изменения по умолчанию для глаголов (db.batch(имя, { reason })) и та, что стоит в транзакции (db.begin({ reason })). */
+  /** Причина изменения по умолчанию для глаголов (me.batch(имя, { reason })) и та, что стоит в транзакции (me.begin({ reason })). */
   readonly reason?: string;
   readonly txReason?: string;
-  /** Кэш результатов подключения и тот, кто спрашивает (ключ ответа, §2.12). */
+  /** Кэш результатов подключения и тот, кто спрашивает (ключ ответа). */
   readonly cache?: { store: ResultCache; who(): { token: string | null; account?: string; tenant?: string | null } };
   /** Логгер фасада (lib/src/log.ts): события read, write, delete, restore, кэша и error. */
   readonly log?: Log;
@@ -65,7 +64,7 @@ export interface BatchRef {
   entry?: BatchEntry;
 }
 
-/** Батч db.batch(имя): классы копят планы; run() исполняет очередь одной транзакцией. */
+/** Батч me.batch(имя): классы копят планы; run() исполняет очередь одной транзакцией. */
 export type Batch = { run(): Promise<Row[][]>; discard(): void; size(): number } & { [className: string]: StepFn };
 
 export interface ChainCore {
@@ -82,11 +81,11 @@ export interface ChainCore {
   rows(): Promise<Row[]>;
   first(): Promise<Row | null>;
   ids(): Promise<string[]>;
-  /** Число объектов последнего шага; { paths: true } — число путей. */
+  /** Число объектов последнего шага; { paths: true } — число путей. Неизвестная опция — `invalid_data`. */
   count(opts?: { paths?: boolean }): Promise<number>;
   /**
    * Все версии объектов последнего шага (надгробия — $deleted), по id и номеру версии. Шаг с явными id находит и
-   * удалённые объекты: `db.Класс(id).versions()` отдаёт историю удалённого.
+   * удалённые объекты: `me.Класс(id).versions()` отдаёт историю удалённого.
    */
   versions(): Promise<Row[]>;
   /**
@@ -119,18 +118,26 @@ export interface ChainCore {
   /**
    * Не больше n строк ответа: объектов последнего шага, у `paths()` — путей, у `versions()` — версий, перед `countBy()` —
    * групп. До глагола сужает его цели. Сразу после глагола перед `rows`, `first`, `ids`, `count` и `paths` —
-   * `invalid_query`: глагол уже прошёл по всем целям, сужать нечего. `n` — целое от 0: дробное — `invalid_query`,
-   * отрицательное отклоняет PostgreSQL (ошибка базы с SQLSTATE 2201W).
+   * `invalid_query`: глагол уже прошёл по всем целям, сужать нечего. `n` — целое от 0: иное (дробное, отрицательное,
+   * строка, `null`, вызов без числа) — `invalid_query` при вызове `limit()`.
    */
   limit(n: number): Chain;
   /**
    * Пропустить первые n строк ответа — тех же, что считает `limit()`; где действует — как у `limit()`. `n` — целое от 0:
-   * дробное — `invalid_query`, отрицательное отклоняет PostgreSQL (ошибка базы с SQLSTATE 2201X).
+   * иное (дробное, отрицательное, строка, `null`, вызов без числа) — `invalid_query` при вызове `offset()`.
    */
   offset(n: number): Chain;
-  /** Сортировка по полю последнего шага: 'at' | 'rev' | 'id' | 'data.<путь>'. */
+  /**
+   * Сортировка по полю последнего шага: 'at' | 'rev' | 'id' | 'data.<путь>'. Поле одно — строка: список полей, объект
+   * и вызов без поля — `invalid_query` при вызове `sort()`; направление — `'asc'`, `'desc'` или `true` (по убыванию),
+   * иное значение и лишний аргумент (второе поле) — тоже `invalid_query`. Повторный `sort()` заменяет прежний.
+   */
   sort(field: string, dir?: 'asc' | 'desc' | boolean): Chain;
-  /** Срез «как было на момент T»: версии журнала. */
+  /**
+   * Срез «как было на момент T»: версии журнала. Момент — `Date` или строка ISO 8601: дата (`2026-10-07`) либо дата и
+   * время (`2026-10-07T10:00:00Z`; секунды и пояс необязательны, без пояса — время UTC); иное — `invalid_query` при
+   * вызове `asOf()`.
+   */
   asOf(t: string | Date): Chain;
   /**
    * Постраничный вывод по курсору: ответ начинается строго после строки, на которой кончилась прошлая страница, в
@@ -141,18 +148,18 @@ export interface ChainCore {
   after(cursor: Cursor): Chain;
   /**
    * Шаг, после которого стоит, находит и удалённые объекты — модификатор своего шага, как `exact()`:
-   * `db.Member(id).withDeleted().Loan().withDeleted()` — удалённые выдачи удалённого участника. Удалённый объект приходит
+   * `me.Member(id).withDeleted().Loan().withDeleted()` — удалённые выдачи удалённого участника. Удалённый объект приходит
    * надгробием — своей последней версией, версией удаления, — с `$deleted: true`.
    */
   withDeleted(): Chain;
-  /** Дети любой глубины на переходе к тому же классу; $depth в строке. */
+  /** Дети любой глубины на переходе к тому же классу; $depth в строке. `max` — целое от 1, иное — `invalid_query`. */
   deep(max?: number): Chain;
   /**
    * Последний шаг находит объекты только своего класса — без классов-наследников (`extends` в модели), которых без
    * `exact()` находит тоже.
    */
   exact(): Chain;
-  /** Ключ текущего шага в путях. */
+  /** Ключ текущего шага в путях — непустая строка, иное — `invalid_query`. */
   alias(name: string): Chain;
   /**
    * Теги строки. В чтении и перед глаголами — отбор: строка или список — строки со всеми этими тегами (пустой список
@@ -164,7 +171,7 @@ export interface ChainCore {
   /**
    * Владелец строк последнего шага (поле `owner`). В чтении и перед `update()`, `delete()` и другими глаголами — отбор:
    * только строки этого владельца; перед `create()` и `upsert()` — владелец новой строки (существующей строке `upsert()`
-   * владельца не меняет).
+   * владельца не меняет). Не id (uuid) и не строка ответа — `invalid_query`.
    */
   owner(v: string | { id: string }): Chain;
   /**
@@ -195,7 +202,7 @@ export interface ChainCore {
    * все строки) — `{ confirm: true, all: true }`.
    */
   delete(opts?: DeleteOptions): Chain;
-  /** Чтение с блокировкой строк последнего шага до конца db.begin() (rows, first, ids). */
+  /** Чтение с блокировкой строк последнего шага до конца me.begin() (rows, first, ids). */
   forUpdate(): Chain;
   /**
    * Восстановить удалённые объекты шага: последний снимок новой версией (id прежний). `{ expect }` — надгробия `{ id, rev }`
@@ -208,12 +215,12 @@ export interface ChainCore {
    * `{ all: true }`.
    */
   restore(opts: RestoreOptions): Chain;
-  /** Кэш результатов (§2.12): ответ хранится в памяти процесса ttl секунд (по умолчанию 60). */
+  /** Кэш результатов: ответ хранится в памяти процесса ttl секунд (по умолчанию 60). Неизвестная опция — `invalid_data`. */
   cache(opts?: { ttl?: number }): Chain;
 }
 
 /**
- * Шаг цепочки — имя класса, его алиаса или роли с необязательным фильтром: `db.Shop(id).Product({ price: gt(1000) })`;
+ * Шаг цепочки — имя класса, его алиаса или роли с необязательным фильтром: `me.Shop(id).Product({ price: gt(1000) })`;
  * каждый следующий шаг переходит по концам от объектов предыдущего. После `create()`, `update()` или `upsert()` имя
  * роли без вызова задаёт конец записываемой строки: `.Роль.set(…)`, `.Роль.unset()`, у множественного конца ещё
  * `.Роль.add(…)` и `.Роль.remove(…)`.
@@ -256,9 +263,8 @@ export function lookupStep(reg: Registry, name: string): { cls: ClassInfo; role?
   return t ? { cls: t, role: name } : undefined;
 }
 
-/** Системные классы (прав, членств, аккаунтов, описаний): в «похожие» неизвестного шага не идут (план 2.1, A6). */
+/** Системные классы (прав, прописок, аккаунтов, описаний): в «похожие» неизвестного шага не идут. */
 const SYSTEM_CLASSES = new Set(['Class', 'Account', 'member', 'Resource', 'rule']);
-const SYSTEM_ID = '2eba6d0a-1edd-4bb6-a85a-a703dab49035';
 const isSystem = (c: ClassInfo): boolean => c.ancestors.some((n) => SYSTEM_CLASSES.has(n));
 
 /** Имена, которыми начинается шаг: классы, их алиасы и роли концов реестра, кроме системных классов. */
@@ -266,55 +272,106 @@ const stepNames = (reg: Registry): string[] =>
   reg.all().filter((c) => !isSystem(c)).flatMap((c) => [c.name, ...(c.alias ? [c.alias] : []), ...Object.keys(c.ends)]);
 
 /**
- * Свойства массива, которые спрашивают у цепочки, забыв терминал: `.length`, `.map(…)`, `[0]` — не шаги (план 2.1, A6).
+ * Свойства массива, которые спрашивают у цепочки, забыв терминал: `.length`, `.map(…)`, `[0]` — не шаги.
  * Не case-метки member: имена попали бы в зарезервированные (check:docs, reserved) — проверяются после неудачного поиска.
  */
 const ARRAY_PROPS = new Set(['length', 'map', 'filter', 'forEach', 'reduce', 'find', 'some', 'every', 'slice', 'at', 'toJSON', '0']);
 
+/** Имена корня квартиры для подсказки похожих: без load и maintain — у корня квартиры их нет. */
+const ROOT_NAMES: readonly string[] = DB_METHODS.filter((x) => x !== 'load' && x !== 'maintain');
+/** Свойства корня — не методы: в подсказке me.keys, а не me.keys(). */
+const ROOT_PROPS: ReadonlySet<string> = new Set(['registry', 'acl', 'schema', 'token', 'tenant', 'cache', 'tenantName', 'account', 'concierge', 'keys']);
+/** Методы цепочки для подсказки похожих. */
+const CHAIN_NAMES: readonly string[] = CHAIN_METHODS.filter((x) => x !== 'then');
+
 /**
- * Неизвестный класс или роль — с похожими именами реестра (план 2.0, 7.9 №6). Свойство массива — api.chain_not_rows.
- * В реестре только классы System (3.0.1): сессия в личном арендаторе (арендатор = аккаунт сессии) —
- * api.unknown_step_no_classes, иначе в арендаторе просто нет классов — api.unknown_step_empty_tenant.
+ * Неизвестный класс или роль — с похожими именами реестра и методов (корня — у первого шага, цепочки — дальше). Свойство массива — api.chain_not_rows. В реестре одни
+ * системные классы движка (ни моделей дома, ни классов квартиры) — api.unknown_step_no_classes.
  */
-const unknownName = (ctx: ChainCtx, name: string): never => {
+const unknownName = (ctx: ChainCtx, name: string, root = false): never => {
   const reg = ctx.reg;
   if (ARRAY_PROPS.has(name)) throw lerr('api.chain_not_rows', { name });
-  let key: 'api.unknown_step' | 'api.unknown_step_no_classes' | 'api.unknown_step_empty_tenant' = 'api.unknown_step';
-  if (reg.all().every((c) => c.tenant === SYSTEM_ID)) {
-    const tenant = ctx.tenant();
-    const account = ctx.account?.() ?? null;
-    key = tenant !== null && account !== null && tenant.toLowerCase() === account.toLowerCase()
-      ? 'api.unknown_step_no_classes' : 'api.unknown_step_empty_tenant';
-  }
-  throw lerr(key, { name, similar: similar(name, stepNames(reg)) });
+  const key = reg.all().every(isSystem) ? 'api.unknown_step_no_classes' : 'api.unknown_step';
+  // опечатка бывает и в имени метода: среди похожих — методы и свойства корня (me.invite(), me.keys) или методы цепочки
+  // (.rows()), показанные так, чтобы их было не спутать с классом
+  const methods: readonly string[] = root ? ROOT_NAMES : CHAIN_NAMES;
+  const shown = (x: string): string => (!methods.includes(x) ? x : !root ? `.${x}()` : ROOT_PROPS.has(x) ? `me.${x}` : `me.${x}()`);
+  throw lerr(key, { name, similar: similar(name, [...stepNames(reg), ...methods]).map(shown) });
 };
 
-/** Терминалы и агрегаты цепочки: у цепочки без сессии они отдают отказ промисом (sessionless). */
-const TERMINALS = new Set(['rows', 'first', 'ids', 'count', 'paths', 'versions', 'sum', 'avg', 'min', 'max', 'countBy']);
+/** Опции глаголов записи: неизвестная — invalid_data с похожими именами (checkOptions), а не молчаливый пропуск. */
+const VERB_OPTIONS = {
+  create: { reason: true }, upsert: { reason: true }, update: { rev: true, all: true, reason: true },
+  delete: { confirm: true, expect: true, all: true, reason: true },
+  restore: { expect: true, partial: true, all: true, reason: true },
+} as const;
+/** Формы вызова глаголов — для текста отказа: лишний аргумент, опции не объектом. */
+const VERB_CALL = {
+  create: 'create(data, { reason })', upsert: 'upsert(data, { reason })', update: 'update(patch, { rev, all, reason })',
+  delete: 'delete({ confirm, expect, all, reason })', restore: 'restore({ expect, partial, all, reason })',
+} as const;
+/** Опции глагола: не объект (строка причины, число, массив) — api.bad_arg, неизвестная — api.unknown_option. */
+const verbOpts = <T>(verb: keyof typeof VERB_OPTIONS, opts: T): T => optionsArg(verb, VERB_CALL[verb], opts, VERB_OPTIONS[verb]);
+/** Опции count() и cache(). */
+const COUNT_OPTIONS = { paths: true } as const;
+const CACHE_OPTIONS = { ttl: true } as const;
 
 /**
- * Неизвестный шаг у фасада без сессии (токен погашен или истёк после connect(), второй раунд 2.1, A5): не синхронный
- * выброс про «личный арендатор», а цепочка, чьи терминалы отдают api.token_not_active (no_session) отклонённым
- * промисом — как у любой другой ошибки запроса. Шаги, модификаторы и глаголы такой цепочки ничего не проверяют.
+ * Аргументы sort(): поле — одна строка, направление — 'asc', 'desc' или boolean. Поле не строкой (список полей,
+ * объект, число, null, вызов без поля) — query.sort_field; не направление после поля или лишний аргумент (второе поле)
+ * — api.sort_args. Имя поля сверяет построитель у терминала (sql.ts, sortSpec).
  */
-function sessionless(): StepFn {
-  const fail = () => Promise.reject(lerr('api.token_not_active'));
-  const dead: StepFn = new Proxy(function () {} as unknown as StepFn, {
-    get(_t, p) {
-      if (typeof p === 'symbol' || p === 'then') return undefined;
-      return TERMINALS.has(p) ? fail : dead;
-    },
-    apply: () => dead,
-  });
-  return dead;
+function sortArgs(a: readonly unknown[]): ChainMods {
+  const [field, dir] = a;
+  if (typeof field !== 'string') throw lerr('query.sort_field', { field: shown(field) });
+  const extra = a.slice(2).some((x) => x !== undefined);
+  if (extra || (dir !== undefined && dir !== 'asc' && dir !== 'desc' && typeof dir !== 'boolean')) {
+    throw lerr('api.sort_args', { call: `sort(${a.map(shown).join(', ')})` });
+  }
+  return { order: field, desc: dir === true || dir === 'desc' };
+}
+
+/** Аргумент limit() и offset(): целое от 0; иное — api.bad_arg, а не ошибка PostgreSQL и не «без ограничения». */
+function countArg(call: string, n: unknown): number {
+  if (!Number.isSafeInteger(n) || (n as number) < 0) throw badArg(call, n, 'api.arg_expect_int0');
+  return n as number;
 }
 
 /**
- * Фасад с токеном без сессии: шага нет среди классов, а арендатора у сессии нет — шаг из sessionless(); батч и
- * подключение без токена (администраторское) — как прежде.
+ * Строка-момент ISO 8601, которую примет приведение базы ::timestamptz: дата или дата и время через T или пробел;
+ * секунды, их доли и пояс (Z, ±чч, ±чч:мм, ±ччмм) необязательны.
  */
-const noSession = (ctx: ChainCtx, name: string): boolean =>
-  !ctx.batch && !ARRAY_PROPS.has(name) && ctx.hasToken?.() === true && ctx.tenant() === null;
+const MOMENT_RE = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2})(\.\d{1,9})?)?(?:Z|[+-](\d{2})(?::?(\d{2}))?)?)?$/;
+function isoMoment(s: string): boolean {
+  const m = MOMENT_RE.exec(s);
+  if (!m) return false;
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const leap = (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+  if (y < 1 || mo < 1 || mo > 12 || d < 1 || d > [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][mo - 1]) return false;
+  if (m[4] === undefined) return true;
+  const [h, mi, se] = [Number(m[4]), Number(m[5]), Number(m[6] ?? 0)];
+  const frac = /[1-9]/.test(m[7] ?? '');
+  // 24:00:00 и секунду :60 база принимает, но без долей секунды; смещение — до ±15:59
+  if (h > 24 || mi > 59 || se > 60 || (h === 24 && (mi > 0 || se > 0 || frac)) || (se === 60 && frac)) return false;
+  return m[8] === undefined || (Number(m[8]) <= 15 && Number(m[9] ?? 0) <= 59);
+}
+
+/**
+ * Момент asOf(): Date — строкой ISO, строка ISO 8601 — как есть (микросекунды строки `at` сохраняются); иное (число,
+ * null, вызов без момента, неверная дата, произвольный текст) — api.bad_arg, а не срез «сейчас» и не ошибка PostgreSQL.
+ */
+function momentArg(t: unknown): string {
+  if (t instanceof Date && !Number.isNaN(t.getTime())) return t.toISOString();
+  if (typeof t === 'string' && isoMoment(t)) return t;
+  throw badArg('asOf(t)', t, 'api.arg_expect_moment');
+}
+
+/** Аргумент owner(): id аккаунта или строка ответа (её id); не uuid — query.bad_uuid, а не «владелец не задан». */
+function ownerArg(v: unknown): string {
+  const id = typeof v === 'object' && v !== null ? (v as { id?: unknown }).id : v;
+  if (typeof id !== 'string' || !PG_UUID_RE.test(id)) throw lerr('query.bad_uuid', { where: 'owner(…)', value: shown(v) });
+  return id;
+}
 
 /** Перебор цепочки (for…of, spread, Array.from) — понятный отказ вместо «is not iterable». */
 const notIterable = (): never => {
@@ -322,8 +379,8 @@ const notIterable = (): never => {
 };
 
 /**
- * withDeleted() — модификатор своего шага (план 2.1, A9): у шага не последнего, когда у последнего его нет, — один раз
- * предупреждение (до 2.1 флаг относился к последнему шагу).
+ * withDeleted() — модификатор своего шага: у шага не последнего, когда у последнего его нет, — один раз
+ * предупреждение: флаг действует на свой шаг, а не на последний.
  */
 function warnWithDeleted(steps: Step[], log?: Log): void {
   const last = steps[steps.length - 1];
@@ -365,7 +422,7 @@ function report(ctx: ChainCtx, mode: QueryEvent['mode'], steps: Step[], t0: numb
 }
 
 // ---------------------------------------------------------------------------
-// Логирование (3.0): события терминалов и цепочка в читаемом виде
+// Логирование: события терминалов и цепочка в читаемом виде
 // ---------------------------------------------------------------------------
 
 /** Что узнал терминал по пути: строки глагола (план), число строк ответа, кэш. */
@@ -494,11 +551,11 @@ function writeDetail(op: PlanOp, rows: readonly Row[] | undefined): Record<strin
     d.confirm = op.confirm;
     d.expect = op.expect !== undefined ? op.expect.length : false;
     if (op.all) d.all = true;
-    // с expect замыкание каскада блокируется for update и превью сверяется заново (write.ts, deleteOp)
+    // с expect замыкание каскада блокируется for update и предпросмотр сверяется заново (write.ts, deleteOp)
     if (op.confirm && op.expect !== undefined) d.locked = true;
     if (rows && !op.confirm) {
       const actions: Record<string, number> = {};
-      // строки-сводки скрытых правами строк (3.0.1): в actions.hidden — их число, в классы и id сводки не идут
+      // строки-сводки скрытых правами строк: в actions.hidden — их число, в классы и id сводки не идут
       for (const r of rows) if (r.$action) actions[r.$action] = (actions[r.$action] ?? 0) + (r.$action === 'hidden' ? r.$count ?? 0 : 1);
       d.actions = actions;
       rows = rows.filter((r) => r.$action !== 'hidden');
@@ -536,7 +593,7 @@ function termEvent(log: Log, steps: readonly Step[], mods: ChainMods, name: stri
   }
   const last = ops[ops.length - 1];
   const event: LogEventName = last.kind === 'delete' ? (last.confirm ? 'delete' : 'delete.preview') : last.kind === 'restore' ? 'restore' : 'write';
-  // запись в db.begin() — в счётчик транзакции: по нему её tx.commit идёт уровнем info
+  // запись в me.begin() — в счётчик транзакции: по нему её tx.commit идёт уровнем info
   log.mark(event);
   if (!log.wants(event)) return;
   log.emit(event, { op: [...new Set(ops.map((o) => o.kind))].join(','), ms, rows: st.rows ? st.rows.length : rows,
@@ -642,8 +699,8 @@ function afterVerbError(name: string, verb: string): LetopisError {
 }
 
 /**
- * Курсор after() листает строки, а count() и агрегаты чтения считают по всем объектам шага: раньше курсор там молча не
- * учитывался, с 2.0 — invalid_query до запроса (план 2.0, этап 4, п. 2; 7.10 №7).
+ * Курсор after() листает строки, а count() и агрегаты чтения считают по всем объектам шага: курсор там не учитывается —
+ * поэтому invalid_query до запроса.
  */
 function afterNotPaged(mods: ChainMods, fn: string): void {
   if (mods.after !== undefined) throw lerr('api.after_not_paged', { fn });
@@ -662,7 +719,7 @@ function checkAfterVerb(steps: Step[], mods: ChainMods): void {
 }
 
 /**
- * Цепочка с глаголами: весь план одной транзакцией (§2.5). Результат приводится к виду ответа
+ * Цепочка с глаголами: весь план одной транзакцией. Результат приводится к виду ответа
  * чтения (строки rows/paths, id, n, агрегаты), чтобы терминалы разбирали его одинаково.
  */
 async function plan(ctx: ChainCtx, steps: Step[], mods: ChainMods, mode: ReadMode, agg?: AggSpec, st: Stat = {}): Promise<{ q: BuiltQuery | null; res: unknown[] }> {
@@ -692,7 +749,7 @@ async function plan(ctx: ChainCtx, steps: Step[], mods: ChainMods, mode: ReadMod
 }
 
 /**
- * Чтение с блокировкой (§2.5, этап 4, п. 9): строки последнего шага блокируются for no key update
+ * Чтение с блокировкой: строки последнего шага блокируются for no key update
  * в порядке id до конца явной транзакции. Сначала id шага, затем блокировка (политики правки RLS
  * не дают заблокировать то, что править нельзя), затем то же чтение по свежим строкам: строка,
  * которая перестала подходить под условия шага, в ответ не попадает; подходящая, но не
@@ -700,7 +757,7 @@ async function plan(ctx: ChainCtx, steps: Step[], mods: ChainMods, mode: ReadMod
  */
 async function lockedRead(ctx: ChainCtx, steps: Step[], mods: ChainMods, mode: ReadMode, agg?: AggSpec): Promise<{ q: BuiltQuery | null; res: unknown[] }> {
   if (!ctx.exec.explicit) throw lerr('api.for_update_outside_tx');
-  // что именно мешает блокировке — в тексте, что допустимо — в подсказке (второй раунд 2.1, A7)
+  // что именно мешает блокировке — в тексте, что допустимо — в подсказке
   const op = steps.find((s) => s.op)?.op;
   const what = op ? `${op.kind}()`
     : mode !== 'rows' && mode !== 'ids' ? `${mode === 'agg' ? agg?.fn ?? 'agg' : mode === 'countPaths' ? 'count' : mode}()`
@@ -731,7 +788,7 @@ async function lockedRead(ctx: ChainCtx, steps: Step[], mods: ChainMods, mode: R
 
 /**
  * Промис versions(): методы цепочки на нём (versions().rows(), versions().sort()) — ошибка letopis с подсказкой, а не
- * TypeError «… is not a function» (3.0). Сам промис уже идёт: его отказ гасится, иначе он ушёл бы в unhandledRejection.
+ * TypeError «… is not a function». Сам промис уже идёт: его отказ гасится, иначе он ушёл бы в unhandledRejection.
  */
 function versionsPromise<T>(p: Promise<T>): Promise<T> {
   for (const method of CHAIN_METHODS) {
@@ -748,14 +805,15 @@ function versionsPromise<T>(p: Promise<T>): Promise<T> {
 
 /** Причины для плана: по умолчанию у глаголов (у батча — своя) и та, что стоит в транзакции. */
 const reasons = (ctx: ChainCtx) => ({ reason: ctx.reason ?? ctx.txReason ?? '', txReason: ctx.txReason ?? '' });
-/** Опция reason глагола (план 1.1, §2.1): проверяет precheckPlan. */
+/** Опция reason глагола: проверяет precheckPlan. */
 const reasonOf = (o?: { reason?: unknown }): { reason?: string } => (o?.reason !== undefined ? { reason: o.reason as string } : {});
 /**
- * Опция all у update() и delete({ confirm: true }): правка всех целей без фильтра (план 2.0, этап 4, п. 2); у
- * delete({ confirm: true }) и restore() ещё — без сверки с expect (3.0).
+ * Опция all у update() и delete({ confirm: true }): правка всех целей без фильтра; у
+ * delete({ confirm: true }) и restore() ещё — без сверки с expect.
  */
-const allOf = (o?: { all?: unknown }): { all?: true } => (o?.all === true ? { all: true } : {});
-/** Опция expect у restore() и delete({ confirm: true }) (план 2.1, A1, A2): форму проверяет precheckPlan. */
+const allOf = (verb: 'update' | 'delete' | 'restore', o?: { all?: unknown }): { all?: true } =>
+  (flagOption(`${verb}({ all })`, o?.all) ? { all: true } : {});
+/** Опция expect у restore() и delete({ confirm: true }): форму проверяет precheckPlan. */
 const expectOf = (o?: { expect?: unknown }): { expect?: readonly Expected[] } =>
   (o?.expect !== undefined ? { expect: o.expect as readonly Expected[] } : {});
 
@@ -766,12 +824,19 @@ const rowOf = (r: { row: Record<string, unknown>; done?: true }): Row => (r.done
 function slotValue(v: unknown): SlotValue {
   const peek = peekPlan(v);
   if (peek) {
-    // модификатор сразу после глагола вложенной цепочки — тот же отказ, что у терминала (план 2.0, 7.2 №3)
+    // модификатор сразу после глагола вложенной цепочки — тот же отказ, что у терминала
     checkAfterVerb(peek.steps, peek.mods);
     return { plan: peek.steps, mods: peek.mods };
   }
   if (v === null || typeof v === 'string') return v as SlotValue;
-  if (Array.isArray(v)) return v.map((x) => (typeof x === 'string' ? x : (x as { id: string }).id));
+  if (Array.isArray(v)) {
+    // элемент списка — id или строка ответа: null и число — отказ, а не TypeError и не пропуск элемента
+    return v.map((x: unknown) => {
+      if (typeof x === 'string') return x;
+      if (x !== null && typeof x === 'object' && typeof (x as { id?: unknown }).id === 'string') return (x as { id: string }).id;
+      throw lerr('api.slot_value');
+    });
+  }
   if (typeof v === 'object' && typeof (v as { id?: unknown }).id === 'string') return { id: (v as { id: string }).id };
   throw lerr('api.slot_value');
 }
@@ -780,6 +845,7 @@ function classProp(ctx: ChainCtx, name: string, found: { cls: ClassInfo; role?: 
   mods: ChainMods, nodes: NodeMap): StepFn {
   const { cls, role } = found;
   const step = (...args: [filter?: Filter]): Chain => {
+    noExtraArgs(`${name}(filter)`, args, 1);
     const filter = args[0];
     // A13: X(undefined) — фильтра нет, шаг найдёт все строки (как X()); чаще всего это пустая переменная с id
     if (args.length && filter === undefined) lwarn('api.step_undefined_filter', { name }, { once: `undefined-filter|${name}`, log: ctx.log });
@@ -798,7 +864,9 @@ function classProp(ctx: ChainCtx, name: string, found: { cls: ClassInfo; role?: 
     return makeChain(ctx, [...(ownerSteps ?? []), next], ownerSteps ? mods : {}, nodes);
   };
   // слот: .Роль.set(x) / .unset() / .add(x) / .remove(x) — концы версии, которую пишет глагол
-  const slot = (op: Slot['op']) => (v?: unknown): Chain => {
+  const slot = (op: Slot['op']) => (...a: unknown[]): Chain => {
+    noExtraArgs(`.${name}.${op}(${op === 'unset' ? '' : 'value'})`, a, op === 'unset' ? 0 : 1);
+    const v = a[0];
     const last = ownerSteps?.[ownerSteps.length - 1];
     const kind = last?.op?.kind;
     if (!last || (kind !== 'create' && kind !== 'update' && kind !== 'upsert')) {
@@ -861,8 +929,8 @@ export function makeChain(ctx: ChainCtx, steps: Step[], mods: ChainMods, nodes: 
   const withOp = (op: PlanOp): Chain => {
     const last = steps[steps.length - 1];
     if (!last) throw lerr('api.verb_without_step', { verb: op.kind });
-    // батч: причина db.batch(имя, { reason }) — при постановке в очередь, а не при run(): очередь общая по имени, и
-    // run() может позвать фасад без причины или с другой (ревью №1 точки А плана 1.1)
+    // батч: причина me.batch(имя, { reason }) — при постановке в очередь, а не при run(): очередь общая по имени, и
+    // run() может позвать фасад без причины или с другой
     if (ctx.batch && op.reason === undefined && ctx.reason !== undefined) op = { ...op, reason: ctx.reason };
     const next = last.op
       ? [...steps, { name: last.name, cls: last.cls, role: last.role, aliasKey: last.aliasKey, self: true as const, op, opMods: mods, nodeKey: nextNodeKey() }]
@@ -897,11 +965,19 @@ export function makeChain(ctx: ChainCtx, steps: Step[], mods: ChainMods, nodes: 
     throw lerr('api.entity_arg');
   };
 
-  /** Терминал: время, событие (read, write, delete, restore) и error — traceTerm. */
-  const term = <A extends unknown[], R>(name: string, fn: (st: Stat, ...a: A) => Promise<R>) =>
-    (...a: A): Promise<R> => traceTerm(ctx, steps, mods, name, a, (st) => fn(st, ...a));
+  /**
+   * Терминал: лишний аргумент — отказ (call — форма вызова, max — сколько аргументов она принимает); время, событие
+   * (read, write, delete, restore) и error — traceTerm.
+   */
+  const term = <A extends unknown[], R>(name: string, call: string, max: number, fn: (st: Stat, ...a: A) => Promise<R>) =>
+    (...a: A): Promise<R> => traceTerm(ctx, steps, mods, name, a, (st) => {
+      noExtraArgs(call, a, max);
+      return fn(st, ...a);
+    });
 
-  const agg = (fn: AggSpec['fn']) => term(fn, async (st, field: string) => {
+  const agg = (fn: AggSpec['fn']) => term(fn, `${fn}(field)`, 1, async (st, field: string) => {
+    // поле не строкой (список полей, число, вызов без поля) — тот же отказ, что у поля не data.<путь>
+    if (typeof field !== 'string') throw lerr('query.agg_field');
     afterNotPaged(mods, fn);
     const { q, res } = await read<{ v?: unknown; k?: string; n?: number }>(ctx, steps, mods, 'agg', { fn, field }, st);
     if (fn === 'countBy') return Object.fromEntries(res.map((r) => [r.k ?? 'null', r.n]));
@@ -918,40 +994,44 @@ export function makeChain(ctx: ChainCtx, steps: Step[], mods: ChainMods, nodes: 
       case 'then':
         return undefined;
       case 'entity':
-        return entityStep;
+        return (...a: unknown[]) => {
+          noExtraArgs('entity(x)', a, 1);
+          return entityStep(a[0]);
+        };
       case 'paths':
-        return term('paths', async (st) => {
+        return term('paths', 'paths()', 0, async (st) => {
           checkAfterVerb(steps, mods);
           // q === null — пути из результата глагола: строки уже готовы. Ключи — в порядке шагов (jsonb хранит их
-          // по длине), узел последнего шага — последним: по нему cursorOf(путь, поле) берёт курсор (план 2.0, 7.1 №3)
+          // по длине), узел последнего шага — последним: по нему cursorOf(путь, поле) берёт курсор
           const { q, res } = await read<{ path: Record<string, Record<string, unknown>> }>(ctx, steps, mods, 'paths', undefined, st);
           if (q === null) return res.map((r) => r.path as unknown as Path);
           return res.map((r) => Object.fromEntries(q.keys.map((k) => [k, toRow(r.path[k])])) as Path);
         });
       case 'rows':
-        return term('rows', async (st) => {
+        return term('rows', 'rows()', 0, async (st) => {
           checkAfterVerb(steps, mods);
           return (await read<{ row: Record<string, unknown>; done?: true }>(ctx, steps, mods, 'rows', undefined, st)).res.map(rowOf);
         });
       case 'first':
-        return term('first', async (st) => {
+        return term('first', 'first()', 0, async (st) => {
           checkAfterVerb(steps, mods);
           const { res } = await read<{ row: Record<string, unknown>; done?: true }>(ctx, steps, { ...mods, limit: 1 }, 'rows', undefined, st);
           return res[0] ? rowOf(res[0]) : null;
         });
       case 'ids':
-        return term('ids', async (st) => {
+        return term('ids', 'ids()', 0, async (st) => {
           checkAfterVerb(steps, mods);
           return (await read<{ id: string }>(ctx, steps, mods, 'ids', undefined, st)).res.map((r) => r.id);
         });
       case 'count':
-        return term('count', async (st, opts?: { paths?: boolean }) => {
+        return term('count', 'count({ paths })', 1, async (st, opts?: { paths?: boolean }) => {
+          const paths = flagOption('count({ paths })', optionsArg('count', 'count({ paths })', opts, COUNT_OPTIONS)?.paths);
           checkAfterVerb(steps, mods);
           afterNotPaged(mods, 'count');
-          return (await read<{ n: number }>(ctx, steps, mods, opts?.paths ? 'countPaths' : 'count', undefined, st)).res[0].n;
+          return (await read<{ n: number }>(ctx, steps, mods, paths ? 'countPaths' : 'count', undefined, st)).res[0].n;
         });
       case 'versions':
-        return (...a: []) => versionsPromise(term('versions', async (st) => {
+        return (...a: unknown[]) => versionsPromise(term<unknown[], Row[]>('versions', 'versions()', 0, async (st) => {
           warnNoHistory(steps, 'versions', ctx.log);
           return (await read<{ row: Record<string, unknown> }>(ctx, steps, mods, 'versions', undefined, st)).res.map((r) => toRow(r.row));
         })(...a));
@@ -961,58 +1041,121 @@ export function makeChain(ctx: ChainCtx, steps: Step[], mods: ChainMods, nodes: 
       case 'max':
       case 'countBy':
         return agg(prop);
+      // модификаторы: аргумент не того типа и лишний аргумент — отказ при вызове, а не молчаливый пропуск
       case 'limit':
-        return (n: number) => withMods({ limit: n });
+        return (...a: unknown[]) => {
+          noExtraArgs('limit(n)', a, 1);
+          return withMods({ limit: countArg('limit(n)', a[0]) });
+        };
       case 'offset':
-        return (n: number) => withMods({ offset: n });
+        return (...a: unknown[]) => {
+          noExtraArgs('offset(n)', a, 1);
+          return withMods({ offset: countArg('offset(n)', a[0]) });
+        };
       case 'sort':
-        return (field: string, dir?: 'asc' | 'desc' | boolean) => withMods({ order: field, desc: dir === true || dir === 'desc' });
+        return (...a: unknown[]) => withMods(sortArgs(a));
       case 'asOf':
-        return (t: string | Date) => {
+        return (...a: unknown[]) => {
+          noExtraArgs('asOf(t)', a, 1);
+          const t = momentArg(a[0]);
           warnNoHistory(steps, 'asOf', ctx.log);
-          return withMods({ asOf: t instanceof Date ? t.toISOString() : t });
+          return withMods({ asOf: t });
         };
       case 'after':
-        return (cursor: Cursor) => withMods({ after: cursor });
+        return (...a: unknown[]) => {
+          noExtraArgs('after(cursor)', a, 1);
+          // after() без курсора и after(undefined) — курсор задан, но пуст: отказ построителя (query.cursor_shape), а не
+          // первая страница
+          return withMods({ after: (a[0] ?? null) as Cursor });
+        };
       case 'withDeleted':
-        // модификатор своего шага (план 2.1, A9): X(id).withDeleted().Y().withDeleted() — удалённые Y удалённого X
-        return () => withLast({ withDeleted: true });
+        // модификатор своего шага: X(id).withDeleted().Y().withDeleted() — удалённые Y удалённого X
+        return (...a: unknown[]) => {
+          noExtraArgs('withDeleted()', a, 0);
+          return withLast({ withDeleted: true });
+        };
       case 'deep':
-        return (max = 32) => withLast({ deepMax: max });
+        return (...a: unknown[]) => {
+          noExtraArgs('deep(max)', a, 1);
+          const max = a[0] === undefined ? 32 : a[0];
+          if (!Number.isSafeInteger(max) || (max as number) < 1) throw badArg('deep(max)', a[0], 'api.arg_expect_int1');
+          return withLast({ deepMax: max as number });
+        };
       case 'exact':
-        return () => withLast({ exact: true });
+        return (...a: unknown[]) => {
+          noExtraArgs('exact()', a, 0);
+          return withLast({ exact: true });
+        };
       case 'alias':
-        return (name: string) => withLast({ aliasKey: name });
+        return (...a: unknown[]) => {
+          noExtraArgs('alias(name)', a, 1);
+          const name = a[0];
+          if (typeof name !== 'string' || !name) throw badArg('alias(name)', name, 'api.arg_expect_name');
+          return withLast({ aliasKey: name });
+        };
       case 'tags':
-        return (v: unknown) => withLast({ tagsFilter: v });
+        return (...a: unknown[]) => {
+          noExtraArgs('tags(v)', a, 1);
+          // tags() без значения — не «тегов не задано»; вид значения сверяет построитель (sql.ts, compileTags)
+          if (a[0] === undefined) throw lerr('query.tags_arg');
+          return withLast({ tagsFilter: a[0] });
+        };
       case 'owner':
-        return (v: string | { id: string }) => withLast({ ownerFilter: typeof v === 'object' ? v.id : v });
-      // глаголы записи — звенья плана (этап 4)
+        return (...a: unknown[]) => {
+          noExtraArgs('owner(v)', a, 1);
+          return withLast({ ownerFilter: ownerArg(a[0]) });
+        };
+      // глаголы записи — звенья плана
       case 'create':
-        return (data: Record<string, unknown> = {}, opts?: { reason?: string }) => withOp({ kind: 'create', data: dropUndefined(data), ...reasonOf(opts) });
+        return (...a: [data?: Record<string, unknown>, opts?: { reason?: string }]) => {
+          noExtraArgs(VERB_CALL.create, a, 2);
+          const [data = {}, opts] = a;
+          return withOp({ kind: 'create', data: dropUndefined(data), ...reasonOf(verbOpts('create', opts)) });
+        };
       case 'update':
-        return (data: Record<string, unknown> = {}, opts?: { rev?: number; all?: boolean; reason?: string }) =>
-          withOp({ kind: 'update', data, ...(opts?.rev !== undefined ? { rev: opts.rev } : {}), ...allOf(opts), ...reasonOf(opts) });
+        return (...a: [data?: Record<string, unknown>, opts?: { rev?: number; all?: boolean; reason?: string }]) => {
+          noExtraArgs(VERB_CALL.update, a, 2);
+          const [data = {}, opts] = a;
+          return withOp({ kind: 'update', data, ...(verbOpts('update', opts)?.rev !== undefined ? { rev: opts!.rev } : {}), ...allOf('update', opts), ...reasonOf(opts) });
+        };
       case 'upsert':
-        return (data: Record<string, unknown> = {}, opts?: { reason?: string }) => withOp({ kind: 'upsert', data: dropUndefined(data), ...reasonOf(opts) });
+        return (...a: [data?: Record<string, unknown>, opts?: { reason?: string }]) => {
+          noExtraArgs(VERB_CALL.upsert, a, 2);
+          const [data = {}, opts] = a;
+          return withOp({ kind: 'upsert', data: dropUndefined(data), ...reasonOf(verbOpts('upsert', opts)) });
+        };
       case 'delete':
-        return (opts?: DeleteOptions) =>
-          withOp({ kind: 'delete', confirm: opts?.confirm === true, ...allOf(opts), ...reasonOf(opts), ...expectOf(opts) });
+        return (...a: [opts?: DeleteOptions]) => {
+          noExtraArgs(VERB_CALL.delete, a, 1);
+          const opts = verbOpts('delete', a[0]);
+          return withOp({ kind: 'delete', confirm: flagOption('delete({ confirm })', opts?.confirm), ...allOf('delete', opts), ...reasonOf(opts), ...expectOf(opts) });
+        };
       case 'set': case 'unset': case 'add': case 'remove':
         throw lerr('api.slot_method', { method: prop });
       case 'forUpdate':
-        return () => withMods({ forUpdate: true });
+        return (...a: unknown[]) => {
+          noExtraArgs('forUpdate()', a, 0);
+          return withMods({ forUpdate: true });
+        };
       case 'restore':
-        return (opts?: RestoreOptions) =>
-          withOp({ kind: 'restore', ...allOf(opts), ...reasonOf(opts), ...expectOf(opts), ...(opts?.partial === true ? { partial: true as const } : {}) });
+        return (...a: [opts?: RestoreOptions]) => {
+          noExtraArgs(VERB_CALL.restore, a, 1);
+          const opts = verbOpts('restore', a[0]);
+          return withOp({ kind: 'restore', ...allOf('restore', opts), ...reasonOf(opts), ...expectOf(opts),
+            ...(flagOption('restore({ partial })', opts?.partial) ? { partial: true as const } : {}) });
+        };
       case 'cache':
-        return (opts?: { ttl?: number }) => {
-          if (opts?.ttl !== undefined && !(opts.ttl > 0)) throw lerr('api.cache_ttl');
+        return (...a: [opts?: { ttl?: number }]) => {
+          noExtraArgs('cache({ ttl })', a, 1);
+          const opts = optionsArg('cache', 'cache({ ttl })', a[0], CACHE_OPTIONS);
+          if (opts?.ttl !== undefined && !(typeof opts.ttl === 'number' && opts.ttl > 0)) throw lerr('api.cache_ttl');
           return withMods({ cache: opts ?? {} });
         };
     }
     const found = lookupStep(ctx.reg, prop);
-    if (!found && noSession(ctx, prop)) return sessionless();
+    // у цепочки с глаголом записи спросили свойство массива (res.json(цепочка), .length): глагол ещё не выполнен
+    const pending = found ? undefined : ARRAY_PROPS.has(prop) ? steps.find((x) => x.op)?.op?.kind : undefined;
+    if (pending) throw lerr('api.verb_not_run', { verb: pending, name: prop });
     return classProp(ctx, prop, found ?? unknownName(ctx, prop), steps, mods, nodes);
   };
 
@@ -1037,7 +1180,7 @@ export function makeChain(ctx: ChainCtx, steps: Step[], mods: ChainMods, nodes: 
 
 /**
  * Батч: очередь планов; каждый вызов класса — своя ссылка на очередь (свой план). run() исполняет очередь
- * в контексте ctx (актор, арендатор, владелец, транзакция) — поэтому очередь принадлежит фасаду этого ctx
+ * в контексте ctx (актор, квартира, владелец, транзакция) — поэтому очередь принадлежит фасаду этого ctx
  * и общей с другими фасадами быть не может: иначе план исполнился бы от имени чужого актора.
  */
 export function makeBatch(ctx: ChainCtx, queue: BatchEntry[]): Batch {
@@ -1078,11 +1221,10 @@ export function makeBatch(ctx: ChainCtx, queue: BatchEntry[]): Batch {
 /** Старт пути от корня db: класс, алиас или роль. */
 export function startStep(ctx: ChainCtx, name: string): StepFn {
   const found = lookupStep(ctx.reg, name);
-  if (!found && noSession(ctx, name)) return sessionless();
-  return classProp(ctx, name, found ?? unknownName(ctx, name), undefined, {}, NO_NODES);
+  return classProp(ctx, name, found ?? unknownName(ctx, name, true), undefined, {}, NO_NODES);
 }
 
-/** Старт пути с готового узла: db.entity(row | цепочка). */
+/** Старт пути с готового узла: me.entity(row | цепочка). */
 export function startEntity(ctx: ChainCtx, x: ChainRef | Row): Chain {
   return makeChain(ctx, [], {}, NO_NODES).entity(x);
 }

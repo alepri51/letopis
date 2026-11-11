@@ -27,8 +27,8 @@
         "between",
         "compileValidator",
         "connect",
-        "createTenant",
         "cursorOf",
+        "demolish",
         "ends",
         "exists",
         "fromDbError",
@@ -38,7 +38,6 @@
         "has",
         "hasAll",
         "hasAny",
-        "hashPassword",
         "idOf",
         "ilike",
         "inList",
@@ -54,25 +53,25 @@
         "not",
         "or",
         "schemaToTs",
+        "setup",
         "starts",
         "syncModels",
         "totpCode",
-        "up",
         "uuidv5",
         "v5Id",
-        "v5Name",
-        "verifyHash"
+        "v5Name"
       ],
       "types": [
         "AclApi",
+        "AclCandidate",
         "AclDataDecision",
         "AclDecision",
         "AclOp",
+        "AclPerson",
         "AclRule",
         "AclRuleSpec",
         "AclTarget",
         "AnyModelLike",
-        "AuthApi",
         "Batch",
         "BatchEntry",
         "CacheOptions",
@@ -82,10 +81,11 @@
         "ChainMods",
         "ChainRef",
         "ClassInfo",
-        "ConnectOptions",
-        "Credential",
+        "Contact",
+        "ContactAddress",
         "Cursor",
         "Db",
+        "DbBase",
         "DbCore",
         "DbTx",
         "DeleteOptions",
@@ -95,10 +95,20 @@
         "FieldFilterOf",
         "Filter",
         "FilterOf",
+        "House",
+        "HouseOptions",
         "IncMarker",
+        "Invitation",
+        "Invite",
+        "InviteFrom",
         "Issue",
+        "Key",
+        "KeyInfo",
         "KeyedClass",
+        "KeysApi",
         "LeafType",
+        "Letter",
+        "LetterMessage",
         "LoadInput",
         "LoadIssue",
         "LoadOptions",
@@ -110,32 +120,30 @@
         "LogObject",
         "LogOptions",
         "Logger",
-        "LoginOptions",
-        "LoginResult",
         "MaintainReport",
         "ModelLike",
         "Op",
         "OrOp",
         "PatchOf",
         "Path",
+        "Postman",
         "QueryEvent",
         "RestoreOptions",
+        "Room",
+        "RoomExtra",
         "Row",
         "RowOf",
         "Scalar",
-        "SessionInfo",
+        "SetupOptions",
+        "SetupResult",
         "SignalMode",
         "StepFn",
         "StepsOf",
         "Subscription",
         "SyncResult",
         "SystemModels",
-        "TenantOptions",
-        "TenantResult",
         "TypedChain",
         "TypedDb",
-        "UpOptions",
-        "UpResult",
         "Validator",
         "WatchEvent",
         "WatchOptions",
@@ -212,28 +220,57 @@
     "withDeleted"
   ],
   "db": [
+    "account",
     "acl",
-    "as",
-    "auth",
     "batch",
     "begin",
     "cache",
+    "changeContact",
+    "changeName",
     "close",
+    "closeAll",
     "commit",
+    "concierge",
+    "deleteAccount",
+    "deleteTenant",
     "flushSignals",
     "idOf",
+    "invite",
+    "invites",
+    "keys",
+    "leave",
     "load",
     "lock",
     "maintain",
     "refresh",
+    "refreshSession",
     "registry",
+    "revokeInvite",
     "rollback",
     "schema",
     "sql",
     "tenant",
+    "tenantName",
     "token",
     "transaction",
     "watch"
+  ],
+  "house": [
+    "accept",
+    "as",
+    "close",
+    "contactOf",
+    "createTenant",
+    "deleteAccount",
+    "in",
+    "invitation",
+    "maintain",
+    "open",
+    "requestCode",
+    "resume",
+    "schema",
+    "tenants",
+    "tenantsOf"
   ],
   "batch": [
     "discard",
@@ -241,8 +278,10 @@
     "size"
   ],
   "codes": [
+    "acl_ambiguous",
     "acl_denied",
     "admin_required",
+    "auth_failed",
     "bypass_rls",
     "class_not_loadable",
     "commit_unknown",
@@ -260,16 +299,20 @@
     "invalid_data",
     "invalid_query",
     "isolation_level",
+    "last_owner",
     "lock_unsupported",
     "no_key",
     "no_path",
+    "no_postman",
     "no_session",
     "not_deleted",
     "not_empty",
+    "postman_failed",
     "recreated_in_statement",
     "rev_ambiguous",
     "target_not_found",
     "tenant_denied",
+    "tenant_required",
     "tightening_conflict",
     "tx_required",
     "tx_rolled_back",
@@ -279,11 +322,23 @@
   "errors": [
     {
       "module": "15-errors",
+      "message": "letopis: acl_ambiguous: правила с равным счётом спорят — доступ не определить"
+    },
+    {
+      "module": "15-errors",
       "message": "letopis: acl_denied: отказ по правилам доступа"
     },
     {
       "module": "15-errors",
+      "message": "letopis: auth_failed: ключ не подошёл"
+    },
+    {
+      "module": "15-errors",
       "message": "letopis: delete_restricted: удалению мешают ссылающиеся строки"
+    },
+    {
+      "module": "15-errors",
+      "message": "letopis: exists: уже есть"
     },
     {
       "module": "15-errors",
@@ -311,6 +366,10 @@
     },
     {
       "module": "15-errors",
+      "message": "letopis: last_owner: квартира осталась бы без owner"
+    },
+    {
+      "module": "15-errors",
       "message": "letopis: no_session: нет действующей сессии"
     },
     {
@@ -327,7 +386,7 @@
     },
     {
       "module": "15-errors",
-      "message": "letopis: tenant_denied: чужой арендатор"
+      "message": "letopis: tenant_denied: чужая квартира"
     },
     {
       "module": "15-errors",
@@ -367,19 +426,23 @@
     },
     {
       "module": "up",
-      "message": "letopis.up: ${own ? seed : "
+      "message": "letopis.demolish: <…>"
     },
     {
       "module": "up",
-      "message": "letopis.up: <…>"
+      "message": "letopis.demolish: v2.<имя>"
     },
     {
       "module": "up",
-      "message": "letopis.up: <…>: <…>"
+      "message": "letopis.setup: ${own ? seed : "
     },
     {
       "module": "up",
-      "message": "letopis.up: migrate/<…>: <…>"
+      "message": "letopis.setup: <…>"
+    },
+    {
+      "module": "up",
+      "message": "letopis.setup: <…>: <…>"
     }
   ]
 }

@@ -6,42 +6,34 @@
 import type { Section } from './types.js';
 
 export const sqlCore = {
-  // 20-context.sql, ctx(): рабочий арендатор чужой, а членства в нём нет (или арендатор выключен)
+  // 20-context.sql, ctx(): квартиры консьержа (db.in) нет или она выключена; жилец не прописан в квартире своего ключа
+  // или она выключена; 80-auth.sql, member_leave(): прописки нет
   'sql-core.no_membership': {
     code: 'tenant_denied',
-    ru: 'нет членства в арендаторе',
+    ru: 'квартиры нет, она выключена или аккаунт в ней не прописан',
   },
-  // 20-context.sql, ctx(): настройка letopis.account — не uuid включённого аккаунта
+  // 20-context.sql, ctx(): настройка letopis.account у консьержа (db.as) — не uuid
   'sql-core.account_not_id': {
     code: 'acl_denied',
     ru: 'letopis.account — не id аккаунта',
   },
-  // 20-context.sql, ctx(): имперсонация без права auth.impersonate
-  'sql-core.no_impersonate_right': {
-    code: 'acl_denied',
-    ru: 'нет права auth.impersonate',
-  },
-  // 20-context.sql, ctx(): имперсонация аккаунта, которого нет (не заводили или удалён); id — значение letopis.account
+  // 20-context.sql, ctx(): консьерж от имени жильца (db.as), которого нет (не заводили, удалён или выключен); id —
+  // значение letopis.account
   'sql-core.impersonation_no_account': {
     code: 'target_not_found',
     ru: 'аккаунт {id} не найден',
-    hint: 'id аккаунта — из ответа verifyPassword(), createTenant() или db.auth.tenants(); удалённый аккаунт через as() не вернуть',
+    hint: 'id жильца — его me.account или конец User строки member этой квартиры; удалённый или выключенный аккаунт db.as() не открывает',
   },
-  // 20-context.sql, ctx(): имперсонация System, сервиса или системного администратора не системным администратором
+  // 20-context.sql, ctx(): подмена аккаунта — консьерж (db.as) без квартиры или от имени жильца, не прописанного в ней;
+  // жилец от чужого имени
   'sql-core.impersonation_denied': {
     code: 'acl_denied',
     ru: 'действовать от имени этого аккаунта нельзя',
   },
-  // 20-context.sql, ctx(): настройка letopis.tenant — не uuid
+  // 20-context.sql, ctx(): настройка letopis.tenant у консьержа (db.in) — не uuid
   'sql-core.tenant_not_id': {
     code: 'tenant_denied',
-    ru: 'letopis.tenant — не id арендатора',
-  },
-  // 20-context.sql, login_apikey(): ключа нет, он отозван, истёк или аккаунт выключен
-  'sql-core.bad_api_key': {
-    code: 'no_session',
-    ru: 'неверный ключ',
-    hint: 'ключ сервиса перевыпускает up({ fresh: true }): возьмите новый serviceKey из ответа up() или задайте свой — up({ serviceKey })',
+    ru: 'letopis.tenant — не id квартиры',
   },
 
   // 30-validate.sql, jp_pattern(): pattern JSON Schema не переводится в регулярное выражение PostgreSQL
@@ -159,7 +151,7 @@ export const sqlCore = {
     ru: 'данные не проходят описание',
   },
 
-  // 40-class.sql, class_resolve(): предка из parent нет ни у арендатора, ни в System
+  // 40-class.sql, class_resolve(): предка из parent нет ни в квартире, ни в System
   'sql-core.parent_not_found': {
     code: 'invalid_class',
     ru: 'предок {parent} не найден',
@@ -203,5 +195,10 @@ export const sqlCore = {
   'sql-core.system_history_off': {
     code: 'invalid_class',
     ru: 'history: false для системных классов запрещён',
+  },
+  // 20-context.sql, ctx(): сессия жильца работает только в квартире ключа
+  'sql-core.tenant_locked': {
+    code: 'tenant_denied',
+    ru: 'сессия жильца работает только в квартире, ключом от которой открыта',
   },
 } satisfies Section<'sql-core'>;

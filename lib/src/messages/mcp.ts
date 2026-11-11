@@ -4,7 +4,7 @@
  */
 import type { Section } from './types.js';
 
-/** Неизвестное имя класса, алиаса или роли: агенту доступна не db.registry, а letopis_model. */
+/** Неизвестное имя класса, алиаса или роли: агенту доступна не me.registry, а letopis_model. */
 const NAME_HINT = 'проверить имя: похожие названы в тексте и в similar, классы, алиасы и концы — letopis_model';
 /** Удаление сорвалось после предпросмотра: предпросмотр — заново. */
 const PREVIEW_HINT = 'посмотреть предпросмотр заново (delete без confirm) и повторить удаление с confirm: true';
@@ -33,13 +33,13 @@ export const mcp = {
     code: 'invalid_query',
     ru: 'Ошибка letopis ({code}).',
   },
-  // write: поле confirm превью удаления — как удалить
+  // write: поле confirm предпросмотра удаления — как удалить
   'mcp.delete_confirm_hint': {
     code: 'invalid_query',
     ru: 'удаление — confirm: true; подтверждает человек в клиенте',
   },
   // write: окно подтверждения удаления (его видит человек); count — целей, cls — каноническое имя класса, ids — id целей
-  // (с «и ещё» — mcp.delete_ids_more), rows — строк превью, deleted — сколько удалится, unset — сколько концов снимется,
+  // (с «и ещё» — mcp.delete_ids_more), rows — строк предпросмотра, deleted — сколько удалится, unset — сколько концов снимется,
   // operation — начало кода операции
   'mcp.delete_message': {
     code: 'invalid_query',
@@ -171,7 +171,7 @@ export const mcp = {
     code: 'invalid_query',
     ru: '{where}.$or: непустой список фильтров',
   },
-  // mcp.ts, filterOf: условий $or больше предела (ревью безопасности №2, О8)
+  // mcp.ts, filterOf: условий $or больше предела — запрос растёт с каждым условием
   'mcp.or_too_many': {
     code: 'invalid_query',
     ru: '{where}.$or: не больше {max} условий, а не {count}',
@@ -207,7 +207,7 @@ export const mcp = {
     code: 'invalid_query',
     ru: 'letopis_query.steps: список шагов',
   },
-  // mcp.ts, query: шагов больше предела (ревью безопасности №2, О8)
+  // mcp.ts, query: шагов больше предела — запрос растёт с каждым шагом
   'mcp.steps_too_many': {
     code: 'invalid_query',
     ru: 'letopis_query.steps: не больше {max} шагов, а не {count}',
@@ -268,11 +268,11 @@ export const mcp = {
     ru: '{where}: у класса {cls} нет конца {role}',
     hint: 'проверить роль: похожие названы в тексте и в similar, концы класса — letopis_model { class }',
   },
-  // mcp.ts, write: класс прав без allowAclWrite (ревью безопасности №2, О5)
+  // mcp.ts, write: класс прав без allowAclWrite — агент, которому в данных подсунули чужие инструкции, не меняет права
   'mcp.acl_class': {
     code: 'acl_denied',
     ru: 'letopis_write: {cls} — класс прав ({classes} и их потомки): этот сервер MCP их не пишет',
-    hint: 'классы прав агент через MCP не пишет: их меняет приложение или сервер, созданный с allowAclWrite: true',
+    hint: 'классы прав агент через MCP не пишет: их меняет приложение или сервер MCP, созданный с allowAclWrite: true',
   },
   // mcp.ts, write: data — не объект
   'mcp.data_not_object': {
@@ -304,7 +304,7 @@ export const mcp = {
     code: 'invalid_query',
     ru: 'letopis_write.ids: непустой список',
   },
-  // mcp.ts, write: код операции агента не совпал с превью (detail.operation — нынешний)
+  // mcp.ts, write: код операции агента не совпал с предпросмотром (detail.operation — нынешний)
   'mcp.delete_operation_changed': {
     code: 'confirmation_required',
     ru: 'letopis_write: операция изменилась после предпросмотра — посмотрите предпросмотр заново',
@@ -315,7 +315,7 @@ export const mcp = {
     code: 'target_not_found',
     ru: 'letopis_write: удалять нечего — целей не видно',
   },
-  // mcp.ts, write: в превью есть $action restrict или сводка скрытых строк $hidden restrict (detail.preview)
+  // mcp.ts, write: в предпросмотре есть $action restrict или сводка скрытых строк $hidden restrict (detail.preview)
   'mcp.delete_restricted': {
     code: 'delete_restricted',
     ru: 'letopis_write: удалению мешают строки с $action: restrict (или скрытые правами — сводка $hidden: restrict)',
@@ -341,7 +341,7 @@ export const mcp = {
     code: 'confirmation_required',
     ru: 'letopis_write: удаление не выполнено — клиент не умеет elicitation — без подтверждения человека удаление не выполняется',
   },
-  // mcp.ts, write: повторное превью в транзакции разошлось с подтверждённым
+  // mcp.ts, write: повторный предпросмотр в транзакции разошёлся с подтверждённым
   'mcp.delete_data_changed': {
     code: 'confirmation_required',
     ru: 'letopis_write: данные изменились после подтверждения — посмотрите предпросмотр заново',
@@ -353,42 +353,39 @@ export const mcp = {
     ru: 'createMcpServer: {name} — целое от {min} до {max}',
     hint: OPTION_HINT,
   },
-  // mcp.ts, limitsOf: write, allowAclWrite, allowSystemAdmin — не true и не false
+  // mcp.ts, limitsOf: write, allowAclWrite — не true и не false
   'mcp.option_boolean': {
     code: 'invalid_data',
     ru: 'createMcpServer: {name} — true или false',
     hint: OPTION_HINT,
   },
-  // mcp.ts, checkCredentials: фасад не из connect() этого пакета (нет в internal.ts)
+  // mcp.ts, checkCredentials: корень не из connect() этого пакета (нет в internal.ts)
   'mcp.not_letopis_db': {
     code: 'invalid_data',
-    ru: 'createMcpServer: нужно подключение connect() пакета letopis или фасад db.as()',
-    hint: 'передать в createMcpServer подключение connect() или фасад db.as(пользователь) пакета letopis',
+    ru: 'createMcpServer: передан не объект letopis — нужен корень квартиры жильца: db.open(ключ) или db.resume(токен)',
+    hint: 'передать в createMcpServer корень квартиры, который вернул db.open(ключ жильца) или db.resume(токен)',
   },
+
   // mcp.ts, checkCredentials: подключение в обход RLS
   'mcp.bypass_rls': {
     code: 'bypass_rls',
-    ru: 'createMcpServer: подключение обходит RLS и видит данные всех арендаторов — агенту нужна сессия пользователя: connect({ token }) или db.as(пользователь)',
+    ru: 'createMcpServer: подключение обходит RLS и видит данные всех квартир — агенту нужен корень квартиры жильца: db.open(ключ)',
   },
-  // mcp.ts, checkCredentials: фасад db.begin()
+  // mcp.ts, checkCredentials: фасад begin()
   'mcp.explicit_tx': {
     code: 'invalid_query',
-    ru: 'createMcpServer: от подключения или db.as(), а не от db.begin()',
+    ru: 'createMcpServer: от корня квартиры, а не от begin()',
   },
-  // mcp.ts, checkCredentials: нет сессии
+  // mcp.ts, checkCredentials: сессии жильца уже нет
   'mcp.no_user_session': {
     code: 'user_session_required',
-    ru: 'createMcpServer: нет сессии пользователя — connect({ token }) с токеном пользователя или db.as(пользователь)',
+    ru: 'createMcpServer: сессии жильца уже нет (кончилась или погашена) — откройте квартиру заново db.open(ключ)',
   },
-  // mcp.ts, checkCredentials: корень сервиса без db.as()
-  'mcp.service_root': {
+  // mcp.ts, checkCredentials: корень консьержа в квартире (db.in, db.as)
+  'mcp.resident_required': {
     code: 'user_session_required',
-    ru: 'createMcpServer: корень сервиса держит права auth.* (имперсонация, выпуск сессий) — агенту нужен фасад db.as(пользователь) или сессия пользователя',
+    ru: 'createMcpServer: агент работает только как жилец — нужен корень квартиры по ключу жильца; консьержу (connect(pass), db.in, db.as) сервер MCP не выдаётся',
+    hint: 'откройте квартиру жильца: db.open(ключ) или db.resume(токен) — и передайте этот корень в createMcpServer',
   },
-  // mcp.ts, checkCredentials: сессия в арендаторе System без allowSystemAdmin (ревью безопасности №2, О5)
-  'mcp.system_session': {
-    code: 'user_session_required',
-    ru: 'createMcpServer: сессия в арендаторе System — права системного администратора на аккаунты, членства и правила установки; агенту нужна сессия пользователя в его арендаторе (или allowSystemAdmin: true)',
-    hint: 'создать сервер на сессии пользователя в его арендаторе; права системного администратора агент получает только с allowSystemAdmin: true',
-  },
+
 } satisfies Section<'mcp'>;

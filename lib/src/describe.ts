@@ -1,8 +1,7 @@
 /**
- * Описание модели для инструмента MCP letopis_model (план 2.0, редакция 2: описание модели осталось только внутри MCP).
- * Модуля нет в `exports` package.json: его берёт только `lib/src/mcp.ts`. Классы арендатора сессии и общие классы
- * System — из реестра подключения: поля, ключ, концы, метаданные `meta` и рабочие цепочки `examples` (план 2.0, этап 3,
- * п. 7).
+ * Описание модели для инструмента MCP letopis_model: описание модели есть только внутри MCP.
+ * Модуля нет в `exports` package.json: его берёт только `lib/src/mcp.ts`. Классы квартиры сессии и общие классы
+ * System — из реестра подключения: поля, ключ, концы, метаданные `meta` и рабочие цепочки `examples`.
  */
 import type { JsonSchema } from './jsonschema.js';
 import type { ClassInfo, Registry } from './registry.js';
@@ -33,7 +32,7 @@ export interface ModelDescription {
     cache?: { ttl?: number };
     meta: Record<string, unknown>;
     /**
-     * Рабочие цепочки из реестра (план 2.0, этап 3, п. 7), текст TypeScript. `create` — создать: поля ключа и
+     * Рабочие цепочки из реестра, текст TypeScript. `create` — создать: поля ключа и
      * обязательные поля без умолчания с образцами значений (`examples` из JSON Schema поля, `const`, `default`, первое
      * из `enum`, иначе по типу), обязательные концы и концы ключа — слотами; у абстрактного и
      * системного класса его нет. `find` — найти: по ключу — `first()`, иначе по обязательному полю — `rows()`.
@@ -47,7 +46,7 @@ export interface ModelDescription {
 const SYSTEM_CLASSES = new Set(['Class', 'Account', 'member', 'Resource', 'rule']);
 
 // ---------------------------------------------------------------------------
-// Примеры цепочек (план 2.0, этап 3, п. 7): из реестра — ключ, обязательные поля, концы
+// Примеры цепочек: из реестра — ключ, обязательные поля, концы
 // ---------------------------------------------------------------------------
 
 /** Ключ объекта без кавычек: буквы, цифры, _ и $, не с цифры (имена классов и ролей такие всегда — метасхема Class). */
@@ -84,9 +83,9 @@ const FORMAT_SAMPLES: Record<string, string[]> = {
 
 /** Строка: образец формата или имя поля — с учётом minLength, maxLength и pattern. */
 function stringSample(s: JsonSchema, name: string): string {
-  // описание класса задаёт арендатор, а описание модели получает агент через MCP: длина образца ограничена (minLength в
-  // миллиард не выделит гигабайтную строку), а свой pattern здесь не исполняется вовсе — шаблон с катастрофическим
-  // перебором повесил бы процесс и на коротком образце (ревью безопасности коммитов 2e5e6bc, 1e80cf1). Поле с pattern
+  // описание класса пишут жильцы квартиры, а описание модели получает агент через MCP: длина образца ограничена
+  // (minLength в миллиард не выделит гигабайтную строку), а свой pattern здесь не исполняется вовсе — шаблон с
+  // катастрофическим перебором повесил бы процесс и на коротком образце. Поле с pattern
   // без examples может получить образец, который проверку не пройдёт, — это оговорено в README
   const SAMPLE = 16;
   const min = typeof s.minLength === 'number' ? Math.min(Math.max(0, s.minLength), SAMPLE) : 0;
@@ -164,7 +163,7 @@ function createData(c: ClassInfo): Record<string, unknown> {
 /** «Создать»: данные и слоты обязательных концов и концов ключа; у множественного конца с min — столько разных id. */
 function createExample(c: ClassInfo): string | undefined {
   if (notCreatable(c)) return undefined;
-  let chain = `db.${c.name}().create(${lit(createData(c))})`;
+  let chain = `me.${c.name}().create(${lit(createData(c))})`;
   for (const [role, e] of Object.entries(c.ends)) {
     const min = e.min ?? 0;
     if (!e.required && min === 0 && !c.key.includes(role)) continue;
@@ -180,14 +179,14 @@ function findExample(c: ClassInfo): string {
   const props = isSchema(c.schema.properties) ? c.schema.properties : {};
   if (c.key.length) {
     const filter = Object.fromEntries(c.key.map((k) => [k, c.ends[k] ? idPlace(c.ends[k].class) : sample(props[k], k)]));
-    return `db.${c.name}(${lit(filter)}).first()`;
+    return `me.${c.name}(${lit(filter)}).first()`;
   }
   const required = Array.isArray(c.schema.required) ? (c.schema.required as string[]) : [];
   const simple = (v: unknown): boolean => ['string', 'number', 'boolean'].includes(typeof v);
   const field = Object.keys(props).find((k) => required.includes(k) && simple(sample(props[k], k)));
-  if (field) return `db.${c.name}(${lit({ [field]: sample(props[field], field) })}).rows()`;
+  if (field) return `me.${c.name}(${lit({ [field]: sample(props[field], field) })}).rows()`;
   const end = Object.entries(c.ends).find(([, e]) => e.required && !e.many);
-  return end ? `db.${c.name}(${lit({ [end[0]]: idPlace(end[1].class) })}).rows()` : `db.${c.name}().rows()`;
+  return end ? `me.${c.name}(${lit({ [end[0]]: idPlace(end[1].class) })}).rows()` : `me.${c.name}().rows()`;
 }
 
 /**
@@ -204,7 +203,7 @@ function neighborExamples(reg: Registry, c: ClassInfo, all: ClassInfo[]): string
   const back = all.filter((o) => Object.entries(o.ends).some(([role, e]) =>
     accepts(reg, list(e.class), c.name) && !reg.find(o.ancestors[1] ?? '')?.ends[role]));
   steps.push(...back.map((o) => o.name).sort((x, y) => x.localeCompare(y)));
-  return [...new Set(steps)].map((step) => `db.${c.name}(${lit(idPlace(c.name))}).${step}().rows()`);
+  return [...new Set(steps)].map((step) => `me.${c.name}(${lit(idPlace(c.name))}).${step}().rows()`);
 }
 
 function examplesOf(reg: Registry, c: ClassInfo, all: ClassInfo[]): ModelDescription['classes'][number]['examples'] {
@@ -213,8 +212,8 @@ function examplesOf(reg: Registry, c: ClassInfo, all: ClassInfo[]): ModelDescrip
 }
 
 /**
- * Описание модели арендатора вместе с метаданными классов (этап 6, п. 12) и примерами цепочек (план 2.0, этап 3, п. 7):
- * reg — реестр подключения (классы арендатора сессии и System), schema и tenant — схема установки и арендатор сессии.
+ * Описание модели квартиры вместе с метаданными классов и примерами цепочек: reg — реестр подключения (классы квартиры
+ * сессии и System), schema и tenant — схема дома и квартира сессии.
  */
 export function describeModel(reg: Registry, schema: string, tenant: string | null): ModelDescription {
   const all = reg.all();

@@ -1,10 +1,10 @@
 /**
- * Валидатор на TypeScript (план, §2.6, этап 2, п. 11): та же проверка, что `compile_validator` и
+ * Валидатор на TypeScript: та же проверка, что `compile_validator` и
  * `validate_data` в lib/sql/30-validate.sql, — то же подмножество JSON Schema, те же пути и ключевые
- * слова нарушений. Им пользуются загрузчик (этап 4) и ранние ошибки библиотеки; совпадение с базой
+ * слова нарушений. Им пользуются загрузчик и ранние ошибки библиотеки; совпадение с базой
  * закрепляет дифференциальный тест validator-parity.
  *
- * Исключение — `pattern` (ревью): шаблон задаёт арендатор, и движок V8 с перебором на шаблоне вроде
+ * Исключение — `pattern`: шаблон задаёт автор описания класса, и движок V8 с перебором на шаблоне вроде
  * `^(a+)+$` повесил бы процесс приложения. Такие правила (`db`) проверяет только база (`like_regex`,
  * движок без катастрофического перебора); здесь шаблон лишь разбирается — то, что база не примет, и
  * шаблон, неверный для JavaScript, — `invalid_class`. `anyOf`/`oneOf`, в ветке которых есть `pattern`,
@@ -81,7 +81,7 @@ const FORMAT_RE: Record<string, RegExp> = {
 };
 /**
  * Предел длины адреса для format: 'email' — 254 символа (RFC 5321). Длиннее — нарушение без шаблона: на подобранной
- * строке (много точек в домене и лишний символ в конце) шаблон email перебирает квадратично (ревью).
+ * строке (много точек в домене и лишний символ в конце) шаблон email перебирает квадратично.
  */
 const EMAIL_MAX = 254;
 
@@ -146,7 +146,7 @@ function compileNode(s: J, sel: Select, path: Path, inAny: boolean, out: Rule[])
   if (sch.enum !== undefined || sch.const !== undefined) {
     const keyword = sch.enum !== undefined ? 'enum' : 'const';
     const values = (sch.enum ?? [sch.const]) as J[];
-    // сообщение называет допустимые значения (план 2.1, A8)
+    // сообщение называет допустимые значения
     const msg = lmsg('model.issue_enum', { values: enumValues(values) });
     if (values.some((v) => typeof v === 'object' && v !== null)) {
       if (inAny) fail(path, 'model.validator_enum_objects_in_any_of');
@@ -164,7 +164,7 @@ function compileNode(s: J, sel: Select, path: Path, inAny: boolean, out: Rule[])
   if (sch.pattern !== undefined) {
     const src = translatePattern(sch.pattern as string); // то, чего база не понимает, — своя ошибка invalid_class
     try {
-      new RegExp(src); // только разбор, без исполнения на данных: проверку шаблона делает база (ревью, ReDoS)
+      new RegExp(src); // только разбор, без исполнения на данных: проверку шаблона делает база (ReDoS)
     } catch {
       // шаблон, неверный уже для JavaScript (незакрытая скобка и т. п.): translatePattern его пропускает, RegExp — нет.
       // Текст V8 в сообщение не идёт: он зависит от версии движка
@@ -188,7 +188,7 @@ function compileNode(s: J, sel: Select, path: Path, inAny: boolean, out: Rule[])
     const min = (sch.minLength as number | undefined) ?? 0;
     const max = (sch.maxLength as number | undefined) ?? Infinity;
     out.push({ path, keyword: sch.minLength !== undefined ? 'minLength' : 'maxLength', select: sel, test: () => true,
-      // текст называет границу (второй раунд 2.1, A6), как у базы (30-validate.sql, validate_data)
+      // текст называет границу, как у базы (30-validate.sql, validate_data)
       extra: (v) => {
         if (typeof v !== 'string') return null;
         const n = [...v].length;
@@ -218,7 +218,7 @@ function compileNode(s: J, sel: Select, path: Path, inAny: boolean, out: Rule[])
     for (const [k, v] of Object.entries(sch.properties)) compileNode(v, prop(sel, k), [...path, k], inAny, out);
   }
   if (sch.additionalProperties === false) {
-    // сообщение называет лишние ключи (план 2.1, A8)
+    // сообщение называет лишние ключи
     out.push({ path, keyword: 'additionalProperties', select: sel, test: (v) => !isObj(v) || Object.keys(v).every((k) => known.includes(k)),
       explain: (v) => lmsg('model.issue_additional', { keys: Object.keys(v as object).filter((k) => !known.includes(k)).slice(0, 20).join(', ') }) });
   } else if (isObj(sch.additionalProperties)) {
@@ -253,8 +253,8 @@ export interface Validator {
 
 /**
  * Превращает JSON Schema данных класса в функцию проверки — ту же проверку, что выполняет база при записи, кроме
- * `pattern` (и `anyOf`/`oneOf` с ним в ветке): шаблоны задаёт арендатор, их проверяет только база. Схема
- * класса — `db.registry.resolve(имя).schema`.
+ * `pattern` (и `anyOf`/`oneOf` с ним в ветке): шаблоны задаёт автор описания класса, их проверяет только база. Схема
+ * класса — `me.registry.resolve(имя).schema`.
  */
 export function compileValidator(schema: JsonSchema): Validator {
   const all: Rule[] = [];

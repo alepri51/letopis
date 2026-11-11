@@ -1,5 +1,5 @@
 /**
- * Ошибки letopis 1.0 (план, §7.1, этап 2, п. 10). Текст — «letopis: <код>: <сообщение>», как у ошибок
+ * Ошибки letopis. Текст — «letopis: <код>: <сообщение>», как у ошибок
  * базы; код — имя из каталога (`error_catalog()` в lib/sql/15-errors.sql) или код самой библиотеки.
  *
  * Каталог сообщений: ошибка по ключу — `lerr(ключ, параметры)`, текст —
@@ -55,8 +55,8 @@ export function setEnvWarnSink(fn: () => WarnSink): void {
 }
 /**
  * Предупреждение по записи каталога — «letopis: <текст>» в console.warn; once — ключ «один раз на процесс». Неизвестное
- * поле фильтра, sort() и агрегата с 2.0 — уже не предупреждение, а отказ query.unknown_field (sql.ts, checkField).
- * Логирование 3.0: задан логгер (opts.log подключения или LETOPIS_LOG) — событие warning в него вместо console.warn.
+ * поле фильтра, sort() и агрегата — не предупреждение, а отказ query.unknown_field (sql.ts, checkField). Задан логгер
+ * (opts.log подключения или LETOPIS_LOG) — событие warning в него вместо console.warn.
  */
 export function lwarn(key: MsgKey, params?: Params, opts: { once?: string; log?: WarnSink } = {}): void {
   if (opts.once !== undefined) {
@@ -154,8 +154,8 @@ export function similar(name: string, candidates: Iterable<string>, n = 5): stri
 }
 
 /**
- * Неизвестный ключ опций — invalid_data с похожими именами (план 2.0, этап 4, п. 2; 7.10 №4; в 1.5 было предупреждение,
- * 7.9 №6). known — все ключи опций: объект `satisfies Record<keyof Опции, true>`, пропуск ключа — ошибка типов.
+ * Неизвестный ключ опций — invalid_data с похожими именами. known — все ключи опций: объект
+ * `satisfies Record<keyof Опции, true>`, пропуск ключа — ошибка типов.
  */
 export function checkOptions(where: string, opts: unknown, known: Readonly<Record<string, true>>): void {
   if (!opts || typeof opts !== 'object') return;
@@ -164,8 +164,68 @@ export function checkOptions(where: string, opts: unknown, known: Readonly<Recor
   }
 }
 
+// ---------------------------------------------------------------------------
+// Аргументы вызовов (методы цепочки и корня квартиры)
+// ---------------------------------------------------------------------------
+
 /**
- * Первое нарушение для текста ошибки (план 2.1, A8): «: <путь> — <сообщение>», при нескольких — ещё их число. Полный
+ * Значение для текста ошибки: JSON, длинное — с многоточием; то, что так не печатается (цепочка, объект с циклом), —
+ * своим типом.
+ */
+export function shown(v: unknown): string {
+  if (v instanceof Date && Number.isNaN(v.getTime())) return 'Invalid Date';
+  let s: string;
+  try {
+    s = typeof v === 'number' || typeof v === 'bigint' || v === undefined ? String(v) : (JSON.stringify(v) ?? String(v));
+  } catch {
+    try {
+      s = String(v);
+    } catch {
+      s = typeof v;
+    }
+  }
+  return s.length > 60 ? `${s.slice(0, 59)}…` : s;
+}
+
+/**
+ * Лишний аргумент вызова — invalid_query (api.extra_arg), а не молчаливый пропуск: call — форма вызова, как её пишут
+ * (`limit(n)`, `withDeleted()`), max — сколько аргументов она принимает. undefined на месте лишнего аргумента — как его
+ * отсутствие.
+ */
+export function noExtraArgs(call: string, args: readonly unknown[], max: number): void {
+  for (let i = max; i < args.length; i++) {
+    if (args[i] !== undefined) throw lerr('api.extra_arg', { call, value: shown(args[i]) });
+  }
+}
+
+/**
+ * Аргумент не того типа — invalid_query (api.bad_arg): call — форма вызова, value — что передано, expect — запись
+ * каталога api.arg_expect_* (что ожидалось).
+ */
+export function badArg(call: string, value: unknown, expect: MsgKey): LetopisError {
+  return lerr('api.bad_arg', { call, value: shown(value), expect: lmsg(expect) });
+}
+
+/**
+ * Объект опций вызова: undefined — опций нет; не объект (строка, число, массив, null) — api.bad_arg, а не молчаливый
+ * пропуск; неизвестный ключ — api.unknown_option (checkOptions). where — имя метода для текста неизвестной опции, call —
+ * форма вызова.
+ */
+export function optionsArg<T>(where: string, call: string, opts: T, known: Readonly<Record<string, true>>): T {
+  if (opts === undefined) return opts;
+  if (opts === null || typeof opts !== 'object' || Array.isArray(opts)) throw badArg(call, opts, 'api.arg_expect_options');
+  checkOptions(where, opts, known);
+  return opts;
+}
+
+/** Опция-флаг: true или false (undefined — не задана); иное значение — api.bad_arg, а не «как без опции». */
+export function flagOption(call: string, v: unknown): boolean {
+  if (v !== undefined && typeof v !== 'boolean') throw badArg(call, v, 'api.arg_expect_boolean');
+  return v === true;
+}
+
+/**
+ * Первое нарушение для текста ошибки: «: <путь> — <сообщение>», при нескольких — ещё их число. Полный
  * список — err.issues.
  */
 export function issuesSuffix(issues: readonly Issue[]): string {
@@ -193,14 +253,14 @@ const LT_NAMES: Record<string, string> = {
   LT006: 'acl_denied', LT007: 'id_mismatch', LT008: 'id_from_db', LT009: 'immutable_key', LT010: 'invalid_class',
   LT013: 'tightening_conflict', LT014: 'isolation_level',
   LT015: 'recreated_in_statement', LT017: 'delete_restricted', LT018: 'not_deleted',
+  LT019: 'acl_ambiguous', LT020: 'last_owner', LT021: 'exists', LT022: 'auth_failed',
 };
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
 /**
  * Нарушения из базы (validate_data, inc): у нарушения базы ещё key и params, наружу они не идут — форма та же,
- * { path, keyword, message }, message — текст, который собрала база. Нарушение без ключа (схема прежней сборки) — как
- * есть.
+ * { path, keyword, message }, message — текст, который собрала база. Нарушение без ключа — как есть.
  */
 export function issuesFromDb(issues: unknown): Issue[] {
   if (!Array.isArray(issues)) return issues as Issue[];
@@ -234,22 +294,26 @@ function parseDetail(detail: string | undefined): unknown {
   }
 }
 
+/** Ошибка базы «новые значения строки не проходят политику RLS WITH CHECK» (признак — функция сервера, не текст). */
+export function isRowCheckDenied(e: unknown): boolean {
+  const err = e as { code?: string; message?: string; routine?: string } | null;
+  return err?.code === '42501' && err.routine === 'ExecWithCheckOptions' && !/USING/.test(err.message ?? '');
+}
+
 /**
- * Ошибка базы → LetopisError (ValidationError для invalid_data с нарушениями) — для ошибок сырого SQL (`db.sql`,
- * `db.transaction()`): тот же код, ключ и подробности, что у цепочек. Подробности ошибки базы переходят в `detail`, ключ
+ * Ошибка базы → LetopisError (ValidationError для invalid_data с нарушениями) — для ошибок сырого SQL (`me.sql`,
+ * `me.transaction()`): тот же код, ключ и подробности, что у цепочек. Подробности ошибки базы переходят в `detail`, ключ
  * каталога и параметры — в `key` и `params`, текст — русский; без ключа — текст базы. Значение не того типа (22P02) —
  * `invalid_query`. Повторяемый конфликт (40001, 40P01) и прочие ошибки возвращаются как есть.
  */
 export function fromDbError(e: unknown): unknown {
   const err = e as { code?: string; message?: string; detail?: string; routine?: string };
   // новые значения строки не проходят условие ACL (политика RLS WITH CHECK) — отказ по правам; upsert,
-  // которому существующую строку менять нельзя («USING expression»), остаётся 42501 (§2.5). Признак —
+  // которому существующую строку менять нельзя («USING expression»), остаётся 42501. Признак —
   // функция сервера, а не текст: текст зависит от языка сервера
-  if (err.code === '42501' && err.routine === 'ExecWithCheckOptions' && !/USING/.test(err.message ?? '')) {
-    return lerr('api.row_check_denied', undefined, { cause: e });
-  }
+  if (isRowCheckDenied(e)) return lerr('api.row_check_denied', undefined, { cause: e });
   // значение не того типа (22P02: «invalid input syntax for type uuid» и т. п.), которое не поймала проверка до запроса,
-  // — ошибка letopis, а не сырая ошибка PostgreSQL (план 2.1, A7); 40001 и 40P01 остаются как есть — на них держатся повторы
+  // — ошибка letopis, а не сырая ошибка PostgreSQL; 40001 и 40P01 остаются как есть — на них держатся повторы
   if (err.code === '22P02') return lerr('api.db_bad_value', { text: err.message ?? '' }, { cause: e });
   let name: string | undefined;
   let detail: unknown;
@@ -263,13 +327,13 @@ export function fromDbError(e: unknown): unknown {
     if (name) detail = parseDetail(err.detail);
   }
   if (!name) return e;
-  // ключ каталога (план 2.0, этап 3, п. 3): в detail остаются прежние поля, а ключ и параметры — в key и params
+  // ключ каталога: в detail остаются поля места (p_detail), а ключ и параметры — в key и params
   let msg: { key: string; params: Params } | undefined;
   if (isObj(detail) && typeof detail.key === 'string') {
     const { key, params, nodetail, ...rest } = detail;
     msg = { key: key as string, params: isObj(params) ? params : {} };
-    // detail — как до каталога: прежние поля, {} в том числе (lt_fail без detail давала {}); признак nodetail — DETAIL у
-    // места не было (raise без detail), и detail нет. Сам признак наружу не идёт
+    // detail — поля места, {} в том числе (lt_fail без p_detail даёт {}); признак nodetail — у места нет DETAIL
+    // (p_detail => 'null' или raise без detail), и detail нет. Сам признак наружу не идёт
     detail = nodetail === true ? undefined : rest;
   }
   // текст база собрала по ключу и параметрам из того же русского шаблона — он остаётся как есть
@@ -281,7 +345,7 @@ export function fromDbError(e: unknown): unknown {
     const cls = msg ? String(msg.params.cls ?? '?') : /класса (\S+)/.exec(text)?.[1] ?? '?';
     const list = issuesFromDb(issues);
     const v = new ValidationError(cls, list, msg);
-    // текст — тот, что собрала база по шаблону записи, и первое нарушение (план 2.1, A8)
+    // текст — тот, что собрала база по шаблону записи, и первое нарушение
     return Object.assign(v, { cause: e, ...(text ? { message: `letopis: invalid_data: ${text}${issuesSuffix(list)}` } : {}) });
   }
   return Object.assign(new LetopisError(name, text, detail, msg), { cause: e });

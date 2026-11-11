@@ -1,10 +1,9 @@
 /**
- * Демо-домен booking на Zod (план, этап 2, п. 8): 18 классов 0.21 (`lib/sql/seed.booking.sql` тега
- * v0.21.0) без корней `Entity` и `link` — они несли только правило id v7.
- * - Ключи взяты из правил id 0.21: классы с v5 сохраняют поля ключа, классы с v4 и v7 — без ключа.
- * - Концы получили имена ролей. Союз всех потомков Element стал полиморфным концом `Item: one(Element)`;
- *   союз Service|Product в составе комплекса — `Part`; самоссылка Folder — `Parent`.
- * - description, appearance и order 0.21 перешли в meta (§2.13).
+ * Демо-домен booking на Zod: 18 классов салона записи.
+ * - Классы с ключом получают id v5 из полей ключа; у остальных ключа нет — id выдаёт база.
+ * - Концы названы ролями: полиморфный конец `Item: one(Element)` ведёт на любого потомка Element; состав комплекса —
+ *   `Part` (Service или Product); самоссылка Folder — `Parent`.
+ * - Описание, значок, цвет и порядок класса — в meta.
  * Из моделей генерируется lib/sql/seed.booking.sql (`npm run seed:booking`).
  */
 import { z } from 'zod';
@@ -28,7 +27,7 @@ export const Org = hub('Org', {
       }).optional(),
     }).optional(),
   }),
-  meta: meta('Организация — арендатор: владелец каталога, локаций и расписаний; settings — вложенные настройки (глубина 4)', 'mdi:domain', 'text-blue-600', 200),
+  meta: meta('Организация — владелец каталога, локаций и расписаний в квартире; settings — вложенные настройки (глубина 4)', 'mdi:domain', 'text-blue-600', 200),
 });
 
 export const Person = hub('Person', {
@@ -165,11 +164,11 @@ export const price = link('price', {
 export const BOOKING = [Org, Person, Staff, Customer, Location, Element, Service, Product, Complex, Schedule, Folder,
   address, slot, booking, content, compo, skill, price] as const satisfies readonly AnyModel[];
 
-/** Текст lib/sql/seed.booking.sql: строки Class системного арендатора, записанные владельцем. */
+/** Текст lib/sql/seed.booking.sql: строки Class в System (общие классы дома), записанные владельцем схемы. */
 export function bookingSeedSql(models: readonly AnyModel[] = BOOKING): string {
   const lines = [
-    '-- letopis 1.0 — демо-домен booking (план, этап 2, п. 8). Сгенерировано из lib/src/demo/booking.ts',
-    '-- командой `npm run seed:booking`; руками не править. Классы — системного арендатора, пишет владелец.',
+    '-- letopis — демо-домен booking. Сгенерировано из lib/src/demo/booking.ts',
+    '-- командой `npm run seed:booking`; руками не править. Классы — общие классы дома (System), пишет владелец.',
     '',
   ];
   for (const m of models) {

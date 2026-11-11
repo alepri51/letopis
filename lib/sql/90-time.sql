@@ -1,31 +1,31 @@
--- letopis 1.0 — время и эксплуатация (план, §2.11, этап 6, п. 2–4, 6–8).
+-- letopis — время и эксплуатация.
 --
--- Функции владельца проверяют всё сами, сами пишут журнал и сами посылают сигнал (§2.7):
+-- Функции владельца проверяют всё сами, сами пишут журнал и сами посылают сигнал:
 --   restore()        — последний снимок удалённого объекта новой версией (вид restore), с проверкой
 --                      по текущему описанию класса; id прежний;
---   account_purge()  — удаление аккаунта с данными его арендатора (предохранители 0.21);
+--   account_remove() — удаление аккаунта жильца (его прописки и ключи);
 --   maintain()       — истёкшие сессии и коды, строки-замки удалённых семейств.
--- У id, у которого в журнале есть хоть одна запись, номер версии 1 всегда занят (этап 6, п. 3):
+-- У id, у которого в журнале есть хоть одна запись, номер версии 1 всегда занят:
 -- на нём держится режим existing: 'error' загрузчика.
 
 -- Действующая роль сеанса, под которой вызывающий работает вне функций владельца: роль SET ROLE (и параметра запуска
 -- role), иначе роль входа. Внутри функции владельца current_user — владелец, а session_user — роль входа, даже если
--- поверх неё поставлена роль приложения: привилегированный вход с ролью приложения выглядел бы администратором
--- (автоматическое ревью коммита 1734d21). Подменить её нельзя: SET ROLE проверяет членство.
+-- поверх неё поставлена служебная роль дома (letopis_a_<имя>): привилегированный вход с ней выглядел бы администратором.
+-- Подменить её нельзя: SET ROLE проверяет, выдана ли роль.
 create or replace function @SCHEMA@.session_role() returns name
 language sql stable
 set search_path = pg_catalog, @SCHEMA@, pg_temp
 return coalesce(nullif(current_setting('role'), 'none'), session_user)::name;
 
--- Роль подключения — администраторская (суперпользователь или может стать владельцем): maintain доступен ей и без
--- сессии (CLI, обслуживание по расписанию).
+-- Роль подключения — администраторская, как у мастер-ключа (суперпользователь или может стать владельцем): maintain
+-- доступен ей и без сессии (CLI letopis maintain).
 create or replace function @SCHEMA@.admin_role() returns boolean
 language sql stable
 set search_path = pg_catalog, @SCHEMA@, pg_temp
 return exists (select 1 from pg_roles where rolname = @SCHEMA@.session_role() and rolsuper)
     or pg_has_role(@SCHEMA@.session_role(), '@OWNER_NAME@', 'SET');
 
--- Право letopis.* актора сессии по правилам System или администраторская роль подключения.
+-- Право letopis.* актора сессии по правилам System или администраторская роль подключения (мастер-ключ, admin_role).
 create or replace function @SCHEMA@.letopis_allowed(p_endpoint text) returns boolean
 language plpgsql stable
 set search_path = pg_catalog, @SCHEMA@, pg_temp
@@ -56,15 +56,15 @@ begin
   return (select s.expires_at from @SCHEMA@.secret s where s.id = c.session);
 end $$;
 
--- ========================= сигналы (план 1.1, §2.2) =========================
+-- ========================= сигналы =========================
 
--- Режим сигналов установки — константа up({ signals }): class, tenant, opaque, none.
+-- Режим сигналов установки — константа setup({ signals }): class, tenant, opaque, none.
 create or replace function @SCHEMA@.signal_mode() returns text
 language sql immutable parallel safe
 return '@SIGNALS@';
 
--- Ключ сигналов (hex) для сессии с правом letopis.signals по правилам System (сид выдаёт его сервисам) или
--- администраторского подключения: по нему процесс узнаёт в нагрузке токены классов и арендаторов.
+-- Ключ сигналов (hex) для сессии с правом letopis.signals по правилам System (сид выдаёт его консьержу) или
+-- администраторского подключения (мастер-ключ): по нему процесс узнаёт в нагрузке токены классов и квартир.
 -- Отдаётся производный ключ HMAC(ключ строки KEY, 'letopis:signals'), а не сам ключ: им подписаны пропуска прав.
 create or replace function @SCHEMA@.signal_key() returns text
 language plpgsql stable security definer
@@ -88,7 +88,7 @@ return (select encode(sha256(convert_to(coalesce(string_agg(e.id::text || ':' ||
 
 -- ========================= restore =========================
 
--- Последняя запись журнала id под блокировкой, если она видна актору в его арендаторе: параллельные
+-- Последняя запись журнала id под блокировкой, если она видна актору в его квартире: параллельные
 -- restore и воскрешение (trg_entity_bi берёт ту же блокировку) упорядочены.
 create or replace function @SCHEMA@.last_version_visible(p_id uuid, p_tenant uuid, p_acl jsonb) returns @SCHEMA@.log
 language plpgsql volatile
@@ -97,8 +97,8 @@ as $$
 declare
   l @SCHEMA@.log;
 begin
-  -- арендатор id неизменен: блокируется только запись своего арендатора, чужую вызов не задерживает
-  -- и по ожиданию не обнаружит (итоговое ревью безопасности)
+  -- квартира id неизменна: блокируется только запись своей квартиры, чужую вызов не задерживает
+  -- и по ожиданию не обнаружит
   select x.* into l from @SCHEMA@.log x where x.id = p_id and x.tenant = p_tenant order by x.rev desc limit 1 for update;
   if l.id is null or l.tenant <> p_tenant
      or not @SCHEMA@.row_visible(l.tenant, l.class, l.id, l.owner, l.tags, l.data, l.links, p_tenant, (p_acl->>'account')::uuid, p_acl->'plan') then
@@ -107,14 +107,13 @@ begin
   return l;
 end $$;
 
--- Восстановление удалённого объекта (этап 6, п. 2): последний снимок новой версией с видом restore.
+-- Восстановление удалённого объекта: последний снимок новой версией с видом restore.
 -- Снимок перепроверяется по текущему описанию класса (данные, концы с видимостью целей, ключ), право
--- WRITE — на восстановленные значения. id прежний, в том числе у класса без ключа. p_rev (ревизия 9, план 2.1, A1) —
--- ожидаемый номер последней записи журнала (надгробия из ответа delete или withDeleted): другой — отказ restore_stale,
--- проверка под той же блокировкой записи журнала, что у параллельного restore и воскрешения. Прежняя restore(uuid)
--- снимается миграцией 0009: вызов restore(id) попадает сюда с p_rev = null. Отказ — по записи журнала за последним
--- надгробием (второй раунд 2.1, A2): restore — restore_already, create — restore_id_taken (объект живой); иначе с p_rev —
--- restore_stale с after (вид записи сразу за p_rev), deleted и live, без p_rev — restore_not_deleted.
+-- WRITE — на восстановленные значения. id прежний, в том числе у класса без ключа. p_rev — ожидаемый номер последней
+-- записи журнала (надгробия из ответа delete или withDeleted): другой — отказ restore_stale, проверка под той же
+-- блокировкой записи журнала, что у параллельного restore и воскрешения; restore(id) — с p_rev = null. Отказ — по
+-- записи журнала за последним надгробием: restore — restore_already, create — restore_id_taken (объект живой); иначе
+-- с p_rev — restore_stale с after (вид записи сразу за p_rev), deleted и live, без p_rev — restore_not_deleted.
 create or replace function @SCHEMA@.restore(p_id uuid, p_rev int default null) returns uuid
 language plpgsql volatile security definer
 set search_path = pg_catalog, @SCHEMA@, pg_temp
@@ -194,7 +193,7 @@ begin
   if kid is not null and kid <> p_id then
     perform @SCHEMA@.lt_fail('sql-time.restore_key_changed', jsonb_build_object('cls', l.class), jsonb_build_object('expected', kid));
   end if;
-  -- владелец — существующий аккаунт или арендатор
+  -- владелец — существующий аккаунт или квартира
   own := l.owner;
   if own <> l.tenant and not exists (select 1 from @SCHEMA@.entity a where a.id = own and a.class = 'Account' and a.tenant = '@SYSTEM@'::uuid) then
     own := l.tenant;
@@ -216,14 +215,13 @@ end $$;
 
 -- ========================= удаление аккаунта =========================
 
--- Удаление аккаунта (этап 6, п. 3; accounts.purge 0.21): вызывающий — системный администратор или
--- владелец арендатора-цели (член с ролью owner); удалить себя нельзя; нельзя оставить арендатора без
--- последнего включённого владельца. Данные и журнал арендатора-цели стираются физически; в чужих
--- арендаторах членства снимаются (надгробия), владение строками переходит арендаторам (§2.10);
--- остались ссылки на аккаунт — delete_restricted. Строка Account удаляется с надгробием (история
--- аккаунтов — аудит), сессии гаснут с сигналом, строки secret аккаунта стирает каскад внешнего ключа.
-create or replace function @SCHEMA@.account_purge(p_account uuid) returns jsonb
-language plpgsql volatile security definer
+-- Удаление аккаунта жильца (account_delete_self — сам, account_delete — консьерж): его прописки снимаются (надгробия,
+-- креды и сессии в квартирах гасит trg_member_ad; квартира, где он последний owner включённого аккаунта, — last_owner от
+-- trg_member_owner), владение строками переходит квартирам; остались ссылки на аккаунт — delete_restricted. Строка
+-- Account удаляется с надгробием, сессии гаснут с сигналом, строки secret аккаунта (ключи, контакт) стирает каскад
+-- внешнего ключа. Права проверяет вызывающий.
+create or replace function @SCHEMA@.account_remove(p_account uuid) returns jsonb
+language plpgsql volatile
 set search_path = pg_catalog, @SCHEMA@, pg_temp
 as $$
 declare
@@ -231,63 +229,23 @@ declare
   a @SCHEMA@.entity;
   t record;
   m @SCHEMA@.entity;
-  n_rows int;
-  n_log int;
   n_mem int := 0;
   n_own int := 0;
-  classes text[];
   blockers jsonb;
 begin
   select * into c from @SCHEMA@.ctx();
-  if c.account is null then
-    perform @SCHEMA@.lt_fail('sql-time.no_session');
-  end if;
-  if p_account = c.account then
-    perform @SCHEMA@.lt_fail('sql-time.purge_self');
-  end if;
-  -- право — до поиска и блокировки цели: без права ответ один (acl_denied), есть ли такой аккаунт,
-  -- не видно, и чужую строку Account вызов не блокирует (итоговое ревью безопасности)
-  if not (@SCHEMA@.auth_is_sysadmin() or exists (
-      select 1 from @SCHEMA@.entity x
-      where x.id = @SCHEMA@.v5_id(p_account, 'member', array[c.account::text, p_account::text]) and x.class = 'member'
-        and x.tenant = p_account and coalesce(x.data->'roles' ? 'owner', false))) then
-    perform @SCHEMA@.lt_fail('sql-time.account_purge_denied');
-  end if;
-  select x.* into a from @SCHEMA@.entity x where x.id = p_account and x.class = 'Account' and x.tenant = '@SYSTEM@'::uuid for update;
-  if a.id is null or p_account = '@SYSTEM@'::uuid then
+  select x.* into a from @SCHEMA@.entity x
+  where x.id = p_account and x.class = 'Account' and x.tenant = '@SYSTEM@'::uuid and x.data->>'kind' = 'person' for update;
+  if a.id is null then
     perform @SCHEMA@.lt_fail('sql-time.account_not_found');
   end if;
-  -- владелец стирает арендатора, в котором работает: его членство уйдёт вместе с данными, а надгробия и
-  -- передача владения ниже перечитывают ctx() — остаток операции идёт в личном арендаторе вызывающего,
-  -- и его сессия больше не указывает на стёртого арендатора (иначе tenant_denied и откат всего вызова)
-  if c.tenant = p_account then
-    perform set_config('letopis.tenant', c.account::text, true);
-    update @SCHEMA@.secret s set meta = s.meta - 'tenant'
-    where s.id = c.session and s.kind = 'SESSION' and s.meta->>'tenant' = p_account::text;
-  end if;
-  -- последний владелец: в каждом чужом арендаторе, где цель — владелец, должен остаться другой
-  for t in select x.tenant from @SCHEMA@.entity x
-           where x.class = 'member' and x.links->>'User' = p_account::text and x.tenant <> p_account
-             and coalesce(x.data->'roles' ? 'owner', false) loop
-    if not exists (select 1 from @SCHEMA@.entity x
-                   join @SCHEMA@.entity u on u.id = (x.links->>'User')::uuid and u.class = 'Account' and u.tenant = '@SYSTEM@'::uuid
-                   where x.class = 'member' and x.tenant = t.tenant and x.links->>'User' <> p_account::text
-                     and coalesce(x.data->'roles' ? 'owner', false) and coalesce((u.data->>'enabled')::boolean, true)) then
-      perform @SCHEMA@.lt_fail('sql-time.last_owner', jsonb_build_object('tenant', t.tenant), jsonb_build_object('tenant', t.tenant));
-    end if;
-  end loop;
-  -- данные арендатора-цели — физически, вместе с журналом
-  select coalesce(array_agg(distinct x.class), '{}') into classes from @SCHEMA@.entity x where x.tenant = p_account;
-  with d as (delete from @SCHEMA@.entity x where x.tenant = p_account returning 1) select count(*)::int into n_rows from d;
-  with d as (delete from @SCHEMA@.log x where x.tenant = p_account returning 1) select count(*)::int into n_log from d;
-  -- членства в чужих арендаторах: надгробия; владение строками — арендаторам
-  for m in select x.* from @SCHEMA@.entity x where x.class = 'member' and x.links->>'User' = p_account::text order by x.id for update loop
-    delete from @SCHEMA@.entity x where x.id = m.id;
-    perform @SCHEMA@.tombstone(m);
-    n_mem := n_mem + 1;
-  end loop;
   for t in select distinct x.tenant from @SCHEMA@.entity x where x.owner = p_account and x.owner <> x.tenant order by x.tenant loop
     n_own := n_own + @SCHEMA@.owner_to_tenant(t.tenant, p_account);
+  end loop;
+  for m in select x.* from @SCHEMA@.entity x where x.class = 'member' and x.links->>'User' = p_account::text order by x.id for update loop
+    delete from @SCHEMA@.entity x where x.id = m.id;
+    perform @SCHEMA@.tombstone_by(m, c.author, c.agent);
+    n_mem := n_mem + 1;
   end loop;
   select coalesce(jsonb_agg(jsonb_build_object('id', x.id, 'class', x.class, 'tenant', x.tenant)), '[]'::jsonb) into blockers
   from (select x.id, x.class, x.tenant from @SCHEMA@.entity x where x.ends @> array[p_account] order by x.id limit 1000) x;
@@ -295,21 +253,20 @@ begin
     perform @SCHEMA@.lt_fail('sql-time.account_referenced', '{}'::jsonb, @SCHEMA@.visible_detail(blockers, c.tenant));
   end if;
   -- сессии аккаунта гасит с сигналом триггер до удаления (trg_entity_bd_account, срабатывает и для владельца), а его
-  -- строки secret — сессии и креды — стирает каскад внешнего ключа secret.account (ревизия 7)
+  -- строки secret стирает каскад внешнего ключа secret.account
   delete from @SCHEMA@.entity x where x.id = p_account;
-  perform @SCHEMA@.tombstone(a);
-  -- данные арендатора-цели — его парами; Account и member — классы прав, их сигнал сбрасывает всё
-  perform @SCHEMA@.signal(classes || array['Account', 'member'],
-    array(select p_account from unnest(classes)) || array['@SYSTEM@'::uuid, '@SYSTEM@'::uuid]);
+  perform @SCHEMA@.tombstone_by(a, c.author, c.agent);
+  perform @SCHEMA@.signal(array['Account', 'member'], array['@SYSTEM@'::uuid, '@SYSTEM@'::uuid]);
   perform @SCHEMA@.acl_bump();
-  return jsonb_build_object('account', p_account, 'rows', n_rows, 'versions', n_log, 'memberships', n_mem, 'owned', n_own);
+  return jsonb_build_object('account', p_account, 'memberships', n_mem, 'owned', n_own);
 end $$;
 
 -- ========================= обслуживание =========================
 
--- Обслуживание (этап 6, п. 8): истёкшие и погашенные сессии и одноразовые коды, строки-замки удалённых семейств,
--- заполнение очереди сигналов. Вызывает системный администратор, роль с правом letopis.maintain или администраторское
--- подключение. Один исполнитель: обслуживание идёт одной транзакцией под строкой-замком; занята — null.
+-- Обслуживание: истёкшие и погашенные сессии, одноразовые коды, истёкшие приглашения, строки-замки удалённых семейств,
+-- заполнение очереди сигналов. Вызывает администраторское подключение (мастер-ключ, admin_role) или актор сессии с
+-- правом letopis.maintain по правилам System (сид даёт его консьержу: db.maintain()). Один исполнитель: обслуживание идёт одной транзакцией под строкой-замком;
+-- занята — null.
 create or replace function @SCHEMA@.maintain() returns jsonb
 language plpgsql volatile security definer
 set search_path = pg_catalog, @SCHEMA@, pg_temp
@@ -322,22 +279,24 @@ begin
   if not @SCHEMA@.letopis_allowed('letopis.maintain') then
     perform @SCHEMA@.lt_fail('sql-time.maintain_denied');
   end if;
-  -- один исполнитель: строка-замок до конца транзакции (lock_try) — посторонняя роль её не займёт (ревью
-  -- безопасности №3, №2); занята — null, обслуживание продолжит держатель
+  -- один исполнитель: строка-замок до конца транзакции (lock_try) — посторонняя роль её не займёт; занята — null,
+  -- обслуживание продолжит держатель
   if not @SCHEMA@.lock_try('@SCHEMA_NAME@:maintain') then
     return null;
   end if;
   with d as (delete from @SCHEMA@.secret x where x.kind = 'SESSION'
              and (x.deleted_at is not null or x.expires_at <= clock_timestamp()) returning 1)
   select count(*)::int into s from d;
-  -- коды всех видов, которые выпускает auth_issue_otp: OTP и OTP_<имя> (тот же шаблон вида), — использованные,
-  -- заменённые, исчерпавшие попытки (deleted_at) и истёкшие
-  with d as (delete from @SCHEMA@.secret x where x.kind ~ '^OTP(_[A-Z0-9]{1,27})?$'
-             and (x.deleted_at is not null or x.expires_at <= clock_timestamp()) returning 1)
+  -- одноразовые коды (OTP — вход, OTP_CONTACT — смена контакта; шаблон вида общий): использованные, заменённые,
+  -- исчерпавшие попытки (deleted_at) и истёкшие. Приглашения (INVITE) — только истёкшие: погашенное до срока хранит
+  -- свой статус для того, у кого ссылка (invite_view)
+  with d as (delete from @SCHEMA@.secret x
+             where (x.kind ~ '^OTP(_[A-Z0-9]{1,27})?$' and (x.deleted_at is not null or x.expires_at <= clock_timestamp()))
+                or (x.kind = 'INVITE' and x.expires_at <= clock_timestamp()) returning 1)
   select count(*)::int into o from d;
-  -- строки-замки семейств, чьего корня больше нет — удалён класс или его арендатор (план 2.0, 7.7 №8, долгий
-  -- прогон): их заранее заводит запись строки Class (family_rows), а сами они не уходили — заведение и удаление
-  -- классов копило их без предела. Корень жив — строка Class с этим именем у арендатора семейства (family_name;
+  -- строки-замки семейств, чьего корня больше нет — удалён класс или его квартира: их заранее заводит запись строки
+  -- Class (family_rows), а сами они не уходят — без чистки заведение и удаление классов копило бы их без предела.
+  -- Корень жив — строка Class с этим именем у квартиры семейства (family_name;
   -- в имени класса двоеточия нет). Занятую строку не трогаем (skip locked), а строку-замок семейства — только вместе
   -- с её шлюзом или без шлюза: исключительная блокировка берёт шлюз первым, и строка-замок, до которой она ещё не
   -- дошла, у неё не пропадёт. Пропавшую строку lock_row и family_lock заводят заново, если класс с этим именем
@@ -363,7 +322,7 @@ end $$;
 
 -- ========================= подписка =========================
 
--- Пачка событий подписки (этап 6, п. 5): версии журнала после курсора (tx, seq) ниже горизонта
+-- Пачка событий подписки: версии журнала после курсора (tx, seq) ниже горизонта
 -- завершённых транзакций (pg_snapshot_xmin) — их уже ничто не обгонит, поэтому без потерь и повторов.
 -- Выполняется с правами вызывающего: RLS журнала показывает только своё. p_classes null — все классы. p_snap — снимок
 -- момента подписки «now»: транзакции, видимые в нём (зафиксированные до подписки), не отдаются.
@@ -398,13 +357,13 @@ declare f text;
 begin
   foreach f in array array[
     'session_role()', 'admin_role()', 'letopis_allowed(text)', 'session_expires()', 'signal_mode()', 'signal_key()', 'class_stamp()',
-    'last_version_visible(uuid, uuid, jsonb)', 'restore(uuid, int)', 'account_purge(uuid)', 'maintain()',
+    'last_version_visible(uuid, uuid, jsonb)', 'restore(uuid, int)', 'account_remove(uuid)', 'maintain()',
     'watch_read(xid8, bigint, text[], int, pg_snapshot)', 'watch_head()'] loop
     execute format('alter function @SCHEMA@.%s owner to @OWNER@', f);
     execute format('revoke all on function @SCHEMA@.%s from public', f);
   end loop;
 end $$;
--- приложению: функции владельца этапа 6 (проверяют права сами) и подписка (под RLS)
-grant execute on function @SCHEMA@.restore(uuid, int), @SCHEMA@.account_purge(uuid), @SCHEMA@.maintain(),
+-- приложению: функции владельца (проверяют права сами) и подписка (под RLS)
+grant execute on function @SCHEMA@.restore(uuid, int), @SCHEMA@.maintain(),
   @SCHEMA@.session_expires(), @SCHEMA@.watch_read(xid8, bigint, text[], int, pg_snapshot), @SCHEMA@.watch_head(),
   @SCHEMA@.signal_mode(), @SCHEMA@.signal_key(), @SCHEMA@.class_stamp() to @APP@;

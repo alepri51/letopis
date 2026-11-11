@@ -1,5 +1,5 @@
 /**
- * Подпуть `letopis/model` (план, §2.3, §2.10, §2.11, §2.12, §2.13, этап 2, п. 1–2): описание классов
+ * Подпуть `letopis/model`: описание классов
  * на Zod 4 и их JSON Schema для строки класса `Class`.
  *
  * ```ts
@@ -8,7 +8,7 @@
  * const booking = link('booking', { ends: { Staff: one(Master), Customer: one(Customer).optional() }, onDelete: { Customer: 'unset' } })
  * ```
  * Короткая форма `hub('Master', { name: z.string() }, { key: ['name'] })` — поля сразу вторым аргументом.
- * Поля, концы и ключ наследуются по правилу 0.21 «потомок заменяет поле целиком» (`extends`).
+ * Поля, концы и ключ наследуются по правилу «потомок заменяет поле целиком» (`extends`).
  */
 import { z } from 'zod';
 import { lerr } from './errors.js';
@@ -17,7 +17,7 @@ import { RESERVED_CLASS_NAMES } from './types.js';
 
 export type OnDelete = 'restrict' | 'cascade' | 'unset';
 
-/** Свободные метаданные класса (§2.13). Приложение типизирует их, расширяя интерфейс. */
+/** Свободные метаданные класса. Приложение типизирует их, расширяя интерфейс. */
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface ClassMeta { [key: string]: unknown }
 
@@ -74,7 +74,7 @@ export class End<Many extends boolean = boolean, Required extends boolean = bool
   optional(): End<Many, false, T> { return this.with<Many, false>({ required: false }); }
   /** Правило при удалении цели: restrict (по умолчанию), cascade, unset. */
   onDelete(rule: OnDelete): End<Many, Required, T> { return this.with<Many, Required>({ onDelete: rule }); }
-  /** Метаданные конца (§2.13). */
+  /** Метаданные конца. */
   meta(meta: Record<string, unknown>): End<Many, Required, T> { return this.with<Many, Required>({ meta }); }
 
   /** Имена классов целей. */
@@ -89,7 +89,7 @@ export function one<const T extends readonly Target[]>(...targets: T): End<false
 }
 
 /**
- * Множественный конец: список целей в одном конце (§4 предложения). Обязателен при `min` больше нуля — `unset()` у него
+ * Множественный конец: список целей в одном конце. Обязателен при `min` больше нуля — `unset()` у него
  * в цепочке типизированного подключения нет.
  */
 export function many<const T extends Target | readonly Target[], const O extends { min?: number; max?: number; onDelete?: OnDelete } = Record<never, never>>(
@@ -148,7 +148,7 @@ type DataOf<P, S extends z.ZodRawShape> = P extends Model<string, infer PD, unkn
 type AllLinks<P, E extends EndsInput> = P extends Model<string, unknown, infer PL> ? Omit<PL, keyof E> & LinksOf<E> : LinksOf<E>;
 
 /**
- * Концы класса для строгих типов цепочек (план 2.0, этап 4, п. 1): роль → классы целей, множественный ли, обязательный
+ * Концы класса для строгих типов цепочек: роль → классы целей, множественный ли, обязательный
  * ли; с концами предков (потомок заменяет конец целиком). Тот же вид выдаёт `letopis types` (generateTypes, sync.ts).
  */
 type EndSpecOf<V> = V extends End<infer Mn, infer R, infer T> ? { targets: T; many: Mn; required: R }
@@ -208,7 +208,7 @@ function isZod(v: unknown): v is z.ZodType {
 /**
  * Пути правил Zod, которых нет в JSON Schema: refine/superRefine (`refine`) и преобразования — `overwrite` (`.trim()`,
  * `.toLowerCase()`, `.toUpperCase()`, `.normalize()` …) и `transform` (`.transform()`, `z.preprocess()`, `.pipe()`).
- * Преобразования база и валидатор letopis не исполняют: их syncModels отклоняет (план 2.1, A11).
+ * Преобразования база и валидатор letopis не исполняют: их syncModels отклоняет.
  */
 function collectLost(schema: z.ZodType, path: string, out: LostRule[]): void {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -235,13 +235,13 @@ function collectChecks(schema: z.ZodType, path: string, out: LostRule[]): void {
 
 function makeModel<N extends string>(kind: 'hub' | 'link', name: N, defArg: unknown, optsArg?: unknown): AnyModel {
   if (!NAME.test(name)) throw lerr('model.class_name_invalid', { name });
-  // имя метода цепочки или корня db: шаг с таким именем до хаба не дойдёт (план 2.0, этап 4, п. 2; 7.10 №3); связь с
+  // имя метода цепочки или корня db: шаг с таким именем до хаба не дойдёт; связь с
   // таким именем отклоняет база
   if (kind === 'hub' && RESERVED_CLASS_NAMES.includes(name)) throw lerr('model.hub_name_reserved', { name });
   // короткая форма: hub(name, { поле: z…, … }, { key, meta, … })
   let def: ClassDef<z.ZodRawShape, EndsInput, AnyModel | undefined>;
-  // { fields: z.object(…) } без других ключей описания — полная форма, а не класс с единственным полем fields (план 2.0,
-  // 7.5 №2); короткая форма — все значения Zod и хотя бы один ключ вне описания класса
+  // { fields: z.object(…) } без других ключей описания — полная форма, а не класс с единственным полем fields; короткая
+  // форма — все значения Zod и хотя бы один ключ вне описания класса
   const fullForm = !!defArg && typeof defArg === 'object' && (defArg as { fields?: unknown }).fields instanceof z.ZodObject
     && Object.keys(defArg).every((k) => DEF_KEYS.has(k));
   const isShape = !fullForm && defArg && typeof defArg === 'object' && Object.values(defArg).length > 0 && Object.values(defArg).every(isZod);
@@ -303,7 +303,7 @@ function makeModel<N extends string>(kind: 'hub' | 'link', name: N, defArg: unkn
     key,
     describe(): ClassDescription {
       const js = normalizeSchema(z.toJSONSchema(z.object(ownShape), { io: 'input' }) as JsonSchema, { where: name, topLevel: true });
-      // поля ключа обязательны и с умолчанием: база подставляет умолчания до проверки (§2.3)
+      // поля ключа обязательны и с умолчанием: база подставляет умолчания до проверки
       const required = new Set(Array.isArray(js.required) ? (js.required as string[]) : []);
       for (const k of key) if (k in ownShape) required.add(k);
       const desc: ClassDescription = {

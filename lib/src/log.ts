@@ -1,7 +1,7 @@
 /**
- * Логирование letopis 3.0: события всех операций библиотеки в логгер приложения.
+ * Логирование letopis: события всех операций библиотеки в логгер приложения.
  *
- * Опции `connect({ log, logLevel, redact })` и `up({ log, logLevel, redact })`:
+ * Опции `connect(pass, { log, logLevel, redact })` и `setup(…, { log, logLevel, redact })`:
  * - `log` — функция `(событие) => void` или объект с методами `debug`, `info`, `warn`, `error` (pino, console): вызов
  *   `logger[уровень](событие, событие.event)`; метода уровня нет — `logger.log`, иначе событие пропускается;
  * - `logLevel` — порог: `'debug' | 'info' | 'warn' | 'error' | 'off'`, по умолчанию `'info'` (или уровень из
@@ -10,12 +10,13 @@
  * Без `log` и при заданной `LETOPIS_LOG=<уровень>` события идут JSON-строками в stderr. Без того и другого слой выключен
  * (NOLOG): обёртки сразу отдают исходный вызов.
  *
- * Секреты маскируются всегда: поля с паролями, токенами, ключами, секретами и кредами (SECRET_KEY), пароль в строке
- * подключения и в тексте SQL (`password '…'`); значения параметров SQL не пишутся вовсе — только их число. Ошибка
+ * Секреты маскируются всегда: поля с паролями, токенами, ключами, секретами и кредами (SECRET_KEY), пароль и ключ
+ * консьержа (`letopis_key`, `letopis_bypass`) в строке подключения и пропуске, пароль в тексте SQL (`password '…'`), ключи
+ * `lts_…` целиком в любом тексте; значения параметров SQL не пишутся вовсе — только их число. Ошибка
  * PostgreSQL (сама или причиной ошибки letopis) в событии — только SQLSTATE и имена объектов схемы: её текст, DETAIL,
  * WHERE, HINT и внутренний запрос могут нести значения и не пишутся; у ошибки letopis параметры value и text — '***',
- * поле data строк в подробностях (превью удаления, снимки restore) — '***'. Событие error штатного отказа (exists,
- * conflict, target_not_found, …; errorLevel) — уровня warn. В db.begin() события записи несут tx, а tx.commit транзакции
+ * поле data строк в подробностях (предпросмотр удаления, снимки restore) — '***'. Событие error штатного отказа (exists,
+ * conflict, target_not_found, …; errorLevel) — уровня warn. В me.begin() события записи несут tx, а tx.commit транзакции
  * с записью — уровня info (detail.writes): фиксацию доказывает он, а не событие write. Исключение
  * в логгере не ломает операцию: событие пропускается, в stderr один раз на процесс — log.logger_failed.
  *
@@ -61,15 +62,20 @@ const SECRET_KEY = {
  * (пароль может содержать `@`, `:` и `/`).
  */
 const DSN_USERINFO = /([a-z][a-z0-9+.-]*:\/\/)[^\s'"]*@(?=[^@\s'"]*(?:[\s'"]|$))/gi;
-/** Пароль параметром: `?password=…`, `&pass=…`, `password=…` в строке libpq. */
-const KV_PASSWORD = /(\b(?:password|pass|passwd|pwd|sslpassword)\s*=\s*)(?:'(?:[^'\\]|\\.)*'|[^\s&;]+)/gi;
+/**
+ * Секрет параметром: `?password=…`, `&pass=…`, `password=…` в строке libpq; ключ консьержа и признак обхода в пропуске —
+ * `letopis_key=…`, `letopis_bypass=…`.
+ */
+const KV_PASSWORD = /(\b(?:password|pass|passwd|pwd|sslpassword|letopis_key|letopis_bypass)\s*=\s*)(?:'(?:[^'\\]|\\.)*'|[^\s&;]+)/gi;
 /** Пароль в тексте SQL: `password '…'`, `password E'…'`, `password $$…$$` / `$tag$…$tag$` (create/alter role). */
 const SQL_PASSWORD = /(\bpassword\s+)(?:[eE]?'(?:[^'\\]|\\.|'')*'|(\$[A-Za-z_0-9]*\$)[\s\S]*?\2)/gi;
+/** Ключ целиком (консьержа — 64, жильца — 48 шестнадцатеричных знаков после lts_); префикс из keys.list (8 знаков) — нет. */
+const BARE_KEY = /\blts_[0-9a-f]{16,}/gi;
 
-/** Строка без секретов: учётные данные в строке подключения, пароль параметром и в тексте SQL. */
+/** Строка без секретов: учётные данные и ключ консьержа в строке подключения, пароль параметром и в тексте SQL, ключи. */
 export function maskText(s: string): string {
-  if (!s.includes('://') && !/pass|pwd/i.test(s)) return s;
-  return s.replace(DSN_USERINFO, '$1***@').replace(KV_PASSWORD, '$1***').replace(SQL_PASSWORD, "$1'***'");
+  if (!s.includes('://') && !/pass|pwd|letopis_|lts_/i.test(s)) return s;
+  return s.replace(DSN_USERINFO, '$1***@').replace(KV_PASSWORD, '$1***').replace(SQL_PASSWORD, "$1'***'").replace(BARE_KEY, 'lts_***');
 }
 
 const clip = (s: string, n: number): string => (s.length > n ? `${s.slice(0, n)}…(+${s.length - n})` : s);
@@ -77,20 +83,20 @@ const round = (ms: number): number => Math.round(ms * 10) / 10;
 
 type Sink = (level: LogEventLevel, ev: LogEvent) => void;
 
-/** Кто действует: арендатор и аккаунт фасада — считаются в момент события. */
+/** Кто действует: квартира и аккаунт фасада — считаются в момент события. */
 export interface LogBound {
   who?: () => { tenant?: string | null; account?: string | null };
   tx?: string;
-  /** Счётчик операций записи явной транзакции (db.begin()): по нему уровень tx.commit — info, если запись была. */
+  /** Счётчик операций записи явной транзакции (me.begin()): по нему уровень tx.commit — info, если запись была. */
   writes?: { n: number };
 }
 
 /**
- * События операций, которые пишут (или могут писать — db.sql): в явной транзакции каждое увеличивает счётчик writes,
+ * События операций, которые пишут (или могут писать — me.sql): в явной транзакции каждое увеличивает счётчик writes,
  * и её tx.commit идёт уровнем info с detail.writes.
  */
 const WRITE_EVENTS: ReadonlySet<string> = new Set(['write', 'delete', 'restore', 'raw', 'load', 'acl.change', 'auth.credential',
-  'auth.revoke', 'auth.logout', 'auth.session', 'account.purge']);
+  'auth.revoke', 'auth.logout', 'auth.invite', 'member.leave', 'account.delete', 'tenant.create', 'tenant.delete']);
 
 /** Ошибки, уже записанные событием error: одна ошибка — одно событие, сколько бы обёрток её ни пробрасывали. */
 const logged = new WeakSet<object>();
@@ -100,7 +106,8 @@ function loggerFailure(e: unknown, event: string): void {
   if (loggerFailed) return;
   loggerFailed = true;
   try {
-    process.stderr.write(`letopis: ${lmsg('log.logger_failed', { event, message: e instanceof Error ? e.message : String(e) })}\n`);
+    // текст — маскированный, как у прочих событий: сбой приёмника мог унести в сообщение секрет
+    process.stderr.write(`letopis: ${lmsg('log.logger_failed', { event, message: safeErrorText(e) })}\n`);
   } catch {
     // stderr недоступен — молчим: операцию это не прерывает
   }
@@ -184,7 +191,7 @@ function safeMessage(e: LetopisError): string {
 }
 
 /**
- * Подробности ошибки для события: у строк (превью удаления, снимки restore, строки отказа) поле `data` — '***': в событии
+ * Подробности ошибки для события: у строк (предпросмотр удаления, снимки restore, строки отказа) поле `data` — '***': в событии
  * error — id, класс, версия, действие, но не значения полей.
  */
 function stripData(v: unknown, depth = 0): unknown {
@@ -198,12 +205,12 @@ function stripData(v: unknown, depth = 0): unknown {
 
 /**
  * Коды штатных отказов: исход, который приложение ожидает и показывает пользователю (повтор по ключу, устаревшее
- * превью, чужой или удалённый объект, нет прав или сессии). Их событие error — уровня warn; invalid_data — только с
+ * предпросмотр, чужой или удалённый объект, нет прав или сессии). Их событие error — уровня warn; invalid_data — только с
  * нарушениями данных (ValidationError, err.issues), а не неверная опция вызова.
  */
 const EXPECTED_CODES: ReadonlySet<string> = new Set([
   'exists', 'conflict', 'target_not_found', 'not_deleted', 'delete_restricted', 'acl_denied', 'tenant_denied',
-  'no_session', 'duplicate', 'deleted', 'confirmation_required',
+  'no_session', 'duplicate', 'deleted', 'confirmation_required', 'auth_failed', 'last_owner',
 ]);
 
 /** Уровень события error: warn — штатный отказ (EXPECTED_CODES, нарушения данных), иначе error. */
@@ -249,7 +256,7 @@ export function errorFields(e: unknown): LogFields {
 
 /**
  * Логгер подключения: приёмник, порог, имена полей для маскировки и привязка (кто действует, метка транзакции).
- * Производные фасады (db.as(), db.begin(), батч) получают child() — тот же приёмник и порог.
+ * Производные фасады (корни квартир, me.begin(), батч) получают child() — тот же приёмник и порог.
  */
 export class Log {
   constructor(private readonly sink: Sink | null, private readonly min: number, private readonly redactKeys: ReadonlySet<string>,
@@ -270,7 +277,7 @@ export class Log {
     return this.bound.tx;
   }
 
-  /** Операций записи в явной транзакции привязки (undefined — привязки к db.begin() нет). */
+  /** Операций записи в явной транзакции привязки (undefined — привязки к me.begin() нет). */
   get writes(): number | undefined {
     return this.bound.writes?.n;
   }
@@ -458,13 +465,14 @@ export function envLog(): Log {
 setEnvWarnSink(envLog);
 
 let txSeq = 0;
-/** Метка транзакции: b — db.begin(), t — db.transaction(); номер в процессе. */
+/** Метка транзакции: b — me.begin(), t — me.transaction(); номер в процессе. */
 export const nextTx = (kind: 'b' | 't'): string => `${kind}${(++txSeq).toString(36)}`;
 
-/** Строка подключения без пароля. */
+/** Строка подключения (и пропуск) без пароля, ключа консьержа (letopis_key) и признака обхода (letopis_bypass). */
 export const maskDsn = (dsn: string | undefined): string | undefined => {
   if (dsn === undefined) return undefined;
-  // В журнал — только схема, хост, порт и база: без пользователя, пароля и параметров строки.
+  // В журнал — только схема, хост, порт и база: без пользователя, пароля и параметров строки (letopis_key, letopis_bypass
+  // и прочих); строка не разбирается — маскированный текст (maskText прячет и letopis_key=…, и letopis_bypass=…).
   try {
     const u = new URL(dsn);
     return `${u.protocol}//${u.host}${u.pathname}`;
@@ -519,8 +527,8 @@ export function guarded<T>(log: Log, f: LogFields | (() => LogFields), fn: () =>
 export type CallSpec = (args: unknown[], result: unknown, before: unknown) => (LogFields & { event: LogEventName }) | null;
 
 /**
- * Обёртка API-объекта (db.auth, db.acl): каждый метод — время, событие по spec и error при отказе. pre — снимок до вызова
- * (например, прежний арендатор у auth.switch). Выключенный логгер — тот же объект.
+ * Обёртка API-объекта (me.acl): каждый метод — время, событие по spec и error при отказе. pre — снимок до вызова
+ * (spec получает его третьим аргументом). Выключенный логгер — тот же объект.
  */
 export function instrument<T extends object>(api: T, log: Log, area: string, specs: Readonly<Record<string, CallSpec>>,
   pre: Readonly<Record<string, () => unknown>> = {}): T {

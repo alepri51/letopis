@@ -1,21 +1,32 @@
 /**
- * db.acl — права приложения (план, §2.8, этап 5, п. 7; план 2.0, этап 3, п. 1). Сами права применяет база
- * (политики RLS по плану прав, 50-acl.sql); check и checkData отвечают «можно ли» заранее — для интерфейса и
- * эндпоинтов приложения. Правила — строки Resource и rule (группа → объект, allow | deny, вес); решение — ровно одно
- * правило с наибольшим весом, при равном весе запрет сильнее, нет правил — запрет.
+ * me.acl — матрица прав квартиры. Сами права применяет база (политики RLS по плану прав, 50-acl.sql); check, checkData и
+ * checkRole отвечают «можно ли» заранее — для интерфейса и эндпоинтов приложения.
  *
- * Запись правил (план 2.0, 7.9 №1): grant, deny, revoke, roles и list — обёртка над теми же строками Resource, rule и
- * member текущего арендатора, цепочками фасада: право на саму запись, триггеры и RLS проверяет база, как у любой
- * записи. Alias ресурсов обёртки детерминированные — группа `role:<роль>:ACCOUNT`, объект `class:<класс>[условие]:<ОП>`
- * или `api:<эндпоинт>:API`, — а ключ правила — пара [Group, Object]: повтор вызова строк и версий не заводит, а grant
- * после deny той же роли и цели заменяет запрет разрешением. Ресурсы обёртки живут в арендаторе: ссылку правила
- * арендатора на ресурс System база не пропустит (цель должна быть видна).
+ * Матрица — строки Resource (маски КТО: роли прописки и категории аккаунта; маски ЧТО: класс с условием на строки,
+ * действие API или роль прописки) и rule (КТО → ЧТО: allow | deny, вес). Для каждой строки, каждого действия API и каждой
+ * роли побеждает правило с наибольшим счётом: +1 за каждый ключ маски КТО, +1 за класс, действие или роль, +1 за каждое
+ * поле условия, +1 у запрета, плюс вес. Ничья «можно» против «нельзя»: строка не видна и не правится, роль не выдаётся,
+ * а check, checkData и checkRole бросают acl_ambiguous; ничья с одинаковым решением — не ошибка. Нет подходящих правил
+ * — правило по умолчанию «все → *» (deny; переключает только мастер-ключ: setup({ defaultRule })); ролей оно не выдаёт.
  *
- * Все аккаунты арендатора (`everyone: true` вместо `role`): группа обёртки `everyone:ACCOUNT` с маской группы
- * `authenticated:ACCOUNT` System — её правила «можно всё» (вес 10) заводит createTenant. revoke для всех аккаунтов
- * снимает правила обеих групп, а цель `'*'` — и объект обёртки `class:*:<ОП>`, и объект System `all:<ОП>`: так
- * `revoke({ everyone: true, read: '*', write: '*', delete: '*' })` снимает «можно всё». Строк System арендатор не видит,
- * их id — `v5Id(System, 'Resource', [alias])`.
+ * Роль — такой же ресурс матрицы, как класс: выдать и снять роль (приглашение, правка и удаление прописки) можно,
+ * только если правило разрешает это звавшему — `grant({ role: 'manager', assign: 'staff' })`.
+ *
+ * Люди квартиры — people(): аккаунты с именами и ролями, чьи прописки видит вызывающий (имя — из строки Account,
+ * которую цепочкой чужую не прочитать; контактов нет).
+ *
+ * Запись правил: grant, deny, revoke, roles и list — обёртка над строками Resource, rule и member квартиры, цепочками
+ * фасада: право на саму запись, триггеры и RLS проверяет база, как у любой записи. Правило меняет и удаляет только тот,
+ * кто его завёл, или консьерж (иначе rule_foreign). Alias ресурсов обёртки детерминированные — группа
+ * `role:<роль>:ACCOUNT`, объект `class:<класс>[условие]:<ОП>`, `api:<действие>:API` или `assign:<роль>:ROLE`, — а ключ
+ * правила — пара [Group, Object]: повтор вызова строк и версий не заводит. Обратное решение поверх правила той же пары
+ * (deny после grant и наоборот) база отклоняет (rule_flip): сначала revoke. Ресурсы обёртки живут в квартире: ссылку
+ * правила квартиры на ресурс System база не пропустит (цель должна быть видна).
+ *
+ * Все жильцы квартиры (`everyone: true` вместо `role`): группа обёртки `everyone:ACCOUNT` с маской группы
+ * `authenticated:ACCOUNT` System. revoke для всех жильцов снимает правила обеих групп, а цель `'*'` — и объект
+ * обёртки `class:*:<ОП>` (`assign:*:ROLE`), и объект System `all:<ОП>` (на него ссылаются правила консьержа и роли
+ * owner, которые заводит createTenant). Строк System квартира не видит, их id — `v5Id(System, 'Resource', [alias])`.
  */
 import { lerr } from './errors.js';
 import { internalsOf } from './internal.js';
@@ -29,64 +40,91 @@ const NAME = /^[A-Za-zА-Яа-яЁё_][A-Za-zА-Яа-яЁё0-9_]{0,62}$/;
 /** Колонки, на которые ставят условие правила (шаблон acl_row_ok, 50-acl.sql). */
 const COLUMNS = ['id', 'owner', 'tenant', 'tags', 'data', 'links'];
 const OPS = { read: 'READ', write: 'WRITE', delete: 'DELETE' } as const;
-/** Ресурсы сида System (95-seed.system.sql): на них ссылаются правила grantAll арендатора, а самих строк арендатор не видит. */
-const SYSTEM_RESOURCES = ['anonymous:ACCOUNT', 'authenticated:ACCOUNT', 'any:ACCOUNT', 'service:ACCOUNT', 'admin:ACCOUNT',
-  'any:API', 'auth:API', 'letopis:API', 'signals:API', 'all:READ', 'all:WRITE', 'all:DELETE'];
+/** Ресурсы сида System (95-seed.system.sql): на них ссылаются правила квартиры от createTenant, а самих строк квартира не видит. */
+const SYSTEM_RESOURCES = ['authenticated:ACCOUNT', 'any:ACCOUNT', 'service:ACCOUNT',
+  'any:API', 'signals:API', 'maintain:API', 'all:READ', 'all:WRITE', 'all:DELETE', 'all:ROLE'];
 
 export type AclOp = 'READ' | 'WRITE' | 'DELETE';
 
-/** Решение по ресурсу приложения (эндпоинту): можно ли к нему обратиться. */
+/** Решение по действию API: можно ли его выполнить. */
 export interface AclDecision {
   allow: boolean;
-  /** Победившее правило: id, группа и объект (`alias` ресурсов), вес, разрешение. */
-  rule?: { id: string; group: string; object: string; weight: number; permission: 'allow' | 'deny' };
+  /**
+   * Победившее правило: id, группа и объект (`alias` ресурсов), вес, разрешение; `default` — правило по умолчанию
+   * (подходящих правил нет).
+   */
+  rule?: { id: string; group: string; object: string; weight: number; permission: 'allow' | 'deny'; default?: boolean };
+  /** Счёт победившего правила; у правила по умолчанию — 0. */
+  score?: number;
   /** Код и сообщение запрещающего правила (поля `code`, `message` строки `rule`). */
   code?: number;
   message?: string;
 }
 
-/** Решение по операции над классом: разрешено и, если есть, условие на строки (шаблон колонок). */
-export interface AclDataDecision {
-  allow: boolean;
+/** Правило-кандидат на строки класса: побеждает первый по счёту, чьё условие строке подходит. */
+export interface AclCandidate {
+  /** id правила. */
+  rule: string;
+  score: number;
+  permission: 'allow' | 'deny';
+  /** Условие на строки — шаблон колонок; нет — правило на все строки. */
   filter?: Record<string, unknown>;
+  /** Правило по умолчанию: действует, только если ни один кандидат строке не подошёл. */
+  default?: boolean;
+}
+
+/** Решение по операции над классом: кандидаты по убыванию счёта; для каждой строки побеждает свой. */
+export interface AclDataDecision {
+  /** Хоть одно разрешающее правило: операция может затронуть часть строк или все. */
+  allow: boolean;
+  /** Разрешены все строки, без условий. */
+  all: boolean;
+  /** Правила-кандидаты по убыванию счёта (при равном — запрет первым). */
+  candidates: AclCandidate[];
 }
 
 /**
  * Цель правила на строки: имя класса (правило действует и на потомков), `'*'` — все классы, или класс с условием на
  * строки — шаблоном колонок `owner`, `tenant`, `tags`, `data`, `links`, `id` (`'$actor'` — тот, от чьего имени запрос,
- * `'$tenant'` — рабочий арендатор): `{ class: 'Ticket', owner: '$actor' }`.
+ * `'$tenant'` — квартира): `{ class: 'Ticket', owner: '$actor' }`. Каждое поле условия прибавляет к счёту правила 1.
  */
 export type AclTarget = string | ({ class: string } & { [column: string]: unknown });
 
 /**
  * Что разрешить, запретить или снять: кому — ровно одно из `role` и `everyone` (иначе `invalid_data`), операции — с
- * классами, ресурсами приложения или с теми и другими.
+ * классами, действиями API, ролями или со всем сразу.
  */
 export interface AclRuleSpec {
-  /** Роль членства в текущем арендаторе (как в `member.roles`). */
+  /** Роль прописки в квартире (как в `member.roles`). */
   role?: string;
-  /** Все аккаунты арендатора, кроме анонимных и теневых, — группа правил «можно всё» от createTenant. */
+  /** Все жильцы квартиры. */
   everyone?: true;
   read?: AclTarget | readonly AclTarget[];
   write?: AclTarget | readonly AclTarget[];
   delete?: AclTarget | readonly AclTarget[];
   /** Ресурсы приложения — маски эндпоинтов, как у `check()`: `'reports.*'` — `reports.daily`, но не `reports`. */
   api?: string | readonly string[];
-  /** Вес правила, целое от 1 до 999; по умолчанию 50 — сильнее правила «можно всё» (вес 10) от createTenant. */
+  /**
+   * Роли, которые можно выдавать и снимать (в приглашении, правкой и удалением прописки): имя роли или `'*'` — все роли
+   * (и приглашения без ролей).
+   */
+  assign?: string | readonly string[];
+  /** Вес правила, целое от 1 до 999 (по умолчанию 50); прибавляется к счёту правила. */
   weight?: number;
 }
 
-/** Правило арендатора в виде обёртки. */
+/** Правило квартиры в виде обёртки. */
 export interface AclRule {
   id: string;
-  /** Роль правила; null — правило не одной роли (все аккаунты или своя группа). */
+  /** Роль правила; null — правило не одной роли (все жильцы или своя группа). */
   role: string | null;
-  /** Группа всех аккаунтов арендатора: `authenticated:ACCOUNT` от createTenant или `everyone:ACCOUNT` обёртки. */
+  /** Группа всех жильцов квартиры: `authenticated:ACCOUNT` System или `everyone:ACCOUNT` обёртки. */
   everyone: boolean;
   /** Alias группы. */
   group: string;
-  op: AclOp | 'API';
-  /** Класс (`'*'` — все классы) или маска эндпоинта. */
+  /** Операция над строками, `'API'` — действие приложения, `'ROLE'` — выдача и снятие роли. */
+  op: AclOp | 'API' | 'ROLE';
+  /** Класс (`'*'` — все классы), маска действия API или роль (`'*'` — все роли). */
   target: string;
   /** Условие на строки — шаблон колонок. */
   condition?: Record<string, unknown>;
@@ -96,42 +134,66 @@ export interface AclRule {
   enabled: boolean;
 }
 
+/** Человек квартиры в списке `me.acl.people()`: id аккаунта, его имя и роли прописки. Контакта нет. */
+export interface AclPerson {
+  /** id аккаунта (как `me.account`, как `owner` и `author` строк). */
+  account: string;
+  /** Имя аккаунта: задаётся при принятии приглашения (`db.accept(token, { name })`); не задано — пустая строка. */
+  name: string;
+  /** Роли прописки в этой квартире. */
+  roles: string[];
+}
+
 export interface AclApi {
   /**
-   * Можно ли тому, от чьего имени идёт запрос, обратиться к ресурсу приложения (эндпоинту). Решают правила доступа
-   * System и текущего арендатора.
+   * Можно ли тому, от чьего имени идёт запрос, выполнить действие API. Решают правила System и квартиры: победитель по
+   * счёту, `score` и `rule` в ответе; подходящих нет — правило по умолчанию (`rule.default`, `score` 0). Ничья «можно»
+   * против «нельзя» — ошибка acl_ambiguous.
    */
   check(endpoint: string): Promise<AclDecision>;
   /**
-   * Можно ли тому, от чьего имени идёт запрос, выполнять операцию `op` с объектами класса — со всеми или только с теми,
-   * что подходят под условие `filter` в ответе.
+   * Можно ли тому, от чьего имени идёт запрос, выполнять операцию `op` с объектами класса: правила-кандидаты по счёту —
+   * для каждой строки побеждает первый, чьё условие ей подходит; `all` — разрешены все строки.
    */
   checkData(className: string, op: AclOp): Promise<AclDataDecision>;
   /**
-   * Разрешить роли (`role`) или всем аккаунтам арендатора (`everyone: true`) операции с классами и ресурсы приложения —
-   * по правилу на каждую операцию и цель, с весом `weight` (по умолчанию 50). Повтор ничего не меняет; запрет той же
-   * группы и цели заменяется разрешением. Внутри `db.begin()` — в её транзакции, иначе — своей.
+   * Можно ли тому, от чьего имени идёт запрос, выдать и снять роль (`'*'` — любые роли): в приглашении и правкой
+   * прописки. Консьержу в квартире — всегда. Ничья — ошибка acl_ambiguous.
+   */
+  checkRole(role: string): Promise<AclDecision>;
+  /**
+   * Разрешить роли (`role`) или всем жильцам квартиры (`everyone: true`) операции с классами, действия API и выдачу
+   * ролей (`assign`) — по правилу на каждую операцию и цель, с весом `weight` (1–999, по умолчанию 50). Повтор ничего не
+   * меняет; поверх запрета той же группы и цели разрешение не пишется (rule_flip — сначала `revoke`); правило, которое
+   * при тех же масках и равном счёте спорит с действующим, — отказ rule_tie. Внутри `begin()` — в её транзакции, иначе
+   * — своей.
    */
   grant(spec: AclRuleSpec): Promise<AclRule[]>;
-  /** Запретить — те же правила с запретом: при равном весе запрет сильнее разрешения. */
+  /** Запретить — те же правила с запретом: у запрета счёт на 1 больше, чем у такого же разрешения. */
   deny(spec: AclRuleSpec): Promise<AclRule[]>;
   /**
-   * Снять правила роли или всех аккаунтов — разрешения и запреты — для этих операций и целей; возвращает число снятых
-   * правил. Операции снимаются по очереди, и правило на несколько операций считается один раз: «можно всё» на чтение,
-   * запись и удаление от createTenant даёт 1.
-   * `revoke({ everyone: true, read: '*', write: '*', delete: '*' })` снимает «можно всё» от createTenant: дальше права —
-   * только по ролям.
+   * Снять правила роли или всех жильцов — разрешения и запреты — для этих операций и целей; возвращает число снятых
+   * правил. Операции снимаются по очереди, и правило на несколько операций считается один раз. Чужое правило (его завёл
+   * другой аккаунт) снимает только консьерж — иначе rule_foreign.
    */
   revoke(spec: Omit<AclRuleSpec, 'weight'>): Promise<number>;
   /**
-   * Роли аккаунта в текущем арендаторе (строка `member`); null — не член. Со списком ролей — заменить их (членство
-   * заводится, если его нет), с null — снять членство. Сам арендатор (вход под его аккаунтом) — владелец без строки
-   * `member`: для него ответ null.
+   * Роли прописки аккаунта в квартире (строка `member`); null — не прописан. Со списком — заменить роли, с null —
+   * выписать (его ключи этой квартиры гаснут). Каждую добавленную и снятую роль должна разрешать матрица (`assign`),
+   * иначе role_denied. Прописать нового человека нельзя: только приглашением (invite, accept).
    */
   roles(account: string | { id: string }, roles?: readonly string[] | null): Promise<string[] | null>;
   /**
-   * Правила текущего арендатора — свои и «можно всё» от createTenant. На подключении без RLS (`allowBypassRls`) — тоже
-   * только правила арендатора сессии, без правил других арендаторов и System.
+   * Люди этой квартиры: `[{ account, name, roles }]` по имени, затем по id аккаунта — для страницы «Команда» и подписей
+   * авторов. В ответе ровно те, чью прописку (`member`) видит тот, от чьего имени идёт запрос: хозяин (правило owner) и
+   * консьерж в квартире (`db.in`) — все; жилец без правила на чтение `member` — только он сам; с правилом — те, кого оно
+   * открывает. Контактов в ответе нет (контакт отдаёт консьерж: `db.contactOf(аккаунт)`); людей других квартир так не
+   * узнать. Чужую строку `Account` цепочкой по-прежнему не прочитать.
+   */
+  people(): Promise<AclPerson[]>;
+  /**
+   * Правила квартиры — свои, жильцов, консьержа и роли owner от createTenant. На подключении без RLS — тоже только
+   * правила этой квартиры, без правил других квартир и System.
    */
   list(): Promise<AclRule[]>;
 }
@@ -139,11 +201,11 @@ export interface AclApi {
 /** Ресурс обёртки: группа, объект на строки или ресурс приложения. */
 interface Res {
   alias: string;
-  category: 'ACCOUNT' | 'API' | AclOp;
+  category: 'ACCOUNT' | 'API' | 'ROLE' | AclOp;
   pattern: Record<string, unknown>;
 }
 interface Item extends Res {
-  op: AclOp | 'API';
+  op: AclOp | 'API' | 'ROLE';
   target: string;
   condition?: Record<string, unknown>;
 }
@@ -158,8 +220,8 @@ function canon(v: unknown): string {
 }
 
 /**
- * Имя роли — по тому же правилу, что роли createTenant: маска группы делит роли по запятой и берёт их в скобки. what —
- * метод db.acl (grant, deny, revoke, roles): им начинается текст ошибки, как и у classItem, apiItem и parse.
+ * Имя метки: маска группы делит метки по запятой и берёт их в скобки — запятые, скобки и «!» в начале в имени нельзя.
+ * what — метод acl (grant, deny, revoke, roles): им начинается текст ошибки, как и у classItem, apiItem и parse.
  */
 function roleName(v: unknown, what: string): string {
   if (typeof v !== 'string') throw lerr('access.role_not_string', { what, type: v === null ? 'null' : typeof v });
@@ -175,8 +237,8 @@ function groupOf(role: string): Res {
   return { alias: `role:${role}:ACCOUNT`, category: 'ACCOUNT', pattern: { roles: `{${role}}` } };
 }
 
-/** Все аккаунты арендатора: маска как у группы authenticated:ACCOUNT System (95-seed.system.sql). */
-const EVERYONE: Res = { alias: 'everyone:ACCOUNT', category: 'ACCOUNT', pattern: { categories: '!{Anonymous,Shadow}' } };
+/** Все жильцы квартиры: маска как у группы authenticated:ACCOUNT System (95-seed.system.sql) — аккаунты людей. */
+const EVERYONE: Res = { alias: 'everyone:ACCOUNT', category: 'ACCOUNT', pattern: { categories: '{User}' } };
 
 function classItem(op: AclOp, t: unknown, what: string): Item {
   let cls: unknown = t;
@@ -206,11 +268,20 @@ function apiItem(ep: unknown, what: string): Item {
   return { op: 'API', category: 'API', target: ep, alias: `api:${ep}:API`, pattern: { endpoint: ep } };
 }
 
-/** Спецификация правила; role — null, когда правило для всех аккаунтов арендатора (everyone: true). */
+/** Цель assign: имя роли или '*' — все роли (объект без имени роли). */
+function roleItem(r: unknown, what: string): Item {
+  if (r === '*') return { op: 'ROLE', category: 'ROLE', target: '*', alias: 'assign:*:ROLE', pattern: {} };
+  if (typeof r !== 'string' || !r || r !== r.trim() || /[,{}*]/.test(r) || r.startsWith('!')) {
+    throw lerr('access.bad_assign', { what, role: JSON.stringify(r) });
+  }
+  return { op: 'ROLE', category: 'ROLE', target: r, alias: `assign:${r}:ROLE`, pattern: { role: r } };
+}
+
+/** Спецификация правила; role — null, когда правило для всех аккаунтов квартиры (everyone: true). */
 function parse(spec: unknown, what: string, withWeight: boolean): { role: string | null; weight: number; items: Item[] } {
   if (!spec || typeof spec !== 'object' || Array.isArray(spec)) throw lerr('access.rule_spec_not_object', { what });
   const o = spec as Record<string, unknown>;
-  const keys = ['role', 'everyone', 'read', 'write', 'delete', 'api', ...(withWeight ? ['weight'] : [])];
+  const keys = ['role', 'everyone', 'read', 'write', 'delete', 'api', 'assign', ...(withWeight ? ['weight'] : [])];
   for (const k of Object.keys(o)) if (!keys.includes(k)) throw lerr('access.unknown_rule_field', { what, field: k, fields: keys.join(', ') });
   // кому: ровно одно из role и everyone: true
   if (o.everyone === undefined ? o.role === undefined : o.everyone !== true || o.role !== undefined) {
@@ -229,11 +300,12 @@ function parse(spec: unknown, what: string, withWeight: boolean): { role: string
     if (o[key] !== undefined) for (const t of many(o[key])) items.push(classItem(op, t, what));
   }
   if (o.api !== undefined) for (const ep of many(o.api)) items.push(apiItem(ep, what));
+  if (o.assign !== undefined) for (const r of many(o.assign)) items.push(roleItem(r, what));
   if (!items.length) throw lerr('access.no_rule_operations', { what });
   return { role, weight, items };
 }
 
-/** Роль группы обёртки и групп вида `{роль}`; иначе null. */
+/** Метка группы обёртки и групп вида `{метка}`; иначе null. */
 function roleOf(pattern: unknown): string | null {
   const p = pattern as Record<string, unknown> | null | undefined;
   if (!p || p.categories !== undefined || typeof p.roles !== 'string') return null;
@@ -246,7 +318,7 @@ function roleOf(pattern: unknown): string | null {
 type Facade = any;
 
 /**
- * db.acl фасада. db — сам фасад (корень, db.as(), db.begin()): запись правил идёт его цепочками, внутри db.begin() — в её
+ * acl фасада. db — сам фасад (корень квартиры, begin()): запись правил идёт его цепочками, внутри begin() — в её
  * транзакции.
  */
 export function makeAcl(S: string, exec: Executor, db?: () => unknown): AclApi {
@@ -258,7 +330,7 @@ export function makeAcl(S: string, exec: Executor, db?: () => unknown): AclApi {
   async function inTx<T>(what: string, fn: (tr: Facade) => Promise<T>): Promise<T> {
     const d = facade();
     if (internalsOf(d)?.explicit) return fn(d);
-    const tr = await d.begin({ reason: `db.acl.${what}` });
+    const tr = await d.begin({ reason: `me.acl.${what}` });
     try {
       const r = await fn(tr);
       await tr.commit();
@@ -288,7 +360,7 @@ export function makeAcl(S: string, exec: Executor, db?: () => unknown): AclApi {
       return out;
     });
   }
-  /** id ресурса сида System: строку арендатор не видит, ссылаться на неё правилом обёртки не может. */
+  /** id ресурса сида System: строку квартира не видит, ссылаться на неё правилом обёртки не может. */
   const sysId = (alias: string): string => v5Id(SYSTEM_ID, 'Resource', [alias]);
   const sys = new Map(SYSTEM_RESOURCES.map((a) => [sysId(a), a]));
   const AUTHENTICATED = sysId('authenticated:ACCOUNT');
@@ -302,22 +374,30 @@ export function makeAcl(S: string, exec: Executor, db?: () => unknown): AclApi {
       const [r] = await exec.run((q) => q.unsafe(`select ${S}.acl_check_data($1, $2) as d`, [className, op]), { read: true });
       return r.d as AclDataDecision;
     },
+    async checkRole(role) {
+      const [r] = await exec.run((q) => q.unsafe(`select ${S}.acl_check_role($1) as d`, [role]), { read: true });
+      return r.d as AclDecision;
+    },
+    async people() {
+      const [r] = await exec.run((q) => q.unsafe(`select ${S}.member_people() as p`), { read: true });
+      return r.p as AclPerson[];
+    },
     grant: (spec) => put(spec, 'allow', 'grant'),
     deny: (spec) => put(spec, 'deny', 'deny'),
     async revoke(spec) {
       const p = parse(spec, 'revoke', false);
       return inTx('revoke', async (tr) => {
         const find = async (alias: string): Promise<string | undefined> => (await tr.Resource({ alias }).rows())[0]?.id;
-        // все аккаунты — группа обёртки и группа «можно всё» System
+        // все аккаунты — группа обёртки и группа authenticated:ACCOUNT System
         const groups = p.role === null ? [await find(EVERYONE.alias), AUTHENTICATED] : [await find(groupOf(p.role).alias)];
         let n = 0;
         for (const it of p.items) {
           const objects = [await find(it.alias)];
-          // все классы — объект обёртки class:*:<ОП> и объект «можно всё» System all:<ОП>
+          // все классы (все роли) — объект обёртки class:*:<ОП> (assign:*:ROLE) и объект System all:<ОП>
           if (it.op !== 'API' && it.target === '*' && !it.condition) objects.push(sysId(`all:${it.op}`));
           for (const g of groups) {
             for (const o of objects) {
-              // снять правило — замысел вызова, превью некому показывать: { all: true } (3.0) — без сверки, цели сужает фильтр
+              // снять правило — замысел вызова, предпросмотр некому показывать: { all: true } — без сверки, цели сужает фильтр
               if (g && o) n += (await tr.rule({ Group: g, Object: o }).delete({ confirm: true, all: true }).rows()).length;
             }
           }
@@ -336,21 +416,26 @@ export function makeAcl(S: string, exec: Executor, db?: () => unknown): AclApi {
         return m ? [...((m.data.roles as string[] | undefined) ?? [])] : null;
       }
       if (roles === null) {
-        // roles(account, null) — снять членство: замысел вызова, без сверки с превью (3.0)
+        // roles(account, null) — выписать: замысел вызова, без сверки с предпросмотром
         await inTx('roles', (tr) => tr.member({ User: acc, Tenant: tenant }).delete({ confirm: true, all: true }).rows());
         return null;
       }
       if (!Array.isArray(roles)) throw lerr('access.roles_not_array');
       const list = roles.map((r) => roleName(r, 'roles'));
       if (new Set(list).size !== list.length) throw lerr('access.duplicate_roles');
-      await inTx('roles', (tr) => tr.member().upsert({ roles: list }).User.set(acc).Tenant.set(tenant).rows());
+      await inTx('roles', async (tr) => {
+        const [m] = await tr.member({ User: acc, Tenant: tenant }).rows();
+        if (m) return tr.member(m.id).update({ roles: list }).rows();
+        // новая прописка — только приглашением: жильцу база откажет (member_invite_only), консьержу — можно
+        return tr.member().create({ roles: list }).User.set(acc).Tenant.set(tenant).rows();
+      });
       return list;
     },
     async list() {
       const d = facade();
       const tenant = (d.tenant as string | undefined)?.toLowerCase();
       if (!tenant) throw lerr('access.no_session_tenant', { what: 'list' });
-      // под RLS строки rule — только арендатора сессии; роль без RLS видит правила всех арендаторов и System
+      // под RLS строки rule — только этой квартиры; роль без RLS видит правила всех квартир и System
       const rules = (await d.rule().rows()).filter((r: { tenant: string }) => String(r.tenant).toLowerCase() === tenant);
       const res = new Map<string, Res>((await d.Resource().rows()).map((r: { id: string; data: Res }) => [r.id, r.data]));
       const out: AclRule[] = rules.map((r: { id: string; links: Record<string, string>; data: Record<string, unknown> }) => {
@@ -361,11 +446,11 @@ export function makeAcl(S: string, exec: Executor, db?: () => unknown): AclApi {
         let condition: Record<string, unknown> | undefined;
         if (o) {
           op = o.category === 'ACCOUNT' ? 'API' : o.category;
-          const { class: cls, endpoint, ...rest } = (o.pattern ?? {}) as Record<string, unknown>;
-          target = String((op === 'API' ? endpoint : cls) ?? '*');
-          if (op !== 'API' && Object.keys(rest).length) condition = rest;
+          const { class: cls, endpoint, role, ...rest } = (o.pattern ?? {}) as Record<string, unknown>;
+          target = String((op === 'API' ? endpoint : op === 'ROLE' ? role : cls) ?? '*');
+          if (op !== 'API' && op !== 'ROLE' && Object.keys(rest).length) condition = rest;
         } else {
-          // ресурс System (grantAll от createTenant): арендатор строку не видит — по id сида
+          // ресурс System (правила createTenant): квартира строку не видит — по id сида
           const a = sys.get(r.links.Object) ?? r.links.Object;
           op = (a.split(':').pop() as AclRule['op']) ?? 'READ';
           target = /^(all|any):/.test(a) ? '*' : a.split(':')[0];
@@ -388,15 +473,18 @@ export function makeAcl(S: string, exec: Executor, db?: () => unknown): AclApi {
 }
 
 // ---------------------------------------------------------------------------
-// Логирование (3.0): события db.acl — обёртка instrument (log.ts)
+// Логирование: события acl — обёртка instrument (log.ts)
 // ---------------------------------------------------------------------------
 
 const accountOf = (a: unknown): unknown => (a !== null && typeof a === 'object' ? (a as { id?: unknown }).id : a);
 
-/** Что пишет в лог каждый метод db.acl: правка прав — acl.change, проверки и список — acl.check. */
+/** Что пишет в лог каждый метод acl: правка прав — acl.change, проверки и список — acl.check. */
 export const ACL_LOG: Readonly<Record<string, CallSpec>> = {
   check: (args, r) => ({ event: 'acl.check', detail: { endpoint: args[0], decision: r } }),
   checkData: (args, r) => ({ event: 'acl.check', detail: { class: args[0], access: args[1], decision: r } }),
+  checkRole: (args, r) => ({ event: 'acl.check', detail: { role: args[0], decision: r } }),
+  // имён в событии нет — только число людей
+  people: (_args, r) => ({ event: 'acl.check', rows: Array.isArray(r) ? r.length : undefined, detail: { action: 'people' } }),
   grant: (args, r) => ({ event: 'acl.change', rows: Array.isArray(r) ? r.length : undefined, detail: { action: 'grant', spec: args[0] } }),
   deny: (args, r) => ({ event: 'acl.change', rows: Array.isArray(r) ? r.length : undefined, detail: { action: 'deny', spec: args[0] } }),
   revoke: (args, n) => ({ event: 'acl.change', rows: typeof n === 'number' ? n : undefined, detail: { action: 'revoke', spec: args[0] } }),

@@ -1,12 +1,13 @@
 /**
- * Синхронизация моделей с базой и генерация типов (план, этап 2, п. 7).
+ * Синхронизация моделей с базой и генерация типов.
  *
- * syncModels: описания моделей сравниваются со строками Class арендатора сессии; все изменения
+ * syncModels: описания моделей сравниваются со строками Class квартиры сессии (общие классы дома консьерж пишет в
+ * System); все изменения
  * выполняются одной транзакцией. Сухой прогон откатывает её в конце, поэтому ужесточение с
  * мешающими строками отклоняет сама база (`tightening_conflict` с перечнем) уже в сухом прогоне.
  * generateTypes: объявления TypeScript для классов из реестра — в том числе созданных данными.
  */
-import type { DbCore } from './index.js';
+import type { DbBase } from './core.js';
 import { lerr, lmsg } from './errors.js';
 import { internalsOf } from './internal.js';
 import { NOLOG, traced } from './log.js';
@@ -21,7 +22,7 @@ export interface SyncResult {
   created: string[];
   updated: string[];
   unchanged: string[];
-  /** Классы системного арендатора: их меняет только установка. */
+  /** Классы System при записи моделей в квартиру: общие классы дома пишут setup({ models }) и letopis sync. */
   skipped: string[];
   /** Правила refine, которых нет в базе (преобразования Zod syncModels отклоняет — model.transform_unsupported). */
   lost: LostRule[];
@@ -36,8 +37,8 @@ function canon(v: unknown): string {
   return JSON.stringify(v);
 }
 
-export async function syncModels(db: DbCore, models: readonly AnyModel[], opts: { apply?: boolean } = {}): Promise<SyncResult> {
-  // событие sync (логирование 3.0): логгер — фасада, которым пишут классы
+export async function syncModels(db: DbBase, models: readonly AnyModel[], opts: { apply?: boolean } = {}): Promise<SyncResult> {
+  // событие sync: логгер — фасада, которым пишут классы
   return traced(internalsOf(db)?.log ?? NOLOG, 'sync', { op: 'syncModels' }, () => syncCore(db, models, opts), (r) => ({
     rows: r.created.length + r.updated.length,
     detail: { applied: r.applied, models: models.length, created: r.created, updated: r.updated, unchanged: r.unchanged.length,
@@ -45,15 +46,15 @@ export async function syncModels(db: DbCore, models: readonly AnyModel[], opts: 
   }));
 }
 
-async function syncCore(db: DbCore, models: readonly AnyModel[], opts: { apply?: boolean }): Promise<SyncResult> {
-  // хаб с именем метода цепочки или корня db (модель собрана мимо hub()) — отказ до записи (план 2.0, этап 4, п. 2;
-  // 7.10 №3); связь с таким именем отклоняет база
+async function syncCore(db: DbBase, models: readonly AnyModel[], opts: { apply?: boolean }): Promise<SyncResult> {
+  // хаб с именем метода цепочки или корня db (модель собрана мимо hub()) — отказ до записи; связь с таким именем
+  // отклоняет база
   for (const m of models) {
     if (m.kind === 'hub' && RESERVED_CLASS_NAMES.includes(m.name)) throw lerr('model.sync_hub_name_reserved', { name: m.name });
   }
   const res: SyncResult = { applied: Boolean(opts.apply), created: [], updated: [], unchanged: [], skipped: [], lost: models.flatMap((m) => m.lostRules()) };
   // преобразования Zod (.trim(), .toLowerCase(), .transform(), z.preprocess …) база и валидатор letopis не исполняют —
-  // данные записались бы как есть: отказ до записи (план 2.1, A11); refine остаётся в отчёте lost
+  // данные записались бы как есть: отказ до записи; refine остаётся в отчёте lost
   const transforms = res.lost.filter((l) => l.kind !== 'refine');
   if (transforms.length) {
     throw lerr('model.transform_unsupported', { rules: transforms.map((l) => `${l.path} (${l.kind})`).join(', ') }, { detail: { rules: transforms } });
@@ -61,8 +62,7 @@ async function syncCore(db: DbCore, models: readonly AnyModel[], opts: { apply?:
   checkEndRoles(db.registry, models);
   const S = `"${db.schema.replace(/"/g, '""')}"`;
   // предок раньше потомка: потомка класса, которого ещё нет, база отклоняет. Круг родителей (модель, собранная мимо
-  // hub()) так не упорядочить — отказ до записи с самим кругом (хвост ревью доработок после 1.2.0: раньше обход молча
-  // ставил потомка раньше предка)
+  // hub()) так не упорядочить — отказ до записи с самим кругом (иначе обход молча поставил бы потомка раньше предка)
   const ordered: AnyModel[] = [];
   const path: AnyModel[] = [];
   const visit = (m: AnyModel) => {
@@ -77,10 +77,7 @@ async function syncCore(db: DbCore, models: readonly AnyModel[], opts: { apply?:
     ordered.push(m);
   };
   models.forEach(visit);
-  // у корня connect({ admin }) классы пишет администраторский пул с той же сессией (план 2.0, 7.9 №3): правка класса
-  // со строками требует прав, которых у роли приложения может не быть
-  const adminTx = internalsOf(db)?.adminTx;
-  const run = <T>(fn: (tx: Tx) => Promise<T>): Promise<T> => (adminTx ? adminTx(fn) : db.transaction(fn));
+  const run = <T>(fn: (tx: Tx) => Promise<T>): Promise<T> => db.transaction(fn);
   try {
     await run(async (tx) => {
       for (const m of ordered) {
@@ -114,7 +111,7 @@ const SYSTEM_ID = '2eba6d0a-1edd-4bb6-a85a-a703dab49035';
 const classSet = (c: string | readonly string[]): string => [...new Set(typeof c === 'string' ? [c] : c)].sort().join(', ');
 
 /**
- * Имя роли конца — одно на арендатора: в любом другом классе (своём или системном) роль с тем же именем обязана вести
+ * Имя роли конца — одно на квартиру: в любом другом классе (своём или системном) роль с тем же именем обязана вести
  * на тот же набор классов (база: sql-write.end_other_class в 60-write.sql, проверка ends при записи Class). Системные
  * классы занимают роли User и Tenant (member → Account), Group и Object (rule → Resource). Проверка — до записи, по
  * реестру и самим моделям, с понятным текстом; база проверяет всё равно.
@@ -147,7 +144,7 @@ export function schemaToTs(s: JsonSchema | undefined, indent = ''): string {
   if (s.const !== undefined) return JSON.stringify(s.const);
   if (Array.isArray(s.enum)) return s.enum.map((v) => JSON.stringify(v)).join(' | ');
   const branches = (s.anyOf ?? s.oneOf) as JsonSchema[] | undefined;
-  // ветки из одних required у объекта с полями — условие, а не форма: тип — сам объект (план 2.0, 7.5 №1)
+  // ветки из одних required у объекта с полями — условие, а не форма: тип — сам объект
   const onlyRequired = Array.isArray(branches) && s.properties !== undefined
     && branches.every((b) => Object.keys(b).every((k) => k === 'required'));
   if (Array.isArray(branches) && !onlyRequired) return branches.map((b) => schemaToTs(b, indent)).join(' | ');
@@ -177,19 +174,22 @@ export function schemaToTs(s: JsonSchema | undefined, indent = ''): string {
   }).join(' | ');
 }
 
+/** Системные классы движка: в типы — только с includeSystem. */
+const ENGINE_CLASSES: ReadonlySet<string> = new Set(['Class', 'Account', 'member', 'Resource', 'rule']);
+
 /**
  * Объявления `<Класс>Data` и `<Класс>Links` для классов реестра и `<Класс>Model` — имя, алиас, концы с классами целей
- * и предки, — а в конце список `Models`: строгие типы цепочек без моделей Zod, `connect<Models>()`. Классы арендатора
- * System (системные и классы сидов пакета) — только с includeSystem (`letopis types --system`); без него системные
- * классы даёт встроенный набор SystemModels. Первая строка — пометка «Сгенерировано letopis types — не править руками.»
+ * и предки, — а в конце список `Models`: строгие типы цепочек без моделей Zod (`connect<Models>(pass)`). Системные
+ * классы движка (Class, Account, member, Resource, rule) — только с includeSystem (`letopis types --system`); без него
+ * их даёт встроенный набор SystemModels. Первая строка — пометка «Сгенерировано letopis types — не править руками.»
  */
 export function generateTypes(registry: Registry, opts: { includeSystem?: boolean } = {}): string {
   const out = [`// ${lmsg('model.types_header')}`, ''];
   const models: string[] = [];
   const lit = (v: string): string => JSON.stringify(v);
   for (const c of registry.all().sort((a, b) => a.name.localeCompare(b.name))) {
-    if (!opts.includeSystem && c.tenant === '2eba6d0a-1edd-4bb6-a85a-a703dab49035') continue;
-    // идентификатор TypeScript — буквы Unicode, цифры, _ и $: кириллические имена классов допустимы (план 2.0, 7.5 №1)
+    if (!opts.includeSystem && ENGINE_CLASSES.has(c.name)) continue;
+    // идентификатор TypeScript — буквы Unicode, цифры, _ и $: кириллические имена классов допустимы
     if (!/^[\p{L}_$][\p{L}\p{N}_$]*$/u.test(c.name)) throw lerr('model.types_class_name', { name: c.name });
     // additionalProperties: false верхнего уровня в тип не переносится — лишние ключи и так ошибка типов
     const { additionalProperties: _closed, ...open } = c.schema;

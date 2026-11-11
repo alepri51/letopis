@@ -15,7 +15,7 @@ export const model = {
     code: 'invalid_class',
     ru: 'имя класса {name} недопустимо',
   },
-  // model.ts, makeModel: имя хаба — из RESERVED_CLASS_NAMES (план 2.0, этап 4, п. 2; 7.10 №3)
+  // model.ts, makeModel: имя хаба — из RESERVED_CLASS_NAMES
   'model.hub_name_reserved': {
     code: 'invalid_class',
     ru: 'hub(): имя {name} занято методом цепочки или корня db — шаг с таким именем до класса не дойдёт',
@@ -215,8 +215,7 @@ export const model = {
     ru: 'класс {name} не найден',
   },
 
-  // sync.ts, syncModels: модель хаба с именем из RESERVED_CLASS_NAMES, собранная мимо hub() (план 2.0, этап 4, п. 2;
-  // 7.10 №3) — отказ до записи
+  // sync.ts, syncModels: модель хаба с именем из RESERVED_CLASS_NAMES, собранная мимо hub(), — отказ до записи
   'model.sync_hub_name_reserved': {
     code: 'invalid_class',
     ru: 'syncModels: имя хаба {name} занято методом цепочки или корня db — шаг с таким именем до класса не дойдёт',
@@ -229,11 +228,11 @@ export const model = {
     ru: 'syncModels: имя роли {end} в классе {model} занято системным классом {cls} (там {end} ведёт на {target}) — выберите другое имя роли, например Team вместо Group',
     hint: 'переименовать роль конца: имена ролей User, Tenant (системный класс member, ведут на Account), Group, Object (системный класс rule, ведут на Resource) можно брать, только если конец ведёт туда же; список — в README, «Зарезервированные имена»',
   },
-  // sync.ts, syncModels: роль конца модели уже ведёт на другой класс в другом классе арендатора (или в другой модели
-  // того же вызова) — отказ до записи (база отклонила бы sql-write.end_other_class)
+  // sync.ts, syncModels: роль конца модели уже ведёт на другой класс в другом классе квартиры или System (или в другой
+  // модели того же вызова) — отказ до записи (база отклонила бы sql-write.end_other_class)
   'model.end_role_taken': {
     code: 'invalid_class',
-    ru: 'syncModels: роль {end} в классе {model} ведёт на {mine}, а в классе {cls} — на {target}: имя роли одно на арендатора (это имя шага цепочки)',
+    ru: 'syncModels: роль {end} в классе {model} ведёт на {mine}, а в классе {cls} — на {target}: имя роли одно на все классы квартиры и общие классы дома (это имя шага цепочки)',
     hint: 'дать роли другое имя или направить её на тот же класс, что и в другом классе',
   },
   // sync.ts, syncModels: родители замыкают круг; cycle — имена моделей через стрелку
@@ -247,11 +246,11 @@ export const model = {
     ru: 'types: имя класса {name} не годится для идентификатора TypeScript',
   },
 
-  // uuid.ts, uuidv5: пространство имён (арендатор) — не uuid
+  // uuid.ts, uuidv5: пространство имён (квартира) — не uuid
   'model.v5_namespace_not_uuid': {
     code: 'invalid_data',
     ru: 'пространство имён v5 — не uuid: {ns}',
-    hint: 'пространство имён v5 — id арендатора (uuid): idOf(класс, ключ, { tenant })',
+    hint: 'пространство имён v5 — id квартиры (uuid): idOf(класс, ключ, { tenant })',
   },
   // uuid.ts, idOf: у класса нет ключа
   'model.class_no_key': {
@@ -271,17 +270,11 @@ export const model = {
     hint: 'значение конца в ключе — id цели (uuid)',
   },
 
-  // cli.ts, mcp: letopis mcp с ключом сервиса (--api-key)
-  'model.mcp_api_key_refused': {
-    code: 'user_session_required',
-    ru: 'letopis mcp принимает только токен сессии пользователя (--token или LETOPIS_TOKEN): ключ сервиса даёт все права auth.* и не должен лежать на машине агента',
-    hint: 'убрать --api-key и передать токен сессии пользователя: --token или LETOPIS_TOKEN',
-  },
-  // cli.ts, mcp: letopis mcp без токена — ни --token, ни LETOPIS_TOKEN
+  // cli.ts, mcp: letopis mcp без пропуска (--pass, LETOPIS_PASS) или без ключа жильца (--api-key, LETOPIS_KEY)
   'model.mcp_token_required': {
     code: 'user_session_required',
-    ru: 'letopis mcp — нужен токен сессии пользователя: --token или LETOPIS_TOKEN',
-    hint: 'передать токен сессии пользователя: --token или LETOPIS_TOKEN',
+    ru: 'letopis mcp — нужны пропуск дома (--pass или LETOPIS_PASS) и ключ API жильца (--api-key или LETOPIS_KEY): агент работает только как жилец',
+    hint: 'передать пропуск, который вернул setup(), и ключ API жильца, выпущенный me.keys.issueApiKey()',
   },
   // cli.ts, main: отчёт letopis sync (lmsg) — тексты не для ошибки, код не печатается. Итог: сухой прогон и с --apply;
   // числа классов по группам
@@ -339,6 +332,6 @@ export const model = {
   'model.transform_unsupported': {
     code: 'invalid_class',
     ru: 'в модели есть преобразования Zod, а при записи их никто не исполняет — значение записалось бы как есть; поля с преобразованием: {rules}',
-    hint: 'уберите из модели .trim(), .toLowerCase(), .transform(), z.preprocess() и .pipe() и приводите значение в коде сервиса до записи (например, name.trim()); проверку без изменения значения дают .regex(), .min(), .refine()',
+    hint: 'уберите из модели .trim(), .toLowerCase(), .transform(), z.preprocess() и .pipe() и приводите значение в коде приложения до записи (например, name.trim()); проверку без изменения значения дают .regex(), .min(), .refine()',
   },
 } satisfies Section<'model'>;

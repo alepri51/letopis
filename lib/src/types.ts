@@ -1,17 +1,17 @@
 /**
- * Общие типы letopis 1.0. Файл наполняется по этапам плана (reports/PLAN-LETOPIS-1.0.md).
+ * Общие типы letopis.
  */
 
 /**
- * Ревизия схемы, которую знает эта версия пакета, — номер версии SQL-части letopis (таблиц и функций в схеме установки).
- * После `up()` у схемы та же ревизия (`r.revision`); схему отставшей ревизии (того же поколения `v2`) `up()` обновляет только с
- * `upgrade: true`, а `connect()` о ней предупреждает.
+ * Ревизия схемы, которую знает эта версия пакета, — номер версии SQL-части letopis (таблиц и функций в схеме дома).
+ * После `setup()` у дома та же ревизия (`r.revision`). Дом другой ревизии `setup()` не трогает: старее — отказ с
+ * подсказкой `demolish()`, новее — отказ; `connect()` дом старее тоже отклоняет, а о доме новее предупреждает.
  */
-export const DDL_REVISION = 11;
+export const DDL_REVISION = 12;
 
 /**
- * Префикс версии в имени схемы `v<N>.<имя>`: `up({ schema: 'salon' })` и `connect({ schema: 'salon' })` дописывают его к
- * имени без точки — `v2.salon`.
+ * Префикс версии в имени схемы `v<N>.<имя>`: дом `setup(…, 'salon')` — схема `v2.salon`; служебное подключение
+ * (`--schema salon` у CLI) дописывает префикс к имени без точки так же.
  */
 export const SCHEMA_VERSION = 'v2';
 
@@ -22,7 +22,7 @@ export const SCHEMA_VERSION = 'v2';
 export const ACL_CLASS_NAMES: readonly string[] = ['rule', 'Resource', 'member', 'Account', 'Class'];
 
 // ---------------------------------------------------------------------------
-// Методы цепочки — единственный источник зарезервированных имён (план, §2.14, этап 3, п. 10)
+// Методы цепочки — единственный источник зарезервированных имён
 // ---------------------------------------------------------------------------
 
 /**
@@ -35,20 +35,24 @@ export const CHAIN_METHODS = [
   'unset', 'add', 'remove', 'delete', 'restore', 'alias', 'tags', 'owner', 'forUpdate', 'cache',
 ] as const;
 
-/** Свойства корня db (и транзакции db.begin()). */
+/**
+ * Свойства корня квартиры (и транзакции begin()): методы ядра, свойства жильца и квартиры. load и maintain у корня
+ * квартиры скрыты (load — служебное подключение мастер-ключом, maintain — ещё и консьерж), но имя всё равно занято.
+ */
 export const DB_METHODS = [
-  'as', 'begin', 'commit', 'rollback', 'lock', 'batch', 'watch', 'close', 'registry', 'sql', 'load',
-  'maintain', 'auth', 'acl', 'idOf', 'refresh', 'transaction', 'flushSignals', 'schema', 'token', 'tenant', 'cache',
+  'begin', 'commit', 'rollback', 'lock', 'batch', 'watch', 'close', 'registry', 'sql', 'load', 'maintain', 'acl', 'idOf',
+  'refresh', 'transaction', 'flushSignals', 'schema', 'token', 'tenant', 'cache',
+  'tenantName', 'account', 'concierge', 'invite', 'invites', 'revokeInvite', 'changeContact', 'changeName', 'deleteTenant', 'keys', 'leave',
+  'deleteAccount', 'closeAll', 'refreshSession',
 ] as const;
 
-/** Свойства батча db.batch(name). */
+/** Свойства батча me.batch(name). */
 export const BATCH_METHODS = ['run', 'discard', 'size'] as const;
 
 /**
  * Имена методов цепочки, корня `db` и батча. Там, где имя занято методом, библиотека не ищет его среди классов, и шаг с
  * таким именем до класса не дойдёт. Хаб с таким именем отклоняют `hub()`, `syncModels` и база, связь (`link`) — база
- * (`invalid_class`; план 2.0, этап 4, п. 2); хаб, заведённый мимо проверки базы, `up()` оставляет и называет в
- * предупреждении.
+ * (`invalid_class`); хаб, заведённый мимо проверки базы, `setup()` оставляет и называет в предупреждении.
  */
 export const RESERVED_CLASS_NAMES: readonly string[] = [...new Set<string>([...CHAIN_METHODS, ...DB_METHODS, ...BATCH_METHODS])];
 
@@ -81,11 +85,12 @@ export interface Row<D = Record<string, unknown>, L = Record<string, string | st
   /** Что сделал upsert. */
   $upsert?: 'created' | 'updated' | 'unchanged';
   /**
-   * Превью удаления (delete() без confirm): удалится, снимется конец или помешает (restrict). В ответе
-   * `restore({ expect, partial: true })` — `skip`: цель не восстановлена, причина — `$why`. `hidden` — строка-сводка
+   * Предпросмотр удаления (delete() без confirm): удалится, снимется конец или помешает (restrict). В ответе
+   * `restore({ expect, partial: true })` — `restore`: цель восстановлена, `skip`: не восстановлена, причина — `$why`
+   * (без `partial` у восстановленных строк `$action` нет). `hidden` — строка-сводка
    * предпросмотра, а не объект: скрытые правами строки замыкания (что с ними будет — `$hidden`, сколько — `$count`).
    */
-  $action?: 'delete' | 'unset' | 'restrict' | 'skip' | 'hidden';
+  $action?: 'delete' | 'unset' | 'restrict' | 'restore' | 'skip' | 'hidden';
   /** Строка-сводка предпросмотра удаления (`$action: 'hidden'`): что будет со скрытыми правами строками. */
   $hidden?: 'delete' | 'unset' | 'restrict';
   /** Строка-сводка предпросмотра удаления (`$action: 'hidden'`): число скрытых правами строк. */
@@ -143,13 +148,12 @@ export interface ChainMods {
   asOf?: string;
   after?: Cursor;
   /**
-   * Не действует: с 2.1 `withDeleted()` — модификатор своего шага (флаг шага цепочки), а не всей выборки. Поле оставлено,
-   * чтобы тип не менялся.
+   * Не действует: `withDeleted()` — модификатор своего шага (флаг шага цепочки), а не всей выборки.
    */
   withDeleted?: boolean;
-  /** Чтение с блокировкой строк последнего шага (только в db.begin()). */
+  /** Чтение с блокировкой строк последнего шага (только в me.begin()). */
   forUpdate?: boolean;
-  /** Кэш результатов (§2.12): .cache() — срок по умолчанию, .cache({ ttl }) — свой, секунды. */
+  /** Кэш результатов: .cache() — срок по умолчанию, .cache({ ttl }) — свой, секунды. */
   cache?: { ttl?: number };
 }
 
@@ -165,7 +169,7 @@ export interface QueryEvent {
 }
 
 // ---------------------------------------------------------------------------
-// Логирование (3.0): опции connect({ log, logLevel, redact }) и up({ log, logLevel, redact }); слой — log.ts
+// Логирование: опции connect(pass, { log, logLevel, redact }) и setup(…, { log, logLevel, redact }); слой — log.ts
 // ---------------------------------------------------------------------------
 
 /** Порог логирования: события этого уровня и выше; `'off'` — ничего. */
@@ -178,15 +182,15 @@ export interface LogEvent {
   level: Exclude<LogLevel, 'off'>;
   /** Имя события: connect, read, write, delete, error, sql и др. */
   event: string;
-  /** Операция: терминал или глагол цепочки, метод db, auth, acl, инструмент MCP. */
+  /** Операция: терминал или глагол цепочки, метод дома или квартиры (в том числе keys.*), acl, инструмент MCP. */
   op?: string;
   /** Длительность операции, мс (с точностью до 0,1). */
   ms?: number;
-  /** Арендатор сессии подключения (db, db.as(), db.begin()). */
+  /** Квартира сессии фасада (корень квартиры, me.begin()). */
   tenant?: string;
-  /** Аккаунт подключения: аккаунт сессии или тот, от чьего имени действует db.as(). */
+  /** Аккаунт фасада: аккаунт сессии или жилец, от чьего имени действует консьерж (db.as(аккаунт, 'Мир')). */
   account?: string;
-  /** Метка транзакции db.begin() или db.transaction(). */
+  /** Метка транзакции me.begin() или me.transaction(). */
   tx?: string;
   /** Цепочка в читаемом виде: `Shop({"name":"A"}).Product.limit(10).rows()`; данные записи — только именами полей. */
   chain?: string;
@@ -217,7 +221,7 @@ export interface LogObject {
 /** Логгер: функция или объект с методами уровней. */
 export type Logger = LogFn | LogObject;
 
-/** Опции логирования connect() и up(). */
+/** Опции логирования connect() и setup(). */
 export interface LogOptions {
   /**
    * Логгер: функция `(событие) => void` или объект с методами `debug`, `info`, `warn`, `error` (pino, console). Без него

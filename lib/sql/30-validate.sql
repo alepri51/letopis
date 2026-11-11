@@ -1,9 +1,9 @@
--- letopis 1.0 — идентификаторы v5 и проверка данных по JSON Schema (план, §2.3, §2.6, этап 1, п. 4–5).
+-- letopis — идентификаторы v5 и проверка данных по JSON Schema.
 
 -- ========================= v5 =========================
--- id = uuid_v5(арендатор, '["<класс>", "<значение 1>", …]'). Имя собирается одинаково в базе
+-- id = uuid_v5(квартира, '["<класс>", "<значение 1>", …]'). Имя собирается одинаково в базе
 -- (jsonb-массив в текстовом виде) и в TypeScript (JSON.stringify элементов через «, »);
--- совпадение закрепляет общий файл векторов lib/test/vectors/v5.json.
+-- расхождение дало бы разные id у базы и библиотеки (id_mismatch): менять только вместе с lib/src/uuid.ts.
 
 create or replace function @SCHEMA@.uuid_v5(ns uuid, name text) returns uuid
 language sql immutable strict parallel safe
@@ -30,7 +30,7 @@ return @SCHEMA@.uuid_v5(tenant, @SCHEMA@.v5_name(class, vals));
 -- вида  lax !exists(<путь> ? (!(<условие>)))  над документом: «нет узла, нарушающего условие».
 -- Условие всегда начинается с проверки типа узла, поэтому развёртывание массивов в режиме lax
 -- не даёт строке ["x"] пройти проверку «равно "x"». Значения правил идут переменными ($v1, $v2…),
--- шаблоны и имена полей экранируются как строковые литералы jsonpath (§2.6).
+-- шаблоны и имена полей экранируются как строковые литералы jsonpath.
 -- То, чего jsonpath не выражает (длина строки, uniqueItems, смысл даты), идёт «дополнительными
 -- проверками» — отдельными записями с полем extra; их выполняет validate_data().
 
@@ -38,11 +38,11 @@ create or replace function @SCHEMA@.jp_str(s text) returns text
 language sql immutable strict parallel safe
 return to_jsonb(s)::text;
 
--- Перевод шаблона JavaScript в регулярное выражение PostgreSQL (этап 1, п. 5): разбор по символам,
+-- Перевод шаблона JavaScript в регулярное выражение PostgreSQL: разбор по символам,
 -- как translatePattern в lib/src/jsonschema.ts. \d \w \s и их отрицания — явными наборами (внутри
 -- [ ] — без скобок), экранированная обратная косая черта остаётся собой; \b, \p{…}, именованные
--- группы и обратные ссылки отклоняются. Отказы здесь и в jp_compile — lt_fail(…, p_detail => 'null'): DETAIL у них
--- не было и до каталога (raise без detail), у ошибки библиотеки detail нет (15-errors.sql).
+-- группы и обратные ссылки отклоняются. Отказы здесь и в jp_compile — lt_fail(…, p_detail => 'null'): у ошибки
+-- библиотеки detail нет (15-errors.sql).
 create or replace function @SCHEMA@.jp_pattern(p text) returns text
 language plpgsql immutable strict
 as $$
@@ -335,7 +335,7 @@ begin
   rules := r;
 end $$;
 
--- Компиляция описания класса: правила и общее выражение validator (одно на класс, §2.6).
+-- Компиляция описания класса: правила и общее выражение validator (одно на класс).
 create or replace function @SCHEMA@.compile_validator(p_schema jsonb, out rules jsonb, out validator jsonpath, out vars jsonb)
 language plpgsql immutable
 as $$
@@ -351,7 +351,7 @@ begin
   validator := ('strict ' || expr)::jsonpath;
 end $$;
 
--- Допустимые значения перечисления для сообщения нарушения (план 2.1, A8): JSON через запятую, первые 20 — как у
+-- Допустимые значения перечисления для сообщения нарушения: JSON через запятую, первые 20 — как у
 -- валидатора на TypeScript (validate.ts, enumValues).
 create or replace function @SCHEMA@.issue_values(p_values jsonb) returns text
 language sql immutable
@@ -360,7 +360,7 @@ return (select string_agg(t.y::text, ', ' order by t.o) || case when jsonb_array
         from jsonb_array_elements(p_values) with ordinality t(y, o) where t.o <= 20);
 
 -- Проверка данных: общий вызов jsonb_path_match; при отказе — список нарушений по правилам.
--- Результат сравнивается через is true: ошибка внутри выражения даёт NULL, а не «да» (этап 1, п. 5).
+-- Результат сравнивается через is true: ошибка внутри выражения даёт NULL, а не «да».
 -- Нарушение — { path, keyword, message, key, params }: message — русский текст по ключу каталога, рядом его key и
 -- params; библиотека убирает key и params (fromDbError, загрузчик).
 create or replace function @SCHEMA@.validate_data(p_rules jsonb, p_validator jsonpath, p_vars jsonb, p_data jsonb) returns jsonb
@@ -382,7 +382,7 @@ begin
     if e ? 'extra' then
       for x in select * from jsonb_path_query(p_data, ('strict ' || (e->>'path_expr'))::jsonpath, '{}'::jsonb, true) loop
         if (e->'extra'->>'kind') = 'length' and jsonb_typeof(x) = 'string' then
-          -- текст называет границу (letopis 2.1, второй раунд, A6) — как у валидатора на TypeScript (validate.ts)
+          -- текст называет границу — как у валидатора на TypeScript (validate.ts)
           t := null;
           if char_length(x #>> '{}') < coalesce((e->'extra'->>'min')::int, 0) then
             t := 'sql-core.issue_string_too_short';
@@ -424,14 +424,14 @@ begin
       if jsonb_path_match(p_data, ('strict !exists(' || (e->>'path_expr') || ' ? (!(' || (e->>'cond') || ')))')::jsonpath, e->'vars', true) is not true then
         t := null;
         if e->>'keyword' in ('enum', 'const') then
-          -- перечисление скаляров: значения — переменные правила v<N> (план 2.1, A8)
+          -- перечисление скаляров: значения — переменные правила v<N>
           p := jsonb_build_object('values', @SCHEMA@.issue_values(
             coalesce((select jsonb_agg(v.value order by (substr(v.key, 2))::int) from jsonb_each(e->'vars') v), '[]'::jsonb)));
           bad := bad || jsonb_build_object('path', e->'path', 'keyword', e->>'keyword', 'message', @SCHEMA@.lt_text('sql-core.issue_enum', p),
             'key', 'sql-core.issue_enum', 'params', p);
           continue;
         elsif e->>'keyword' = 'additionalProperties' then
-          -- лишние ключи: ключ, которого условие правила не принимает и в одиночку (план 2.1, A8)
+          -- лишние ключи: ключ, которого условие правила не принимает и в одиночку
           select string_agg(z.k, ', ' order by z.k) into t from (
             select distinct kv.key as k
             from jsonb_path_query(p_data, ('strict ' || (e->>'path_expr'))::jsonpath, '{}'::jsonb, true) n(v)

@@ -4,10 +4,12 @@
 import type { Section } from './types.js';
 
 export const query = {
-  // sql.ts, sortSpec: поле sort() не из списка
+  // sql.ts, sortSpec: поле sort() не из списка; chain.ts, sortArgs: поле — не строка (список полей, объект, число, null,
+  // вызов без поля) — field тогда печатает shown()
   'query.sort_field': {
     code: 'invalid_query',
     ru: "sort: поле 'at', 'rev', 'id' или 'data.<путь>', а не '{field}'",
+    hint: "поле сортировки одно — строка: sort('data.поле') — по возрастанию, sort('data.поле', 'desc') — по убыванию; колонки строки — 'at' (время версии), 'rev', 'id'; повторный sort() заменяет прежний",
   },
   // sql.ts, sortSpec: поле sort() похоже на имя поля данных без префикса data. (sort('code'))
   'query.sort_field_data': {
@@ -15,12 +17,12 @@ export const query = {
     ru: "sort: поле 'at', 'rev', 'id' или 'data.<путь>', а не '{field}' — может быть, data.{field}?",
     hint: "поле данных в sort() — с префиксом data.: sort('data.code'); колонки строки — 'at' (время версии), 'rev', 'id'",
   },
-  // sql.ts, checkField: поле фильтра, sort() или агрегата не описано ни в одном классе шага (в 1.5 — предупреждение, с 2.0 —
-  // отказ); where — шаг или вызов, как в коде: Shop({ nmae }), sort('data.nmae'), sum('data.nmae')
+  // sql.ts, checkField: поле фильтра, sort() или агрегата не описано ни в одном классе шага — отказ до запроса; where —
+  // шаг или вызов, как в коде: Shop({ nmae }), sort('data.nmae'), sum('data.nmae')
   'query.unknown_field': {
     code: 'invalid_query',
     ru: '{where}: поле {field} не описано в классе {cls}',
-    hint: 'проверить имя поля: похожие названы в тексте, поля класса — db.registry.resolve(класс).schema',
+    hint: 'проверить имя поля: похожие названы в тексте, поля класса — me.registry.resolve(класс).schema',
   },
   // sql.ts, resolveHop: классы соседних шагов не ссылаются друг на друга; from, to — имена шагов
   'query.no_path': {
@@ -32,7 +34,7 @@ export const query = {
     code: 'invalid_query',
     ru: 'неизвестный оператор {op}',
   },
-  // sql.ts, compileTags: значение tags()
+  // sql.ts, compileTags: значение tags() — не строка, не список строк и не has/hasAny/hasAll; chain.ts: tags() без значения
   'query.tags_arg': {
     code: 'invalid_query',
     ru: 'tags() принимает строку, список или has/hasAny/hasAll',
@@ -62,7 +64,7 @@ export const query = {
     code: 'invalid_query',
     ru: 'конец {role}: ожидался id, строка ответа или null',
   },
-  // sql.ts, cursorParams: курсор — не объект со значением v; field — поле sort()
+  // sql.ts, cursorParams: курсор — не объект со значением v (и after() без курсора, after(null)); field — поле sort()
   'query.cursor_shape': {
     code: 'invalid_query',
     ru: "after(cursor): курсор — объект { v, id } из cursorOf(строка, '{field}')",
@@ -161,16 +163,22 @@ export const query = {
     code: 'invalid_query',
     ru: 'after(cursor) требует sort(поле)',
   },
-  // sql.ts, compileFilter: id шага, фильтра { id } или конца — не uuid (раньше — сырая ошибка PostgreSQL 22P02, у
-  // null — TypeError); value — значение, как в коде
+  // sql.ts, compileFilter: id шага, фильтра { id } или конца — не uuid (иначе — сырая ошибка PostgreSQL 22P02, у
+  // null — TypeError), фильтр шага — число, true или функция; chain.ts: owner() — не id и не строка ответа; house.ts:
+  // me.revokeInvite() — не id приглашения; value — значение, как в коде
   'query.bad_uuid': {
     code: 'invalid_query',
     ru: '{where}: {value} — не uuid',
-    hint: 'id — строка uuid (row.id из ответа или db.idOf(…)); проверьте переменную: undefined и null — не id',
+    hint: 'id — строка uuid (row.id из ответа или me.idOf(…)); проверьте переменную: undefined и null — не id',
   },
-  // sql.ts, buildRead: агрегат не по полю данных
+  // sql.ts, buildRead: агрегат не по полю данных; chain.ts: поле агрегата — не строка (список полей, число, вызов без поля)
   'query.agg_field': {
     code: 'invalid_query',
     ru: "агрегат по полю 'data.<путь>'",
+  },
+  // sql.ts, compileFilter(): значение поля фильтра — undefined (условие снято); at — шаг, field — путь поля
+  'query.filter_undefined': {
+    code: 'invalid_query',
+    ru: '{at}: поле {field} = undefined — условие по нему снято, шаг находит строки без него. Проверьте переменную; отсутствие значения ищет isNull()',
   },
 } satisfies Section<'query'>;

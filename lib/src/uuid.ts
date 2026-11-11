@@ -1,9 +1,10 @@
 /**
- * Идентификаторы v5 (план, §2.3, этап 2, п. 4).
+ * Идентификаторы v5.
  *
- * id = uuid_v5(арендатор, '["<класс>", "<значение 1>", …]'). Имя собирается так же, как в базе
+ * id = uuid_v5(квартира, '["<класс>", "<значение 1>", …]'). Имя собирается так же, как в базе
  * (`v5_name` в lib/sql/30-validate.sql — текстовый вид jsonb-массива): элементы через JSON.stringify,
- * разделитель — запятая с пробелом. Совпадение закрепляет общий файл векторов lib/test/vectors/v5.json.
+ * разделитель — запятая с пробелом. Расхождение дало бы разные id у библиотеки и базы (`id_mismatch`): менять только
+ * вместе с `v5_name`.
  */
 import { hash } from 'node:crypto';
 import { lerr } from './errors.js';
@@ -14,12 +15,12 @@ const UUID = UUID_RE;
 
 /**
  * Любой вид uuid, который принимает приведение PostgreSQL `::uuid`: 32 шестнадцатеричные цифры, дефис — после любой
- * группы из четырёх (или без дефисов), весь в фигурных скобках или без них. Фильтр с таким id работал и до проверки,
+ * группы из четырёх (или без дефисов), весь в фигурных скобках или без них. Фильтр с таким id база принимает,
  * поэтому проверка до запроса (sql.ts, compileFilter) отказывает только тому, что отклонила бы база.
  */
 export const PG_UUID_RE = /^(?:[0-9a-f]{4}(?:-?[0-9a-f]{4}){7}|\{[0-9a-f]{4}(?:-?[0-9a-f]{4}){7}\})$/i;
 
-// байты пространств имён (арендаторов): в загрузке их единицы, а проверка и разбор шли на каждый id
+// байты пространств имён (квартир): в загрузке их единицы, а проверка и разбор иначе шли бы на каждый id
 const NS = new Map<string, Buffer>();
 function nsBytes(ns: string): Buffer {
   let b = NS.get(ns);
@@ -69,7 +70,8 @@ export function idOf(cls: KeyedClass, key: Readonly<Record<string, unknown>>, op
   }
   const ends = new Set(cls.ends ?? []);
   const values = cls.key.map((k) => {
-    const v = key[k];
+    // ключ не объектом (idOf('Shop'), null) — тот же отказ, что у части ключа не строкой, а не TypeError
+    const v = (key as Readonly<Record<string, unknown>> | null | undefined)?.[k];
     if (typeof v !== 'string') {
       throw lerr('model.key_part_not_string', { cls: cls.name, part: k }, { detail: { key: cls.key } });
     }

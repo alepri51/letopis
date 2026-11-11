@@ -1,5 +1,5 @@
 /**
- * Раздел log: log.ts — логирование 3.0. Две части:
+ * Раздел log: log.ts — логирование. Две части:
  *
  * - `log` — записи каталога сообщений (как у прочих разделов): отказы опций `log`, `logLevel`, `redact` и тексты слоя;
  * - `LOG_EVENTS` — каталог событий логирования: имя события → уровень и короткое описание по-русски. Это не сообщения
@@ -37,15 +37,15 @@ export const log = {
     code: 'internal',
     ru: 'логгер бросил исключение на событии {event}: {message} — событие пропущено, операции это не мешает',
   },
-  // index.ts, Notifier: отправка сигналов не удалась — предупреждение (warning); повтор — следующим интервалом
+  // core.ts, Notifier: отправка сигналов не удалась — предупреждение (warning); повтор — следующим интервалом
   'log.notify_failed': {
     code: 'internal',
     ru: 'сигналы не отправлены: {message} — повтор следующим интервалом',
   },
-  // index.ts, ctx.renew: обмен ключа сервиса на новую сессию не удался — предупреждение (warning)
+  // core.ts, ctx.renew: обмен ключа консьержа на новую сессию не удался — предупреждение (warning)
   'log.renew_failed': {
     code: 'no_session',
-    ru: 'сессия по ключу сервиса истекла, а обмен ключа на новую не удался',
+    ru: 'сессия консьержа по ключу истекла, а обмен ключа на новую не удался',
   },
 } satisfies Section<'log'>;
 
@@ -62,50 +62,48 @@ export interface LogEventInfo {
  * Каталог событий логирования — объект (не массив): имя события → `{ level, ru }`, где `level` — уровень события по
  * умолчанию (`debug`, `info`, `warn`, `error`), `ru` — что значит событие. Тип — `Readonly<Record<LogEventName,
  * LogEventInfo>>`: `LOG_EVENTS.write.level` — `'info'`, список имён — `Object.keys(LOG_EVENTS)`. Основные события:
- * connect, close, up, migrate, sync, read, cache.hit, cache.miss, write, delete.preview, delete, restore, tx.*,
- * auth.login, auth.logout, auth.revoke, auth.switch, watch.start, watch.stop, signal, maintain, warning, error, sql;
+ * connect, close, setup, sync, read, cache.hit, cache.miss, write, delete.preview, delete, restore, tx.*,
+ * auth.login, auth.fail, auth.logout, auth.revoke, watch.start, watch.stop, signal, maintain, warning, error, sql;
  * остальные — дополнительные.
  */
 export const LOG_EVENTS = {
   // подключение
-  'connect': { level: 'info', ru: 'connect() готов: схема, режим сигналов, кэш, способ входа' },
-  'close': { level: 'info', ru: 'db.close(): пул, подписки и таймеры закрыты' },
+  'connect': { level: 'info', ru: 'connect() готов: дом, режим сигналов, кэш' },
+  'close': { level: 'info', ru: 'close() консьержа: пул, подписки и таймеры закрыты' },
   'registry.refresh': { level: 'debug', ru: 'реестр классов перечитан' },
-  'session.renew': { level: 'info', ru: 'сессия по ключу сервиса истекла — ключ обменян на новую' },
-  // установка
-  'up': { level: 'info', ru: 'up() завершён: схема поставлена, обновлена или накатана повторно' },
-  'up.step': { level: 'info', ru: 'шаг up(): то, что без логгера печатается в консоль' },
-  'migrate': { level: 'info', ru: 'up() обновил ревизию схемы миграциями' },
-  'tenant.create': { level: 'info', ru: 'арендатор (и его первый пользователь) заведён или найден' },
+  'session.renew': { level: 'info', ru: 'сессия консьержа по ключу истекла — ключ обменян на новую' },
+  // дом
+  'setup': { level: 'info', ru: 'setup() завершён: дом построен или накатан повторно' },
+  'setup.step': { level: 'info', ru: 'шаг setup(): то, что без логгера печатается в консоль' },
+  'tenant.create': { level: 'info', ru: 'консьерж завёл квартиру (createTenant)' },
+  'tenant.delete': { level: 'info', ru: 'квартира удалена (deleteTenant)' },
   'sync': { level: 'info', ru: 'syncModels(): классы созданы, изменены или сверены (сухой прогон)' },
   // чтение
   'read': { level: 'debug', ru: 'терминал чтения цепочки: rows, first, ids, count, paths, versions, агрегаты' },
   'cache.hit': { level: 'debug', ru: 'ответ взят из кэша результатов' },
   'cache.miss': { level: 'debug', ru: 'ответа нет в кэше результатов — запрос к базе' },
-  'raw': { level: 'debug', ru: 'сырой SQL db.sql' },
+  'raw': { level: 'debug', ru: 'сырой SQL me.sql' },
   // запись
   'write': { level: 'info', ru: 'запись цепочкой (create, update, upsert, шаги ролей) или батч' },
   'delete.preview': { level: 'debug', ru: 'предпросмотр удаления: delete() без confirm, ничего не удалено' },
   'delete': { level: 'info', ru: 'удаление выполнено: состав каскада, сверка с expect' },
   'restore': { level: 'info', ru: 'восстановление выполнено: восстановленные и пропущенные цели' },
   'load': { level: 'info', ru: 'db.load(): массовая загрузка завершена' },
-  'lock': { level: 'debug', ru: 'db.lock(): advisory-блокировка в транзакции' },
+  'lock': { level: 'debug', ru: 'me.lock(): advisory-блокировка в транзакции' },
   // транзакции
-  'tx.begin': { level: 'debug', ru: 'открыта транзакция: db.begin() или db.transaction()' },
-  'tx.commit': { level: 'debug', ru: 'транзакция зафиксирована; с записью (db.begin()) и у db.transaction() — уровень info и detail.writes: доказательство фиксации событий с тем же tx' },
+  'tx.begin': { level: 'debug', ru: 'открыта транзакция: me.begin() или me.transaction()' },
+  'tx.commit': { level: 'debug', ru: 'транзакция зафиксирована; с записью (me.begin()) и у me.transaction() — уровень info и detail.writes: доказательство фиксации событий с тем же tx' },
   'tx.rollback': { level: 'info', ru: 'транзакция откачена: явно или из-за ошибки' },
   'tx.retry': { level: 'warn', ru: 'повтор операции после конфликта (взаимная блокировка, сериализация, журнал)' },
   // вход и права
-  'auth.login': { level: 'info', ru: 'успешный вход: пароль, ключ, код, привязка' },
-  'auth.fail': { level: 'warn', ru: 'неудачный вход или неверный второй фактор' },
-  'auth.logout': { level: 'info', ru: 'выход: гашение текущей сессии' },
-  'auth.revoke': { level: 'info', ru: 'отзыв: сессии по токену, все сессии аккаунта или кред' },
-  'auth.switch': { level: 'info', ru: 'auth.switch(): сменён рабочий арендатор сессии' },
-  'auth.as': { level: 'debug', ru: 'db.as(): фасад от имени другого аккаунта или арендатора' },
-  'auth.session': { level: 'info', ru: 'сервис выпустил сессию пользователю (sessionFor)' },
-  'auth.credential': { level: 'info', ru: 'кред заведён или изменён: пароль, ключ, TOTP, код, привязка, флаги' },
-  'auth.call': { level: 'debug', ru: 'прочие вызовы db.auth: сведения о сессии, кредах, арендаторах' },
-  'account.purge': { level: 'info', ru: 'аккаунт удалён с данными своего арендатора' },
+  'auth.login': { level: 'info', ru: 'вход в квартиру: open, accept' },
+  'auth.fail': { level: 'warn', ru: 'ключ, код, приглашение или токен не подошли: open, accept, resume, tenantsOf' },
+  'auth.logout': { level: 'info', ru: 'выход: close() корня квартиры гасит его сессию' },
+  'auth.revoke': { level: 'info', ru: 'отзыв: ключ жильца, приглашение или все сессии жильца в квартире' },
+  'auth.credential': { level: 'info', ru: 'ключ жильца заведён или изменён: пароль, ключ API, ключ и секрет, TOTP, внешний вход' },
+  'auth.invite': { level: 'info', ru: 'выдано приглашение в квартиру' },
+  'member.leave': { level: 'info', ru: 'жилец выписался из квартиры (leave)' },
+  'account.delete': { level: 'info', ru: 'аккаунт жильца удалён: им самим (me.deleteAccount) или консьержем (db.deleteAccount)' },
   'acl.change': { level: 'info', ru: 'права изменены: grant, deny, revoke, roles' },
   'acl.check': { level: 'debug', ru: 'проверка или список прав' },
   // время

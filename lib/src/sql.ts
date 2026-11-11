@@ -1,14 +1,14 @@
 /**
- * Построитель чтения (план, этап 3, п. 2–8): цепочка шагов → один параметризованный запрос.
+ * Построитель чтения: цепочка шагов → один параметризованный запрос.
  *
- * Шаг из двух частей (§3 «Индексы под RLS»). Под RLS индексы GIN роли приложения недоступны, поэтому
+ * Шаг из двух частей (индексы под RLS). Под RLS индексы GIN служебной роли дома (letopis_a_<имя>) недоступны, поэтому
  * id находят функции владельца find_* (lib/sql/70-read.sql) — по индексам и с тем же условием
  * видимости, что у политик, — а строки читаются по первичному ключу под RLS, где применяются
  * остальные условия шага. Каждый шаг — пара CTE:
  *   p<i>(src, id[, rev, depth]) — пары «откуда, куда» перехода от узла предыдущего шага;
  *   n<i>(колонки строки, depth) — строки узла с условиями шага.
  * Прямой переход (из концов строки) находит цели без поиска: id лежат в links. Обратный — find_hop()
- * по развёрнутому списку id предыдущего узла (решение 5 точки А). Пути собирает соединение
+ * по развёрнутому списку id предыдущего узла. Пути собирает соединение
  * n0 ⋈ p1 ⋈ n1 ⋈ …; терминалы rows, ids, count и агрегаты считают сущности последнего узла.
  *
  * Источник узла — текущее состояние (entity) или журнал: версии на момент asOf и надгробия
@@ -17,7 +17,7 @@
  * Значения всегда уходят параметрами, поэтому текст запроса зависит только от формы цепочки: его
  * кэширует план (chain.ts), а postgres.js готовит оператор один раз на соединение.
  */
-import { lerr, lmsg, similar, type MsgKey, type Params as MsgParams } from './errors.js';
+import { lerr, lmsg, shown, similar, type MsgKey, type Params as MsgParams, lwarn } from './errors.js';
 import type { ClassDescription } from './model.js';
 import { isOp } from './ops.js';
 import type { ClassInfo, LeafType, Registry } from './registry.js';
@@ -42,9 +42,9 @@ export interface Step {
   tagsFilter?: unknown;
   ownerFilter?: string;
   deepMax?: number;
-  /** withDeleted(): узел шага — живые и надгробия удалённых (модификатор шага, план 2.1, A9). */
+  /** withDeleted(): узел шага — живые и надгробия удалённых (модификатор шага). */
   withDeleted?: true;
-  /** Звено плана записи (этап 4): глагол на этом шаге; построитель чтения его не видит. */
+  /** Звено плана записи: глагол на этом шаге; построитель чтения его не видит. */
   op?: import('./write.js').PlanOp;
   /** Модификаторы цепочки на момент глагола: limit и sort сужают цели записи. */
   opMods?: ChainMods;
@@ -95,7 +95,7 @@ const dataFields = (c: ClassInfo): string[] =>
 
 /**
  * Поле фильтра, sort() или агрегата не описано ни в одном классе шага — такое условие ничего не найдёт: invalid_query с
- * похожими именами (план 2.0, этап 3, п. 3; в 1.5 было предупреждение, 7.9 №6). Проверяется только верхний уровень:
+ * похожими именами. Проверяется только верхний уровень:
  * путь внутрь поля-объекта не сверяется. classes — класс шага и все классы, которые он матчит (потомки, если не exact(),
  * у роли — её цели); ends — роли концов тоже годятся (фильтр).
  */
@@ -142,14 +142,16 @@ function typingOf(reg: Registry, step: Step, names = stepClasses(reg, step)): Cl
 
 /**
  * Отказы построителя, которым не нужны база и путь, — фильтр шага (в том числе неизвестное поле) и поле sort('data.…') или
- * агрегата по классам шага: план записи проверяет их до первого оператора (write.ts:precheckPlan, §2.5), поэтому
- * опечатка в фильтре цели не ломает db.begin(). Построитель при чтении проверяет то же самое ещё раз.
+ * агрегата по классам шага: план записи проверяет их до первого оператора (write.ts:precheckPlan), поэтому
+ * опечатка в фильтре цели не ломает me.begin(). Построитель при чтении проверяет то же самое ещё раз.
  */
 export function precheckStep(reg: Registry, step: Step, order?: string, agg?: AggSpec): void {
   const typing = typingOf(reg, step);
   compileFilter(reg, typing, step.filter, new Params());
-  if (order?.startsWith('data.')) checkField(typing, topField(order), `sort('${order}')`, false);
-  if (agg?.field.startsWith('data.')) checkField(typing, topField(agg.field), `${agg.fn}('${agg.field}')`, false);
+  // поле не строкой сюда не доходит (sort() и агрегаты отказывают при вызове) — проверка типа на случай mods, собранных
+  // не цепочкой: отказ даст построитель (sortSpec, buildRead), а не TypeError
+  if (typeof order === 'string' && order.startsWith('data.')) checkField(typing, topField(order), `sort('${order}')`, false);
+  if (typeof agg?.field === 'string' && agg.field.startsWith('data.')) checkField(typing, topField(agg.field), `${agg.fn}('${agg.field}')`, false);
 }
 
 /** Принимает ли список классов конца класс cls (с учётом его предков). */
@@ -177,7 +179,7 @@ export interface Hop {
 }
 
 /**
- * Направление перехода между узлами (расширение resolveHop 0.21):
+ * Направление перехода между узлами:
  *  - шаг-роль после владельца роли — вперёд этим концом; шаг после роли — назад этим концом;
  *  - иначе по концам всех классов обоих семейств: в своём семействе (папка → папки) — назад, к детям;
  *    хаб → связь — назад; связь → хаб и хаб → хаб — вперёд; нет нужного — другое направление.
@@ -337,7 +339,8 @@ function compileTags(v: unknown, p: Params): Frag {
     return (a) => `${a}.tags @> ${ph}::text[]`;
   };
   if (typeof v === 'string') return all([v]);
-  if (Array.isArray(v)) return all(v);
+  // список — только строки: число или null в нём молча стали бы тегами '1' и 'null'
+  if (Array.isArray(v) && v.every((x) => typeof x === 'string')) return all(v);
   if (isOp(v)) {
     switch (v[OP]) {
       case 'has':
@@ -373,7 +376,7 @@ const idOfValue = (v: unknown): string | undefined =>
 
 /**
  * id фильтра шага, `{ id }` или конца — uuid, который примет приведение базы (PG_UUID_RE): иначе invalid_query до запроса,
- * а не сырая ошибка PostgreSQL 22P02 (у null — TypeError; план 2.1, A7).
+ * а не сырая ошибка PostgreSQL 22P02 (у null — TypeError).
  */
 function idCheck(v: unknown, where: string): string {
   if (typeof v === 'string' && PG_UUID_RE.test(v)) return v;
@@ -405,9 +408,15 @@ function compileFilter(reg: Registry, classes: ClassInfo[], filter: Filter | und
     out.ids = filter.map((x) => idCheck(idOfValue(x) ?? refuse('query.id_list'), at));
     return out;
   }
+  // число, true, функция вместо id или объекта полей: условий в них нет — шаг молча нашёл бы все строки (и прошёл бы
+  // проверку сужения целей update и delete)
+  if (typeof (filter as unknown) !== 'object') idCheck(filter, at);
 
   const props = (classes[0]?.schema.properties ?? {}) as Record<string, unknown>;
   const isRole = (k: string) => !(k in props) && classes.some((c) => c.ends[k] !== undefined);
+  // { поле: undefined } снимает условие (так ведёт себя JSON и spread); чаще это пустая переменная — предупреждение,
+  // один раз на класс и поле за процесс
+  const undefinedField = (field: string) => lwarn('query.filter_undefined', { at, field }, { once: `filter_undefined:${at}:${field}` });
   const eq: Record<string, unknown> = {};
 
   // разбор объекта любой глубины: операторы — по своему пути с приведением по типу листа,
@@ -416,7 +425,10 @@ function compileFilter(reg: Registry, classes: ClassInfo[], filter: Filter | und
     const sub: Record<string, unknown> = {};
     let hadOps = false;
     for (const [k, v] of Object.entries(obj)) {
-      if (v === undefined) continue;
+      if (v === undefined) {
+        undefinedField([...path, k].join('.'));
+        continue;
+      }
       const at = [...path, k];
       if (isOp(v)) {
         const t = leafOf(reg, classes, at);
@@ -433,7 +445,10 @@ function compileFilter(reg: Registry, classes: ClassInfo[], filter: Filter | und
   };
 
   for (const [key, value] of Object.entries(filter)) {
-    if (value === undefined) continue;
+    if (value === undefined) {
+      undefinedField(key);
+      continue;
+    }
     if (key === 'id') {
       const w = `${classes[0]?.name ?? ''}({ id })`;
       if (typeof value === 'string') out.ids = [idCheck(value, w)];
@@ -453,7 +468,7 @@ function compileFilter(reg: Registry, classes: ClassInfo[], filter: Filter | und
       out.frags.push((a) => `${SCHEMA_MARK}.role_has(${a}.links, array[${role}], ${ph}::uuid)`);
       continue;
     }
-    // поле данных: не описано ни в одном классе шага — invalid_query с похожими (план 2.0, этап 3, п. 3)
+    // поле данных: не описано ни в одном классе шага — invalid_query с похожими
     checkField(classes, key, `${classes[0]?.name ?? ''}({ ${key} })`, true);
     if (isOp(value)) {
       const t = leafOf(reg, classes, [key]);
@@ -476,8 +491,8 @@ function asFrags(cf: CompiledFilter, p: Params): Frag[] {
   const frags = [...cf.frags];
   if (cf.ids) {
     // один id — равенство, а не = any (массив): общий план подготовленного запроса для = any PostgreSQL считает на ~10
-    // элементов, и при неудачной выборке ANALYZE чтение по ключу навсегда оставалось на планах под каждый вызов —
-    // 0,5–0,8 мс планирования на чтение (замер против 1.0.1); общий план равенства стоит как план вызова и выбирается всегда
+    // элементов, и при неудачной выборке ANALYZE чтение по ключу навсегда оставалось бы на планах под каждый вызов —
+    // 0,5–0,8 мс планирования на чтение (замер); общий план равенства стоит как план вызова и выбирается всегда
     const one = cf.ids.length === 1;
     const ph = p.push(one ? cf.ids[0] : cf.ids);
     frags.push((a) => (one ? `${a}.id = ${ph}::uuid` : `${a}.id = any (${ph}::uuid[])`));
@@ -508,6 +523,8 @@ interface SortSpec {
 }
 
 function sortSpec(order: string, leaf: (path: string[]) => LeafType, mixed: (path: string[], t: LeafType) => boolean): SortSpec {
+  // не строка (sort() цепочки такое не пропускает) — тот же отказ, что у поля не из списка, а не TypeError
+  if (typeof order !== 'string') throw lerr('query.sort_field', { field: shown(order) });
   const f = order === 'updated' ? 'at' : order;
   const col = { field: order, nullable: false };
   if (f === 'at') return { ...col, expr: (a) => `${a}.at`, pcast: '::text::timestamptz', type: 'timestamptz' };
@@ -567,17 +584,6 @@ function cursorValue(v: unknown, type: SortSpec['type']): unknown {
   }
 }
 
-/** Значение для текста ошибки: JSON, длинное — с многоточием. */
-function shown(v: unknown): string {
-  let s: string;
-  try {
-    s = typeof v === 'number' || typeof v === 'bigint' || v === undefined ? String(v) : (JSON.stringify(v) ?? String(v));
-  } catch {
-    s = String(v);
-  }
-  return s.length > 60 ? `${s.slice(0, 59)}…` : s;
-}
-
 /** Какое значение курсора ждёт поле sort() по своему типу — запись каталога (параметр expect ошибки курсора). */
 const CURSOR_EXPECT: Record<SortSpec['type'], MsgKey> = {
   numeric: 'query.cursor_expect_numeric', int: 'query.cursor_expect_int', boolean: 'query.cursor_expect_boolean',
@@ -588,7 +594,7 @@ const CURSOR_EXPECT: Record<SortSpec['type'], MsgKey> = {
 /**
  * Параметры keyset из курсора: значение проверяется по типу поля сортировки до запроса. Курсор
  * cursorOf() по полю sort() проходит всегда; курсор другого поля или собранный вручную — invalid_query,
- * а не ошибка приведения сервера (22P02, 22007, 42883…) и не запрос, повисший на undefined в параметре.
+ * а не ошибка приведения PostgreSQL (22P02, 22007, 42883…) и не запрос, повисший на undefined в параметре.
  * Курсор того же типа с другого поля проверка не отличит.
  */
 function cursorParams(c: unknown, sort: SortSpec): { v: unknown; id: string } {
@@ -606,7 +612,7 @@ function cursorParams(c: unknown, sort: SortSpec): { v: unknown; id: string } {
   return { v: value, id };
 }
 
-/** rev курсора: в versions() отделяет версии одного объекта с равным полем сортировки (план 2.0, 7.1 №4). */
+/** rev курсора: в versions() отделяет версии одного объекта с равным полем сортировки. */
 function cursorRev(c: Cursor): number | undefined {
   const rev = (c as { rev?: unknown }).rev;
   if (rev === undefined) return undefined;
@@ -614,7 +620,7 @@ function cursorRev(c: Cursor): number | undefined {
   return rev as number;
 }
 
-/** id узлов пути из курсора paths() по ключам узлов (план 2.0, 7.1 №3); курсор без path — undefined. */
+/** id узлов пути из курсора paths() по ключам узлов; курсор без path — undefined. */
 function cursorPath(c: Cursor, keys: string[]): string[] | undefined {
   const path = (c as { path?: unknown }).path;
   if (path === undefined) return undefined;
@@ -656,7 +662,7 @@ export function cursorOf(row: Row | Path, field: string): Cursor {
 
 /**
  * Метка схемы во фрагментах, собранных до имени схемы: символ NUL не бывает в тексте PostgreSQL, поэтому замена не
- * заденет литералы — имя поля вида a@S@b прежде портилось (план 2.0, 7.1 №5).
+ * заденет литералы — имя поля вида a@S@b не портится.
  */
 const SCHEMA_MARK = '\u0000S\u0000';
 
@@ -736,8 +742,8 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
     const dataP = lazy(() => (cf.eq ? `${p.push(cf.eq)}::jsonb` : 'null'));
     const endsP = lazy(() => (cf.ends.length ? `${p.push(cf.ends)}::uuid[]` : 'null'));
     const idsP = lazy(() => (cf.ids ? `${p.push(cf.ids)}::uuid[]` : 'null'));
-    // надгробия узла: withDeleted() этого шага (план 2.1, A9) или versions() по явным id последнего шага — история
-    // удалённого объекта (план 2.1, A10)
+    // надгробия узла: withDeleted() этого шага или versions() по явным id последнего шага — история
+    // удалённого объекта
     const dead = step.withDeleted === true || (mode === 'versions' && i === lastNode && cf.ids !== undefined && step.deepMax === undefined);
     const dataCond = (v: string) => (cf.eq ? ` and ${v}.data @> ${dataP()}` : '');
     const endsCond = (col: string) => (cf.ends.length ? ` and ${col} @> ${endsP()}` : '');
@@ -752,7 +758,7 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
         return `(select v.id, v.rev from ${S}.entity v where v.class = any (${clsPh})${dataCond('v')}${endsCond('v.ends')}`
           + `${ids ? ` and v.id = any (${ids})` : ''})`;
       }
-      // по классу: id-кандидаты классов шага, последняя версия — любого класса (как find_ids, план 2.0, 7.1 №1)
+      // по классу: id-кандидаты классов шага, последняя версия — любого класса (как find_ids)
       return `(select v.id, v.rev from ${versionsAt(at, ids ? `l.id = any (${ids})` : `l.id in (select c.id from ${S}.log c where c.class = any (${clsPh}))`)} v `
         + `where v.class = any (${clsPh}) and (v.op = 'delete') = ${isDead}${dataCond('v')}${endsCond(`${S}.link_ids(v.links)`)})`;
     };
@@ -876,8 +882,9 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
   const ents = single ? `n${lastNode}` : `(select z0.* from n${lastNode} z0 where z0.id in (select h${lastNode}.id ${from}${whereOf(tail)}))`;
   const leaf = (path: string[]) => leafOf(reg, rowsNode(lastNode), path);
   const mixed = (path: string[], t: LeafType) => leafMixed(reg, rowsNode(lastNode), path, t);
-  if (mods.order?.startsWith('data.')) checkField(rowsNode(lastNode), topField(mods.order), `sort('${mods.order}')`, false);
-  const sort = mods.order ? sortSpec(mods.order, leaf, mixed) : undefined;
+  if (typeof mods.order === 'string' && mods.order.startsWith('data.')) checkField(rowsNode(lastNode), topField(mods.order), `sort('${mods.order}')`, false);
+  // sort('') — отказ sortSpec, а не «сортировки нет»
+  const sort = mods.order !== undefined ? sortSpec(mods.order, leaf, mixed) : undefined;
   const dir = mods.desc ? ' desc' : '';
   /** Порядок: поле sort, id строки и разделители равных (id прочих узлов пути). */
   const orderBy = (a: string, more: string[] = []) => (sort ? ` order by ${[sort.expr(a), `${a}.id`, ...more].map((x) => `${x}${dir}`).join(', ')}` : '');
@@ -885,17 +892,18 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
    * «Строго после курсора» в порядке order by: поле sort, id строки и разделители равных из курсора — rev версии
    * (versions()) или id прочих узлов пути (paths()). Без них страница начиналась бы после всех строк с тем же полем
    * и id: терялись бы другие версии объекта и другие пути к тому же узлу. Курсор без rev или path сравнивается по
-   * началу порядка, как прежде.
+   * началу порядка (поле sort и id).
    */
   const after = (a: string, ties: (c: Cursor) => { col: string; val: unknown; cast: string }[] = () => []) => {
-    if (!mods.after) return undefined;
+    // after(null), after(0), after('') — курсор задан, но не курсор: отказ cursorParams, а не первая страница
+    if (mods.after === undefined) return undefined;
     if (!sort) throw lerr('query.after_without_sort');
     const c = cursorParams(mods.after, sort!);
     const t = ties(mods.after);
     const lt = mods.desc ? '<' : '>';
     // Поле данных бывает null (или его нет): order by ставит такие строки в конец при возрастании и в
-    // начало при убывании, а сравнение строк с null даёт null — одно сравнение их теряло, курсор null
-    // давал пустую страницу. Здесь null — значение после всех прочих (asc) или перед ними (desc); текст
+    // начало при убывании, а сравнение строк с null даёт null — одно сравнение их теряло бы, курсор null
+    // давал бы пустую страницу. Здесь null — значение после всех прочих (asc) или перед ними (desc); текст
     // один на оба вида курсора (параметр — с явным приведением: он стоит и в is null).
     const v = `${p.push(c.v)}${sort!.nullable ? sort!.pcast || '::text' : sort!.pcast}`;
     const cols = [`${a}.id`, ...t.map((x) => x.col)];
@@ -908,7 +916,7 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
       : `((${e}, ${cols.join(', ')}) > (${v}, ${vals.join(', ')}) or (${e} is null and (${v} is not null or ${rest})))`;
   };
   // ключи пути — в порядке шагов, узел последнего шага (его строки отдают rows()) — последним: по нему cursorOf(путь)
-  // берёт поле и id курсора, по прочим — разделители путей к одному узлу (план 2.0, 7.1 №3)
+  // берёт поле и id курсора, по прочим — разделители путей к одному узлу
   const others = keyed.filter((k) => k.node !== lastNode);
   const pathKeys = [...others, ...keyed.filter((k) => k.node === lastNode)].map((k) => k.key);
   const limitOffset = () =>
@@ -943,7 +951,7 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
       // с sort — по полю и направлению (последние версии первыми — sort('at', 'desc'), с limit — в самом запросе);
       // без sort — по id и номеру версии
       const order = sort ? `${sort.expr('v')}${dir}, v.id${dir}, v.rev${dir}` : 'v.id, v.rev';
-      // курсор — поле sort, id и номер версии: версии одного объекта с равным полем не теряются (план 2.0, 7.1 №4)
+      // курсор — поле sort, id и номер версии: версии одного объекта с равным полем не теряются
       const cond = whereOf([after('v', (c) => {
         const rev = cursorRev(c);
         return rev === undefined ? [] : [{ col: 'v.rev', val: rev, cast: '::int' }];
@@ -953,7 +961,7 @@ export function buildRead(reg: Registry, schema: string, steps: Step[], mods: Ch
       break;
     }
     case 'agg': {
-      if (!agg || !agg.field.startsWith('data.')) throw lerr('query.agg_field');
+      if (!agg || typeof agg.field !== 'string' || !agg.field.startsWith('data.')) throw lerr('query.agg_field');
       const path = agg!.field.slice(5).split('.');
       checkField(rowsNode(lastNode), path[0], `${agg!.fn}('${agg!.field}')`, false);
       const acc = accessor(path)('z');
