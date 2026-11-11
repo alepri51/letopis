@@ -14,7 +14,7 @@ const UPSERT: Record<string, string> = { created: 'цена создана', upd
 
 /**
  * Прайс салона — класс price сида (ключ [Item, note]): цена услуги — upsert (POST /api/price/:услуга), прайс списком —
- * db.load() администраторским подключением от имени вошедшего (POST /api/price/load). onChanged — перечитать панель
+ * upsert каждой строки одной транзакцией вошедшей (POST /api/price/load). onChanged — перечитать панель
  * «Под капотом».
  */
 export function Price({ onChanged }: { onChanged: () => void }) {
@@ -91,9 +91,9 @@ export function Price({ onChanged }: { onChanged: () => void }) {
         <CardHeader>
           <CardTitle>Прайс списком</CardTitle>
           <CardDescription>
-            Строка — «услуга; цена», не больше 1000 строк по 200 знаков. Список пишет <code>db.load()</code> администраторским подключением: <code>COPY</code> мимо RLS одной
-            транзакцией, от вашего имени и в ваш салон (<code>as</code>, <code>tenant</code>) — права и услуги проверяет загрузчик.
-            <code> existing: 'update'</code>: цена есть — новая версия, та же — пропуск.
+            Строка — «услуга; цена», не больше 1000 строк по 200 знаков. Список пишется одной транзакцией от вашего имени
+            (<code>db.begin()</code>): <code>upsert</code> цены каждой услуги по ключу <code>[Item, note]</code>, права проверяет база;
+            ошибка любой строки откатывает весь список. Цены нет — создаётся, есть — новая версия, та же — пропуск.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3">

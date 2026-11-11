@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from 'react';
-import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 // блоки shadcnblocks: навигация и показатели
 import { LOGO } from '@/components/login1';
@@ -33,7 +32,7 @@ export function Desk({ me, onMe }: { me: Me; onMe: (me: Me | null) => void }) {
     addEventListener('hashchange', onHash);
     return () => removeEventListener('hashchange', onHash);
   }, []);
-  // живая очередь: сервер подписан на изменения заявок (db.watch) и шлёт событие — раздел перечитывает данные
+  // живая очередь: сервер подписан на изменения заявок (me.watch) и шлёт событие — раздел перечитывает данные
   useEffect(() => {
     const es = new EventSource('/api/events');
     es.addEventListener('ready', () => setLive(true));
@@ -54,23 +53,12 @@ export function Desk({ me, onMe }: { me: Me; onMe: (me: Me | null) => void }) {
     };
   }, [me.tenant]);
   useEffect(() => { refresh(); }, [refresh, route, tick]);
-  // смена компании: auth.switch() — та же учётная запись, другой арендатор
-  useEffect(() => {
-    const m = /^\/switch\/(.+)$/.exec(route);
-    if (!m) return;
-    api<Me>('/api/switch', { tenant: m[1] }).then((next) => { onMe(next); toast.success(`Компания: ${next.company}`); }, (e) => toast.error(e.message))
-      .finally(() => { location.hash = '/tickets'; });
-  }, [route, onMe]);
   const staff = me.role !== 'client';
   const menu = [
     { title: staff ? 'Очередь' : 'Мои заявки', url: '#/tickets' },
     ...(me.role === 'manager' ? [{ title: 'Команда', url: '#/team' }, { title: 'Интеграции', url: '#/keys' }] : []),
     ...(staff ? [{ title: 'Помощник', url: '#/assistant' }] : []),
     { title: 'Безопасность', url: '#/security' },
-    ...(me.companies.length > 1 ? [{
-      title: `Компания: ${me.company}`, url: '#/tickets',
-      items: me.companies.map((c) => ({ title: c.name, url: `#/switch/${c.tenant}`, description: c.tenant === me.tenant ? 'сейчас' : 'перейти — auth.switch()' })),
-    }] : []),
   ];
   const page = route.startsWith('/team') ? <Team me={me} tick={tick} onChanged={refresh} />
     : route.startsWith('/keys') ? <Keys tick={tick} onChanged={refresh} />
@@ -91,7 +79,7 @@ export function Desk({ me, onMe }: { me: Me; onMe: (me: Me | null) => void }) {
         auth={{ login: { title: 'Документация', url: DOCS }, signup: { title: 'Выйти', url: '/logout' } }} />
       {stats && (
         <Stats8 className="mb-6 py-6" heading={staff ? 'Очередь поддержки' : 'Ваши обращения'}
-          description={live ? 'Очередь обновляется сама: сервер подписан на изменения заявок (db.watch → SSE).' : 'Подключаем живое обновление…'}
+          description={live ? 'Очередь обновляется сама: сервер подписан на изменения заявок (me.watch → SSE).' : 'Подключаем живое обновление…'}
           link={{ text: 'Как устроен сервис', url: DOCS }}
           stats={[
             { id: 'open', value: String(stats.open), label: staff ? 'открытых заявок' : 'открытых обращений' },

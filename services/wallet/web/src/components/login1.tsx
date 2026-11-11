@@ -34,7 +34,7 @@ const Login1 = ({ heading = "Вход", hint, error, buttonText = "Войти", 
           </div>
           <div className="flex w-full flex-col gap-8">
             <div className="flex flex-col gap-2">
-              <Input type="email" placeholder="Логин (email)" aria-label="Логин" autoComplete="username" value={login} onChange={(e) => setLogin(e.target.value)} required />
+              <Input type="email" placeholder="Email" aria-label="Email" autoComplete="username" value={login} onChange={(e) => setLogin(e.target.value)} required />
               <Input type="password" placeholder="Пароль" aria-label="Пароль" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
             </div>
             {error && <p role="alert" className="text-sm text-destructive">{error}</p>}

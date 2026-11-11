@@ -22,9 +22,10 @@ export function Security({ me, onMe, onChanged }: { me: Me; onMe: (me: Me | null
         <CardHeader>
           <CardTitle className="flex items-center gap-2">Второй фактор (TOTP) {me.totp ? <Badge>включён</Badge> : <Badge variant="outline">выключен</Badge>}</CardTitle>
           <CardDescription>
-            После пароля или кода из письма сервис попросит шестизначный код из приложения-аутентификатора.
-            letopis хранит секрет в таблице <code>secret</code>, сверяет код и не даёт использовать один код дважды.
-            Отключить фактор можно только с действующим кодом: сервис гасит его кред (<code>auth.revokeCredential</code>).
+            Второй фактор — ключ TOTP этой компании: после пароля или кода из письма понадобится шестизначный код из
+            приложения-аутентификатора. letopis хранит секрет в таблице <code>secret</code>, сверяет код и не даёт использовать
+            один код дважды. Подключить и отключить фактор можно в первые 10 минут после входа; отключить — только с действующим
+            кодом: <code>me.keys.revoke</code> отзывает ключ TOTP и гасит другие ваши сессии в компании.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">
@@ -36,10 +37,9 @@ export function Security({ me, onMe, onChanged }: { me: Me; onMe: (me: Me | null
               e.preventDefault();
               try {
                 await api('/api/security/totp/disable', { code: offCode });
-                // гашение креда, который не ключ, закрывает все сессии аккаунта, кроме сессии вызывающего — сервиса;
-                // в том числе эту (lib/sql/80-auth.sql: auth_revoke_credential)
-                toast.success('Второй фактор отключён. Все сессии аккаунта закрыты — войдите снова, уже без кода из приложения');
-                setOffCode(''); onMe(null);
+                // отзыв ключа TOTP гасит другие сессии жильца в компании, текущая остаётся (keys.revoke, keepCurrent)
+                toast.success('Второй фактор отключён. Другие ваши сессии в компании закрыты, эта осталась');
+                setOffCode(''); onMe({ ...me, totp: false }); onChanged();
               } catch (err) { toast.error((err as Error).message); onChanged(); }
             }}>
               <Label htmlFor="totp-off">Код из приложения — чтобы отключить второй фактор</Label>
@@ -72,8 +72,9 @@ export function Security({ me, onMe, onChanged }: { me: Me; onMe: (me: Me | null
         <CardHeader>
           <CardTitle>Сеансы</CardTitle>
           <CardDescription>
-            «Выйти на всех устройствах» гасит все сессии вашей учётной записи (<code>auth.revokeAll</code>): другие вкладки
-            и браузеры при следующем запросе попросят войти заново.
+            «Выйти на всех устройствах» гасит все ваши сессии в этой компании (<code>me.closeAll()</code>) и временные ключи
+            ИИ-агента: другие вкладки и браузеры при следующем запросе попросят войти заново. В других компаниях у вас свои
+            ключи — их сессии не трогаются.
           </CardDescription>
         </CardHeader>
         <CardContent>

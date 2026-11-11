@@ -23,8 +23,10 @@ export function Keys({ tick, onChanged }: { tick: number; onChanged: () => void 
       <CardHeader>
         <CardTitle>Интеграции: ключи API</CardTitle>
         <CardDescription>
-          Ключ даёт программе (форма на сайте, почтовый шлюз, ИИ-агент) вход без пароля: <code>auth.issueApiKey</code> выдаёт,
-          <code> auth.verifyApiKey</code> проверяет, <code>auth.revokeCredential</code> отзывает. Тот же ключ подходит для адреса <code>/mcp</code>.
+          Ключ даёт программе (форма на сайте, почтовый шлюз) вход без пароля. У каждого ключа — свой аккаунт с ролью
+          <code> integration</code>: руководитель зовёт его (<code>me.invite</code>) на служебный адрес, сервис сам забирает ссылку,
+          принимает приглашение за программу и выпускает ей ключ (<code>keys.issueApiKey</code>). «Отозвать» выписывает этот аккаунт — ключ и его сессии гаснут.
+          Тот же ключ подходит для адреса <code>/mcp</code> — только чтение.
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">

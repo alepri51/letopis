@@ -1,20 +1,22 @@
 /**
  * Сценарий «день работы» салона: сервис поднимается в этом же процессе, шаги идут через его JSON API —
- * те же запросы, что шлёт интерфейс (React + shadcn/ui). Им же проверяется сервис в CI. Код выхода 1 — сбой.
+ * те же запросы, что шлёт интерфейс (React + shadcn/ui). Код выхода 1 — сбой.
  *
- *   ADMIN_DSN=… APP_DSN=… node scenario.mjs
- *
- * Простой сервиса дольше срока сессии — без ожидания: срок сессий createTenant управляющей истекает в базе отдельным
- * подключением по ADMIN_DSN.
+ *   LETOPIS_PASS=… node scenario.mjs   — в готовом доме (пропуск печатает src/setup.mjs); повтор безопасен: в конце
+ *                                        сценарий отменяет свои брони и возвращает прежние цены
+ *   ADMIN_DSN=… node scenario.mjs      — свой дом с нуля мастер-ключом (HOUSE, по умолчанию salon_scenario); в конце
+ *                                        он сносится (demolish)
  */
-import postgres from 'postgres';
-import { createApp, SALONS } from './src/server.mjs';
+import { demolish } from 'letopis';
+import { adminDsn } from '../shared/house.mjs';
 
-const { app, schema, close } = await createApp();
-const server = app.listen(0, '127.0.0.1');
-await new Promise((r) => server.once('listening', r));
-const base = `http://127.0.0.1:${server.address().port}`;
+// без пропуска — свой дом: подготовка мастер-ключом, как шаг инициализации run-local.sh
+const own = !process.env.LETOPIS_PASS?.trim();
+const HOUSE = process.env.HOUSE ?? 'salon_scenario';
+// модуль сервиса пропуска не требует: его читает createApp()
+const { createApp, SALONS } = await import('./src/server.mjs');
 const failures = [];
+let server = null, close = async () => {}, house, base = '';
 const check = (ok, what) => { console.log(`${ok ? '✓' : '✗'} ${what}`); if (!ok) failures.push(what); };
 
 async function call(cookie, path, body) {
@@ -25,13 +27,27 @@ async function call(cookie, path, body) {
 }
 
 try {
+  // дом и сервис — внутри try: упала подготовка или старт — свой дом всё равно сносится (finally)
+  if (own) {
+    const { prepare } = await import('./src/setup.mjs');
+    process.env.LETOPIS_PASS = (await prepare(adminDsn(), HOUSE)).pass;
+  }
+  const svc = await createApp();
+  ({ house, close } = svc);
+  server = svc.app.listen(0, '127.0.0.1');
+  await new Promise((r) => server.once('listening', r));
+  base = `http://127.0.0.1:${server.address().port}`;
+
   const bad = await call('', '/api/login', { login: SALONS[0].user.login, password: 'неверный' });
-  check(bad.status === 401, 'неверный пароль — 401');
+  check(bad.status === 401 && !bad.cookie, 'неверный пароль — 401, ключ не подошёл');
 
   const { cookie } = await call('', '/api/login', SALONS[0].user);
-  check(cookie.startsWith('sid='), 'вход управляющей «Локонов»');
+  check(/^sid=[a-f0-9]{64}$/.test(cookie), 'вход управляющей «Локонов» её ключом: в cookie — токен сессии');
   const me = await call(cookie, '/api/me');
-  check(me.data?.salon === 'Локоны', 'сессия знает салон');
+  check(me.data?.salon === 'Локоны', 'сессия знает салон — квартиру ключа');
+  // email без учёта регистра: имя для входа база сверяет так же
+  const upper = await call('', '/api/login', { ...SALONS[0].user, login: SALONS[0].user.login.toUpperCase() });
+  check(upper.status === 200 && upper.data?.salon === 'Локоны', 'email в другом регистре — тот же ключ');
 
   // день — завтра, чтобы не мешать ручным броням
   const day = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
@@ -47,10 +63,10 @@ try {
   const afterBook = (await call(cookie, `/api/schedule?day=${day}`)).data;
   const mine = afterBook.bookings.find((b) => b.customer === 'Клиент сценария');
   check(first.status === 200 && !!mine, 'бронь на 15:00 записана');
-  // панель «Под капотом»: какие версии записала бронь (журнал схемы) и что ушло в канал схемы
+  // панель «Под капотом»: какие версии записала бронь (журнал дома) и что ушло в канал дома
   const hood = (await call(cookie, '/api/trace')).data?.[0];
   check(hood?.title === 'Записать клиента' && hood.versions.some((v) => v.class === 'booking' && v.op === 'create' && v.label === '15:00')
-    && hood.versions.some((v) => v.class === 'Customer') && hood.signals.includes('booking'), 'под капотом: бронь — версии booking и Customer, сигналы канала схемы');
+    && hood.versions.some((v) => v.class === 'Customer') && hood.signals.includes('booking'), 'под капотом: бронь — версии booking и Customer, сигналы канала дома');
   const again = await call(cookie, '/api/book', { ...slot, name: 'Второй клиент' });
   check(again.status === 409 && /уже занят/.test(again.data?.error ?? ''), 'повторная бронь того же слота — 409 «слот уже занят»');
 
@@ -101,8 +117,8 @@ try {
   check(rep?.total === sched.total && rep.staff.reduce((n, m) => n + m.count, 0) === rep.total
     && ours?.count === sched.bookings.filter((b) => b.staff === slot.staff).length && ours.count >= 2, 'отчёт дня: брони по мастерам, сумма — все брони дня (у мастера — гонка и перенесённая)');
 
-  // прайс: цена услуги — upsert по ключу [Item, note]; список — db.load({ existing: 'update' }) администраторским
-  // подключением от имени вошедшей. Цены до сценария запоминаем и в конце возвращаем
+  // прайс: цена услуги — upsert по ключу [Item, note]; список — upsert каждой строки одной транзакцией вошедшей.
+  // Цены до сценария запоминаем и в конце возвращаем
   const before = (await call(cookie, '/api/price')).data;
   const cut = before[0];
   const p1 = (cut.price ?? 2000) + 100;
@@ -117,10 +133,10 @@ try {
   const list = before.map((x) => `${x.name}; ${want.get(x.id)}`).join('\n');
   const loaded = await call(cookie, '/api/price/load', { text: list });
   check(loaded.status === 200 && loaded.data.rows === before.length && loaded.data.loaded + loaded.data.updated === before.length
-    && (await call(cookie, '/api/price')).data.every((x) => x.price === want.get(x.id)), 'прайс списком — db.load({ existing: \'update\' }): цены записаны');
+    && (await call(cookie, '/api/price')).data.every((x) => x.price === want.get(x.id)), 'прайс списком — upsert каждой строки одной транзакцией: цены записаны');
   const hoodLoad = (await call(cookie, '/api/trace')).data?.[0];
-  check(hoodLoad?.title === 'Прайс списком' && hoodLoad.versions.filter((v) => v.class === 'price').length === before.length && hoodLoad.signals.includes('price'),
-    'под капотом: загрузка — версии price от имени вошедшей (load({ as })), сигнал price');
+  check(hoodLoad?.title === 'Прайс списком' && hoodLoad.versions.filter((v) => v.class === 'price').length === before.length && hoodLoad.signals.includes('price')
+    && hoodLoad.lines.includes('tr.commit()'), 'под капотом: прайс списком — одна транзакция, версии price вошедшей, сигнал price');
   const same = await call(cookie, '/api/price/load', { text: list });
   check(same.status === 200 && same.data.skipped === before.length && same.data.loaded + same.data.updated === 0, 'тот же список ещё раз — без изменений: всё в skipped');
   // ReDoS: строка в 50 000 знаков из цифр и пробелов с неподходящим концом — отказ сразу, без перебора;
@@ -134,28 +150,24 @@ try {
   const unknown = await call(cookie, '/api/price/load', { text: `${cut.name}; 1\nМассаж спины; 3000` });
   check(unknown.status === 422 && /Массаж спины/.test(unknown.data?.error ?? '') && (await call(cookie, '/api/price')).data.find((x) => x.id === cut.id)?.price === want.get(cut.id),
     'неизвестная услуга в списке — 422, ничего не загружено');
-  // простой дольше срока сессии управляющей — без ожидания: срок её сессий createTenant (без methods; веб-сессия входа
-  // по паролю не трогается) истекает в базе. Прайс списком пишет загрузчик администраторского подключения от имени
-  // вошедшей (load({ as, tenant })) — сессия подключения ему не нужна (план 2.0, 7.6 №5)
-  const sql = postgres(process.env.ADMIN_DSN ?? 'postgres://postgres:guide@127.0.0.1:15440/letopis', { max: 1, onnotice: () => {} });
-  const S = `"${schema.replace(/"/g, '""')}"`;
-  const expired = await sql.unsafe(`update ${S}.secret set expires_at = clock_timestamp() - interval '1 second'
-    where kind = 'SESSION' and not (meta ? 'methods') and account = (select account from ${S}.secret where kind = 'PASSWORD' and ident = $1)`, [SALONS[0].user.login])
-    .finally(() => sql.end({ timeout: 2 }));
-  const later = new Map(before.map((x) => [x.id, want.get(x.id) + 100]));
-  const idle = await call(cookie, '/api/price/load', { text: before.map((x) => `${x.name}; ${later.get(x.id)}`).join('\n') });
-  check(idle.status === 200 && idle.data.loaded + idle.data.updated === before.length && (await call(cookie, '/api/price')).data.every((x) => x.price === later.get(x.id)),
-    `прайс списком после простоя (истекло сессий createTenant: ${expired.count}) — цены записаны${idle.status === 200 ? '' : `: ${idle.status} ${idle.data?.error}`}`);
+
+  // сессия — токен в cookie: сервис, который её не помнит (перезапуск), открывает её сам — db.resume(token)
+  const outside = await house.open({ email: SALONS[1].user.login, password: SALONS[1].user.password });
+  check((await call(`sid=${outside.token}`, '/api/me')).data?.salon === 'Ласточка', 'сессия, которой сервис не знал, открылась по cookie (db.resume): вход переживает перезапуск');
+  // истёкший токен — 401 и вход заново: короткую сессию выдаёт сам дом (ключ управляющей, ttl 1 с)
+  const brief = await house.open({ email: SALONS[0].user.login, password: SALONS[0].user.password, ttl: 1 });
+  await new Promise((r) => setTimeout(r, 1500));
+  const stale = await call(`sid=${brief.token}`, '/api/schedule');
+  check(stale.status === 401 && (await call(`sid=${brief.token}`, '/api/me')).data === null, 'истёкшая сессия в cookie — 401, вход заново');
 
   const other = await call('', '/api/login', SALONS[1].user);
   const otherDay = (await call(other.cookie, `/api/schedule?day=${day}`)).data;
-  check(!otherDay.bookings.some((b) => b.customer === 'Клиент сценария'), 'другой салон чужую бронь не видит (арендаторы разделены)');
+  check(!otherDay.bookings.some((b) => b.customer === 'Клиент сценария'), 'другой салон чужую бронь не видит (квартиры разделены)');
   const otherPrice = (await call(other.cookie, '/api/price')).data;
   const foreign = await call(other.cookie, '/api/price/load', { text: `${cut.name}; 1` });
   check(!otherPrice.some((x) => want.has(x.id)) && foreign.status === 422, 'другой салон — свой прайс: услуг «Локонов» в нём нет, загрузить им цену нельзя');
 
-  // выход закрывает поток событий своей сессии: подписка через фасад сервиса переживала выход — вкладка получала
-  // события прежнего салона, а с cookie новой сессии того же браузера показывала её данные под прежней шапкой
+  // выход закрывает поток событий своей сессии и гасит её саму: тот же токен больше не открывается
   {
     const { cookie: c2 } = await call('', '/api/login', SALONS[0].user);
     const ctl = new AbortController();
@@ -178,6 +190,7 @@ try {
     const outcome = await Promise.race([ended, new Promise((r) => setTimeout(() => r('открыт через 5 с'), 5000))]);
     ctl.abort();
     check(outcome === 'закрыт', `выход закрывает поток событий своей сессии (${outcome})`);
+    check((await call(c2, '/api/schedule')).status === 401, 'после выхода тот же токен — 401: me.close() погасил сессию');
   }
 
   // повторный прогон на тех же данных — убираем свои брони, цены — как до сценария
@@ -189,8 +202,9 @@ try {
   failures.push(String(e?.stack ?? e));
   console.log(`✗ сценарий упал: ${e?.stack ?? e}`);
 } finally {
-  server.close();
-  await close();
+  server?.close();
+  await close().catch(() => {});
+  if (own) await demolish(adminDsn(), HOUSE, { quiet: true }).catch(() => {});
 }
 console.log(failures.length ? `\nупало шагов: ${failures.length}` : '\nдень работы прошёл');
 process.exit(failures.length ? 1 : 0);

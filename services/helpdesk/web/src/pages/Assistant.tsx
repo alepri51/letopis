@@ -11,14 +11,14 @@ import { api } from '@/lib/api';
 /**
  * Помощник — детерминированный ИИ-агент без языковой модели: команду разбирает по образцам и выполняет через MCP.
  * Клиент MCP — прямо в браузере: JSON-RPC по HTTP на адрес /mcp сервиса (тот же адрес подходит настоящему агенту).
- * Чтение выполняется сразу, запись — только после подтверждения человеком. Настоящему агенту — ключ API или короткая
- * сессия (auth.sessionFor): сессия истекает сама, «Погасить» гасит её сразу.
+ * Чтение выполняется сразу, запись — только после подтверждения человеком. Настоящему агенту — ваш ключ API: постоянный
+ * или временный на 15 минут (me.keys.issueApiKey({ ttl })) — он истекает сам, «Отозвать» гасит его сразу.
  */
 type Call = { id: number; method: string; params: unknown; result?: unknown; error?: string };
 type Line = { who: 'вы' | 'помощник'; text: string };
 type Pending = { title: string; args: Record<string, unknown>; resolve: (ok: boolean) => void };
 type Row = { id: string; rev: number; owner: string; data: Record<string, unknown> };
-type AgentSession = { id: string; company: string; until: string; methods: string[] };
+type AgentSession = { id: string; company: string; until: string };
 
 const EXAMPLES = ['открытые заявки', 'срочные заявки', 'заявка HD-1', 'история HD-1', 'ответь на HD-1: Проверили и исправили — проверьте, пожалуйста', 'реши HD-1'];
 const clock = (iso: string) => new Date(iso).toLocaleTimeString('ru-RU');
@@ -72,17 +72,17 @@ export function Assistant({ onChanged }: { onChanged: () => void }) {
     try { setIssued(await api('/api/assistant/session', {})); setProbe(''); loadSessions(); onChanged(); } catch (e) { toast.error((e as Error).message); }
   };
   const dropSession = async (id: string) => {
-    try { await api(`/api/assistant/sessions/${id}/revoke`, {}); toast.success('Сессия агента погашена'); } catch (e) { toast.error((e as Error).message); }
+    try { await api(`/api/assistant/sessions/${id}/revoke`, {}); toast.success('Ключ агента отозван'); } catch (e) { toast.error((e as Error).message); }
     loadSessions(); onChanged();
   };
-  /** Вызов /mcp так, как его сделает агент: только токен сессии в заголовке, без cookie вкладки (credentials: 'omit'). */
+  /** Вызов /mcp так, как его сделает агент: только ключ в заголовке, без cookie вкладки (credentials: 'omit'). */
   const probeAgent = async (token: string) => {
     const r = await fetch('/mcp', {
       method: 'POST', credentials: 'omit',
       headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json', accept: 'application/json, text/event-stream' },
       body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'letopis_query', arguments: { class: 'Ticket', filter: { status: { $in: ['new', 'open', 'pending'] } }, terminal: 'count' } } }),
     });
-    if (r.status === 401) setProbe('401: сессия погашена или истекла — агент больше ничего не может');
+    if (r.status === 401) setProbe('401: ключ отозван или истёк — агент больше ничего не может');
     else {
       const msg = answerOf(r, await r.text(), 1);
       const count = msg.result?.structuredContent?.data?.count;
@@ -166,17 +166,19 @@ export function Assistant({ onChanged }: { onChanged: () => void }) {
       <Card>
         <CardHeader>
           <CardTitle>Настоящий ИИ-агент</CardTitle>
-          <CardDescription>Тот же адрес <code>/mcp</code> принимает ключ API или короткую сессию: агент работает с вашими правами.</CardDescription>
+          <CardDescription>Тот же адрес <code>/mcp</code> принимает ваш ключ API — постоянный или временный: агент работает с вашими правами.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3">
           <div className="flex flex-wrap gap-2">
-            {!agentKey && <Button variant="outline" onClick={async () => setAgentKey(await api('/api/assistant/key', {}))}>Выдать ключ для агента</Button>}
-            <Button variant="outline" onClick={issueSession}>Сессия агента на 15 минут</Button>
+            {!agentKey && <Button variant="outline" onClick={async () => {
+              try { setAgentKey(await api('/api/assistant/key', {})); onChanged(); } catch (e) { toast.error((e as Error).message); }
+            }}>Выдать ключ для агента</Button>}
+            <Button variant="outline" onClick={issueSession}>Временный ключ на 15 минут</Button>
           </div>
           {agentKey && <pre className="whitespace-pre-wrap rounded bg-muted p-2 text-xs" data-agent-key={agentKey.key}>{`claude mcp add --transport http helpdesk "${location.origin}${agentKey.url}" \\\n  --header "Authorization: Bearer ${agentKey.key}"`}</pre>}
           {issued && (
             <div className="grid gap-2 rounded-md border p-3" data-agent-session={issued.id}>
-              <p className="text-sm">Сессия до {clock(issued.until)} · вход {issued.methods.join(', ')} · «{issued.company}». Токен показан один раз:</p>
+              <p className="text-sm">Ключ до {clock(issued.until)} · «{issued.company}». Ключ показан один раз:</p>
               <pre className="whitespace-pre-wrap break-all rounded bg-muted p-2 text-xs" data-agent-token={issued.token}>{`claude mcp add --transport http helpdesk "${location.origin}${issued.url}" \\\n  --header "Authorization: Bearer ${issued.token}"`}</pre>
               <div className="flex flex-wrap items-center gap-2">
                 <Button size="sm" variant="secondary" onClick={() => probeAgent(issued.token)}>Проверить доступ агента</Button>
@@ -186,26 +188,26 @@ export function Assistant({ onChanged }: { onChanged: () => void }) {
           )}
           {sessions.length > 0 && (
             <Table>
-              <TableHeader><TableRow><TableHead>сессия агента</TableHead><TableHead>истекает</TableHead><TableHead>вход</TableHead><TableHead /></TableRow></TableHeader>
+              <TableHeader><TableRow><TableHead>временный ключ агента</TableHead><TableHead>истекает</TableHead><TableHead /></TableRow></TableHeader>
               <TableBody>{sessions.map((x) => (
                 <TableRow key={x.id} data-agent-row={x.id}>
-                  <TableCell>«{x.company}»</TableCell><TableCell>{clock(x.until)}</TableCell><TableCell>{x.methods.join(', ')}</TableCell>
-                  <TableCell><Button size="sm" variant="outline" onClick={() => dropSession(x.id)}>Погасить</Button></TableCell>
+                  <TableCell>«{x.company}»</TableCell><TableCell>{clock(x.until)}</TableCell>
+                  <TableCell><Button size="sm" variant="outline" onClick={() => dropSession(x.id)}>Отозвать</Button></TableCell>
                 </TableRow>))}</TableBody>
             </Table>
           )}
           <ul className="grid list-disc gap-1 pl-5 text-sm text-muted-foreground">
-            <li>Ключ (<code>auth.issueApiKey</code>) — кред: он есть в <code>auth.credentials()</code> и действует, пока его не отзовут.</li>
+            <li>Ключ (<code>me.keys.issueApiKey</code>) — ваш ключ в этой компании: он есть среди ваших ключей (<code>me.keys.list()</code>) и действует, пока его не отзовут.</li>
             <li>
-              Сессия (<code>{'auth.sessionFor(вы, { ttl: 900 })'}</code>, затем <code>{'connect({ token })'}</code> и <code>auth.switch</code>) — не
-              кред: в <code>credentials()</code> её нет, список ведёт сервис. Истекает сама через 15 минут — работа агента срок не
-              продлевает; «Погасить» (<code>auth.revoke()</code>), выход и «Выйти на всех устройствах» гасят её сразу.
-              Компанию сессия помнит сама, поэтому адрес — без <code>?tenant</code>.
+              Временный ключ (<code>{'me.keys.issueApiKey({ ttl: 900 })'}</code>) — тоже ваш, но на 15 минут: истекает сам, работа
+              агента срок не продлевает; «Отозвать» (<code>me.keys.revoke(id)</code>) и «Выйти на всех устройствах» гасят его
+              сразу. Ключ открывает одну компанию, поэтому адрес — просто <code>/mcp</code>.
             </li>
             <li>
-              В журнале правки агента по сессии — ваши: автор вы, исполнителя (<code>agent</code>) нет. «Работать от имени»
-              (<code>svc.as</code>) пишет иначе: автор — тот, от чьего имени, исполнитель — сервис.
+              В журнале правки агента по ключу — ваши: автор вы, исполнителя (<code>agent</code>) нет. «Работать от имени»
+              (<code>db.as</code>) пишет иначе: автор — тот, от чьего имени, исполнитель — сервис.
             </li>
+            <li>Ключи выдаются в первые 10 минут после входа паролем или кодом — позже выйдите и войдите снова.</li>
           </ul>
         </CardContent>
       </Card>

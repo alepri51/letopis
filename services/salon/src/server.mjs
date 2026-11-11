@@ -1,42 +1,43 @@
 /**
  * Сервис-пример «Салон записи» на letopis.
  *
- * - При старте: up() схемы салона с демо-доменом booking (повтор безопасен), роль приложения, два салона-арендатора
- *   (createTenant) и их справочники: мастера, услуги, локация, расписание.
- * - Вход по паролю (db.auth.verifyPassword). Токен letopis в cookie не попадает: веб-сессия живёт на сервере,
- *   cookie несёт только её случайный номер. Запросы идут от имени вошедшего: svc.as(account, { tenant }).
+ * - Дом салона один раз готовит мастер-ключ (src/setup.mjs: setup() с сидом booking — модель салона в общих классах
+ *   дома, — квартиры двух салонов и засев демо-управляющих по приглашению). Сервис знает только пропуск LETOPIS_PASS:
+ *   connect(pass, { postman }) — консьерж дома; почтальон — заглушка (services/shared/postman.mjs).
+ * - При старте консьерж никого не зовёт: он только пишет справочники в квартирах (db.in) — мастера, услуги, локация,
+ *   расписание (повтор ничего не дублирует).
+ * - Вход управляющей — её ключом: db.open({ email, password }); ключ открывает квартиру её салона. Токен сессии —
+ *   в cookie (HttpOnly), каждый запрос открывает корень квартиры по нему: db.resume(token). Выход — room.close().
  * - Бронь — одной транзакцией под блокировкой мастера (domain.mjs); двойная бронь невозможна.
  * - Перенос брони — под той же блокировкой: id брони из ключа (мастер, начало), а ключ не меняется, поэтому перенос —
  *   новая бронь на новом слоте и удаление прежней одной транзакцией; у новой брони — новый id и своя история.
- * - Прайс — класс price сида (ключ [Item, note]): правка цены — upsert, список — db.load({ existing: 'update' })
- *   администраторским подключением letopis от имени вошедшего. Отчёт дня — брони по мастерам (report()).
- * - Живое расписание: db.watch() по классу booking → SSE → вторая вкладка обновляется сама.
+ * - Прайс — класс price сида (ключ [Item, note]): правка цены — upsert, список — upsert каждой строки одной
+ *   транзакцией вошедшей (db.begin()). Отчёт дня — брони по мастерам (report()).
+ * - Живое расписание: room.watch() по классу booking → SSE → вторая вкладка обновляется сама.
  * - Панель «Под капотом» (services/shared/trace.mjs): какие цепочки выполнило действие, какие запросы ушли в базу
  *   (onQuery), какие версии оно записало и сигналы записанных им классов.
  */
 import express from 'express';
 import postgres from 'postgres';
 import { fileURLToPath } from 'node:url';
-import { up, connect, createTenant } from 'letopis';
+import { connect } from 'letopis';
 import {
   HOURS, MOVE_REASON, today, directory, dayBookings, book, cancel, restore, move, history, report, priceList, setPrice, parsePriceList, loadPrices,
 } from './domain.mjs';
-// общее у четырёх сервисов-примеров: журнал «под капотом», веб-сессии по cookie, подписка → SSE
+// общее у четырёх сервисов-примеров: пропуск, почтальон-заглушка, журнал «под капотом», веб-сессии по cookie, подписка → SSE
+import { passFromEnv, passDsn, isMain } from '../../shared/house.mjs';
+import { createPostman } from '../../shared/postman.mjs';
 import { createTrace } from '../../shared/trace.mjs';
 import { createSessions } from '../../shared/sessions.mjs';
 import { eventStream } from '../../shared/events.mjs';
 
 const ENV = {
-  admin: process.env.ADMIN_DSN ?? 'postgres://postgres:guide@127.0.0.1:15440/letopis',
-  app: process.env.APP_DSN ?? 'postgres://salon_app:salon-app-secret@127.0.0.1:15440/letopis',
-  schema: process.env.SCHEMA ?? 'salon',
-  serviceKey: process.env.SERVICE_KEY ?? 'lts_' + 'a1b2c3d4e5f60718'.repeat(2),
   port: Number(process.env.PORT ?? 8081),
   // по умолчанию только эта машина: у демо известный пароль; в контейнере compose задаёт HOST=0.0.0.0
   host: process.env.HOST ?? '127.0.0.1',
 };
 
-/** Салоны демо: арендатор, его управляющий (логин и пароль для входа) и справочник. */
+/** Салоны демо: квартира, её управляющий (email и пароль для входа) и справочник. */
 export const SALONS = [
   { name: 'Локоны', user: { name: 'Мария', login: 'admin@lokony.ru', password: 'Lokony-2026!' },
     staff: [['Анна', 'стилист'], ['Олег', 'барбер']], services: [['Стрижка', 60], ['Окрашивание', 120], ['Укладка', 45]] },
@@ -46,48 +47,43 @@ export const SALONS = [
 
 
 export async function createApp() {
-  // ---------- установка и подключение ----------
-  const admin = postgres(ENV.admin, { max: 2, onnotice: () => {} });
-  // роль приложения заводит up({ login }): имя и пароль квотирует база, повтор обновляет пароль (план 2.0, 7.6 №7, 7.9 №4)
-  const appUrl = new URL(ENV.app);
-  const r = await up({ dsn: ENV.admin, schema: ENV.schema, upgrade: true, seeds: ['booking'], serviceKey: ENV.serviceKey, quiet: true,
-    login: { user: decodeURIComponent(appUrl.username), password: decodeURIComponent(appUrl.password) } });
-
-  // журнал «под капотом»: запросы к базе, записанные версии и сигналы текущего действия
-  const trace = await createTrace({
-    admin, schema: r.schema, size: 12,
+  // ---------- консьерж дома: только пропуск ----------
+  const pass = passFromEnv('salon');
+  let trace = null; // журнал «под капотом» — после подключения: ему нужна схема дома
+  // почтальон-заглушка: письма (ссылки-приглашения, коды) — в лог и демо-ящик; в настоящем сервисе — письмо или СМС
+  const box = createPostman({ service: 'salon' });
+  const db = await connect(pass, { onQuery: (e) => trace?.onQuery(e), postman: box.postman });
+  // слушатель канала сигналов «под капотом» — роль консьержа из пропуска, без ключа: строк он не видит
+  const listener = postgres(passDsn(pass), { max: 1, onnotice: () => {} });
+  trace = await createTrace({
+    listener, schema: db.schema, size: 12,
     // id брони — из ключа (мастер, начало): подпись — время начала; у цены — вариант и сумма
     label: (v) => (v.class === 'booking' ? String(v.data?.start_datetime ?? '').slice(11, 16)
       : v.class === 'price' ? `${v.data?.note ?? ''}: ${v.data?.amounts?.RUB ?? '—'} ₽` : ''),
   });
-  const svc = await connect({ dsn: ENV.app, schema: r.schema, apiKey: ENV.serviceKey, onQuery: trace.onQuery });
-  // загрузчику (db.load — прайс списком) нужно администраторское подключение letopis: роль, которая обходит RLS и может
-  // стать владельцем схемы. Сессии у него нет, и оно одно на все салоны: автора и арендатора загрузчик берёт из
-  // load({ as, tenant }) — вошедший и его салон, право WRITE на price проверяет по as. Постоянный токен истекал бы при
-  // простое (план 2.0, 7.6 №5)
-  const adm = await connect({ dsn: ENV.admin, schema: r.schema, allowBypassRls: true, onQuery: trace.onQuery });
 
-  // ---------- демо-данные: салоны и справочники (повтор ничего не дублирует) ----------
-  const tenants = new Map(); // логин → { tenant, account }
+  // ---------- демо: справочники салонов (повтор ничего не дублирует) ----------
+  // квартиры и управляющих завела подготовка дома (src/setup.mjs); справочник пишет консьерж в квартире (db.in) —
+  // фоновая работа сервиса, не вход управляющей
+  const tenants = new Set((await db.tenants()).map((t) => t.name));
   for (const s of SALONS) {
-    // токен createTenant не нужен: справочник пишет сервис от имени управляющего (svc.as) — сессия гаснет через минуту
-    const t = await createTenant(admin, r.schema, { name: s.name, user: { ...s.user, ttl: '1 minute' } });
-    tenants.set(s.user.login.toLowerCase(), { tenant: t.tenant, account: t.user });
-    const db = await svc.as(t.user, { tenant: t.tenant });
-    if (await db.Org().count()) continue;
-    const [org] = await db.Org().create({ name: s.name }).rows();
-    await db.Org(org).Location().create({ address: `${s.name}, ул. Садовая, 1` }).rows();
+    if (!tenants.has(s.name)) throw new Error(`salon: квартиры «${s.name}» нет — подготовьте дом: node src/setup.mjs`);
+    const salon = await db.in(s.name);
+    if (await salon.Org().count()) continue;
+    const [org] = await salon.Org().create({ name: s.name }).rows();
+    await salon.Org(org).Location().create({ address: `${s.name}, ул. Садовая, 1` }).rows();
     const d = new Date();
-    await db.Org(org).Schedule().create({ name: 'Основное', year: d.getUTCFullYear(), month: d.getUTCMonth() + 1 }).rows();
-    for (const [name, specialization] of s.staff) await db.Org(org).Staff().create({ name, phone: '+7 900 000-00-00', specialization }).rows();
-    for (const [name, duration] of s.services) await db.Org(org).Service().create({ name, duration }).rows();
+    await salon.Org(org).Schedule().create({ name: 'Основное', year: d.getUTCFullYear(), month: d.getUTCMonth() + 1 }).rows();
+    for (const [name, specialization] of s.staff) await salon.Org(org).Staff().create({ name, phone: '+7 900 000-00-00', specialization }).rows();
+    for (const [name, duration] of s.services) await salon.Org(org).Service().create({ name, duration }).rows();
   }
 
   // ---------- веб-сессии и журнал «под капотом» ----------
-  const web = createSessions(); // sid → { account, tenant, name, salon, trace: [], db }
+  // по токену сессии — { db: корень квартиры, salon, name, trace: [] }; после перезапуска поля собирает restore
+  const fieldsOf = (room) => ({ salon: room.tenantName, name: SALONS.find((x) => x.name === room.tenantName)?.user.name ?? '' });
+  const web = createSessions({ house: db, restore: fieldsOf });
   const { auth } = web;
   const { act } = trace;
-  // фасад пользователя (svc.as — асинхронный) создаётся один раз при входе и живёт в веб-сессии
   const userDb = (s) => s.db;
 
   const app = express();
@@ -95,17 +91,19 @@ export async function createApp() {
 
   // ---------- API: вход и выход ----------
   app.post('/api/login', async (req, res) => {
-    const { login: id = '', password = '' } = req.body ?? {};
-    const login = await svc.auth.verifyPassword({ identifier: String(id), password: String(password) });
-    // логин без учёта регистра, как его сверяет verifyPassword: иначе верный пароль с другим регистром давал 401
-    // (план 2.0, 7.6 №6)
-    const key = String(id).toLowerCase();
-    const known = login && tenants.get(key);
-    if (!login || !known) return res.status(401).json({ error: 'Неверный логин или пароль' });
-    const salon = SALONS.find((x) => x.user.login.toLowerCase() === key);
-    const db = await svc.as(login.account, { tenant: known.tenant });
-    web.open(res, { account: login.account, tenant: known.tenant, name: salon.user.name, salon: salon.name, trace: [], db });
-    res.json({ salon: salon.name, name: salon.user.name });
+    const { login = '', password = '' } = req.body ?? {};
+    let room;
+    try {
+      // ключ — email и пароль; email — контакт аккаунта, база сверяет его без учёта регистра
+      room = await db.open({ email: String(login).trim(), password: String(password) });
+    } catch (e) {
+      // ключ не подошёл (auth_failed) или пуст (invalid_data) — один ответ, без подсказки, что именно не так
+      if (e.code === 'auth_failed' || e.code === 'invalid_data') return res.status(401).json({ error: 'Неверный email или пароль' });
+      throw e;
+    }
+    const fields = fieldsOf(room);
+    web.open(res, room, fields);
+    res.json(fields);
   });
   app.post('/api/logout', async (req, res) => {
     await web.logout(req, res);
@@ -116,7 +114,7 @@ export async function createApp() {
     res.redirect('/');
   });
   // без входа — 200 и null, а не 401: страница входа открывается без ошибки в консоли браузера
-  app.get('/api/me', (req, res) => { const s = web.get(req); res.json(s ? { salon: s.salon, name: s.name } : null); });
+  app.get('/api/me', async (req, res) => { const s = await web.get(req); res.json(s ? { salon: s.salon, name: s.name } : null); });
 
   // ---------- API: расписание ----------
   async function schedule(s, day) {
@@ -207,8 +205,8 @@ export async function createApp() {
 
   // ---------- API: прайс ----------
   app.get('/api/price', auth, async (req, res) => res.json(await priceList(userDb(req.s))));
-  // прайс списком — db.load() администраторским подключением (adm) от имени вошедшего и в его салоне;
-  // услуги — из каталога сессии (под RLS), поэтому чужую услугу в список не подставить
+  // прайс списком — upsert каждой строки одной транзакцией вошедшей; услуги — из каталога её квартиры (под RLS),
+  // поэтому чужую услугу в список не подставить
   app.post('/api/price/load', auth, async (req, res) => {
     const s = req.s;
     let items;
@@ -218,7 +216,7 @@ export async function createApp() {
       return res.status(422).json({ error: `Прайс не загружен: ${e.message}` });
     }
     try {
-      const r = await act(s, 'Прайс списком', (lines) => loadPrices(adm, s, items, lines));
+      const r = await act(s, 'Прайс списком', (lines) => loadPrices(userDb(s), items, lines));
       res.json({ rows: r.rows, loaded: r.loaded, updated: r.updated, skipped: r.skipped, ms: Math.round(r.ms) });
     } catch (e) {
       res.status(e.code === 'acl_denied' ? 403 : 422).json({ error: `Прайс не загружен: ${e.code ?? ''} ${e.message}` });
@@ -245,14 +243,15 @@ export async function createApp() {
   app.use((err, _req, res, _next) => res.status(500).json({ error: err.message }));
 
   return {
-    app, schema: r.schema,
-    close: async () => { await adm.close(); await svc.close(); await admin.end({ timeout: 2 }); },
+    app, schema: db.schema, house: db,
+    // сессии жильцов не гасятся: вход по cookie переживает перезапуск сервиса
+    close: async () => { await web.dropAll(); await db.close(); await listener.end({ timeout: 2 }); },
   };
 }
 
 
 // запуск как программа (а не импорт из сценария)
-if (import.meta.url === `file://${process.argv[1]?.replace(/\\/g, '/').replace(/^(?=[A-Za-z]:)/, '/')}`) {
+if (isMain(import.meta.url)) {
   const { app, schema } = await createApp();
   app.listen(ENV.port, ENV.host, () => console.log(`salon: http://127.0.0.1:${ENV.port}/ (схема ${schema})`));
 }

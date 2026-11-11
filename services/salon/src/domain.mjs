@@ -1,9 +1,9 @@
 /**
- * Предметная логика салона поверх цепочек letopis (по мотивам lib/test/scenario-real-life.test.ts).
+ * Предметная логика салона поверх цепочек letopis.
  * База гарантирует уникальность брони мастера на время начала (ключ [Staff, start_datetime]);
  * пересечения и порядок броней одного мастера сервис сериализует блокировкой db.begin() + lock().
  * Перенос брони — новая бронь на новом слоте и удаление прежней одной транзакцией: время начала в ключе, а ключ правкой
- * не меняется. Прайс — класс price сида: правка — upsert, список — db.load().
+ * не меняется. Прайс — класс price сида: правка — upsert, список — upsert каждой строки одной транзакцией.
  */
 import { LetopisError, gte, lt } from 'letopis';
 
@@ -21,7 +21,7 @@ export const HOURS = [10, 11, 12, 13, 14, 15, 16, 17, 18];
 export const iso = (day, hour) => `${day}T${String(hour).padStart(2, '0')}:00:00.000Z`;
 export const today = () => new Date().toISOString().slice(0, 10);
 
-/** Справочники салона арендатора: организация, локация, расписание, мастера, услуги. */
+/** Справочники салона в квартире: организация, локация, расписание, мастера, услуги. */
 export async function directory(db) {
   const [org] = await db.Org().rows();
   if (!org) return null;
@@ -161,7 +161,7 @@ export async function priceList(db) {
  * переданные валюты), те же данные — без новой версии. $upsert строки: created, updated или unchanged.
  */
 export async function setPrice(db, serviceId, rub, trace = []) {
-  trace.push(`db.Service(услуга).price().upsert({ note: '${NOTE}', amounts: { RUB: ${rub} } }) — ключ [Item, note]: создать или заменить целиком`);
+  trace.push(`me.Service(услуга).price().upsert({ note: '${NOTE}', amounts: { RUB: ${rub} } }) — ключ [Item, note]: создать или заменить целиком`);
   const [row] = await db.Service(serviceId).price().upsert({ note: NOTE, amounts: { RUB: rub } }, { reason: 'правка прайса' }).rows();
   trace.push(`$upsert: '${row.$upsert}', rev ${row.rev}`);
   return row;
@@ -204,15 +204,29 @@ export function parsePriceList(text, services) {
 }
 
 /**
- * Загрузить прайс списком — db.load() администраторским подключением adm: COPY от роли владельца схемы мимо
- * триггеров и RLS, одной транзакцией. as — от имени вошедшего: автор версий — он, право WRITE на price и видимость
- * услуг загрузчик проверяет сам (без as автор — System); с as арендатор по умолчанию — собственный аккаунта, поэтому
- * tenant — салон сессии. existing: 'update' — цена есть — новая версия, та же — пропуск (skipped).
+ * Загрузить прайс списком — одной транзакцией вошедшей: db.begin(), upsert цены каждой услуги по ключу [Item, note],
+ * commit. Автор версий — вошедшая, право WRITE на price проверяет база; ошибка любой строки откатывает весь список.
+ * $upsert строки — отчёт: created — новая цена (loaded), updated — новая версия (updated), unchanged — та же цена, без
+ * версии (skipped). Загрузчик load() — инструмент мастер-ключа (CLI letopis load), у корня квартиры его нет.
  */
-export async function loadPrices(adm, { account, tenant }, items, trace = []) {
-  const rows = items.map((x) => ({ Item: x.serviceId, note: NOTE, amounts: { RUB: x.rub } }));
-  trace.push(`adm.load({ price: [{ Item: услуга, note: '${NOTE}', amounts: { RUB } } × ${rows.length}] }, { existing: 'update', as: вошедший, tenant: салон, agent: 'прайс списком' })`);
-  const report = await adm.load({ price: rows }, { existing: 'update', as: account, tenant, agent: 'прайс списком' });
+export async function loadPrices(db, items, trace = []) {
+  const t0 = performance.now();
+  const count = { created: 0, updated: 0, unchanged: 0 };
+  const tr = await db.begin({ reason: 'прайс списком' });
+  try {
+    trace.push(`db.begin({ reason: 'прайс списком' }); tr.Service(услуга).price().upsert({ note: '${NOTE}', amounts: { RUB } }) × ${items.length}`);
+    for (const x of items) {
+      const [row] = await tr.Service(x.serviceId).price().upsert({ note: NOTE, amounts: { RUB: x.rub } }).rows();
+      count[row.$upsert]++;
+    }
+    await tr.commit();
+    trace.push('tr.commit()');
+  } catch (e) {
+    await tr.rollback().catch(() => {});
+    trace.push(`tr.rollback() — ${e.code ?? e.message}`);
+    throw e;
+  }
+  const report = { rows: items.length, loaded: count.created, updated: count.updated, skipped: count.unchanged, ms: performance.now() - t0 };
   trace.push(`отчёт: строк ${report.rows} — новых ${report.loaded}, новых версий ${report.updated}, без изменений ${report.skipped}; ${Math.round(report.ms)} мс`);
   return report;
 }

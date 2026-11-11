@@ -21,5 +21,5 @@ export type Version = { id: string; rev: number; op: string; staff: string; star
 export type Report = { day: string; total: number; staff: (Staff & { count: number })[] };
 /** Строка прайса: услуга и её цена в рублях (null — цены нет), rev — версия цены. */
 export type PriceRow = { id: string; name: string; duration: number | null; price: number | null; rev: number | null };
-/** Отчёт загрузки прайса списком (db.load). */
+/** Отчёт загрузки прайса списком: строк, новых цен, новых версий, без изменений, мс. */
 export type LoadReport = { rows: number; loaded: number; updated: number; skipped: number; ms: number };

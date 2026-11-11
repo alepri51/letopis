@@ -3,9 +3,12 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { api } from '@/lib/api';
 
-type Mail = { id: number; at: string; to: string; subject: string; text: string };
+type Mail = { id: number; at: string; to: string; subject: string; text: string; link: string | null };
 
-/** Демо-почта: письма, которые сервис «отправил» (коды входа, приглашения). Настоящий сервис отдал бы их почтовому шлюзу. */
+/**
+ * Демо-почта: письма почтальона-заглушки — ссылки-приглашения и коды входа. Настоящий сервис отдал бы их почтовому
+ * шлюзу или СМС.
+ */
 export function Mailbox() {
   const [mail, setMail] = useState<Mail[]>([]);
   useEffect(() => {
@@ -20,8 +23,9 @@ export function Mailbox() {
         <CardHeader>
           <CardTitle>Демо-почта</CardTitle>
           <CardDescription>
-            Письма, которые отправил helpdesk: коды входа и приглашения. letopis только выдаёт код (<code>auth.issueOtp</code>) —
-            доставить его письмом или СМС должен сам сервис. Здесь «доставка» — этот ящик. <a className="underline" href="/">Ко входу</a>
+            Письма почтальона helpdesk: ссылки-приглашения (<code>me.invite</code>) и коды входа (<code>db.requestCode</code>).
+            Токен ссылки и код выпускает и проверяет letopis, а доставляет их почтальон — функция сервиса из
+            <code> connect(pass, {'{ postman }'})</code>. Здесь почтальон — заглушка, «доставка» — этот ящик. <a className="underline" href="/">Ко входу</a>
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3">
@@ -30,6 +34,7 @@ export function Mailbox() {
             <div key={m.id} className="rounded-md border p-3" data-mail-to={m.to}>
               <div className="mb-1 flex flex-wrap items-center gap-2 text-sm"><Badge variant="outline">{new Date(m.at).toLocaleTimeString('ru-RU')}</Badge><b>{m.to}</b> — {m.subject}</div>
               <pre className="whitespace-pre-wrap text-sm">{m.text}</pre>
+              {m.link && <a className="text-sm font-medium text-primary underline" href={m.link}>Открыть приглашение</a>}
             </div>
           ))}
         </CardContent>

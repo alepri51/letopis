@@ -1,17 +1,22 @@
 /**
- * Сценарий «день работы» кошелька: сервис в этом же процессе, шаги — через его JSON API (как интерфейс).
- *   ADMIN_DSN=… APP_DSN=… node scenario.mjs        Код выхода 1 — сбой.
- * Простой сервиса дольше срока сессии — без ожидания: срок сессий createTenant оператора истекает в базе отдельным
- * подключением по ADMIN_DSN.
+ * Сценарий «день работы» кошелька: сервис в этом же процессе, шаги — через его JSON API (как интерфейс). Код выхода
+ * 1 — сбой.
+ *
+ *   LETOPIS_PASS=… node scenario.mjs   — в готовом доме (пропуск печатает src/setup.mjs); повтор безопасен: каждый
+ *                                        прогон — свои номера операций
+ *   ADMIN_DSN=… node scenario.mjs      — свой дом с нуля мастер-ключом (HOUSE, по умолчанию wallet_scenario); в конце
+ *                                        он сносится (demolish)
  */
-import postgres from 'postgres';
-import { createApp, OPERATOR } from './src/server.mjs';
+import { demolish } from 'letopis';
+import { adminDsn } from '../shared/house.mjs';
 
-const { app, schema, close } = await createApp();
-const server = app.listen(0, '127.0.0.1');
-await new Promise((r) => server.once('listening', r));
-const base = `http://127.0.0.1:${server.address().port}`;
+// без пропуска — свой дом: подготовка мастер-ключом, как шаг инициализации run-local.sh
+const own = !process.env.LETOPIS_PASS?.trim();
+const HOUSE = process.env.HOUSE ?? 'wallet_scenario';
+// модуль сервиса пропуска не требует: его читает createApp()
+const { createApp, OPERATOR } = await import('./src/server.mjs');
 const failures = [];
+let server = null, close = async () => {}, house, base = '';
 const check = (ok, what) => { console.log(`${ok ? '✓' : '✗'} ${what}`); if (!ok) failures.push(what); };
 const call = async (cookie, path, body) => {
   const r = await fetch(`${base}${path}`, body === undefined ? { headers: { cookie } } : { method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify(body) });
@@ -20,8 +25,20 @@ const call = async (cookie, path, body) => {
 const run = Date.now().toString(36);
 const card = '4242 4242 4242 4242';
 try {
+  // дом и сервис — внутри try: упала подготовка или старт — свой дом всё равно сносится (finally)
+  if (own) {
+    const { prepare } = await import('./src/setup.mjs');
+    process.env.LETOPIS_PASS = (await prepare(adminDsn(), HOUSE)).pass;
+  }
+  const svc = await createApp();
+  ({ house, close } = svc);
+  server = svc.app.listen(0, '127.0.0.1');
+  await new Promise((r) => server.once('listening', r));
+  base = `http://127.0.0.1:${server.address().port}`;
+
   check((await call('', '/api/login', { login: OPERATOR.login, password: 'неверный' })).status === 401, 'неверный пароль — 401');
-  const { cookie } = await call('', '/api/login', OPERATOR);
+  const { cookie, data: who } = await call('', '/api/login', OPERATOR);
+  check(/^sid=[a-f0-9]{64}$/.test(cookie) && who?.company === 'Копейка', 'вход оператора её ключом — квартира «Копейка», в cookie — токен сессии');
   const balance = async (n) => (await call(cookie, '/api/wallets')).data.wallets.find((w) => w.number === n).balance;
   const ws = (await call(cookie, '/api/wallets')).data.wallets;
   const [w1, w2] = [ws.find((w) => w.number === 'W-1'), ws.find((w) => w.number === 'W-2')];
@@ -38,7 +55,7 @@ try {
     'списание больше баланса — min(0) над итогом inc: отказ 422, план откатился целиком (ни операции, ни версии), баланс прежний');
   const tr = await call(cookie, '/api/transfer', { from: w1.id, to: w2.id, amount: 30000, opId: `x-${run}` });
   check(tr.data?.result === 'проведено' && (await balance('W-1')) === b1 + 70000 && (await balance('W-2')) === b2 + 30000, 'перевод 300 ₽ W-1 → W-2 одной транзакцией');
-  // панель «Под капотом»: перевод записал две операции и два баланса (inc в том же плане), сигналы — в канале схемы
+  // панель «Под капотом»: перевод записал две операции и два баланса (inc в том же плане), сигналы — в канале дома
   const hood = (await call(cookie, '/api/trace')).data?.[0];
   check(hood?.title === `Перевод x-${run}` && hood.versions.filter((v) => v.class === 'Movement' && v.op === 'create').length === 2
     && hood.versions.filter((v) => v.class === 'Wallet' && v.fields.join() === 'balance').length === 2
@@ -124,24 +141,22 @@ try {
   check(all.wallets.every((w) => sums.get(w.number) === w.balance),
     `баланс = сумма операций по выписке: ${all.wallets.map((w) => `${w.number} ${w.balance} = ${sums.get(w.number)}`).join(', ')}`);
 
-  // простой дольше срока сессии оператора — без ожидания: срок её сессий createTenant (без methods; веб-сессия входа по
-  // паролю не трогается) истекает в базе. Сервис держит подключение по ключу сервиса, а не по токену createTenant, —
-  // операции и выписка идут как прежде (план 2.0, 7.6 №5)
-  const sql = postgres(process.env.ADMIN_DSN ?? 'postgres://postgres:guide@127.0.0.1:15440/letopis', { max: 1, onnotice: () => {} });
-  const S = `"${schema.replace(/"/g, '""')}"`;
-  const expired = await sql.unsafe(`update ${S}.secret set expires_at = clock_timestamp() - interval '1 second'
-    where kind = 'SESSION' and not (meta ? 'methods') and account = (select account from ${S}.secret where kind = 'PASSWORD' and ident = $1)`, [OPERATOR.login])
-    .finally(() => sql.end({ timeout: 2 }));
+  // сессия — токен в cookie: сервис, который её не помнит (перезапуск), открывает её сам (db.resume) — операция идёт
+  const outside = await house.open({ email: OPERATOR.login, password: OPERATOR.password });
   const t1 = await topups();
-  const late = await call(cookie, '/api/topup', { wallet: w1.id, amount: 300, card, opId: `id-${run}` });
+  const late = await call(`sid=${outside.token}`, '/api/topup', { wallet: w1.id, amount: 300, card, opId: `id-${run}` });
   check(late.data?.result === 'проведено' && (await topups()) === t1 + 300,
-    `после простоя (истекло сессий createTenant: ${expired.count}): пополнение 3 ₽ проведено и сразу в выписке`);
+    'сессия, которой сервис не знал (перезапуск), открылась по cookie (db.resume): пополнение 3 ₽ проведено и сразу в выписке');
+  // выход гасит сессию: тот же токен — 401
+  await call(`sid=${outside.token}`, '/logout');
+  check((await call(`sid=${outside.token}`, '/api/wallets')).status === 401, 'после выхода тот же токен — 401: me.close() погасил сессию');
 } catch (e) {
   failures.push(String(e?.stack ?? e));
   console.log(`✗ сценарий упал: ${e?.stack ?? e}`);
 } finally {
-  server.close();
-  await close();
+  server?.close();
+  await close().catch(() => {});
+  if (own) await demolish(adminDsn(), HOUSE, { quiet: true }).catch(() => {});
 }
 console.log(failures.length ? `\nупало шагов: ${failures.length}` : '\nдень работы прошёл');
 process.exit(failures.length ? 1 : 0);

@@ -2,18 +2,19 @@
  * Журнал «Под капотом» сервисов-примеров: что сделало действие пользователя.
  *
  * - lines — цепочки letopis, которые выполнило действие (их пишет сам сервис);
- * - queries — запросы к базе: хук onQuery подключения (connect({ onQuery })) кладёт их в запись текущего действия,
+ * - queries — запросы к базе: хук onQuery консьержа (connect(pass, { onQuery })) кладёт их в запись текущего действия,
  *   действие находится через AsyncLocalStorage;
- * - versions — версии, которые действие записало: строки log схемы после отметки до действия (seq) с автором —
- *   аккаунтом сессии, в арендаторе действия; читает их подключение самой сессии — под RLS (политика log_select
- *   пропустит только видимое ей); изменённые поля — сравнение с прошлой версией того же id (поля верхнего уровня
+ * - versions — версии, которые действие записало: строки log дома после отметки до действия (seq) с автором —
+ *   аккаунтом сессии, в квартире действия. Отметку и версии читает корень самой сессии — под RLS (политика log_select
+ *   пропустит только видимое ему); изменённые поля — сравнение с прошлой версией того же id (поля верхнего уровня
  *   data и концы);
- * - signals — сигналы классов, которые записало действие (классы его версий), только имя класса: токены арендаторов
+ * - signals — сигналы классов, которые записало действие (классы его версий), только имя класса: токены квартир
  *   (класс@токен в режиме tenant), session:… и * не показываются.
- * Панель видят все вошедшие, в том числе клиенты и работающие от имени, поэтому чужого арендатора в записи быть не
- * должно: администраторское подключение (postgres по ADMIN_DSN) берёт только отметку seq — число — и слушает канал.
+ * Панель видят все вошедшие, в том числе работающие от имени, поэтому чужой квартиры в записи быть не должно: строки
+ * читает только корень сессии. Канал сигналов слушает отдельное подключение listener — роль консьержа из пропуска без
+ * ключа (passDsn в services/shared/house.mjs): строк таблиц оно не видит, только LISTEN и метка-отсечка.
  * Запись — в начало s.trace веб-сессии, длина журнала — size; GET /api/trace отдаёт его вкладке (serve).
- * Границы действия — время, а не транзакции: одновременные действия одного автора в том же арендаторе видят версии
+ * Границы действия — время, а не транзакции: одновременные действия одного автора в той же квартире видят версии
  * друг друга. Запись onQuery не сообщает (только чтения), поэтому сигналы классов без журнала (history: false) не видны.
  * Только встроенные модули Node: файл общий для четырёх сервисов (из src/server.mjs — '../../shared/trace.mjs').
  */
@@ -30,13 +31,13 @@ const differ = (was, now) => [...new Set([...Object.keys(was ?? {}), ...Object.k
 const named = (d) => ['number', 'name', 'opId', 'alias', 'title', 'subject'].map((k) => d?.[k]).find((x) => typeof x === 'string' && x);
 
 /**
- * admin — администраторское подключение (postgres), schema — схема установки, она же канал NOTIFY.
- * author(s) — чьи версии искать (по умолчанию s.account); reader(s) — подключение letopis, которым их читать под
- * RLS (по умолчанию s.db; его арендатор — арендатор действия); flush(s) — подключения, через которые действие пишет
- * (по умолчанию s.db); label(v) — своя подпись строки журнала v; probe(s) — своё наблюдение за действием: зовётся
- * до него, возвращённая функция дописывает строки после.
+ * listener — подключение postgres.js роли консьержа (passDsn(pass)), schema — схема дома (db.schema), она же канал
+ * NOTIFY. author(s) — чьи версии искать (по умолчанию аккаунт корня сессии s.db.account); reader(s) — корень, которым
+ * их читать под RLS (по умолчанию s.db; его квартира — квартира действия); flush(s) — корни, через которые действие
+ * пишет (по умолчанию s.db); label(v) — своя подпись строки журнала v; probe(s) — своё наблюдение за действием:
+ * зовётся до него, возвращённая функция дописывает строки после.
  */
-export async function createTrace({ admin, schema, size = 12, author = (s) => s.account, reader = (s) => s.db, flush = (s) => [s.db], label, probe }) {
+export async function createTrace({ listener, schema, size = 12, author = (s) => s.db.account, reader = (s) => s.db, flush = (s) => [s.db], label, probe }) {
   const als = new AsyncLocalStorage(); // запросы к базе — в журнал текущего действия
   const onQuery = (e) => als.getStore()?.queries.push({ mode: e.mode, classes: e.classes.join(', '), rows: e.rows, ms: Math.round(e.ms), slow: e.slow });
   const log = `"${schema.replace(/"/g, '""')}".log`;
@@ -44,7 +45,7 @@ export async function createTrace({ admin, schema, size = 12, author = (s) => s.
   // Слушатель канала — один на сервис: действие копит всё, что пришло от его начала до его метки-отсечки.
   const open = new Set(); // сигналы действий в работе
   const fences = new Map(); // метка → { heard: сигналы её действия, done }
-  await admin.listen(schema, (payload) => {
+  await listener.listen(schema, (payload) => {
     const f = fences.get(payload);
     if (!f) {
       for (const heard of open) heard.add(payload);
@@ -58,25 +59,28 @@ export async function createTrace({ admin, schema, size = 12, author = (s) => s.
 
   /**
    * Отсечка сигналов действия (как fence в guide/scripts/runner.ts). Библиотека шлёт сигналы своих транзакций пачкой
-   * раз в 100 мс — подключения действия отправляют накопленное сейчас (flushSignals), затем своя метка от
-   * администратора. Уведомления приходят в порядке фиксации, поэтому всё, что действие отправило, приходит раньше
-   * метки — без пауз по времени. Метка — в форме сигнала чужой сессии (session:<16 hex>): подключения letopis на канале
-   * по ней ничего не сбрасывают, а нагрузку не по режиму установки сочли бы поводом сбросить кэш и пропуска прав.
-   * Ответ — пришла ли метка.
+   * раз в 100 мс — корни действия отправляют накопленное сейчас (flushSignals), затем своя метка от слушателя.
+   * Уведомления приходят в порядке фиксации, поэтому всё, что действие отправило, приходит раньше метки — без пауз по
+   * времени. Метка — в форме сигнала чужой сессии (session:<16 hex>): подключения letopis на канале по ней ничего не
+   * сбрасывают, а нагрузку не по режиму дома сочли бы поводом сбросить кэш и пропуска прав. Ответ — пришла ли метка.
    */
   async function fence(s, heard) {
     for (const db of flush(s)) await db?.flushSignals().catch(() => {});
     const tag = `session:${randomBytes(8).toString('hex')}`;
     const arrived = new Promise((done) => fences.set(tag, { heard, done }));
-    await admin`select pg_notify(${schema}, ${tag})`;
+    await listener`select pg_notify(${schema}, ${tag})`;
     let timer;
     const late = new Promise((done) => { timer = setTimeout(done, FENCE_MS, false); });
     return Promise.race([arrived, late]).finally(() => clearTimeout(timer));
   }
 
+  /** Отметка до действия: последний номер журнала, видимый корню db (его версии — после неё); не прочиталась — null. */
+  const markOf = (db) => db.transaction((q) => q.unsafe(`select coalesce(max(seq), 0)::text as n from ${log}`))
+    .then((r) => r[0].n, () => null);
+
   /**
-   * Версии автора who после отметки mark — подключением db под RLS и только в его арендаторе: первые VERSIONS по
-   * порядку записи, сколько их всего и классы всех (по ним отбираются сигналы).
+   * Версии автора who после отметки mark — корнем db под RLS и только в его квартире: первые VERSIONS по порядку
+   * записи, сколько их всего и классы всех (по ним отбираются сигналы).
    */
   async function written(db, mark, who) {
     const rows = await db.transaction((q) => q.unsafe(`with w as (select seq, class, id, rev, op, reason, data, links from ${log}
@@ -95,7 +99,7 @@ export async function createTrace({ admin, schema, size = 12, author = (s) => s.
       })),
     };
   }
-  /** Класс сигнала: «класс» или «класс@токен арендатора» — без токена; session:… и * — не сигналы записи класса. */
+  /** Класс сигнала: «класс» или «класс@токен квартиры» — без токена; session:… и * — не сигналы записи класса. */
   const classOf = (payload) => (payload === '*' || payload.startsWith('session:') ? null : payload.split('@')[0]);
 
   /** Выполнить действие и записать в журнал сессии цепочки, запросы к базе, записанные версии и сигналы. */
@@ -104,7 +108,7 @@ export async function createTrace({ admin, schema, size = 12, author = (s) => s.
     const entry = { at: new Date().toISOString(), title, lines: [], queries: [], versions: [], versionsTotal: 0, signals: [], error: null };
     const who = author(s);
     // отметка до действия: его версии — после неё; журнал недоступен — действие всё равно выполняется
-    const mark = await admin.unsafe(`select coalesce(max(seq), 0)::text as n from ${log}`).then((r) => r[0].n, () => null);
+    const mark = await markOf(reader(s));
     const heard = new Set();
     open.add(heard);
     const after = probe?.(s);
@@ -124,7 +128,7 @@ export async function createTrace({ admin, schema, size = 12, author = (s) => s.
         entry.lines.push(`«под капотом»: версии и сигналы не прочитаны — ${e.message}`);
       }
       open.delete(heard);
-      // в канале — и чужое: другие классы, арендаторы, сессии; в запись — только классы, которые записало действие
+      // в канале — и чужое: другие классы, квартиры, сессии; в запись — только классы, которые записало действие
       entry.signals = [...new Set([...heard].map(classOf))].filter((c) => c && classes.has(c));
       s.trace.unshift(entry);
       s.trace.length = Math.min(s.trace.length, size);

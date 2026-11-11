@@ -2,7 +2,7 @@
   "name": "letopis-helpdesk",
   "private": true,
   "type": "module",
-  "description": "Сервис-пример «Helpdesk» на letopis: интерфейс на shadcnblocks, компании-арендаторы, роли и права, вход с TOTP и кодом на почту, ключи API, живая очередь, помощник MCP",
+  "description": "Сервис-пример «Helpdesk» на letopis: интерфейс на shadcnblocks, компании-квартиры, роли и матрица прав, вход с TOTP и кодом на почту, ключи API, живая очередь, помощник MCP",
   "scripts": {
     "start": "node src/server.mjs",
     "build:web": "npm --prefix web ci && npm --prefix web run build",

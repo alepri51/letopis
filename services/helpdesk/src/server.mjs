@@ -1,24 +1,36 @@
 /**
  * Сервис-пример «Helpdesk» на letopis.
  *
- * - Компания — арендатор: регистрация вызывает createTenant, первый пользователь — владелец (роль owner).
- *   Модели компании — классы её арендатора, правила доступа — его строки Resource и rule: их пишет администраторское
- *   подключение в короткой сессии руководителя — при регистрации и при каждом запуске во все компании.
- * - Роли — поле roles членства (member): руководитель (owner), агент (agent), клиент (client), интеграции.
- *   Клиент видит только свои заявки (условие owner: '$actor') и ответы на них (условие data.client),
- *   внутренние заметки ему закрыты; удалять заявки, править правила и членства может только руководитель.
- *   Всё это проверяет база — для сервиса и для сырого SQL одинаково.
- * - Вход: пароль, код из письма (auth.issueOtp → демо-почта), второй фактор TOTP (enrollTotp → QR,
- *   verifyPassword({ totp })). Веб-сессия — сессия letopis: у каждой вкладки своё подключение по токену,
- *   поэтому revokeAll и удаление членства закрывают доступ сразу, а auth.switch переключает компанию.
- * - Ключи API: интеграции (заявка из формы на сайте) и ИИ-агента; помощник — сервер MCP letopis по HTTP (/mcp).
- * - Работа от имени: svc.as(клиент) — журнал пишет автором клиента, исполнителем (agent) — сервис.
- * - Сессия для ИИ-агента: svc.auth.sessionFor(вы, { ttl }) и connect({ token }) — короткая сессия вместо вечного ключа:
- *   не кред (credentials() её не показывает), истекает сама, гасит её auth.revoke(); правки агента в журнале — от вас,
- *   без исполнителя (agent).
- * - Очередь: заявки по сроку ответа, страницы по курсору (after); номер — inc в счётчике компании;
- *   живое обновление (watch → SSE); справочник людей — через кэш результатов (.cache()).
- * - Закрытие своей компании — auth.purgeAccount: данные арендатора стираются целиком.
+ * - Дом helpdesk один раз готовит мастер-ключ (src/setup.mjs: setup() с моделью src/models.mjs — общие классы дома — и
+ *   режимом сигналов tenant; там же — засев демо-компаний и их людей по приглашению). Сервис знает только пропуск
+ *   LETOPIS_PASS: connect(pass, { postman }) — консьерж. Почтальон сервиса — заглушка (services/shared/postman.mjs):
+ *   письма со ссылками-приглашениями и кодами он не отправляет, а кладёт в «Демо-почту» (/mail) и пишет строку в лог.
+ * - Компания — квартира. Регистрация: консьерж заводит квартиру (createTenant), пишет её матрицу и настройки и зовёт
+ *   регистратора с ролью owner; почтальон кладёт письмо со ссылкой /invite/<токен>, регистратор открывает её
+ *   (страница приглашения — db.invitation), принимает (db.accept) и задаёт пароль. Без приглашения в компанию не
+ *   попасть: ссылка — доказательство, что почта его.
+ * - Роли — метки прописки (member.roles): руководитель (owner), агент (agent), клиент (client), интеграция
+ *   (integration). Матрица квартиры — правила db.acl, их пишет консьерж при каждом запуске: агенту — заявки, ответы,
+ *   заметки и справочник; клиенту — только свои заявки (условие owner: '$actor') и ответы на них (условие
+ *   data.client); интеграции — заявки; руководителю — всё, в том числе выдача любых ролей (правило хозяина квартиры от
+ *   createTenant). Всё это проверяет база — для сервиса и для сырого SQL одинаково.
+ * - Команда: руководитель зовёт человека (me.invite с ролью — матрица разрешает ему её выдать), письмо со ссылкой
+ *   уходит в демо-почту, человек открывает ссылку и принимает приглашение (db.accept) — новый аккаунт или прежний;
+ *   пароль по желанию: без него он входит кодом из письма. Удаление из компании — выписка: ключи и сессии человека в
+ *   этой квартире гаснут сразу.
+ * - Вход: пароль или код из письма (db.requestCode → письмо почтальону → db.tenantsOf({ email, code }) → выбор
+ *   компании → db.open({ email, code, tenant })); включён второй фактор — ключ без кода из приложения отвечает
+ *   api.totp_required, вход повторяется с { totp }.
+ *   Ключ открывает ровно одну квартиру: у человека в двух компаниях — два ключа с разными паролями. Токен сессии — в
+ *   cookie, каждый запрос открывает корень квартиры по нему: db.resume(token).
+ * - Ключи API: ключ интеграции (заявка из формы на сайте) — у своего аккаунта с меткой integration; ключ ИИ-агента и
+ *   временный ключ агента на 15 минут — свои ключи сотрудника (room.keys.issueApiKey); помощник — сервер MCP letopis по
+ *   HTTP (/mcp), всегда от имени жильца.
+ * - Работа от имени: db.as(клиент, компания) — журнал пишет автором клиента, исполнителем (agent) — сервис.
+ * - Номер заявки выдаёт сервис: консьерж в квартире (db.in) — inc в счётчике компании; клиенту счётчик закрыт.
+ * - Очередь: заявки по сроку ответа, страницы по курсору (after); живое обновление (watch → SSE); справочник людей —
+ *   через кэш результатов (.cache()).
+ * - Закрытие своей компании — room.deleteTenant(): квартира и её данные стираются целиком.
  * - Под капотом (services/shared/trace.mjs): onQuery и slowMs, записанные действием версии и его сигналы.
  */
 import express from 'express';
@@ -26,47 +38,43 @@ import postgres from 'postgres';
 import { randomBytes } from 'node:crypto';
 import { Readable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
-import { up, connect, createTenant, syncModels, LetopisError, v5Id, inc, inList, lt, cursorOf } from 'letopis';
-import * as model from 'letopis/model';
+import { connect, LetopisError, inc, inList, lt, cursorOf } from 'letopis';
 import { createMcpServer } from 'letopis/mcp';
 import { createMcpHandler } from '@modelcontextprotocol/server';
-import { z } from 'zod';
-import { helpdeskModels } from './models.mjs';
-// общее у четырёх сервисов-примеров: журнал «под капотом», веб-сессии по cookie, подписка → SSE
+// общее у четырёх сервисов-примеров: пропуск, почтальон-заглушка, журнал «под капотом», веб-сессии по cookie, подписка → SSE
+import { passFromEnv, passDsn, ensureTenant, isMain } from '../../shared/house.mjs';
+import { createPostman } from '../../shared/postman.mjs';
 import { createTrace } from '../../shared/trace.mjs';
 import { createSessions } from '../../shared/sessions.mjs';
 import { eventStream } from '../../shared/events.mjs';
 
+const PORT = Number(process.env.PORT ?? 8083);
 const ENV = {
-  admin: process.env.ADMIN_DSN ?? 'postgres://postgres:guide@127.0.0.1:15440/letopis',
-  app: process.env.APP_DSN ?? 'postgres://helpdesk_app:helpdesk-app-secret@127.0.0.1:15440/letopis',
-  schema: process.env.SCHEMA ?? 'helpdesk',
-  // FRESH=1 — пересоздать схему: демо с нуля (данные схемы теряются)
-  fresh: process.env.FRESH === '1',
-  serviceKey: process.env.SERVICE_KEY ?? 'lts_' + 'c3d4e5f6a7081920'.repeat(2),
-  // режим сигналов установки: tenant — подписчики и кэш одной компании не просыпаются от правок другой
-  signals: process.env.SIGNALS ?? 'tenant',
-  // демо-почта /mail: коды входа видны всем, кто её открыл, — это обход входа по коду; только для своей машины.
-  // DEMO_MAIL=0 — выключить: коды тогда никуда не уходят (подключите свой почтовый шлюз в mail()).
+  // демо-почта /mail: ссылки-приглашения и коды входа видны всем, кто её открыл, — это обход входа; только для своей
+  // машины. DEMO_MAIL=0 — выключить: письма тогда только отмечаются в логе (подключите свой почтовый шлюз в postman)
   demoMail: process.env.DEMO_MAIL !== '0',
-  port: Number(process.env.PORT ?? 8083),
+  // адрес сервиса в ссылках из писем
+  publicUrl: (process.env.PUBLIC_URL ?? `http://127.0.0.1:${PORT}`).replace(/\/$/, ''),
+  port: PORT,
   // по умолчанию только эта машина: у демо известные пароли; в контейнере compose задаёт HOST=0.0.0.0
   host: process.env.HOST ?? '127.0.0.1',
 };
-const SYSTEM_ID = '2eba6d0a-1edd-4bb6-a85a-a703dab49035';
-const WEB_TTL = 8 * 3600; // срок веб-сессии, с; подключение продлевает её раз в минуту работы
-const AGENT_TTL = 15 * 60; // срок сессии ИИ-агента, с; её подключение срок не продлевает (refreshSession: false)
-const SYNC_TTL = 5 * 60; // срок сессии записи моделей и правил компании, с; гаснет она сразу после записи
-const AGENT_MAX = 3; // действующих сессий агента у одной вкладки
+const WEB_TTL = 8 * 3600; // срок веб-сессии, с
+const AGENT_TTL = 15 * 60; // срок временного ключа ИИ-агента, с
+const AGENT_NAME = 'ИИ-агент, 15 минут · '; // начало имени временного ключа агента — по нему сервис их находит
+const AGENT_MAX = 3; // действующих временных ключей агента у одного человека
+const INVITE_TTL = '7 days'; // срок приглашения в компанию
 const PAGE = 5;
 const SLOW_MS = 25;
 
 export const DEMO = {
   boss: { name: 'Пётр Северов', login: 'boss@sever.ru', password: 'Sever-2026!' },
   agent: { name: 'Ирина Агентова', login: 'agent@sever.ru', password: 'Agent-2026!' },
+  // тот же человек в «Байкале» — второй ключ: свой пароль, один пароль на две квартиры дом не примет
+  agentBaikal: { name: 'Ирина Агентова', login: 'agent@sever.ru', password: 'Agent-Baikal-2026!' },
   client: { name: 'Олег Клиентов', login: 'client@sever.ru' },
 };
-const COMPANIES = [
+export const COMPANIES = [
   {
     name: 'Север', boss: DEMO.boss,
     people: [{ ...DEMO.agent, role: 'agent' }, { ...DEMO.client, role: 'client' }, { name: 'Анна Покупатель', login: 'anna@sever.ru', role: 'client' }],
@@ -81,7 +89,7 @@ const COMPANIES = [
   },
   {
     name: 'Байкал', boss: { name: 'Марина Байкалова', login: 'boss@baikal.ru', password: 'Baikal-2026!' },
-    people: [{ ...DEMO.agent, role: 'agent' }, { name: 'Семён Озёров', login: 'client@baikal.ru', role: 'client' }],
+    people: [{ ...DEMO.agentBaikal, role: 'agent' }, { name: 'Семён Озёров', login: 'client@baikal.ru', role: 'client' }],
     tickets: [
       { by: 'client@baikal.ru', subject: 'Сбой синхронизации склада', body: 'Остатки на сайте не совпадают со складом.', priority: 'urgent', ago: 1 },
       { by: 'client@baikal.ru', subject: 'Подключить интеграцию с 1С', body: 'Нужна выгрузка заказов в 1С.', priority: 'normal', ago: 4 },
@@ -89,62 +97,73 @@ const COMPANIES = [
   },
 ];
 const DEMO_NAMES = new Set(COMPANIES.map((c) => c.name));
-const ROLE_OF = { manager: 'owner', agent: 'agent', client: 'client' };
+export const ROLE_OF = { manager: 'owner', agent: 'agent', client: 'client' };
 const ROLE_RU = { manager: 'руководитель', agent: 'агент', client: 'клиент' };
 const HOURS = { urgent: 2, high: 8, normal: 24, low: 72 }; // срок ответа по приоритету
 
-// ---------- модель — классы каждой компании (src/models.mjs) ----------
-const MODELS = helpdeskModels(model, z);
-
-// ---------- правила доступа компании — обёрткой db.acl (план 2.0, 7.9 №1–2) ----------
-// createTenant уже дал «всем своим можно всё» (вес 10) — правила ниже сильнее (вес 50, правила о правах — 60). Роли:
-// owner — руководитель, agent, client, integration — ключ формы на сайте. Под капотом — строки Resource и rule
-// арендатора с постоянными alias (role:client:ACCOUNT, class:Note:READ…): повтор syncRules ничего не меняет
+// ---------- матрица компании — обёрткой db.acl ----------
+// Правило по умолчанию дома — «нельзя»; руководителю всё даёт правило хозяина квартиры (createTenant). Правила ниже —
+// метки agent, client и integration (ключ формы на сайте); под капотом — строки Resource и rule квартиры с постоянными
+// alias (role:client:ACCOUNT, class:Ticket:READ…): повтор ничего не меняет. Пишет их консьерж — жилец их не снимет
 const OWN_TICKET = { class: 'Ticket', owner: '$actor' };
 const OWN_REPLY = { class: 'Reply', data: { client: '$actor' } };
-const STAFF_ONLY = ['agent', 'client', 'integration']; // все, кроме руководителя
 const ACL = [
-  ['grant', { role: 'client', read: [OWN_TICKET, OWN_REPLY, { class: 'Profile', owner: '$actor' }], write: [OWN_TICKET, OWN_REPLY] }],
-  // клиенту и ключу интеграции закрыты профили, внутренние заметки и счётчик заявок — номер выдаёт сервис (nextNumber;
-  // план 2.0, 7.6 №1–2, 7.9 №2)
-  ['deny', { role: 'client', read: 'Note', write: ['Profile', 'Note', 'Counter'] }],
-  ['deny', { role: 'integration', read: 'Note', write: ['Profile', 'Note', 'Counter'] }],
-  // удалять заявки, править компанию и правила — только руководитель
-  ...STAFF_ONLY.map((role) => ['deny', { role, delete: 'Ticket', write: 'Desk' }]),
-  ...STAFF_ONLY.map((role) => ['deny', { role, write: ['rule', 'Resource', 'member'], delete: ['rule', 'Resource', 'member'], weight: 60 }]),
-  ['grant', { role: 'owner', api: 'desk.*' }],
+  // агент: очередь, ответы, заметки, справочник людей и компании; номер заявки выдаёт сервис, удалять заявки и править
+  // компанию агенту нечем — правил на это нет
+  // прописки (member) — чтобы видеть имена коллег: me.acl.people() отдаёт тех, чью прописку жилец видит по матрице
+  ['grant', { role: 'agent', read: ['Desk', 'Profile', 'Ticket', 'Reply', 'Note', 'member'], write: ['Ticket', 'Reply', 'Note'] }],
+  // клиент: только свои заявки и ответы на них, свой профиль, название компании; заметки и счётчик ему закрыты
+  ['grant', { role: 'client', read: ['Desk', OWN_TICKET, OWN_REPLY, { class: 'Profile', owner: '$actor' }], write: [OWN_TICKET, OWN_REPLY] }],
+  // интеграция: заявки от имени клиентов, справочник — найти клиента по email
+  ['grant', { role: 'integration', read: ['Ticket', 'Profile'], write: 'Ticket' }],
+  // разделы приложения (действия API): руководителю — все (правило хозяина квартиры), агенту — очередь и помощник
   ['grant', { role: 'agent', api: 'desk.{queue,assistant}' }],
 ];
-// ресурсы прежних версий сервиса (правила строками Resource и rule до обёртки): удаление ресурса снимает и его правила
-const LEGACY_RESOURCES = ['role-owner:ACCOUNT', 'role-agent:ACCOUNT', 'role-client:ACCOUNT', 'role-integration:ACCOUNT',
-  'not-owner:ACCOUNT', 'own-ticket:READ', 'own-ticket:WRITE', 'own-reply:READ', 'own-reply:WRITE', 'own-profile:READ',
-  'profile:WRITE', 'note:READ', 'note:WRITE', 'ticket:DELETE', 'desk:WRITE', 'acl:WRITE', 'acl:DELETE', 'desk:API',
-  'desk-work:API'];
 
-/** id учётной записи, заведённой createTenant, выводится из логина (v5): так сервис находит её для кода на почту. */
-const accountOf = (login) => v5Id(SYSTEM_ID, 'Account', ['user:' + login]);
-const integrationLogin = (tenant) => `integrations-${tenant.slice(0, 8)}@helpdesk.local`;
 const roleOf = (roles = []) => (roles.includes('owner') ? 'manager' : roles.includes('agent') ? 'agent' : 'client');
 const dueOf = (priority, agoHours = 0) => new Date(Date.now() + (HOURS[priority] - agoHours) * 3600_000).toISOString();
-const secret = () => randomBytes(18).toString('base64url');
+/** Служебный адрес аккаунта интеграции: письмо на него почтальон не кладёт в демо-почту, ссылку забирает сам сервис. */
+const INTERNAL = /@helpdesk\.local$/i;
+
+/**
+ * Почтальон helpdesk: письмо — в демо-почту (тема, текст, ссылка) и строка в лог. В настоящем сервисе здесь отправка
+ * письма или СМС. Ссылка приглашения ведёт на страницу /invite/<токен>.
+ */
+export function helpdeskPostman({ log = true } = {}) {
+  return createPostman({
+    service: 'helpdesk', log, quiet: (address) => INTERNAL.test(address),
+    compose: ({ message: m }) => {
+      if (m.kind === 'invite') {
+        const link = `${ENV.publicUrl}/invite/${m.token}`;
+        const role = ROLE_RU[roleOf(m.roles)];
+        return {
+          subject: `Приглашение в helpdesk «${m.tenantName}»`,
+          text: `${m.from?.name ?? 'Helpdesk'} приглашает вас в helpdesk «${m.tenantName}» (роль: ${role}).\n`
+            + `Откройте ссылку, чтобы принять приглашение: ${link}\nСсылка действует до ${new Date(m.expiresAt).toLocaleString('ru-RU')}.`,
+          link,
+        };
+      }
+      if (m.kind === 'code') return { subject: 'Код входа в helpdesk', text: `Ваш код: ${m.code}. Он подходит к любой вашей компании, действует 10 минут и подходит один раз.` };
+      return { subject: 'Смена email в helpdesk', text: `Код подтверждения нового адреса: ${m.code}.` };
+    },
+  });
+}
 class HttpError extends Error { constructor(status, message, code) { super(message); this.status = status; this.code = code; } }
 
 export async function createApp() {
-  const admin = postgres(ENV.admin, { max: 2, onnotice: () => {} });
-  // роль приложения заводит up({ login }): имя и пароль квотирует база, повтор обновляет пароль (план 2.0, 7.6 №7, 7.9 №4)
-  const appUrl = new URL(ENV.app);
-  const r = await up({ dsn: ENV.admin, schema: ENV.schema, upgrade: true, fresh: ENV.fresh, serviceKey: ENV.serviceKey, signals: ENV.signals, quiet: true,
-    login: { user: decodeURIComponent(appUrl.username), password: decodeURIComponent(appUrl.password) } });
-  // один пул на всех: подключения пользователей (connect({ sql, token })) делят его соединения
-  const pool = postgres(ENV.app, { max: 10, onnotice: () => {} });
-  // журнал «под капотом»: запросы к базе, записанные версии и сигналы текущего действия
-  const trace = await createTrace({
-    admin, schema: r.schema, size: 15,
-    // работа от имени: версии пишутся автором — тем, от чьего имени; читает их его фасад, под его правами (RLS)
-    author: (s) => (s.acting ?? s).account,
+  // ---------- консьерж дома: только пропуск ----------
+  const pass = passFromEnv('helpdesk');
+  let trace = null; // журнал «под капотом» — после подключения: ему нужна схема дома
+  // почтальон-заглушка: письма — в демо-почту (/mail) и в лог; в настоящем сервисе — отправка письма или СМС
+  const box = helpdeskPostman({ log: ENV.demoMail });
+  const db = await connect(pass, { onQuery: (e) => trace?.onQuery(e), slowMs: SLOW_MS, postman: box.postman });
+  // слушатель канала сигналов «под капотом» — роль консьержа из пропуска, без ключа: строк он не видит
+  const listener = postgres(passDsn(pass), { max: 1, onnotice: () => {} });
+  trace = await createTrace({
+    listener, schema: db.schema, size: 15,
+    // работа от имени: версии пишутся автором — тем, от чьего имени; читает их его корень, под его правами (RLS)
+    author: (s) => (s.acting?.db ?? s.db).account,
     reader: (s) => s.acting?.db ?? s.db,
-    // своё подключение сессии и сервис: от него работа от имени (svc.as) и вызовы auth
-    flush: (s) => [s.db, svc],
     // попадания в кэш результатов за действие (справочник людей — .cache()) — строкой журнала
     probe: (s) => {
       const hits = s.db.cache.stats().hits;
@@ -154,58 +173,17 @@ export async function createApp() {
       };
     },
   });
-  const open = (opts) => connect({ sql: pool, schema: r.schema, onQuery: trace.onQuery, slowMs: SLOW_MS, ...opts });
-  const svc = await open({ apiKey: ENV.serviceKey }); // сервис: вход, коды, TOTP, ключи, работа от имени
 
-  /** Погасить сессию по токену: временное подключение с ним и auth.revoke(). */
-  async function dropToken(token) {
-    const tmp = await open({ token, listen: false, refreshSession: false });
-    try { await tmp.auth.revoke(); } finally { await tmp.close(); }
-  }
-
-  // ---------- модели и правила доступа компании: администраторское подключение в сессии её арендатора ----------
+  // ---------- компания: матрица, название, счётчик (консьерж в квартире) ----------
   /**
-   * Модели (src/models.mjs) — классы арендатора компании, правила доступа (ACL) — его строки Resource и rule: их пишут
-   * syncModels и syncRules администраторского подключения (allowBypassRls), а не сессия пользователя.
-   * Сессия — своя на одну запись: svc.auth.sessionFor(руководитель) и auth.switch в компанию; после записи она гаснет,
-   * подключение закрывается — в веб-сессии оно не попадает. Зовётся при регистрации и при каждом запуске для всех
-   * компаний: изменение моделей и правил после перезапуска доходит до всех (безопасное изменение модели — сразу,
-   * ужесточение база сверяет со строками). Не классы System: их syncModels пропускает, а сид установки уже
-   * существующий класс не меняет.
+   * Матрица и настройки компании — консьержем в её квартире (db.in), одной транзакцией: правила ACL (db.acl.grant
+   * пишет ресурс и правило целиком по постоянным alias — совпадающее не трогается), строка Desk с названием и счётчик
+   * заявок. Зовётся при регистрации и при каждом запуске для всех компаний: изменение правил доходит до всех.
    */
-  async function syncCompany(tenant, owner) {
-    const token = await svc.auth.sessionFor(owner, { ttl: SYNC_TTL });
-    const adm = await connect({ dsn: ENV.admin, schema: r.schema, token, allowBypassRls: true, listen: false, refreshSession: false });
+  async function setupCompany(desk, company) {
+    const tr = await desk.begin({ reason: 'настройка компании' });
     try {
-      await adm.auth.switch(tenant);
-      await syncModels(adm, MODELS, { apply: true });
-      await syncRules(adm);
-    } finally {
-      await adm.auth.revoke().catch(() => {});
-      await adm.close();
-    }
-  }
-
-  /**
-   * Правила доступа — как в коде (ACL), одной транзакцией: db.acl.grant и db.acl.deny пишут ресурсы и правила целиком
-   * по постоянным alias, поэтому совпадающее не трогается и повторный запуск версий не пишет. Ресурсы прежних версий
-   * сервиса (LEGACY_RESOURCES) удаляются вместе со своими правилами; ресурсы с другими alias — дело компании.
-   */
-  async function syncRules(db) {
-    const tr = await db.begin({ reason: 'правила доступа компании' });
-    try {
-      // ресурсы прежних версий удаляются осознанно, без превью: { all: true }
-      for (const alias of LEGACY_RESOURCES) await tr.Resource({ alias }).delete({ confirm: true, all: true }).rows();
       for (const [verb, spec] of ACL) await tr.acl[verb](spec);
-      await tr.commit();
-    } catch (e) { await tr.rollback().catch(() => {}); throw e; }
-  }
-
-  // ---------- компания: счётчик, профиль владельца, учётная запись интеграций (модели и правила — syncCompany) ----------
-  async function setupCompany(db, company, owner) {
-    // по шагам и без повторов: недостающее (счётчик) дописывается и на уже настроенной компании
-    const tr = await db.begin({ reason: 'настройка компании' });
-    try {
       if (!(await tr.Desk().first())) await tr.Desk().create({ name: company }).rows();
       if (!(await tr.Counter({ name: 'tickets' }).first())) {
         const last = Math.max(0, ...(await tr.Ticket().rows()).map((t) => Number(String(t.data.number).slice(3)) || 0));
@@ -213,41 +191,35 @@ export async function createApp() {
       }
       await tr.commit();
     } catch (e) { await tr.rollback().catch(() => {}); throw e; }
-    await db.Profile().owner(owner.account).upsert({ account: owner.account, name: owner.name, login: owner.login }).rows();
-    const integ = await createTenant(admin, r.schema, { name: company, user: { name: 'Интеграции', login: integrationLogin(db.tenant), password: secret(), roles: ['integration'], ttl: '1 minute' } });
-    await db.Profile().owner(integ.user).upsert({ account: integ.user, name: 'Интеграции', login: integrationLogin(db.tenant) }).rows();
   }
 
   /**
-   * Человек в компании: createTenant с её именем заводит учётную запись (или находит прежнюю) и членство с ролью.
-   * createTenant находит арендатора по имени — сначала сверяем, что имя ведёт именно к арендатору db.
+   * Демо-человек компании — его завела подготовка дома (src/setup.mjs, засев по приглашению) вместе с профилем в
+   * справочнике. Сервис никого не зовёт: профиля нет — дом не подготовлен.
    */
-  async function addPerson(db, company, { name, login, password, role }) {
-    if (v5Id(SYSTEM_ID, 'Account', ['tenant:' + company]) !== db.tenant) throw new HttpError(409, 'Название компании не совпадает с её арендатором');
-    const t = await createTenant(admin, r.schema, { name: company, user: { name, login, password: password ?? secret(), roles: [ROLE_OF[role] ?? role], ttl: '1 minute' } });
-    await db.Profile().owner(t.user).upsert({ account: t.user, name, login }).rows();
-    return t.user;
+  async function personOf(desk, company, p) {
+    const known = await desk.Profile({ login: p.login }).first();
+    if (!known) throw new Error(`helpdesk: ${p.login} не прописан в «${company}» — подготовьте дом: node src/setup.mjs`);
+    return known.data.account;
   }
 
   /**
-   * Номер заявки выдаёт сервис от имени руководителя компании (svc.as): клиенту и ключу интеграции счётчик закрыт
-   * правилом (план 2.0, 7.9 №2), а их сессии заявки создают. Своя короткая транзакция: если заявка потом не
-   * создастся, номер пропадёт — пропуск в нумерации, а не повтор.
+   * Номер заявки выдаёт сервис — консьерж в квартире компании (db.in): клиенту и ключу интеграции счётчик закрыт, а их
+   * сессии заявки создают. Своя короткая транзакция: если заявка потом не создастся, номер пропадёт — пропуск в
+   * нумерации, а не повтор.
    */
   async function nextNumber(tenant) {
-    const boss = companies.get(tenant);
-    if (!boss) throw new HttpError(409, 'Компания не найдена');
-    const as = await svc.as(boss, { tenant });
-    const [counter] = await as.Counter({ name: 'tickets' }).update({ next: inc(1) }).rows();
+    const desk = await db.in(tenant);
+    const [counter] = await desk.Counter({ name: 'tickets' }).update({ next: inc(1) }).rows();
     return `HD-${counter.data.next}`;
   }
 
-  async function createTicket(db, { subject, body, priority = 'normal', clientName, channel, owner, ago }, lines, reason) {
-    // свой ключ объекта, а не унаследованный: constructor, __proto__ не приоритеты (план 2.0, 7.6 №4)
+  async function createTicket(room, { subject, body, priority = 'normal', clientName, channel, owner, ago }, lines, reason) {
+    // свой ключ объекта, а не унаследованный: constructor, __proto__ не приоритеты
     if (!Object.hasOwn(HOURS, priority)) throw new HttpError(422, 'Неизвестный приоритет');
-    const number = await nextNumber(db.tenant);
-    lines.push(`svc.as(руководитель).Counter({ name: 'tickets' }).update({ next: inc(1) }) → номер ${number} (счётчик клиенту закрыт)`);
-    const tr = await db.begin({ reason });
+    const number = await nextNumber(room.tenant);
+    lines.push(`db.in(компания).Counter({ name: 'tickets' }).update({ next: inc(1) }) → номер ${number}: выдаёт консьерж, клиенту счётчик закрыт`);
+    const tr = await room.begin({ reason });
     try {
       const step = owner ? tr.Ticket().owner(owner) : tr.Ticket();
       const [t] = await step.create({ number, subject, body, priority, status: 'new', due: dueOf(priority, ago), clientName, assignee: '', assigneeName: '', channel }).rows();
@@ -258,113 +230,78 @@ export async function createApp() {
     } catch (e) { await tr.rollback().catch(() => {}); throw e; }
   }
 
-  // ---------- модели и правила доступа всех компаний — при каждом запуске ----------
-  // демо-компании createTenant находит по имени (или заводит вместе с руководителем); зарегистрированные — арендаторы со
-  // строкой Desk (её пишет setupCompany), сессию записи выпускают на их руководителя — членство с ролью owner. Ошибка
-  // хотя бы в одной компании не ловится: сервис не стартует, а не работает у части компаний со старыми моделями и правилами
-  const demo = [];
-  for (const c of COMPANIES) demo.push({ c, boss: await createTenant(admin, r.schema, { name: c.name, user: { ...c.boss, ttl: '10 minutes' } }) });
-  const companies = new Map(demo.map(({ boss }) => [boss.tenant, boss.user])); // арендатор → руководитель
-  const S = `"${r.schema.replace(/"/g, '""')}"`;
-  const desks = await admin.unsafe(`select distinct on (d.tenant) d.tenant, m.links->>'User' as owner from ${S}.entity d
-      join ${S}.entity m on m.tenant = d.tenant and m.class = 'member' and m.data->'roles' ? 'owner'
-    where d.class = 'Desk' order by d.tenant, m.at`);
-  for (const d of desks) if (!companies.has(d.tenant)) companies.set(d.tenant, d.owner);
-  for (const [tenant, owner] of companies) await syncCompany(tenant, owner);
-
   // ---------- демо: две компании, люди, заявки (повторный запуск ничего не дублирует) ----------
-  for (const { c, boss } of demo) {
-    const db = await open({ token: boss.token });
-    try {
-      await setupCompany(db, c.name, { account: boss.user, name: c.boss.name, login: c.boss.login });
-      for (const p of c.people) await addPerson(db, c.name, p);
-      if (!(await db.Ticket().count())) {
-        for (const t of c.tickets) {
-          const as = await svc.as(accountOf(t.by), { tenant: boss.tenant });
-          const name = c.people.find((p) => p.login === t.by).name;
-          await createTicket(as, { ...t, clientName: name, channel: 'web' }, [], 'обращение с сайта');
-        }
+  // Ошибка хотя бы в одной компании не ловится: сервис не стартует, а не работает у части компаний со старыми правилами
+  const tenants = new Set((await db.tenants()).map((t) => t.name));
+  for (const c of COMPANIES) {
+    if (!tenants.has(c.name)) throw new Error(`helpdesk: компании «${c.name}» нет — подготовьте дом: node src/setup.mjs`);
+    const desk = await db.in(c.name);
+    await setupCompany(desk, c.name);
+    const accounts = new Map();
+    for (const p of [{ ...c.boss, role: 'manager' }, ...c.people]) accounts.set(p.login, await personOf(desk, c.name, p));
+    if (!(await desk.Ticket().count())) {
+      for (const t of c.tickets) {
+        // заявку пишет сервис от имени клиента: автор и владелец — клиент
+        const as = await db.as(accounts.get(t.by), c.name);
+        const name = c.people.find((p) => p.login === t.by).name;
+        await createTicket(as, { ...t, clientName: name, channel: 'web' }, [], 'обращение с сайта');
       }
-    } finally { await db.close(); }
+    }
   }
+  // зарегистрированные компании — та же матрица: изменение правил после перезапуска доходит до всех
+  for (const t of await db.tenants()) if (!DEMO_NAMES.has(t.name)) await setupCompany(await db.in(t.id), t.name);
 
   // ---------- веб: сессии, демо-почта, «под капотом» ----------
-  // sid → { db, account, login, name, tenant, roles, companies, trace, acting, switching }; db — своё подключение сессии
-  // по токену; switching — идущая смена компании (/api/switch); сессии агента, выданные вкладкой, — в agents (раздел MCP)
-  const web = createSessions({
-    missing: { error: 'Нужен вход', code: 'session_ended' },
-    // жива ли сессия letopis (alive): погашенную — закрыть, вкладка вернётся ко входу
-    check: async (req, res, s) => {
-      try {
-        if (await aliveWeb(s)) return true;
-        await web.close(web.sidOf(req));
-        ended(res);
-      } catch (e) { fail(req, res, e); }
-      return false;
-    },
-    // закрытая вкладка (выход, «выйти везде», удаление из компании) гасит и выданные ею сессии агента
-    onClose: async (s) => {
-      for (const a of agentsOf(s)) await dropAgent(a);
-      await s.db.close().catch(() => {});
-    },
-  });
+  /**
+   * Поля сессии по корню жильца: имя и роли — me.acl.people() (себя жилец видит всегда), email — из справочника
+   * компании (Profile).
+   */
+  async function fieldsOf(room) {
+    const self = (await room.acl.people()).find((p) => p.account === room.account);
+    const p = await room.Profile({ account: room.account }).first();
+    return { account: room.account, name: self?.name || '—', login: p?.data.login ?? '', roles: self?.roles ?? [], acting: null };
+  }
+  // по токену сессии — { db: корень квартиры, account, name, login, roles, acting, trace }; acting — работа от имени
+  const web = createSessions({ house: db, restore: fieldsOf, missing: { error: 'Нужен вход', code: 'session_ended' } });
   const { auth } = web;
   const { act } = trace;
-  const pending = new Map(); // вход по коду из письма ждёт TOTP: id → { login, result, until }
-  const mailbox = [];
-  const names = new Map(); // tenant → название компании
-  let mailSeq = 0;
-  const mail = (to, subject, text) => {
-    if (!ENV.demoMail) return; // настоящий сервис отдал бы письмо почтовому шлюзу
-    mailbox.unshift({ id: ++mailSeq, at: new Date().toISOString(), to, subject, text }); // время письма вкладка покажет в своём поясе
-    mailbox.length = Math.min(mailbox.length, 50);
-  };
+  const pending = new Map(); // вход по коду из письма ждёт код из приложения: id → { login, code, tenant, until }
   const dbOf = (s) => s.acting?.db ?? s.db;
   const whoOf = (s) => s.acting ?? s;
   const why = (s, text) => (s.acting ? `${text} — от имени: ${s.acting.name}; действовал руководитель ${s.name}` : text);
 
-  async function companyName(s, tenant) {
-    if (!names.has(tenant)) {
-      const as = tenant === s.tenant ? s.db : await svc.as(s.account, { tenant });
-      names.set(tenant, (await as.Desk().first().catch(() => null))?.data.name ?? 'компания');
+  /** Включён ли у жильца второй фактор в этой квартире: подтверждённый ключ TOTP среди своих ключей. */
+  const totpOn = async (room) => (await room.keys.list()).some((k) => k.kind === 'TOTP' && k.meta?.confirmed === true);
+
+  /** Веб-сессия поверх сессии letopis: токен — в cookie, корень по нему открывает каждый запрос (db.resume). */
+  async function openSession(res, room) {
+    const fields = await fieldsOf(room);
+    if (fields.roles.includes('integration')) {
+      await room.close();
+      throw new HttpError(403, 'Ключ интеграции — для программ, а не для входа на сайт');
     }
-    return names.get(tenant);
+    return me(web.open(res, room, fields));
   }
-
-  /** Рабочий арендатор сессии: компания по членству (личный арендатор учётной записи не в счёт). */
-  async function pickCompany(s, prefer) {
-    const list = (await s.db.auth.tenants()).filter((t) => t.tenant !== s.account && !t.roles.includes('integration'));
-    if (!list.length) throw new HttpError(403, 'Вы не состоите ни в одной компании');
-    // auth.tenants() не упорядочен: по умолчанию — компания, где человек состоит дольше всего (свои member видны всегда)
-    const since = prefer ? [] : (await s.db.member({ User: s.account }).rows()).sort((a, b) => (a.at < b.at ? -1 : 1)).map((m) => m.tenant);
-    const t = list.find((x) => x.tenant === prefer) ?? since.map((id) => list.find((x) => x.tenant === id)).find(Boolean) ?? list[0];
-    if (s.db.tenant !== t.tenant) await s.db.auth.switch(t.tenant);
-    Object.assign(s, { tenant: t.tenant, roles: t.roles, companies: list });
-  }
-
-  /** Веб-сессия поверх сессии letopis: своё подключение по токену — на нём проверяет база каждый запрос. */
-  async function openSession(res, login, db, account, prefer) {
-    const acc = await db.Account(account).first();
-    const s = { db, account, login, name: acc?.data.name ?? login, trace: [], acting: null };
-    try { await pickCompany(s, prefer); } catch (e) { await db.auth.revoke().catch(() => {}); await db.close(); throw e; }
-    web.open(res, s);
-    return me(s);
-  }
-  const dropAccount = (account) => web.closeAll((s) => s.account === account);
 
   async function me(s) {
     const who = whoOf(s);
     return {
-      name: who.name, login: who.login, role: roleOf(who.roles), company: await companyName(s, s.tenant), tenant: s.tenant,
-      companies: s.acting ? [] : await Promise.all(s.companies.map(async (c) => ({ tenant: c.tenant, name: await companyName(s, c.tenant) }))),
-      totp: await svc.auth.totpEnabled(who.account),
+      name: who.name, login: who.login, role: roleOf(who.roles), company: s.db.tenantName, tenant: s.db.tenant,
+      // ключ открывает одну квартиру: другая компания — вход её ключом
+      companies: s.acting ? [] : [{ tenant: s.db.tenant, name: s.db.tenantName }],
+      totp: await totpOn(s.db),
       ...(s.acting ? { actingAs: `сервис helpdesk по просьбе руководителя ${s.name}` } : {}),
     };
   }
 
-  /** Справочник людей компании (кэш результатов: повтор в течение минуты — без запроса к базе). */
-  async function people(db) {
-    return new Map((await db.Profile().cache({ ttl: 60 }).rows()).map((p) => [p.data.account, p.data]));
+  /**
+   * Люди компании глазами корня room: имена и роли — me.acl.people() (кого он видит по матрице: руководитель и агент —
+   * всех, клиент — себя), email — из справочника компании Profile (кэш результатов: повтор в течение минуты — без
+   * запроса к базе). Ответ — Map: аккаунт → { name, login, roles }.
+   */
+  async function people(room) {
+    const logins = new Map((await room.Profile().cache({ ttl: 60 }).rows()).map((p) => [p.data.account, p.data.login]));
+    return new Map((await room.acl.people()).map((p) => [p.account, { name: p.name || '—', login: logins.get(p.account) ?? '', roles: p.roles }]));
   }
 
   const view = (t) => ({
@@ -373,14 +310,19 @@ export async function createApp() {
     client: t.data.clientName, assignee: t.data.assigneeName, channel: t.data.channel, rev: t.rev, owner: t.owner,
   });
 
-  function fail(req, res, e) {
+  async function fail(req, res, e) {
     const code = e?.code;
     if (code === 'no_session' || code === 'tenant_denied') {
-      // сессию погасили (revokeAll, удаление учётной записи) или забрали членство — вход заново
-      web.close(web.sidOf(req));
+      // сессию погасили (выход везде, отзыв ключа) или выписали из компании — вход заново
+      await web.drop(web.tokenOf(req)).catch(() => {});
+      web.forget(res);
       return res.status(401).json({ error: 'Сеанс завершён — войдите заново', code: 'session_ended', reason: code });
     }
     if (e instanceof HttpError) return res.status(e.status).json({ error: e.message, code: e.code });
+    // ключи (TOTP, ключи API) жилец меняет только вскоре после интерактивного входа
+    if (e?.key === 'sql-access.bind_denied') {
+      return res.status(403).json({ error: 'Ключи меняются только в первые 10 минут после входа паролем или кодом — выйдите и войдите снова', code: 'recent_login' });
+    }
     if (code === 'acl_denied') return res.status(403).json({ error: `Нет прав: ${e.message}`, code });
     if (code === 'conflict') return res.status(409).json({ error: 'Заявку уже изменили — обновите и повторите', code });
     if (code === 'invalid_data') return res.status(422).json({ error: e.message, code });
@@ -389,36 +331,17 @@ export async function createApp() {
     console.error(e);
     return res.status(500).json({ error: e?.message ?? String(e) });
   }
-  const route = (fn) => async (req, res) => { try { await fn(req, res); } catch (e) { fail(req, res, e); } };
-  /**
-   * Жива ли сессия: погашенная (revokeAll, отзыв ключа) на чтении не даёт ошибки — контекст просто пустой и база
-   * ничего не покажет. Поэтому сервис спрашивает базу по токену подключения: svc.auth.session(token) — null, если
-   * сессия погашена или истекла; member: false — членство в рабочей компании снято или компания отключена.
-   */
-  async function alive(db, tenant) {
-    const info = await svc.auth.session(db.token);
-    return !!info && info.member && (!tenant || info.tenant === tenant);
-  }
-  /**
-   * Жива ли веб-сессия. Идущую смену компании этой вкладкой сначала дождаться: база переводит сессию раньше, чем
-   * меняется s.tenant, и запрос вкладки посреди смены (показатели, панель, очередь) увидел бы чужую компанию и закрыл бы
-   * сессию — вкладка ушла бы ко входу.
-   */
-  async function aliveWeb(s) {
-    await s.switching;
-    return alive(s.db, s.tenant);
-  }
-  const ended = (res) => res.status(401).json({ error: 'Сеанс завершён — войдите заново', code: 'session_ended' });
-  /** Право на раздел — правило API в базе: db.acl.check('desk.team') и т. п. */
+  const route = (fn) => async (req, res) => { try { await fn(req, res); } catch (e) { await fail(req, res, e); } };
+  /** Право на раздел — правило API в базе: room.acl.check('desk.team') и т. п. */
   const guard = (endpoint) => async (req, res, next) => {
     try {
       const d = await dbOf(req.s).acl.check(endpoint);
       if (!d.allow) throw new HttpError(403, `Раздел недоступен вашей роли (правило для ${endpoint})`, 'acl_denied');
       next();
-    } catch (e) { fail(req, res, e); }
+    } catch (e) { await fail(req, res, e); }
   };
-  const ticketOf = async (db, id) => {
-    const t = await db.Ticket(id).first();
+  const ticketOf = async (room, id) => {
+    const t = await room.Ticket(id).first();
     if (!t) throw new HttpError(404, 'Заявка не найдена или недоступна');
     return t;
   };
@@ -426,110 +349,161 @@ export async function createApp() {
   const app = express();
   app.use(express.json());
 
-  // ---------- регистрация и вход ----------
+  // ---------- регистрация, приглашения и вход ----------
   /**
-   * Незаконченная компания (план 2.0, 7.6 №3): строки Desk нет — регистрация прервалась после того, как арендатор
-   * заведён. account — её руководитель (членство с ролью owner); null — руководителя нет вовсе, и компания заведена
-   * больше минуты назад: брошенный остаток, а не регистрация, которая идёт прямо сейчас.
+   * Регистрация компании: консьерж заводит квартиру, пишет её матрицу и настройки и зовёт регистратора меткой owner —
+   * код уходит на почту, принимает его регистратор (/api/accept). Название занято: компания с жильцами — 409; без
+   * жильцов, но с живым приглашением другому email — 409 (её регистрирует другой); брошенная (ни жильцов, ни
+   * приглашений) или та же почта повторно — приглашение заново. Сбой посреди регистрации квартиру не оставляет: консьерж
+   * её удаляет, повтор начинает с нуля.
    */
-  async function unfinished(company, account) {
-    const tenant = v5Id(SYSTEM_ID, 'Account', ['tenant:' + company]);
-    const [x] = await admin.unsafe(`select
-        exists (select 1 from ${S}.entity d where d.tenant = $1 and d.class = 'Desk') as desk,
-        exists (select 1 from ${S}.entity m where m.tenant = $1 and m.class = 'member' and m.data->'roles' ? 'owner'
-          and ($2::uuid is null or m.links->>'User' = $2::text)) as owner,
-        (select a.created_at < now() - interval '1 minute' from ${S}.entity a where a.id = $1) as old`, [tenant, account]);
-    return !x.desk && (account ? x.owner : !x.owner && x.old === true);
-  }
-
   app.post('/api/register', route(async (req, res) => {
     const company = String(req.body?.company ?? '').trim(), name = String(req.body?.name ?? '').trim();
-    const login = String(req.body?.login ?? '').trim().toLowerCase(), password = String(req.body?.password ?? '');
-    if (company.length < 2 || company.length > 60 || !name || !/^[^@\s]+@[^@\s]+$/.test(login) || password.length < 8) {
-      throw new HttpError(422, 'Нужны название компании, имя, email и пароль от 8 символов');
+    const login = String(req.body?.login ?? '').trim().toLowerCase();
+    if (company.length < 2 || company.length > 60 || !name || !/^[^@\s]+@[^@\s]+$/.test(login)) {
+      throw new HttpError(422, 'Нужны название компании, имя и email');
     }
-    // повтор после сбоя (план 2.0, 7.6 №3): прерванная регистрация оставляет компанию без строки Desk — тот же человек
-    // (email, верный пароль, руководитель этой компании) повтором её достраивает; чужой получает 409, как раньше
-    if ((await svc.auth.credentials(accountOf(login)).catch(() => [])).length) {
-      const ok = await svc.auth.verifyPassword({ identifier: login, password, ttl: 60 }).catch(() => null);
-      if (ok) await dropToken(ok.token);
-      // второй фактор: с включённым TOTP сессию по одному паролю не выдаём — вход (/api/login) проверит код
-      if (!ok || (await svc.auth.totpEnabled(ok.account)) || !(await unfinished(company, ok.account))) {
-        throw new HttpError(409, 'Этот email уже зарегистрирован — войдите');
+    const created = await ensureTenant(db, company);
+    const desk = await db.in(company);
+    if (!created) {
+      if ((await desk.member().rows()).length) throw new HttpError(409, 'Компания с таким названием уже есть');
+      if ((await desk.invites()).some((i) => i.to.address.toLowerCase() !== login)) throw new HttpError(409, 'Компанию с таким названием сейчас регистрирует другой человек');
+    }
+    try {
+      await setupCompany(desk, company);
+      // имитация сбоя посреди регистрации — только сценарий (scenario.mjs) ставит эту переменную на одну регистрацию
+      if (process.env.HELPDESK_FAIL_REGISTER === company) {
+        delete process.env.HELPDESK_FAIL_REGISTER;
+        throw new Error('имитация сбоя посреди регистрации (сценарий)');
       }
-    } else if (!(await createTenant(admin, r.schema, { name: company })).created && !(await unfinished(company, null))) {
-      throw new HttpError(409, 'Компания с таким названием уже есть');
+      // письмо со ссылкой отдаёт почтальону сам консьерж; ответ invite — только { id, expiresAt }
+      await desk.invite({ email: login }, ['owner'], { ttl: INVITE_TTL });
+    } catch (e) {
+      await desk.deleteTenant().catch(() => {});
+      throw e;
     }
-    const t = await createTenant(admin, r.schema, { name: company, user: { name, login, password, ttl: `${WEB_TTL} seconds` } });
-    await syncCompany(t.tenant, t.user);
-    companies.set(t.tenant, t.user); // руководитель — от его имени сервис выдаёт номера заявок (nextNumber)
-    // имитация сбоя посреди регистрации — только сценарий (scenario.mjs) ставит эту переменную на одну регистрацию
-    if (process.env.HELPDESK_FAIL_REGISTER === company) {
-      delete process.env.HELPDESK_FAIL_REGISTER;
-      throw new Error('имитация сбоя посреди регистрации (сценарий, план 2.0, 7.6 №3)');
+    res.json({ invited: true, login, company });
+  }));
+
+  /** Страница приглашения по ссылке из письма: что за компания, кто зовёт, роль, срок — db.invitation только смотрит. */
+  app.get('/api/invitation/:token', route(async (req, res) => {
+    let inv;
+    try {
+      inv = await db.invitation(String(req.params.token));
+    } catch (e) {
+      if (e.code === 'auth_failed') throw new HttpError(404, 'Приглашение не найдено: ссылка неверна или давно истекла');
+      throw e;
     }
-    const db = await open({ token: t.token });
-    await setupCompany(db, company, { account: t.user, name, login });
-    names.set(t.tenant, company);
-    mail(login, `Компания «${company}» создана`, `Вы — руководитель helpdesk «${company}». Пригласите агентов и клиентов в разделе «Команда».`);
-    res.json(await openSession(res, login, db, t.user, t.tenant));
+    res.json({
+      company: inv.tenantName, role: ROLE_RU[roleOf(inv.roles)], from: inv.from?.name ?? null, to: inv.to.address,
+      until: inv.expiresAt, status: inv.status, hasAccount: inv.hasAccount,
+    });
+  }));
+
+  /**
+   * Принять приглашение по ссылке: токен из ссылки, имя и пароль по желанию — новый аккаунт или прежний (тот же
+   * email). Без пароля человек входит кодом из письма.
+   */
+  app.post('/api/accept', route(async (req, res) => {
+    const token = String(req.body?.token ?? '').trim(), name = String(req.body?.name ?? '').trim();
+    const password = String(req.body?.password ?? '');
+    if (!token || !name || (password && password.length < 8)) throw new HttpError(422, 'Нужны имя и, если задаёте пароль, — от 8 символов');
+    let room;
+    try {
+      room = await db.accept(token, { name, ...(password ? { password } : {}) });
+    } catch (e) {
+      if (e.key === 'api.invite_unknown') throw new HttpError(401, 'Приглашение не найдено: ссылка неверна или давно истекла');
+      if (e.key === 'api.invite_inactive') throw new HttpError(401, 'Приглашение уже не действует: принято, отменено, заменено новым или истекло');
+      if (e.key === 'api.invite_attempts') throw new HttpError(401, 'Приглашение погашено: пять неудачных попыток — попросите новое');
+      if (e.key === 'api.invite_lost') throw new HttpError(403, 'Пригласивший больше не вправе выдать эту роль — попросите новое приглашение');
+      if (e.key === 'api.password_reused') throw new HttpError(422, 'Этот пароль уже открывает другую вашу компанию — у каждой компании свой пароль');
+      if (e.key === 'sql-access.already_member') throw new HttpError(409, 'Вы уже в этой компании — войдите своим паролем или кодом');
+      throw e;
+    }
+    // справочник людей компании — профиль нового жильца: пишет консьерж (прописка уже есть). Email — контакт аккаунта,
+    // его знает консьерж: db.contactOf(аккаунт)
+    const desk = await db.in(room.tenant);
+    const login = (await db.contactOf(room.account))?.address ?? '';
+    await desk.Profile().owner(room.account).upsert({ account: room.account, name, login }).rows();
+    res.json(await openSession(res, room));
   }));
 
   app.post('/api/login', route(async (req, res) => {
-    const identifier = String(req.body?.login ?? '').trim().toLowerCase(), password = String(req.body?.password ?? '');
+    const email = String(req.body?.login ?? '').trim().toLowerCase(), password = String(req.body?.password ?? '');
     const code = req.body?.code ? String(req.body.code) : undefined;
-    if (code) {
-      // второй шаг: пароль и код TOTP одним вызовом — сессия получает отметку TOTP
-      const ok = await svc.auth.verifyPassword({ identifier, password, totp: code, ttl: WEB_TTL });
-      if (!ok) throw new HttpError(401, 'Неверный код из приложения');
-      return res.json(await openSession(res, identifier, await open({ token: ok.token }), ok.account));
+    let room;
+    try {
+      // пароль и код TOTP — один ключ: включённый второй фактор без кода квартиру не открывает
+      room = await db.open({ email, password, ...(code ? { totp: code } : {}), ttl: WEB_TTL });
+    } catch (e) {
+      // пароль верен, а у жильца в этой квартире включён второй фактор — вкладка спросит код и повторит вход с ним
+      if (e.key === 'api.totp_required') return res.json({ needTotp: true });
+      if (e.code === 'auth_failed' || e.code === 'invalid_data') throw new HttpError(401, code ? 'Неверный код из приложения' : 'Неверный email или пароль');
+      throw e;
     }
-    const ok = await svc.auth.verifyPassword({ identifier, password, ttl: WEB_TTL });
-    if (!ok) throw new HttpError(401, 'Неверный логин или пароль');
-    if (await svc.auth.totpEnabled(ok.account)) {
-      // letopis не навязывает второй фактор: сервис сам видит включённый TOTP, гасит сессию без кода и просит код
-      await dropToken(ok.token);
-      return res.json({ needTotp: true });
-    }
-    res.json(await openSession(res, identifier, await open({ token: ok.token }), ok.account));
+    res.json(await openSession(res, room));
   }));
 
+  /**
+   * Код на почту: db.requestCode — код выпускает и проверяет библиотека, письмо доставляет почтальон сервиса. Код
+   * доказывает email, а не открывает одну компанию: компанию выбирают после кода. Ответ всегда один: по нему нельзя
+   * узнать, есть ли адрес в доме.
+   */
   app.post('/api/otp/send', route(async (req, res) => {
-    const login = String(req.body?.login ?? '').trim().toLowerCase();
-    try {
-      const { code } = await svc.auth.issueOtp({ account: accountOf(login), identifier: login, ttl: 600 });
-      mail(login, 'Код входа в helpdesk', `Ваш код: ${code}\nДействует 10 минут, подходит один раз.`);
-    } catch (e) {
-      // нет такой учётной записи — ответ тот же: по ответу нельзя узнать, есть ли адрес в системе
-      if (!(e instanceof LetopisError) || !['target_not_found', 'acl_denied', 'invalid_data'].includes(e.code)) throw e;
-    }
+    const email = String(req.body?.login ?? '').trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+$/.test(email)) throw new HttpError(422, 'Нужен email');
+    await db.requestCode({ email }, { ttl: 600 });
     res.json({ sent: true });
   }));
 
+  /**
+   * Вход кодом: компании email по коду (db.tenantsOf — код не гаснет); компаний несколько, а компания не выбрана —
+   * ответ chooseTenant со списком; выбрана или одна — db.open({ email, code, tenant }).
+   */
   app.post('/api/otp/verify', route(async (req, res) => {
-    const login = String(req.body?.login ?? '').trim().toLowerCase();
-    const ok = await svc.auth.verifyOtp({ identifier: login, code: String(req.body?.code ?? '') });
-    if (!ok) throw new HttpError(401, 'Неверный или уже использованный код');
-    if (await svc.auth.totpEnabled(ok.account)) {
-      // код из письма сгорел, второй фактор — отдельной проверкой verifyTotp
-      const id = randomBytes(16).toString('hex');
-      pending.set(id, { login, result: ok, until: Date.now() + 5 * 60_000 });
-      return res.json({ needTotp: true, pending: id });
+    const email = String(req.body?.login ?? '').trim().toLowerCase(), code = String(req.body?.code ?? '');
+    let tenant = req.body?.tenant ? String(req.body.tenant) : undefined;
+    let room;
+    try {
+      if (!tenant) {
+        const companies = await db.tenantsOf({ email, code });
+        if (companies.length > 1) return res.json({ chooseTenant: true, tenants: companies });
+        tenant = companies[0]?.id;
+      }
+      room = await db.open({ email, code, ...(tenant ? { tenant } : {}), ttl: WEB_TTL });
+    } catch (e) {
+      if (e.key === 'api.totp_required') {
+        // код из письма верен, а у жильца включён второй фактор: код письма не сгорел — вход повторится вместе с кодом
+        // из приложения (db.open({ email, code, tenant, totp })); код письма ждёт на сервисе не дольше 5 минут
+        const id = randomBytes(16).toString('hex');
+        pending.set(id, { login: email, code, tenant, until: Date.now() + 5 * 60_000 });
+        return res.json({ needTotp: true, pending: id });
+      }
+      if (e.code === 'auth_failed' || e.code === 'invalid_data') throw new HttpError(401, 'Неверный или уже использованный код');
+      throw e;
     }
-    res.json(await openSession(res, login, await open({ token: ok.token }), ok.account));
+    res.json(await openSession(res, room));
   }));
 
   app.post('/api/login/totp', route(async (req, res) => {
     const p = pending.get(String(req.body?.pending ?? ''));
     if (!p || p.until < Date.now()) throw new HttpError(401, 'Вход устарел — начните заново');
-    if (!(await svc.auth.verifyTotp({ account: p.result.account, code: String(req.body?.code ?? '') }))) throw new HttpError(401, 'Неверный код из приложения');
+    let room;
+    try {
+      room = await db.open({ email: p.login, code: p.code, ...(p.tenant ? { tenant: p.tenant } : {}), totp: String(req.body?.code ?? ''), ttl: WEB_TTL });
+    } catch (e) {
+      if (e.code === 'auth_failed' || e.code === 'invalid_data') throw new HttpError(401, 'Неверный код из приложения');
+      throw e;
+    }
     pending.delete(String(req.body.pending));
-    res.json(await openSession(res, p.login, await open({ token: p.result.token }), p.result.account));
+    res.json(await openSession(res, room));
   }));
 
-  app.get('/api/mailbox', (_req, res) => (ENV.demoMail ? res.json(mailbox) : res.status(404).json({ error: 'Демо-почта выключена (DEMO_MAIL=0)' })));
+  // демо-почта: письма почтальона-заглушки (время письма вкладка покажет в своём поясе)
+  app.get('/api/mailbox', (_req, res) => (ENV.demoMail
+    ? res.json(box.letters.map(({ id, at, to, subject, text, link }) => ({ id, at, to, subject, text, link: link ?? null })))
+    : res.status(404).json({ error: 'Демо-почта выключена (DEMO_MAIL=0)' })));
   app.get('/logout', async (req, res) => {
-    await web.get(req)?.db.auth.revoke().catch(() => {});
     await web.logout(req, res);
     res.redirect('/');
   });
@@ -537,35 +511,21 @@ export async function createApp() {
   // ---------- рабочее место ----------
   // без входа — 200 и null, а не 401: страница входа открывается без ошибки в консоли браузера
   app.get('/api/me', route(async (req, res) => {
-    const s = web.get(req);
-    if (!s) return res.json(null);
-    if (!(await aliveWeb(s))) { await web.close(web.sidOf(req)); return res.json(null); }
-    res.json(await me(s));
-  }));
-  app.post('/api/switch', auth, route(async (req, res) => {
-    const s = req.s;
-    if (s.acting) throw new HttpError(409, 'Сначала вернитесь к себе');
-    const done = act(s, 'Смена компании', async (lines) => {
-      await pickCompany(s, String(req.body?.tenant ?? ''));
-      lines.push(`db.auth.switch('${s.tenant.slice(0, 8)}…') — та же учётная запись, другой арендатор; реестр классов перечитан`);
-    });
-    // запросы вкладки, пришедшие посреди смены, ждут её конца (aliveWeb)
-    const mine = s.switching = done.then(() => {}, () => {});
-    try { await done; } finally { if (s.switching === mine) s.switching = null; }
-    res.json(await me(s));
+    const s = await web.get(req);
+    res.json(s ? await me(s) : null);
   }));
   app.get('/api/stats', auth, route(async (req, res) => {
-    const db = dbOf(req.s), who = whoOf(req.s), open = inList(['new', 'open', 'pending']);
+    const room = dbOf(req.s), who = whoOf(req.s), open = inList(['new', 'open', 'pending']);
     res.json({
-      open: await db.Ticket({ status: open }).count(),
-      urgent: await db.Ticket({ status: open, priority: 'urgent' }).count(),
-      mine: roleOf(who.roles) === 'client' ? await db.Ticket({ status: 'pending' }).count() : await db.Ticket({ status: open, assignee: who.account }).count(),
-      overdue: await db.Ticket({ status: open, due: lt(new Date().toISOString()) }).count(),
+      open: await room.Ticket({ status: open }).count(),
+      urgent: await room.Ticket({ status: open, priority: 'urgent' }).count(),
+      mine: roleOf(who.roles) === 'client' ? await room.Ticket({ status: 'pending' }).count() : await room.Ticket({ status: open, assignee: who.account }).count(),
+      overdue: await room.Ticket({ status: open, due: lt(new Date().toISOString()) }).count(),
     });
   }));
 
   app.get('/api/tickets', auth, route(async (req, res) => {
-    const s = req.s, db = dbOf(s), staff = roleOf(whoOf(s).roles) !== 'client';
+    const s = req.s, room = dbOf(s), staff = roleOf(whoOf(s).roles) !== 'client';
     let after = null;
     try {
       after = req.query.after ? JSON.parse(String(req.query.after)) : null;
@@ -576,9 +536,9 @@ export async function createApp() {
     // иначе подгруженные «Показать ещё» страницы сворачивались бы на каждом событии
     const size = after ? PAGE : Math.min(Math.max(Number.parseInt(String(req.query.limit ?? ''), 10) || PAGE, PAGE), 100);
     const read = async (lines) => {
-      let q = db.Ticket(staff ? { status: inList(['new', 'open', 'pending']) } : {}).sort('data.due');
+      let q = room.Ticket(staff ? { status: inList(['new', 'open', 'pending']) } : {}).sort('data.due');
       if (after) q = q.after(after);
-      lines.push(`db.Ticket(${staff ? "{ status: inList(['new','open','pending']) }" : ''}).sort('data.due')${after ? '.after(курсор)' : ''}.limit(${size + 1})`);
+      lines.push(`me.Ticket(${staff ? "{ status: inList(['new','open','pending']) }" : ''}).sort('data.due')${after ? '.after(курсор)' : ''}.limit(${size + 1})`);
       if (!staff) lines.push('чужие обращения отсекает база: правило клиента { class: Ticket, owner: $actor }');
       return q.limit(size + 1).rows();
     };
@@ -596,10 +556,10 @@ export async function createApp() {
   }));
 
   app.get('/api/tickets/:id', auth, route(async (req, res) => {
-    const s = req.s, db = dbOf(s), staff = roleOf(whoOf(s).roles) !== 'client';
-    const t = await ticketOf(db, req.params.id);
-    const replies = await db.Ticket(t.id).Reply().sort('at').rows();
-    const notes = staff ? await db.Ticket(t.id).Note().sort('at').rows() : [];
+    const s = req.s, room = dbOf(s), staff = roleOf(whoOf(s).roles) !== 'client';
+    const t = await ticketOf(room, req.params.id);
+    const replies = await room.Ticket(t.id).Reply().sort('at').rows();
+    const notes = staff ? await room.Ticket(t.id).Note().sort('at').rows() : [];
     const posts = [...replies.map((p) => ({ ...p, internal: false })), ...notes.map((p) => ({ ...p, internal: true }))]
       .sort((a, b) => (a.at < b.at ? -1 : 1))
       .map((p) => ({ id: p.id, text: p.data.text, author: p.data.authorName, at: p.at, internal: p.internal }));
@@ -607,18 +567,18 @@ export async function createApp() {
   }));
 
   app.post('/api/tickets/:id/reply', auth, route(async (req, res) => {
-    const s = req.s, db = dbOf(s), who = whoOf(s), staff = roleOf(who.roles) !== 'client';
+    const s = req.s, room = dbOf(s), who = whoOf(s), staff = roleOf(who.roles) !== 'client';
     const text = String(req.body?.text ?? ''), internal = !!req.body?.internal && staff;
     await act(s, internal ? 'Внутренняя заметка' : staff ? 'Ответ клиенту' : 'Ответ в обращении', async (lines) => {
-      const t = await ticketOf(db, req.params.id);
+      const t = await ticketOf(room, req.params.id);
       if (internal) {
-        await db.Ticket(t.id).Note().create({ text, authorName: who.name }, { reason: why(s, 'заметка агента') }).rows();
-        lines.push(`db.Ticket(${t.data.number}).Note().create({ text }) — клиенту класс Note закрыт правилом deny`);
+        await room.Ticket(t.id).Note().create({ text, authorName: who.name }, { reason: why(s, 'заметка агента') }).rows();
+        lines.push(`me.Ticket(${t.data.number}).Note().create({ text }) — клиенту класс Note закрыт: правил на него у клиента нет`);
         return;
       }
       // ответ и смена статуса — одной транзакцией: либо оба, либо ничего
       const next = staff ? 'pending' : 'open';
-      const tr = await db.begin({ reason: why(s, staff ? 'ответ агента' : 'ответ клиента') });
+      const tr = await room.begin({ reason: why(s, staff ? 'ответ агента' : 'ответ клиента') });
       try {
         await tr.Ticket(t.id).Reply().create({ text, authorName: who.name, client: t.owner }).rows();
         if (t.data.status !== next) await tr.Ticket(t.id).update({ status: next }).rows();
@@ -633,7 +593,7 @@ export async function createApp() {
   app.post('/api/tickets/:id/status', auth, route(async (req, res) => {
     const s = req.s, status = String(req.body?.status ?? ''), rev = Number(req.body?.rev);
     await act(s, `Статус: ${status}`, async (lines) => {
-      lines.push(`db.Ticket(id).update({ status: '${status}' }, { rev: ${rev} }) — устаревшая версия даст conflict`);
+      lines.push(`me.Ticket(id).update({ status: '${status}' }, { rev: ${rev} }) — устаревшая версия даст conflict`);
       await dbOf(s).Ticket(req.params.id).update({ status }, { rev, reason: why(s, `статус: ${status}`) }).rows();
     });
     res.json({ ok: true });
@@ -643,7 +603,7 @@ export async function createApp() {
     const s = req.s, who = whoOf(s);
     await act(s, 'Взять заявку', async (lines) => {
       await dbOf(s).Ticket(req.params.id).update({ assignee: who.account, assigneeName: who.name, status: 'open' }, { reason: why(s, 'взял в работу') }).rows();
-      lines.push(`db.Ticket(id).update({ assignee: '${who.name}', status: 'open' })`);
+      lines.push(`me.Ticket(id).update({ assignee: '${who.name}', status: 'open' })`);
     });
     res.json({ ok: true });
   }));
@@ -651,19 +611,19 @@ export async function createApp() {
   app.post('/api/tickets/:id/delete', auth, route(async (req, res) => {
     const s = req.s;
     await act(s, 'Удаление заявки', async (lines) => {
-      lines.push('db.Ticket(id).delete({ confirm: true, all: true }) — удаление одной заявки, подтверждённое в окне, без сверки с превью; право на удаление проверяет база (правило not-owner → ticket:DELETE, deny)');
+      lines.push('me.Ticket(id).delete({ confirm: true, all: true }) — удаление одной заявки, подтверждённое в окне, без сверки с превью; право на удаление проверяет база: оно есть только у руководителя');
       await dbOf(s).Ticket(req.params.id).delete({ confirm: true, all: true, reason: why(s, 'удалена руководителем') }).rows();
     });
     res.json({ ok: true });
   }));
 
   app.get('/api/tickets/:id/history', auth, route(async (req, res) => {
-    const s = req.s, db = dbOf(s);
+    const s = req.s, room = dbOf(s);
     const versions = await act(s, 'История заявки', async (lines) => {
-      lines.push('db.Ticket(id).versions() — автор, исполнитель (agent) и причина каждой версии');
-      return db.Ticket(req.params.id).versions();
+      lines.push('me.Ticket(id).versions() — автор, исполнитель (agent) и причина каждой версии');
+      return room.Ticket(req.params.id).versions();
     });
-    const who = await people(db);
+    const who = await people(room);
     res.json(versions.map((v) => ({
       rev: v.rev, op: v.op, who: who.get(v.author)?.name ?? '—', agent: v.agent ? 'сервис helpdesk' : '', reason: v.reason ?? '',
       at: v.at, status: v.data?.status ?? '', assignee: v.data?.assigneeName ?? '',
@@ -673,34 +633,37 @@ export async function createApp() {
   // ---------- команда (руководитель) ----------
   app.get('/api/team', auth, guard('desk.team'), route(async (req, res) => {
     const s = req.s;
-    const members = await s.db.member().rows();
-    const who = await people(s.db);
-    const team = [];
-    for (const m of members) {
-      if (m.data.roles?.includes('integration')) continue;
-      const p = who.get(m.links.User);
-      team.push({ account: m.links.User, name: p?.name ?? '—', login: p?.login ?? '—', role: roleOf(m.data.roles), totp: await svc.auth.totpEnabled(m.links.User), self: m.links.User === s.account });
-    }
-    res.json(team.sort((a, b) => a.role.localeCompare(b.role) || a.name.localeCompare(b.name)));
+    // люди компании — me.acl.people(): имена и роли прописанных; аккаунты интеграций в команде не показываются
+    const team = [...(await people(s.db))].filter(([, p]) => !p.roles.includes('integration'))
+      .map(([account, p]) => ({ account, name: p.name, login: p.login || '—', role: roleOf(p.roles), self: account === s.account }));
+    const invited = (await s.db.invites()).filter((i) => !i.roles.includes('integration'))
+      .map((i) => ({ id: i.id, login: i.to.address, role: roleOf(i.roles), until: i.expiresAt }));
+    res.json({ team: team.sort((a, b) => a.role.localeCompare(b.role) || a.name.localeCompare(b.name)), invited });
   }));
 
   app.post('/api/team/invite', auth, guard('desk.team'), route(async (req, res) => {
-    const s = req.s, company = await companyName(s, s.tenant);
+    const s = req.s, company = s.db.tenantName;
     const name = String(req.body?.name ?? '').trim(), login = String(req.body?.login ?? '').trim().toLowerCase(), role = String(req.body?.role ?? 'client');
     if (!name || !/^[^@\s]+@[^@\s]+$/.test(login) || !Object.hasOwn(ROLE_OF, role)) throw new HttpError(422, 'Нужны имя, email и роль');
-    // чужую учётную запись в компанию без её согласия не добавляем: приглашение — только для новых адресов
-    if ((await svc.auth.credentials(accountOf(login)).catch(() => [])).length) throw new HttpError(409, 'У этого email уже есть учётная запись — без её согласия в компанию не добавить');
-    await act(s, `Приглашение: ${name}`, async (lines) => {
-      await addPerson(s.db, company, { name, login, role });
-      lines.push(`createTenant(admin, schema, { name: '${company}', user: { login: '${login}', roles: ['${ROLE_OF[role]}'] } }) — учётная запись и членство`);
-      lines.push('db.Profile().owner(новый).upsert({ account, name, login }) — запись в справочнике компании; кэш справочника сбросил сигнал');
+    // уже в команде — звать незачем; человек из другой компании — можно: приглашение примет он сам, по ссылке из письма
+    const known = await s.db.Profile({ login }).first();
+    if (known && (await s.db.member({ User: known.data.account }).first())) throw new HttpError(409, 'Этот человек уже в команде');
+    const inv = await act(s, `Приглашение: ${name}`, async (lines) => {
+      const r = await s.db.invite({ email: login }, [ROLE_OF[role]], { ttl: INVITE_TTL });
+      lines.push(`me.invite({ email: '${login}' }, ['${ROLE_OF[role]}']) — звать может тот, кому матрица разрешает выдать эту роль: руководителю (owner) — любую`);
+      lines.push(`письмо со ссылкой в «${company}» консьерж отдал почтальону (демо-почта); в ответе и в базе токена нет — только хэш; человек откроет ссылку и примет приглашение (db.accept)`);
+      return r;
     });
-    mail(login, `Приглашение в helpdesk «${company}»`, `${s.name} пригласил(а) вас в helpdesk «${company}» (роль: ${ROLE_RU[role]}).\nВойдите на ${req.protocol}://${req.get('host')}/ — «Код на почту».`);
+    res.json({ ok: true, id: inv.id });
+  }));
+
+  app.post('/api/team/invites/:id/revoke', auth, guard('desk.team'), route(async (req, res) => {
+    if (!(await req.s.db.revokeInvite(req.params.id))) throw new HttpError(404, 'Такого приглашения нет — его приняли, отменили или оно устарело');
     res.json({ ok: true });
   }));
 
   const member = async (s, account) => {
-    const m = (await s.db.member({ User: account }).rows())[0];
+    const m = (await s.db.member({ User: account, Tenant: s.db.tenant }).rows())[0];
     if (!m) throw new HttpError(404, 'Такого человека в компании нет');
     return m;
   };
@@ -709,238 +672,193 @@ export async function createApp() {
     const s = req.s, account = req.params.account, m = await member(s, account);
     if (m.data.roles?.includes('owner')) throw new HttpError(403, 'От имени руководителя работать нельзя');
     await act(s, 'Работа от имени', async (lines) => {
-      const db = await svc.as(account, { tenant: s.tenant });
+      const room = await db.as(account, s.db.tenant);
       const p = (await people(s.db)).get(account);
-      s.acting = { db, account, name: p?.name ?? '—', login: p?.login ?? '—', roles: m.data.roles };
-      lines.push(`svc.as('${p?.name}', { tenant }) — права этого человека; в журнале автор — он, исполнитель (agent) — сервис`);
+      s.acting = { db: room, account, name: p?.name ?? '—', login: p?.login ?? '—', roles: m.data.roles };
+      lines.push(`db.as('${p?.name}', компания) — консьерж от имени прописанного жильца: права его, в журнале автор — он, исполнитель (agent) — сервис`);
     });
     res.json(await me(s));
   }));
   app.post('/api/act/stop', auth, route(async (req, res) => { req.s.acting = null; res.json(await me(req.s)); }));
-
-  app.post('/api/team/:account/revoke', auth, guard('desk.team'), route(async (req, res) => {
-    const s = req.s, account = req.params.account;
-    await member(s, account);
-    // revokeAll гасит сессии во всех компаниях человека — разрешаем, только если других компаний у него нет
-    const own = await svc.as(account);
-    const elsewhere = (await own.member({ User: account }).rows()).some((m) => m.tenant !== s.tenant);
-    if (elsewhere) throw new HttpError(409, 'Этот человек работает и в других компаниях: revokeAll погасил бы его сессии там. Удалите его из компании — доступ сюда закроется сразу');
-    const n = await act(s, 'Завершить сеансы', async (lines) => {
-      const k = await svc.auth.revokeAll(account);
-      lines.push(`svc.auth.revokeAll(учётная запись) — погашено сессий: ${k} (во всех компаниях этого человека)`);
-      return k;
-    });
-    await dropAccount(account);
-    res.json({ revoked: n });
-  }));
 
   app.post('/api/team/:account/remove', auth, guard('desk.team'), route(async (req, res) => {
     const s = req.s, account = req.params.account, m = await member(s, account);
     if (account === s.account) throw new HttpError(409, 'Себя удалить нельзя');
     await act(s, 'Удалить из компании', async (lines) => {
       await s.db.member(m.id).delete({ confirm: true, all: true, reason: 'удалён из компании' }).rows();
-      lines.push('db.member(id).delete({ confirm: true, all: true }) — членства нет: следующий запрос этого человека получит tenant_denied');
-      lines.push('запись в справочнике (Profile) остаётся: по ней в заявках видно, кто их вёл; строки, которыми он владел в компании, база передала компании — их новые версии с owner = компания');
+      lines.push('db.member(id).delete({ confirm: true, all: true }) — выписка: ключи и сессии этого человека в компании погашены сразу');
+      lines.push('в людях компании (me.acl.people()) его больше нет; в заявках его имя остаётся в полях assigneeName и authorName; строки, которыми он владел в компании, база передала компании');
     });
+    await web.dropAll((x) => x.account === account && x.db.tenant === s.db.tenant);
     res.json({ ok: true });
   }));
 
   app.post('/api/company/close', auth, guard('desk.team'), route(async (req, res) => {
-    const s = req.s, company = await companyName(s, s.tenant);
+    const s = req.s, company = s.db.tenantName, tenant = s.db.tenant;
     if (DEMO_NAMES.has(company)) throw new HttpError(403, 'Демо-компанию закрыть нельзя — зарегистрируйте свою и закройте её');
-    const r2 = await act(s, 'Закрыть компанию', async (lines) => {
-      const out = await s.db.auth.purgeAccount(s.tenant);
-      lines.push(`db.auth.purgeAccount(компания) — строк: ${out.rows}, версий: ${out.versions}; данные арендатора стёрты`);
-      return out;
-    });
-    names.delete(s.tenant);
-    await web.closeAll((x) => x.tenant === s.tenant);
+    const out = await s.db.deleteTenant();
+    await web.dropAll((x) => x.db.tenant === tenant);
     web.forget(res);
-    res.json(r2);
+    res.json(out);
   }));
 
   // ---------- ключи API ----------
-  const integrationAccount = (s) => accountOf(integrationLogin(s.tenant));
+  /**
+   * Ключ интеграции — у своего аккаунта с ролью integration: руководитель зовёт его (me.invite) на служебный адрес —
+   * письмо почтальон в демо-почту не кладёт, ссылку забирает сам сервис и принимает приглашение за программу
+   * (db.accept без пароля: программа входит ключом API), а затем выпускает ей ключ API — свой ключ аккаунта
+   * (keys.issueApiKey). Отзыв — выписка аккаунта интеграции: ключ и его сессии гаснут.
+   */
   app.get('/api/keys', auth, guard('desk.keys'), route(async (req, res) => {
-    const creds = await svc.auth.credentials(integrationAccount(req.s));
-    res.json(creds.filter((c) => c.kind === 'APIKEY').map((c) => ({ id: c.id, name: String(c.meta?.name ?? ''), created: new Date(c.created_at).toISOString(), revoked: false })));
+    const s = req.s, who = await people(s.db);
+    const robots = (await s.db.member().rows()).filter((m) => m.data.roles?.includes('integration'));
+    res.json(robots.map((m) => ({ id: m.id, name: (who.get(m.links.User)?.name ?? '').replace(/^Интеграция: /, ''), created: m.at, revoked: false })));
   }));
   app.post('/api/keys', auth, guard('desk.keys'), route(async (req, res) => {
     const s = req.s, name = String(req.body?.name ?? '').trim() || 'интеграция';
     const k = await act(s, `Ключ API: ${name}`, async (lines) => {
-      lines.push(`svc.auth.issueApiKey({ account: «Интеграции», name: '${name}' }) — ключ отдаётся один раз, в базе только хэш`);
-      return svc.auth.issueApiKey({ account: integrationAccount(s), name });
+      const ident = `integration-${randomBytes(6).toString('hex')}@helpdesk.local`;
+      await s.db.invite({ email: ident }, ['integration'], { ttl: 60 });
+      lines.push(`me.invite({ email: '${ident}' }, ['integration']) — аккаунт программы зовёт руководитель; адрес служебный — ссылку забирает сервис`);
+      const robot = await db.accept(box.lastLetter(ident, 'invite').token, { name: `Интеграция: ${name}` });
+      try {
+        lines.push('db.accept(token, { name }) — приглашение за программу принимает сервис, без пароля: программа входит ключом API');
+        const key = await robot.keys.issueApiKey({ name });
+        lines.push('robot.keys.issueApiKey({ name }) — свой ключ аккаунта интеграции: отдаётся один раз, в базе только хэш');
+        await (await db.in(robot.tenant)).Profile().owner(robot.account).upsert({ account: robot.account, name: `Интеграция: ${name}`, login: ident }).rows();
+        const [m] = await s.db.member({ User: robot.account, Tenant: robot.tenant }).rows();
+        return { key: key.key, id: m.id };
+      } finally {
+        await robot.close();
+      }
     });
     res.json(k);
   }));
   app.post('/api/keys/:id/revoke', auth, guard('desk.keys'), route(async (req, res) => {
     const s = req.s;
-    const own = (await svc.auth.credentials(integrationAccount(s))).some((c) => c.id === req.params.id);
-    if (!own) throw new HttpError(404, 'Такого ключа нет');
+    const m = (await s.db.member(req.params.id).rows())[0];
+    if (!m?.data.roles?.includes('integration')) throw new HttpError(404, 'Такого ключа нет');
     await act(s, 'Отзыв ключа', async (lines) => {
-      await svc.auth.revokeCredential(req.params.id);
-      lines.push('svc.auth.revokeCredential(id) — ключ удалён, его сессии погашены');
+      await s.db.member(m.id).delete({ confirm: true, all: true, reason: 'ключ интеграции отозван' }).rows();
+      lines.push('db.member(интеграция).delete({ confirm: true, all: true }) — выписка аккаунта интеграции: его ключ и сессии погашены');
     });
     res.json({ ok: true });
   }));
   app.post('/api/assistant/key', auth, guard('desk.assistant'), route(async (req, res) => {
     const s = req.s;
+    if (s.acting) throw new HttpError(409, 'Сначала вернитесь к себе: ключ выдаётся только на себя');
     const k = await act(s, 'Ключ для ИИ-агента', async (lines) => {
-      lines.push('svc.auth.issueApiKey({ account: вы }) — агент по этому ключу работает с вашими правами');
-      return svc.auth.issueApiKey({ account: s.account, name: `ИИ-агент · ${await companyName(s, s.tenant)}` });
+      lines.push('me.keys.issueApiKey({ name }) — свой ключ: агент по нему работает с вашими правами в этой компании');
+      return s.db.keys.issueApiKey({ name: `ИИ-агент · ${s.db.tenantName}` });
     });
-    res.json({ ...k, url: `/mcp?tenant=${s.tenant}` });
+    res.json({ ...k, url: '/mcp' });
   }));
 
   /**
-   * Сессии ИИ-агента: svc.auth.sessionFor(вы, { ttl }) — сессия вашей учётной записи для другого процесса. Чем она не ключ:
-   * не кред (credentials() её не показывает, своего id для revokeCredential у неё нет), истекает сама через ttl, гасит её
-   * auth.revoke() её же подключением, «выйти везде» (revokeAll) и выход вкладки, которая её выдала; какие сессии выданы,
-   * помнит сервис.
-   * Чем она не svc.as(): это сессия самого пользователя — в журнале автор он, исполнителя (agent) нет; компанию задаёт
-   * auth.switch, и база её помнит. Токен → { id, token, db, account, tenant, company, until, methods, owner — вкладка }.
+   * Временный ключ ИИ-агента — свой ключ API на AGENT_TTL секунд (keys.issueApiKey({ ttl })): истекает сам, «Погасить»
+   * отзывает его сразу (keys.revoke), «Выйти на всех устройствах» — тоже. Список — свои ключи (keys.list) с именем
+   * AGENT_NAME…; вызовы агента по ключу, выданному здесь, видны в «Под капотом» вкладки, которая его выдала (agents).
    */
-  const agents = new Map();
-  function agentsOf(s) { return [...agents.values()].filter((a) => a.owner === s); }
-  /** Погасить сессию агента её подключением (уже погашенная или истёкшая — no_session, ответ false) и закрыть его. */
-  async function dropAgent(a) {
-    agents.delete(a.token);
-    const ok = await a.db.auth.revoke().catch(() => false);
-    await a.db.close().catch(() => {});
-    return ok;
-  }
-  /** Сессия агента по токену: только выданная здесь и живая — не погашена, не истекла, членство в компании цело. */
-  async function agentSession(token) {
-    const a = agents.get(token);
-    if (!a) return null;
-    if (await alive(a.db, a.tenant)) return a;
-    await dropAgent(a);
-    return null;
-  }
-  /** Действующие сессии агента вкладки со сведениями базы (auth.session); погашенные, истёкшие и без членства — гасятся. */
-  async function liveAgentsOf(s) {
-    const out = [];
-    for (const a of agentsOf(s)) {
-      const info = await svc.auth.session(a.token);
-      if (info?.member && info.tenant === a.tenant) out.push({ a, info });
-      else await dropAgent(a);
-    }
-    return out;
-  }
+  const agents = new Map(); // ключ → { id, owner: веб-сессия, выдавшая ключ }
+  const agentKeys = async (room) => (await room.keys.list())
+    .filter((k) => k.kind === 'APIKEY' && String(k.meta?.name ?? '').startsWith(AGENT_NAME) && k.expiresAt && Date.parse(k.expiresAt) > Date.now());
 
-  // короткая сессия вместо ключа: агент работает вашей сессией в этой компании
   app.post('/api/assistant/session', auth, guard('desk.assistant'), route(async (req, res) => {
     const s = req.s;
-    // от чужого имени — нет: токен с правами другого человека ушёл бы из сервиса, а причина правок по нему (why) не
-    // назвала бы руководителя, как при работе от имени
-    if (s.acting) throw new HttpError(409, 'Сначала вернитесь к себе: сессию агента выдают только на себя');
-    if ((await liveAgentsOf(s)).length >= AGENT_MAX) throw new HttpError(409, `Уже ${AGENT_MAX} действующие сессии агента — погасите ненужную`);
-    const company = await companyName(s, s.tenant);
-    const a = await act(s, 'Сессия для ИИ-агента', async (lines) => {
-      const token = await svc.auth.sessionFor(s.account, { ttl: AGENT_TTL });
-      lines.push(`svc.auth.sessionFor(вы, { ttl: ${AGENT_TTL} }) — новая сессия вашей учётной записи; выпускает сервис (право auth.session), вход — SERVICE`);
-      const db = await open({ token, refreshSession: false });
-      try {
-        await db.auth.switch(s.tenant);
-        lines.push(`connect({ sql, token, refreshSession: false }); db.auth.switch('${s.tenant.slice(0, 8)}…') — «${company}»: компанию сессия помнит в базе, адрес агента без ?tenant`);
-        const info = await svc.auth.session(token);
-        lines.push(`svc.auth.session(token) → вход ${info.methods.join(', ')}, истекает через ${Math.round((Date.parse(info.expiresAt) - Date.now()) / 60_000)} мин; работа агента срок не продлевает`);
-        const kinds = [...new Set((await svc.auth.credentials(s.account)).map((c) => c.kind))];
-        lines.push(`svc.auth.credentials(вы) → ${kinds.join(', ') || 'пусто'}: сессии среди кредов нет — id для revokeCredential у неё нет, гасит её auth.revoke()`);
-        const entry = { id: randomBytes(8).toString('hex'), token, db, account: s.account, tenant: s.tenant, company, until: info.expiresAt, methods: info.methods, owner: s };
-        agents.set(token, entry);
-        return entry;
-      } catch (e) { await db.auth.revoke().catch(() => {}); await db.close(); throw e; }
+    // от чужого имени — нет: ключ с правами другого человека ушёл бы из сервиса
+    if (s.acting) throw new HttpError(409, 'Сначала вернитесь к себе: ключ агента выдают только на себя');
+    if ((await agentKeys(s.db)).length >= AGENT_MAX) throw new HttpError(409, `Уже ${AGENT_MAX} действующих временных ключа агента — погасите ненужный`);
+    const company = s.db.tenantName;
+    const a = await act(s, 'Временный ключ для ИИ-агента', async (lines) => {
+      const k = await s.db.keys.issueApiKey({ name: `${AGENT_NAME}${company}`, ttl: AGENT_TTL });
+      lines.push(`me.keys.issueApiKey({ name, ttl: ${AGENT_TTL} }) — свой ключ на ${AGENT_TTL / 60} минут: истекает сам, адрес агента — /mcp, компанию ключ знает сам`);
+      const info = (await s.db.keys.list()).find((x) => x.id === k.id);
+      const kinds = [...new Set((await s.db.keys.list()).map((x) => x.kind))];
+      lines.push(`me.keys.list() → ${kinds.join(', ')}: временный ключ — среди ваших ключей, срок до ${info.expiresAt}; отзыв — keys.revoke(id)`);
+      agents.set(k.key, { id: k.id, owner: s });
+      return { ...k, until: info.expiresAt };
     });
-    res.json({ id: a.id, token: a.token, url: '/mcp', company, until: a.until, methods: a.methods });
+    res.json({ id: a.id, token: a.key, url: '/mcp', company, until: a.until });
   }));
-  // список ведёт сервис: letopis сессий не перечисляет, а жива ли каждая — отвечает база (auth.session)
   app.get('/api/assistant/sessions', auth, route(async (req, res) => {
-    res.json((await liveAgentsOf(req.s)).map(({ a, info }) => ({ id: a.id, company: a.company, until: info.expiresAt, methods: info.methods })));
+    const s = req.s;
+    res.json((await agentKeys(s.db)).map((k) => ({ id: k.id, company: String(k.meta.name).slice(AGENT_NAME.length), until: k.expiresAt })));
   }));
   app.post('/api/assistant/sessions/:id/revoke', auth, route(async (req, res) => {
-    const s = req.s, a = agentsOf(s).find((x) => x.id === req.params.id);
-    if (!a) throw new HttpError(404, 'Такой сессии агента нет — она истекла или уже погашена');
-    await act(s, 'Погасить сессию агента', async (lines) => {
-      const ok = await dropAgent(a);
-      lines.push(`db.auth.revoke() подключением сессии агента — ${ok ? 'погашена' : 'уже не действовала'}; db.close() — подключение закрыто`);
-      lines.push('следующий вызов агента с этим токеном — 401: svc.auth.session(token) отвечает null');
+    const s = req.s;
+    if (!(await agentKeys(s.db)).some((k) => k.id === req.params.id)) throw new HttpError(404, 'Такого ключа агента нет — он истёк или уже отозван');
+    await act(s, 'Отозвать ключ агента', async (lines) => {
+      const ok = await s.db.keys.revoke(req.params.id);
+      lines.push(`me.keys.revoke(id) — ${ok ? 'ключ отозван' : 'ключа уже не было'}: его сессии погашены`);
+      lines.push('следующий вызов агента с этим ключом — 401: db.open({ apiKey }) отвечает auth_failed');
     });
     res.json({ ok: true });
   }));
 
-  /** Подключение по ключу API (интеграция или ИИ-агент): одно на ключ и компанию, отозванный ключ — no_session. */
-  const keyDbs = new Map();
-  async function keySession(key, tenant) {
-    const id = `${key}|${tenant ?? ''}`;
-    const cached = keyDbs.get(id);
+  /** Корень по ключу API (интеграция, ключ ИИ-агента, временный ключ): один на ключ, пока его сессия жива. */
+  const keyRooms = new Map();
+  async function keyRoom(key) {
+    const cached = keyRooms.get(key);
     if (cached) {
-      if (await alive(cached.db, cached.tenant)) return cached;
-      await dropKey(cached); // ключ отозван: его сессия погашена
-      return null;
+      try {
+        return await db.resume(cached.token);
+      } catch (e) {
+        if (e?.code !== 'auth_failed') throw e;
+        keyRooms.delete(key); // сессия погашена (выход везде) или ключ отозван — открыть ключом заново
+      }
     }
-    const ok = await svc.auth.verifyApiKey(key); // сессия ключа: отзыв ключа погасит именно её
-    if (!ok) return null;
-    const db = await open({ token: ok.token }), account = ok.account;
-    const list = (await db.auth.tenants()).filter((t) => t.tenant !== account);
-    const t = list.find((x) => x.tenant === tenant) ?? list[0];
-    if (!t) { await db.close(); return null; }
-    if (db.tenant !== t.tenant) await db.auth.switch(t.tenant);
-    const k = { id, db, account, tenant: t.tenant };
-    keyDbs.set(id, k);
-    return k;
+    try {
+      const room = await db.open({ apiKey: key });
+      keyRooms.set(key, room);
+      return room;
+    } catch (e) {
+      if (e?.code === 'auth_failed' || e?.code === 'invalid_data') return null;
+      throw e;
+    }
   }
-  async function dropKey(k) { keyDbs.delete(k.id); await k.db.close().catch(() => {}); }
   const bearer = (req) => /^Bearer\s+(\S+)$/.exec(req.headers.authorization ?? '')?.[1];
 
   app.post('/api/integration/tickets', route(async (req, res) => {
-    const key = bearer(req), k = key && await keySession(key);
-    if (!k) return res.status(401).json({ error: 'Нужен действующий ключ API' });
+    const key = bearer(req), room = key && await keyRoom(key);
+    if (!room) return res.status(401).json({ error: 'Нужен действующий ключ API' });
     const from = String(req.body?.from ?? '').trim().toLowerCase();
-    try {
-      // заявка от имени клиента: владелец — его учётная запись, если она в этой компании
-      const client = from ? await k.db.Profile({ account: accountOf(from) }).first() : null;
-      const t = await createTicket(k.db, {
-        subject: String(req.body?.subject ?? ''), body: String(req.body?.body ?? ''), priority: req.body?.priority ?? 'normal',
-        clientName: client?.data.name ?? (from || 'аноним'), channel: 'api', owner: client ? accountOf(from) : undefined,
-      }, [], 'заявка интеграции');
-      res.json(view(t));
-    } catch (e) {
-      if (e?.code === 'no_session') { await dropKey(k); return res.status(401).json({ error: 'Ключ отозван' }); }
-      throw e;
-    }
+    // заявка от имени клиента: владелец — его аккаунт, если он в справочнике этой компании
+    const client = from ? await room.Profile({ login: from }).first() : null;
+    const t = await createTicket(room, {
+      subject: String(req.body?.subject ?? ''), body: String(req.body?.body ?? ''), priority: req.body?.priority ?? 'normal',
+      clientName: client?.data.name ?? (from || 'аноним'), channel: 'api', owner: client?.data.account,
+    }, [], 'заявка интеграции');
+    res.json(view(t));
   }));
 
-  // ---------- MCP: инструменты letopis по HTTP от имени пользователя, его сессии агента или ключа ----------
-  // запись через MCP — только сотрудникам (руководитель, агент) и сессии агента, выданной сотрудником; клиент и ключ
-  // интеграции — только чтение: иначе клиент правил бы служебные строки компании, например счётчик заявок (план 2.0, 7.6 №1)
+  // ---------- MCP: инструменты letopis по HTTP — всегда от имени жильца: вкладка (cookie) или ключ API ----------
+  // запись через MCP — только сотрудникам (руководитель, агент); клиент и ключ интеграции — только чтение: иначе клиент
+  // правил бы служебные строки компании
   const mcp = createMcpHandler(async ({ authInfo }) => createMcpServer(authInfo.extra.db, { write: authInfo.extra.write === true, maxRows: 50 }));
   app.all('/mcp', route(async (req, res) => {
-    let s = web.get(req);
-    if (s && !(await aliveWeb(s))) { await web.close(web.sidOf(req)); s = undefined; }
+    const s = await web.get(req);
+    // работа от имени — корень консьержа (db.as): MCP его не примет, агент работает только как жилец
+    if (s?.acting) throw new HttpError(409, 'Сначала вернитесь к себе: помощник работает только с вашими правами');
     const key = !s && bearer(req);
-    // без cookie: сначала сессия, выданная агенту здесь (sessionFor), иначе ключ API
-    const a = key ? await agentSession(key) : null;
-    const k = key && !a ? await keySession(key, req.query.tenant ? String(req.query.tenant) : undefined) : null;
-    const db = s ? dbOf(s) : a ? a.db : k?.db;
-    if (!db) return res.status(401).json({ error: 'Нужен вход, ключ API или действующая сессия агента' });
+    const room = s ? s.db : key ? await keyRoom(key) : null;
+    if (!room) return res.status(401).json({ error: 'Нужен вход или действующий ключ API' });
     const headers = Object.entries(req.headers).filter(([h, v]) => typeof v === 'string' && !['host', 'connection', 'content-length'].includes(h));
     const request = new Request(`http://127.0.0.1${req.originalUrl}`, {
       method: req.method, headers, body: req.method === 'POST' ? JSON.stringify(req.body) : undefined,
     });
-    // ключ API — по ролям его аккаунта в арендаторе ключа: ключ агента пишет, ключ интеграции и клиента — нет
-    const keyRoles = k ? (await k.db.member({ User: k.account, Tenant: k.tenant }).first())?.data.roles ?? [] : [];
-    const write = a ? true : s ? roleOf(whoOf(s).roles) !== 'client' : k ? roleOf(keyRoles) !== 'client' : false;
-    const call = () => mcp.fetch(request, { authInfo: { token: key || 'cookie', clientId: 'helpdesk', scopes: [], extra: { db, write } } });
+    const roles = s ? s.roles : (await room.member({ User: room.account, Tenant: room.tenant }).first())?.data.roles ?? [];
+    const write = roleOf(roles) !== 'client';
+    const call = () => mcp.fetch(request, { authInfo: { token: key || 'cookie', clientId: 'helpdesk', scopes: [], extra: { db: room, write } } });
     const what = Array.isArray(req.body) ? 'пачка' : `${req.body?.method ?? req.method}${req.body?.params?.name ? ` ${req.body.params.name}` : ''}`;
-    // «под капотом»: вызов по cookie — у этой вкладки, по сессии агента — у вкладки, которая её выдала (автор версий — вы)
-    const who = s ?? (a && { db: a.db, account: a.account, trace: a.owner.trace });
-    const note = s ? 'createMcpServer(подключение пользователя, { write: true }) — права те же, что у вас'
-      : `createMcpServer(подключение сессии агента, { write: true }) — ваши права в «${a?.company}»; в журнале автор — вы, исполнителя (agent) нет`;
+    // «под капотом»: вызов по cookie — у этой вкладки, по временному ключу агента — у вкладки, которая его выдала
+    const agent = key ? agents.get(key) : null;
+    const who = s ?? (agent && { db: room, account: room.account, trace: agent.owner.trace });
+    const note = s ? 'createMcpServer(корень вкладки, { write }) — права те же, что у вас'
+      : `createMcpServer(корень по ключу агента, { write: ${write} }) — ваши права в «${room.tenantName}»; в журнале автор — вы`;
     // инструмент работает, пока сервер пишет поток ответа: ответ вызова читается внутри действия, иначе его версии и
     // сигналы прошли бы мимо записи журнала
     const tool = req.method === 'POST' && req.body?.method === 'tools/call';
-    const response = who ? await act(who, `${a ? 'MCP агента' : 'MCP'}: ${what}`, async (lines) => {
+    const response = who ? await act(who, `${agent ? 'MCP агента' : 'MCP'}: ${what}`, async (lines) => {
       lines.push(note);
       const r = await call();
       return tool && r.body ? new Response(await r.arrayBuffer(), r) : r;
@@ -951,22 +869,22 @@ export async function createApp() {
     Readable.fromWeb(response.body).pipe(res);
   }));
 
-  // ---------- безопасность ----------
+  // ---------- безопасность: свои ключи (только сам и вскоре после входа) ----------
   app.post('/api/security/totp/enroll', auth, route(async (req, res) => {
     const s = req.s;
     if (s.acting) throw new HttpError(409, 'Сначала вернитесь к себе');
-    const company = await companyName(s, s.tenant);
     const t = await act(s, 'Подключение TOTP', async (lines) => {
-      lines.push(`svc.auth.enrollTotp({ account, issuer: 'Helpdesk ${company}' }) — секрет base32 и адрес otpauth:// для QR`);
-      return svc.auth.enrollTotp({ account: s.account, issuer: `Helpdesk ${company}`, label: s.login });
+      lines.push(`me.keys.enrollTotp({ issuer: 'Helpdesk ${s.db.tenantName}', label }) — секрет base32 и адрес otpauth:// для QR; второй фактор — в этой компании`);
+      return s.db.keys.enrollTotp({ issuer: `Helpdesk ${s.db.tenantName}`, label: s.login });
     });
     res.json({ secret: t.secret, url: t.uri });
   }));
   app.post('/api/security/totp/verify', auth, route(async (req, res) => {
     const s = req.s;
+    if (s.acting) throw new HttpError(409, 'Сначала вернитесь к себе');
     const ok = await act(s, 'Проверка кода TOTP', async (lines) => {
-      lines.push('svc.auth.verifyTotp({ account, code }) — первый верный код включает фактор; повтор того же кода отклоняется');
-      return svc.auth.verifyTotp({ account: s.account, code: String(req.body?.code ?? '') });
+      lines.push('me.keys.verifyTotp(code) — первый верный код включает фактор; повтор того же кода отклоняется');
+      return s.db.keys.verifyTotp(String(req.body?.code ?? ''));
     });
     if (!ok) throw new HttpError(422, 'Неверный код — фактор не включён');
     res.json({ enabled: true });
@@ -976,12 +894,12 @@ export async function createApp() {
     const s = req.s;
     if (s.acting) throw new HttpError(409, 'Сначала вернитесь к себе');
     const off = await act(s, 'Отключение TOTP', async (lines) => {
-      lines.push('svc.auth.verifyTotp({ account, code }) — отключить фактор можно только с действующим кодом');
-      if (!(await svc.auth.verifyTotp({ account: s.account, code: String(req.body?.code ?? '') }))) return null;
-      const creds = (await svc.auth.credentials(s.account)).filter((c) => c.kind === 'TOTP');
-      lines.push(`svc.auth.credentials(account) — кредов TOTP: ${creds.length}; svc.auth.revokeCredential(id) гасит каждый`);
-      for (const c of creds) await svc.auth.revokeCredential(c.id);
-      return creds.length;
+      lines.push('me.keys.verifyTotp(code) — отключить фактор можно только с действующим кодом');
+      if (!(await s.db.keys.verifyTotp(String(req.body?.code ?? '')))) return null;
+      const keys = (await s.db.keys.list()).filter((k) => k.kind === 'TOTP');
+      lines.push(`me.keys.list() — ключей TOTP: ${keys.length}; me.keys.revoke(id) отзывает каждый и гасит другие ваши сессии в компании`);
+      for (const k of keys) await s.db.keys.revoke(k.id);
+      return keys.length;
     });
     if (off === null) throw new HttpError(422, 'Неверный код — второй фактор не отключён');
     res.json({ enabled: false });
@@ -989,10 +907,12 @@ export async function createApp() {
   app.post('/api/security/revoke-all', auth, route(async (req, res) => {
     const s = req.s;
     if (s.acting) throw new HttpError(409, 'Сначала вернитесь к себе');
-    await s.db.auth.revokeAll();
-    await dropAccount(s.account);
+    // временные ключи агента — тоже: они выданы на ту же работу; постоянные ключи остаются
+    for (const k of await agentKeys(s.db)) await s.db.keys.revoke(k.id);
+    const n = await s.db.closeAll();
+    await web.dropAll((x) => x.account === s.account && x.db.tenant === s.db.tenant);
     web.forget(res);
-    res.json({ ok: true });
+    res.json({ ok: true, sessions: n });
   }));
 
   // ---------- «под капотом» и живая очередь ----------
@@ -1005,27 +925,27 @@ export async function createApp() {
   app.get(/^\/(?!api\/|mcp).*/, (_req, res) => res.sendFile(fileURLToPath(new URL('index.html', webDist))));
   app.use((err, _req, res, _next) => res.status(500).json({ error: err.message }));
 
-  const sweep = setInterval(() => { for (const [id, p] of pending) if (p.until < Date.now()) pending.delete(id); }, 60_000);
+  // брошенный вход кодом с ожиданием TOTP: код письма забывается (сам он истекает в базе)
+  const sweep = setInterval(() => {
+    for (const [id, p] of pending) if (p.until < Date.now()) pending.delete(id);
+  }, 60_000);
   sweep.unref();
   return {
-    app, schema: r.schema,
+    app, schema: db.schema, house: db,
     close: async () => {
       clearInterval(sweep);
-      await web.closeAll(); // и сессии агента вкладок: остановка сервиса их гасит, а не оставляет жить до срока
-      for (const a of [...agents.values()]) await dropAgent(a);
-      for (const k of [...keyDbs.values()]) await dropKey(k);
+      await web.dropAll();
       await mcp.close();
-      await svc.close();
-      await pool.end({ timeout: 2 });
-      await admin.end({ timeout: 2 });
+      await db.close();
+      await listener.end({ timeout: 2 });
     },
   };
 }
 
-if (import.meta.url === `file://${process.argv[1]?.replace(/\\/g, '/').replace(/^(?=[A-Za-z]:)/, '/')}`) {
+if (isMain(import.meta.url)) {
   const { app, schema } = await createApp();
   app.listen(ENV.port, ENV.host, () => {
     console.log(`helpdesk: http://127.0.0.1:${ENV.port}/ (схема ${schema})`);
-    if (ENV.demoMail) console.warn('helpdesk: демо-почта /mail включена — коды входа видны всем, кто её открыл; только для своей машины (DEMO_MAIL=0 — выключить)');
+    if (ENV.demoMail) console.warn('helpdesk: демо-почта /mail включена — ссылки-приглашения и коды входа видны всем, кто её открыл; только для своей машины (DEMO_MAIL=0 — выключить)');
   });
 }

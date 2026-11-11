@@ -5,6 +5,13 @@
 # Сайт с песочницей — http://127.0.0.1:8080. Все порты открыты только на 127.0.0.1: стенд для своей машины,
 # наружу его не публикуют. Порт базы 15440 не пересекается с тестовыми 15433 и 15432.
 #
+# Каждый сервис — свой дом. Дом строит шаг подготовки <сервис>-setup: setup() мастер-ключом (ADMIN_DSN — строка
+# подключения администратора PostgreSQL), повтор безопасен и отдаёт тот же пропуск. Там же — засев демо-жильцов: в
+# только что заведённую квартиру консьерж зовёт демо-людей, ссылку получает почтальон-заглушка, и подготовка принимает
+# приглашения за них (services/shared/house.mjs: seedResident). Сервис при старте никого не зовёт, только входит.
+# Пропуск консьержа подготовка пишет в файл тома passes, сервис читает его в LETOPIS_PASS — мастер-ключа у сервиса нет.
+# Свой пропуск сервису — переменная SALON_PASS, WALLET_PASS, HELPDESK_PASS или DOCUMENTS_PASS (тогда файл не читается).
+#
 # Порты на машине задают переменные (по умолчанию — как ниже): PG_PORT=15440, GUIDE_PORT=8080, SALON_PORT=8081,
 # WALLET_PORT=8082, HELPDESK_PORT=8083, DOCUMENTS_PORT=8084. Второй стенд рядом с первым — своё имя проекта и свои
 # порты, например:
@@ -40,16 +47,45 @@ services:
       pg:
         condition: service_healthy
 
+  # подготовка дома салона: setup() с сидом booking, квартиры салонов и демо-управляющие — мастер-ключом, пропуск — в
+  # файл тома passes
+  salon-setup:
+    build:
+      context: ..
+      dockerfile: services/salon/Dockerfile
+    command: ['node', 'src/setup.mjs', '/run/letopis/salon.pass']
+    environment:
+      ADMIN_DSN: postgres://postgres:guide@pg:5432/letopis
+    volumes: ['passes:/run/letopis']
+    depends_on:
+      pg:
+        condition: service_healthy
+
   salon:
     build:
       context: ..
       dockerfile: services/salon/Dockerfile
+    # пропуск — SALON_PASS или файл подготовки: сервис знает только его
+    command: ['sh', '-c', '[ -n "$$LETOPIS_PASS" ] || LETOPIS_PASS="$$(cat /run/letopis/salon.pass)"; export LETOPIS_PASS; exec node src/server.mjs']
     environment:
-      ADMIN_DSN: postgres://postgres:guide@pg:5432/letopis
-      APP_DSN: postgres://salon_app:salon-app-secret@pg:5432/letopis
+      LETOPIS_PASS: ${SALON_PASS:-}
       PORT: '8081'
       HOST: 0.0.0.0
+    volumes: ['passes:/run/letopis:ro']
     ports: ['127.0.0.1:${SALON_PORT:-8081}:8081']
+    depends_on:
+      salon-setup:
+        condition: service_completed_successfully
+
+  # подготовка дома кошелька: setup() с моделью Wallet и Movement
+  wallet-setup:
+    build:
+      context: ..
+      dockerfile: services/wallet/Dockerfile
+    command: ['node', 'src/setup.mjs', '/run/letopis/wallet.pass']
+    environment:
+      ADMIN_DSN: postgres://postgres:guide@pg:5432/letopis
+    volumes: ['passes:/run/letopis']
     depends_on:
       pg:
         condition: service_healthy
@@ -58,12 +94,27 @@ services:
     build:
       context: ..
       dockerfile: services/wallet/Dockerfile
+    command: ['sh', '-c', '[ -n "$$LETOPIS_PASS" ] || LETOPIS_PASS="$$(cat /run/letopis/wallet.pass)"; export LETOPIS_PASS; exec node src/server.mjs']
     environment:
-      ADMIN_DSN: postgres://postgres:guide@pg:5432/letopis
-      APP_DSN: postgres://wallet_app:wallet-app-secret@pg:5432/letopis
+      LETOPIS_PASS: ${WALLET_PASS:-}
       PORT: '8082'
       HOST: 0.0.0.0
+    volumes: ['passes:/run/letopis:ro']
     ports: ['127.0.0.1:${WALLET_PORT:-8082}:8082']
+    depends_on:
+      wallet-setup:
+        condition: service_completed_successfully
+
+  # подготовка дома helpdesk: setup() с моделью и режимом сигналов tenant, демо-компании и их люди; FRESH: '1' — дом с
+  # нуля (данные пропадают)
+  helpdesk-setup:
+    build:
+      context: ..
+      dockerfile: services/helpdesk/Dockerfile
+    command: ['node', 'src/setup.mjs', '/run/letopis/helpdesk.pass']
+    environment:
+      ADMIN_DSN: postgres://postgres:guide@pg:5432/letopis
+    volumes: ['passes:/run/letopis']
     depends_on:
       pg:
         condition: service_healthy
@@ -72,14 +123,32 @@ services:
     build:
       context: ..
       dockerfile: services/helpdesk/Dockerfile
+    command: ['sh', '-c', '[ -n "$$LETOPIS_PASS" ] || LETOPIS_PASS="$$(cat /run/letopis/helpdesk.pass)"; export LETOPIS_PASS; exec node src/server.mjs']
     environment:
-      ADMIN_DSN: postgres://postgres:guide@pg:5432/letopis
-      APP_DSN: postgres://helpdesk_app:helpdesk-app-secret@pg:5432/letopis
+      LETOPIS_PASS: ${HELPDESK_PASS:-}
       PORT: '8083'
       HOST: 0.0.0.0
-      # демо-почта /mail показывает коды входа всем, кто её открыл: только для своей машины ('0' — выключить)
+      # демо-почта /mail — письма почтальона-заглушки (ссылки-приглашения и коды входа) видны всем, кто её открыл: только
+      # для своей машины ('0' — выключить)
       DEMO_MAIL: '1'
+      # адрес сервиса в ссылках из писем — порт на машине
+      PUBLIC_URL: http://127.0.0.1:${HELPDESK_PORT:-8083}
+    volumes: ['passes:/run/letopis:ro']
     ports: ['127.0.0.1:${HELPDESK_PORT:-8083}:8083']
+    depends_on:
+      helpdesk-setup:
+        condition: service_completed_successfully
+
+  # подготовка дома документов: setup() с моделью Party и Doc, квартира фирмы и архив — letopis load --initial
+  # --with-history мастер-ключом; FRESH: '1' — дом с нуля (данные пропадают)
+  documents-setup:
+    build:
+      context: ..
+      dockerfile: services/documents/Dockerfile
+    command: ['node', 'src/setup.mjs', '/run/letopis/documents.pass']
+    environment:
+      ADMIN_DSN: postgres://postgres:guide@pg:5432/letopis
+    volumes: ['passes:/run/letopis']
     depends_on:
       pg:
         condition: service_healthy
@@ -88,15 +157,18 @@ services:
     build:
       context: ..
       dockerfile: services/documents/Dockerfile
+    command: ['sh', '-c', '[ -n "$$LETOPIS_PASS" ] || LETOPIS_PASS="$$(cat /run/letopis/documents.pass)"; export LETOPIS_PASS; exec node src/server.mjs']
     environment:
-      ADMIN_DSN: postgres://postgres:guide@pg:5432/letopis
-      APP_DSN: postgres://documents_app:documents-app-secret@pg:5432/letopis
+      LETOPIS_PASS: ${DOCUMENTS_PASS:-}
       PORT: '8084'
       HOST: 0.0.0.0
+    volumes: ['passes:/run/letopis:ro']
     ports: ['127.0.0.1:${DOCUMENTS_PORT:-8084}:8084']
     depends_on:
-      pg:
-        condition: service_healthy
+      documents-setup:
+        condition: service_completed_successfully
 
 volumes:
   pgdata: {}
+  # пропуски консьержей: их пишут шаги подготовки, читают сервисы
+  passes: {}
