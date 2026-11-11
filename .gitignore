@@ -29,3 +29,9 @@ ignore.me.txt
 lib/bench/results/*.log
 # песочница сайта: временные исходники прогонов
 guide/sandbox/
+
+# рабочие материалы проверки и черновики — с секретами, в git не идут
+qa/
+lib/scratch/
+examples/.sandbox-*
+examples/.standalone-*
