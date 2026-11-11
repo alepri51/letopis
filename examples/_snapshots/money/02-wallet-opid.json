@@ -15,9 +15,9 @@
   "steps": [
     {
       "title": "Кошелёк",
-      "text": null,
-      "code": "await syncModels(db, [Wallet, Movement], { apply: true });\n[wallet] = await db.Wallet().create({ number: 'W-1' }).rows();\nreturn wallet;",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> syncModels</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, [Wallet, Movement], { apply: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">[wallet] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Wallet</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ number: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'W-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> wallet;</span></span></code></pre>",
+      "text": "Классы `Wallet` и `Movement` — модели дома: их записал `setup()` при подготовке. `apply(me, …)` — функция приложения в начале программы: запись операции `Movement` и приращение баланса в одной транзакции `me.begin()`.",
+      "code": "[wallet] = await me.Wallet().create({ number: 'W-1' }).rows();\nreturn wallet;",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">[wallet] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Wallet</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ number: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'W-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> wallet;</span></span></code></pre>",
       "result": {
         "at": "t1",
         "id": "Wallet «W-1»",
@@ -32,8 +32,7 @@
         "links": {},
         "owner": "Ромашка",
         "author": "Анна",
-        "tenant": "Ромашка",
-        "agent": "service"
+        "tenant": "Ромашка"
       },
       "error": null,
       "entity": [
@@ -51,7 +50,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$changed": [
@@ -62,7 +61,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "36",
+          "seq": "43",
           "id": "Wallet «W-1»",
           "rev": 1,
           "class": "Wallet",
@@ -75,7 +74,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": true
@@ -84,15 +83,14 @@
       "secret": [],
       "counts": null,
       "signals": [
-        "Class",
         "Wallet"
       ]
     },
     {
       "title": "Пополнение на 1000",
       "text": "Операция `op-1` и баланс 0 → 1000 — в одной транзакции.",
-      "code": "apply(db, 'op-1', 'topup', 1000)",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">apply</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'op-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'topup'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1000</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">)</span></span></code></pre>",
+      "code": "apply(me, 'op-1', 'topup', 1000)",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">apply</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(me, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'op-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'topup'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1000</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">)</span></span></code></pre>",
       "result": "проведено",
       "error": null,
       "entity": [
@@ -110,7 +108,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "topup op-1",
           "at": "t2",
           "$changed": [
@@ -138,7 +136,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "topup op-1",
           "at": "t2",
           "$changed": [
@@ -149,7 +147,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "36",
+          "seq": "43",
           "id": "Wallet «W-1»",
           "rev": 1,
           "class": "Wallet",
@@ -162,13 +160,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": false
         },
         {
-          "seq": "37",
+          "seq": "44",
           "id": "Movement·1",
           "rev": 1,
           "class": "Movement",
@@ -184,13 +182,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "topup op-1",
           "at": "t2",
           "$new": true
         },
         {
-          "seq": "38",
+          "seq": "45",
           "id": "Wallet «W-1»",
           "rev": 2,
           "class": "Wallet",
@@ -203,7 +201,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "topup op-1",
           "at": "t2",
           "$new": true
@@ -218,9 +216,9 @@
     },
     {
       "title": "Ответ потерялся — повтор той же операции",
-      "text": "Клиент не получил ответ и прислал `op-1` снова. Операция с таким ключом уже есть — база отвечает `exists`, транзакция откатывается, баланс остался 1000. Так же выясняют исход после `commit_unknown` (связь оборвалась во время COMMIT): повтор той же операции — `exists` значит «уже записано».",
-      "code": "apply(db, 'op-1', 'topup', 1000)",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">apply</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'op-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'topup'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1000</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">)</span></span></code></pre>",
+      "text": "Клиент не получил ответ и прислал `op-1` снова. Операция с таким ключом уже есть — база отвечает `exists`, транзакция откатывается, баланс остался 1000. Так же выясняют исход после `commit_unknown` (связь оборвалась во время COMMIT): повтор той же операции — `exists` значит «уже записано». Повторять можно только операцию с ключом: голый `update({ balance: inc(-300) })` без записи `Movement` при повторе списал бы второй раз.",
+      "code": "apply(me, 'op-1', 'topup', 1000)",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">apply</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(me, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'op-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'topup'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1000</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">)</span></span></code></pre>",
       "result": "уже было",
       "error": null,
       "entity": [
@@ -238,7 +236,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "topup op-1",
           "at": "t2",
           "$changed": []
@@ -260,7 +258,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "topup op-1",
           "at": "t2",
           "$changed": []
@@ -269,7 +267,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "36",
+          "seq": "43",
           "id": "Wallet «W-1»",
           "rev": 1,
           "class": "Wallet",
@@ -282,13 +280,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": false
         },
         {
-          "seq": "37",
+          "seq": "44",
           "id": "Movement·1",
           "rev": 1,
           "class": "Movement",
@@ -304,13 +302,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "topup op-1",
           "at": "t2",
           "$new": false
         },
         {
-          "seq": "38",
+          "seq": "45",
           "id": "Wallet «W-1»",
           "rev": 2,
           "class": "Wallet",
@@ -323,7 +321,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "topup op-1",
           "at": "t2",
           "$new": false
@@ -336,8 +334,8 @@
     {
       "title": "Списание 300",
       "text": null,
-      "code": "apply(db, 'op-2', 'debit', 300)",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">apply</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'op-2'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'debit'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">300</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">)</span></span></code></pre>",
+      "code": "apply(me, 'op-2', 'debit', 300)",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">apply</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(me, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'op-2'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'debit'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">300</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">)</span></span></code></pre>",
       "result": "проведено",
       "error": null,
       "entity": [
@@ -355,7 +353,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "debit op-2",
           "at": "t3",
           "$changed": [
@@ -382,7 +380,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "topup op-1",
           "at": "t2",
           "$changed": []
@@ -404,7 +402,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "debit op-2",
           "at": "t3",
           "$changed": [
@@ -415,7 +413,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "36",
+          "seq": "43",
           "id": "Wallet «W-1»",
           "rev": 1,
           "class": "Wallet",
@@ -428,13 +426,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": false
         },
         {
-          "seq": "37",
+          "seq": "44",
           "id": "Movement·1",
           "rev": 1,
           "class": "Movement",
@@ -450,13 +448,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "topup op-1",
           "at": "t2",
           "$new": false
         },
         {
-          "seq": "38",
+          "seq": "45",
           "id": "Wallet «W-1»",
           "rev": 2,
           "class": "Wallet",
@@ -469,13 +467,13 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "topup op-1",
           "at": "t2",
           "$new": false
         },
         {
-          "seq": "39",
+          "seq": "46",
           "id": "Movement·2",
           "rev": 1,
           "class": "Movement",
@@ -491,13 +489,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "debit op-2",
           "at": "t3",
           "$new": true
         },
         {
-          "seq": "40",
+          "seq": "47",
           "id": "Wallet «W-1»",
           "rev": 3,
           "class": "Wallet",
@@ -510,7 +508,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "debit op-2",
           "at": "t3",
           "$new": true
@@ -526,8 +524,8 @@
     {
       "title": "Списать больше, чем есть, — нельзя",
       "text": "Баланс 700, списываем 5000: ограничение `min(0)` проверяется для получившегося значения — `invalid_data`, ничего не записано.",
-      "code": "apply(db, 'op-3', 'debit', 5000)",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">apply</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'op-3'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'debit'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">5000</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">)</span></span></code></pre>",
+      "code": "apply(me, 'op-3', 'debit', 5000)",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">apply</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(me, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'op-3'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'debit'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">5000</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">)</span></span></code></pre>",
       "result": null,
       "error": {
         "code": "invalid_data",
@@ -558,7 +556,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "debit op-2",
           "at": "t3",
           "$changed": []
@@ -580,7 +578,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "topup op-1",
           "at": "t2",
           "$changed": []
@@ -602,7 +600,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "debit op-2",
           "at": "t3",
           "$changed": []
@@ -611,7 +609,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "36",
+          "seq": "43",
           "id": "Wallet «W-1»",
           "rev": 1,
           "class": "Wallet",
@@ -624,13 +622,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": false
         },
         {
-          "seq": "37",
+          "seq": "44",
           "id": "Movement·1",
           "rev": 1,
           "class": "Movement",
@@ -646,13 +644,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "topup op-1",
           "at": "t2",
           "$new": false
         },
         {
-          "seq": "38",
+          "seq": "45",
           "id": "Wallet «W-1»",
           "rev": 2,
           "class": "Wallet",
@@ -665,13 +663,13 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "topup op-1",
           "at": "t2",
           "$new": false
         },
         {
-          "seq": "39",
+          "seq": "46",
           "id": "Movement·2",
           "rev": 1,
           "class": "Movement",
@@ -687,13 +685,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "debit op-2",
           "at": "t3",
           "$new": false
         },
         {
-          "seq": "40",
+          "seq": "47",
           "id": "Wallet «W-1»",
           "rev": 3,
           "class": "Wallet",
@@ -706,7 +704,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "debit op-2",
           "at": "t3",
           "$new": false
@@ -719,8 +717,8 @@
     {
       "title": "Итог",
       "text": null,
-      "code": "({ баланс: (await db.Wallet(wallet).first())?.data.balance, операций: await db.Wallet(wallet).Movement().count() })",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ баланс: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Wallet</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(wallet).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">first</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">())?.data.balance, операций: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Wallet</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(wallet).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Movement</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">count</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">() })</span></span></code></pre>",
+      "code": "({ баланс: (await me.Wallet(wallet).first())?.data.balance, операций: await me.Wallet(wallet).Movement().count() })",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ баланс: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Wallet</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(wallet).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">first</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">())?.data.balance, операций: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Wallet</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(wallet).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Movement</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">count</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">() })</span></span></code></pre>",
       "result": {
         "баланс": 700,
         "операций": 2
@@ -741,7 +739,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "debit op-2",
           "at": "t3",
           "$changed": []
@@ -763,7 +761,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "topup op-1",
           "at": "t2",
           "$changed": []
@@ -785,7 +783,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "debit op-2",
           "at": "t3",
           "$changed": []
@@ -794,7 +792,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "36",
+          "seq": "43",
           "id": "Wallet «W-1»",
           "rev": 1,
           "class": "Wallet",
@@ -807,13 +805,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": false
         },
         {
-          "seq": "37",
+          "seq": "44",
           "id": "Movement·1",
           "rev": 1,
           "class": "Movement",
@@ -829,13 +827,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "topup op-1",
           "at": "t2",
           "$new": false
         },
         {
-          "seq": "38",
+          "seq": "45",
           "id": "Wallet «W-1»",
           "rev": 2,
           "class": "Wallet",
@@ -848,13 +846,13 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "topup op-1",
           "at": "t2",
           "$new": false
         },
         {
-          "seq": "39",
+          "seq": "46",
           "id": "Movement·2",
           "rev": 1,
           "class": "Movement",
@@ -870,13 +868,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "debit op-2",
           "at": "t3",
           "$new": false
         },
         {
-          "seq": "40",
+          "seq": "47",
           "id": "Wallet «W-1»",
           "rev": 3,
           "class": "Wallet",
@@ -889,7 +887,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "debit op-2",
           "at": "t3",
           "$new": false
@@ -900,5 +898,5 @@
       "signals": []
     }
   ],
-  "output": "Шаг 1. Кошелёк\n{\n  \"at\": \"‹время›\",\n  \"id\": \"‹id 1›\",\n  \"op\": \"create\",\n  \"rev\": 1,\n  \"data\": {\n    \"number\": \"W-1\",\n    \"balance\": 0\n  },\n  \"tags\": [],\n  \"class\": \"Wallet\",\n  \"links\": {},\n  \"owner\": \"‹id 2›\",\n  \"author\": \"‹id 3›\",\n  \"tenant\": \"‹id 2›\",\n  \"agent\": \"‹id 4›\"\n}\n\nШаг 2. Пополнение на 1000\n\"проведено\"\n\nШаг 3. Ответ потерялся — повтор той же операции\n\"уже было\"\n\nШаг 4. Списание 300\n\"проведено\"\n\nШаг 5. Списать больше, чем есть, — нельзя\nотказ, как и задумано: letopis: invalid_data: данные не проходят описание класса Wallet: balance — нарушено правило minimum\n\nШаг 6. Итог\n{\n  \"баланс\": 700,\n  \"операций\": 2\n}"
+  "output": "Шаг 1. Кошелёк\n{\n  \"at\": \"‹время›\",\n  \"id\": \"‹id 1›\",\n  \"op\": \"create\",\n  \"rev\": 1,\n  \"data\": {\n    \"number\": \"W-1\",\n    \"balance\": 0\n  },\n  \"tags\": [],\n  \"class\": \"Wallet\",\n  \"links\": {},\n  \"owner\": \"‹id 2›\",\n  \"author\": \"‹id 3›\",\n  \"tenant\": \"‹id 2›\"\n}\n\nШаг 2. Пополнение на 1000\n\"проведено\"\n\nШаг 3. Ответ потерялся — повтор той же операции\n\"уже было\"\n\nШаг 4. Списание 300\n\"проведено\"\n\nШаг 5. Списать больше, чем есть, — нельзя\nотказ, как и задумано: letopis: invalid_data: данные не проходят описание класса Wallet: balance — нарушено правило minimum\n\nШаг 6. Итог\n{\n  \"баланс\": 700,\n  \"операций\": 2\n}"
 }

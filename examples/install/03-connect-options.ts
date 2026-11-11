@@ -1,4 +1,3 @@
-import { syncModels } from 'letopis';
 import type { QueryEvent } from 'letopis';
 import { hub } from 'letopis/model';
 import { z } from 'zod';
@@ -7,47 +6,50 @@ import { example } from '../_shared/example.ts';
 const Product = hub('Product', { title: z.string(), price: z.number().int().min(0) });
 
 export default example({
-  title: 'Опции connect(): наблюдение за запросами, пул, сигналы, кэш, модели',
+  title: 'Опции connect(pass): наблюдение за запросами, пул, сигналы, кэш',
   summary:
-    'connect() принимает настройки подключения. Самые полезные на практике: onQuery и slowMs для наблюдения за ' +
-    'запросами, cache для кэша результатов, listen: false для работы через PgBouncer.',
+    'connect(pass) принимает настройки подключения консьержа — они действуют на все корни квартир, которые он ' +
+    'откроет. Самые полезные на практике: onQuery и slowMs для наблюдения за запросами, cache для кэша результатов, ' +
+    'listen: false для работы через PgBouncer.',
+  models: [Product],
   tables: [],
   covers: [
-    'connect.onQuery', 'connect.slowMs', 'connect.max', 'connect.listen', 'connect.cache', 'connect.refreshSession',
-    'connect.notifyIntervalMs', 'connect.models', 'connect.service', 'connect.maintain', 'connect.owner',
-    'cache.ttl', 'db.cache', 'db.close',
+    'connect.onQuery', 'connect.slowMs', 'connect.max', 'connect.listen', 'connect.cache', 'connect.notifyIntervalMs',
+    'cache.ttl', 'db.cache', 'house.close', 'connect.models', 'error.bypass_rls',
   ],
   steps: [
     {
-      title: 'Класс для опытов',
-      run: async ({ db }) => {
-        await syncModels(db, [Product], { apply: true });
-        await db.Product().create({ title: 'Чайник', price: 2500 }).rows();
-      },
+      title: 'Товар для опытов',
+      text: 'Анна заводит в «Ромашке» один товар: на нём проверим опции.',
+      run: async ({ me }) => (await me.Product().create({ title: 'Чайник', price: 2500 }).rows()).map((p) => p.data),
     },
     {
       title: 'onQuery: что выполнила каждая цепочка',
       text:
-        '`onQuery` получает событие на каждый запрос цепочки: вид запроса, классы, время и число строк. `slowMs` — ' +
-        'порог медленного запроса: у такого события `slow: true` (порог 0 — для примера все запросы «медленные»; ' +
-        'без `onQuery` медленный запрос печатается в консоль). Время запроса в результате заменено на «≥ 0»: оно каждый раз своё.',
-      run: async ({ connect, dsn, schema, up }) => {
+        '`onQuery` получает событие на каждый запрос цепочки — в любом корне квартиры этого консьержа: вид запроса, ' +
+        'классы, время и число строк. `slowMs` — порог медленного запроса: у такого события `slow: true` (порог 0 — для ' +
+        'примера все запросы «медленные»; без `onQuery` медленный запрос печатается в консоль). Время запроса в ' +
+        'результате заменено на «≥ 0»: оно каждый раз своё.',
+      run: async ({ connect, pass, annaKey }) => {
         const seen: QueryEvent[] = [];
-        const db = await connect({ dsn: dsn.app, schema, token: up.tenant!.token!, onQuery: (e) => seen.push(e), slowMs: 0 });
-        await db.Product().rows();
-        await db.Product().count();
+        const db = await connect(pass, { onQuery: (e) => seen.push(e), slowMs: 0 });
+        const me = await db.open(annaKey);
+        await me.Product().rows();
+        await me.Product().count();
         return seen.map((e) => ({ mode: e.mode, classes: e.classes, rows: e.rows, slow: e.slow, ms: e.ms >= 0 ? '≥ 0' : e.ms }));
       },
     },
     {
-      title: 'Пул, сигналы, продление сессии',
+      title: 'Пул и сигналы',
       text:
-        '`max` — размер пула соединений (по умолчанию 10). `listen: false` — не слушать сигналы базы: это нужно, если ' +
-        'подключение идёт через PgBouncer в режиме транзакций. `refreshSession: false` — не продлевать сессию. `notifyIntervalMs` — как часто ' +
-        'отправлять отложенные сигналы. Подключение работает как обычно.',
-      run: async ({ connect, dsn, schema, up }) => {
-        const db = await connect({ dsn: dsn.app, schema, token: up.tenant!.token!, max: 2, listen: false, refreshSession: false, notifyIntervalMs: 50 });
-        return (await db.Product().rows()).map((p) => p.data);
+        '`max` — размер пула соединений консьержа (по умолчанию 10): его делят все корни квартир, которые он открыл. ' +
+        '`listen: false` — не слушать сигналы базы: так нужно, если подключение идёт через PgBouncer в режиме ' +
+        'транзакций; новые классы такой консьерж увидит после `refresh()` корня. `notifyIntervalMs` — как часто ' +
+        'отправлять отложенные сигналы своих записей (по умолчанию 100 мс). Подключение работает как обычно.',
+      run: async ({ connect, pass, annaKey }) => {
+        const db = await connect(pass, { max: 2, listen: false, notifyIntervalMs: 50 });
+        const me = await db.open(annaKey);
+        return (await me.Product().rows()).map((p) => p.data);
       },
     },
     {
@@ -55,62 +57,59 @@ export default example({
       text:
         '`cache: { ttl }` включает кэш результатов цепочек в памяти процесса. Цепочка с `.cache()` второй раз ' +
         'читается из кэша: в статистике `hits: 1`. Свои записи и сигналы базы сбрасывают кэш.',
-      run: async ({ connect, dsn, schema, up }) => {
-        const db = await connect({ dsn: dsn.app, schema, token: up.tenant!.token!, cache: { ttl: 60_000 } });
-        await db.Product().cache().rows();
-        await db.Product().cache().rows();
-        const { hits, misses, stores } = db.cache.stats();
+      run: async ({ connect, pass, annaKey }) => {
+        const db = await connect(pass, { cache: { ttl: 60_000 } });
+        const me = await db.open(annaKey);
+        await me.Product().cache().rows();
+        await me.Product().cache().rows();
+        const { hits, misses, stores } = me.cache.stats();
         return { hits, misses, stores };
       },
     },
     {
-      title: 'Модели — для типов, service — то же, что apiKey',
+      title: 'Опечатка в опции и чужая строка вместо пропуска',
       text:
-        '`models` нужны только для TypeScript: цепочки получают строгие типы классов и полей. Описания классов база ' +
-        'берёт у себя. `service` — то же, что `apiKey`. `maintain: \'1h\'` запускает обслуживание по расписанию ' +
-        '(истёкшие и погашенные сессии и коды).',
-      run: async ({ connect, dsn, schema, up }) => {
-        const svc = await connect({ dsn: dsn.app, schema, service: up.serviceKey!, models: [Product], maintain: '1h' });
-        return { tenant: svc.tenant, schema: svc.schema };
+        'Неизвестную опцию `connect()` отклоняет до подключения — `invalid_data` с похожими именами. Первый аргумент — ' +
+        'только пропуск, который вернул `setup()`: обычная строка подключения PostgreSQL (без дома и ключа консьержа) — ' +
+        'тоже `invalid_data`. Пропуск, в котором роль консьержа заменили администратором базы, — `bypass_rls`: такая ' +
+        'роль обходит RLS и видела бы данные всех квартир, консьерж так не подключается.',
+      run: async ({ connect, pass, ADMIN_DSN }) => {
+        const why = (e: Error) => e.message;
+        const admin = new URL(ADMIN_DSN);
+        const forged = new URL(pass);
+        forged.username = admin.username;
+        forged.password = admin.password;
+        return {
+          'maxx вместо max': await connect(pass, { maxx: 2 } as never).then(() => 'подключено', why),
+          'строка без дома и ключа': await connect('postgres://postgres@localhost:5432/letopis').then(() => 'подключено', why),
+          'пропуск с ролью администратора': await connect(forged.toString()).then(() => 'подключено', (e) => e.code),
+        };
       },
     },
     {
-      title: 'Интервал обслуживания проверяется сразу',
+      title: 'Модели для типов цепочек: models',
       text:
-        'Интервал `maintain` — от 1 мс до 2³¹−1 мс (около 24 суток). Ноль, отрицательное число, `NaN` или `\'30d\'` таймер ' +
-        'Node.js превратил бы в 1 мс, и обслуживание шло бы без перерыва. Поэтому `connect()` отказывает `invalid_data` ' +
-        'ещё до открытия соединений.',
-      run: async ({ connect, dsn, schema, up }) => {
-        const attempt = (maintain: string | number) =>
-          connect({ dsn: dsn.app, schema, service: up.serviceKey!, maintain }).then(() => 'подключено', (e) => e.code);
-        return { '0': await attempt(0), '-5': await attempt(-5), 'NaN': await attempt(NaN), "'30d'": await attempt('30d'), "'1d'": await attempt('1d') };
-      },
-      expect: {
-        check: (r) => {
-          if (r['0'] !== 'invalid_data' || r['-5'] !== 'invalid_data' || r.NaN !== 'invalid_data' || r["'30d'"] !== 'invalid_data') {
-            throw new Error('интервал обслуживания не проверен');
-          }
-        },
+        '`connect(pass, { models })` — модели `letopis/model` только для типов: цепочки корней этого консьержа знают ' +
+        'поля классов (`me.Product().create({ title, price })` проверяет TypeScript), а подсказки редактора — имена ' +
+        'полей. Описания классов по-прежнему берутся из базы: в дом опция ничего не пишет.',
+      run: async ({ connect, pass, annaKey }) => {
+        const db = await connect(pass, { models: [Product] });
+        const me = await db.open(annaKey);
+        const [p] = await me.Product().create({ title: 'Кружка', price: 400 }).rows();
+        return { 'title': p.data.title, 'price': p.data.price };
       },
     },
     {
-      title: 'owner — имя роли-владельца для администраторского подключения',
+      title: 'Закрыть консьержа: close()',
       text:
-        'Администраторскому подключению нужна роль, которая может стать владельцем схемы. По умолчанию это ' +
-        '`letopis_owner`; если установка ставилась с другим `owner`, его передают и в `connect()`.',
-      run: async ({ connect, warnings, dsn, schema, up }) => {
-        const { result: adm } = await warnings(() =>
-          connect({ dsn: dsn.admin, schema, token: up.tenant!.token!, allowBypassRls: true, owner: 'letopis_owner' }));
-        return { tenant: adm.tenant };
-      },
-    },
-    {
-      title: 'Закрыть подключение',
-      text: '`close()` закрывает пул. Подключения из `as()` делят пул с исходным — закрывать нужно исходное.',
-      run: async ({ connect, dsn, schema, up }) => {
-        const db = await connect({ dsn: dsn.app, schema, token: up.tenant!.token! });
+        '`close()` консьержа закрывает его пул, подписки и все корни квартир, которые он открыл: дальше любой их запрос — ' +
+        '`invalid_query` с подсказкой открыть новое подключение. Закрывают консьержа один раз — при остановке процесса.',
+      run: async ({ connect, pass, annaKey }) => {
+        const db = await connect(pass);
+        const me = await db.open(annaKey);
         await db.close();
-        return 'закрыто';
+        const read = async () => me.Product().rows();
+        return { 'запрос после close()': await read().then(() => 'прочитано', (e) => e.code) };
       },
     },
   ],

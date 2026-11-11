@@ -8,8 +8,8 @@
   "steps": [
     {
       "result": {
-        "at": "2026-11-04T05:16:33.18987+00:00",
-        "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+        "at": "2026-11-10T20:18:35.94342+00:00",
+        "id": "90e00efe-6148-5dda-92c4-910134d778bb",
         "op": "create",
         "rev": 1,
         "data": {
@@ -18,55 +18,53 @@
         "tags": [],
         "class": "Shop",
         "links": {},
-        "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-        "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-        "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c"
+        "owner": "a746c11c-b505-5faf-b5f4-488ac120cce6",
+        "author": "f858da58-f529-511b-8a97-548e78c67df6",
+        "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6"
       },
       "error": null,
       "entity": [
         {
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "id": "90e00efe-6148-5dda-92c4-910134d778bb",
           "class": "Shop",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
+          "owner": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {},
           "data": {
             "name": "Ромашка"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:33.18987+00"
+          "at": "2026-11-10 20:18:35.94342+00"
         }
       ],
       "removed": [],
       "log": [
         {
-          "seq": "41",
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "seq": "48",
+          "id": "90e00efe-6148-5dda-92c4-910134d778bb",
           "rev": 1,
           "class": "Shop",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {},
           "data": {
             "name": "Ромашка"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:33.18987+00",
-          "tx": "3894178"
+          "at": "2026-11-10 20:18:35.94342+00",
+          "tx": "4260140"
         }
       ],
       "secret": [],
       "signals": [
-        "Class",
         "Shop"
       ]
     },
@@ -81,30 +79,30 @@
       "error": null,
       "entity": [
         {
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "id": "90e00efe-6148-5dda-92c4-910134d778bb",
           "class": "Shop",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
+          "owner": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {},
           "data": {
             "name": "Ромашка"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:33.18987+00"
+          "at": "2026-11-10 20:18:35.94342+00"
         },
         {
-          "id": "546ec826-5f43-5b56-8c42-d88fc09cf4a9",
+          "id": "e6b29fbe-7c0b-5db9-b217-6b9546ad23e4",
           "class": "Product",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
+          "owner": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "C-1",
@@ -113,19 +111,19 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": "новая коллекция",
-          "at": "2026-11-04 05:16:33.206873+00"
+          "at": "2026-11-10 20:18:35.970091+00"
         },
         {
-          "id": "22fe0a50-861e-565b-b8e2-fcd3f05a689c",
+          "id": "71b29de5-6bf4-5173-a59d-6d61f41a4245",
           "class": "Product",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
+          "owner": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "C-2",
@@ -134,40 +132,40 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": "новая коллекция",
-          "at": "2026-11-04 05:16:33.214063+00"
+          "at": "2026-11-10 20:18:35.979298+00"
         }
       ],
       "removed": [],
       "log": [
         {
-          "seq": "41",
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "seq": "48",
+          "id": "90e00efe-6148-5dda-92c4-910134d778bb",
           "rev": 1,
           "class": "Shop",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {},
           "data": {
             "name": "Ромашка"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:33.18987+00",
-          "tx": "3894178"
+          "at": "2026-11-10 20:18:35.94342+00",
+          "tx": "4260140"
         },
         {
-          "seq": "42",
-          "id": "546ec826-5f43-5b56-8c42-d88fc09cf4a9",
+          "seq": "49",
+          "id": "e6b29fbe-7c0b-5db9-b217-6b9546ad23e4",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "C-1",
@@ -176,20 +174,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": "новая коллекция",
-          "at": "2026-11-04 05:16:33.206873+00",
-          "tx": "3894182"
+          "at": "2026-11-10 20:18:35.970091+00",
+          "tx": "4260144"
         },
         {
-          "seq": "43",
-          "id": "22fe0a50-861e-565b-b8e2-fcd3f05a689c",
+          "seq": "50",
+          "id": "71b29de5-6bf4-5173-a59d-6d61f41a4245",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "C-2",
@@ -198,11 +196,11 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": "новая коллекция",
-          "at": "2026-11-04 05:16:33.214063+00",
-          "tx": "3894182"
+          "at": "2026-11-10 20:18:35.979298+00",
+          "tx": "4260144"
         }
       ],
       "secret": [],
@@ -217,30 +215,30 @@
       "error": null,
       "entity": [
         {
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "id": "90e00efe-6148-5dda-92c4-910134d778bb",
           "class": "Shop",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
+          "owner": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {},
           "data": {
             "name": "Ромашка"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:33.18987+00"
+          "at": "2026-11-10 20:18:35.94342+00"
         },
         {
-          "id": "546ec826-5f43-5b56-8c42-d88fc09cf4a9",
+          "id": "e6b29fbe-7c0b-5db9-b217-6b9546ad23e4",
           "class": "Product",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
+          "owner": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "C-1",
@@ -249,19 +247,19 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": "новая коллекция",
-          "at": "2026-11-04 05:16:33.206873+00"
+          "at": "2026-11-10 20:18:35.970091+00"
         },
         {
-          "id": "22fe0a50-861e-565b-b8e2-fcd3f05a689c",
+          "id": "71b29de5-6bf4-5173-a59d-6d61f41a4245",
           "class": "Product",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
+          "owner": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "C-2",
@@ -270,40 +268,40 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": "новая коллекция",
-          "at": "2026-11-04 05:16:33.214063+00"
+          "at": "2026-11-10 20:18:35.979298+00"
         }
       ],
       "removed": [],
       "log": [
         {
-          "seq": "41",
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "seq": "48",
+          "id": "90e00efe-6148-5dda-92c4-910134d778bb",
           "rev": 1,
           "class": "Shop",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {},
           "data": {
             "name": "Ромашка"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:33.18987+00",
-          "tx": "3894178"
+          "at": "2026-11-10 20:18:35.94342+00",
+          "tx": "4260140"
         },
         {
-          "seq": "42",
-          "id": "546ec826-5f43-5b56-8c42-d88fc09cf4a9",
+          "seq": "49",
+          "id": "e6b29fbe-7c0b-5db9-b217-6b9546ad23e4",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "C-1",
@@ -312,20 +310,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": "новая коллекция",
-          "at": "2026-11-04 05:16:33.206873+00",
-          "tx": "3894182"
+          "at": "2026-11-10 20:18:35.970091+00",
+          "tx": "4260144"
         },
         {
-          "seq": "43",
-          "id": "22fe0a50-861e-565b-b8e2-fcd3f05a689c",
+          "seq": "50",
+          "id": "71b29de5-6bf4-5173-a59d-6d61f41a4245",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "C-2",
@@ -334,11 +332,11 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": "новая коллекция",
-          "at": "2026-11-04 05:16:33.214063+00",
-          "tx": "3894182"
+          "at": "2026-11-10 20:18:35.979298+00",
+          "tx": "4260144"
         }
       ],
       "secret": [],
@@ -347,8 +345,8 @@
     {
       "result": [
         {
-          "at": "2026-11-04T05:16:33.242639+00:00",
-          "id": "7079d8ee-da40-5fe6-ac46-00e58ab1af18",
+          "at": "2026-11-10T20:18:36.009077+00:00",
+          "id": "7474cdd3-8075-57eb-90bd-4a381841dc58",
           "op": "create",
           "rev": 1,
           "data": {
@@ -362,42 +360,41 @@
           ],
           "class": "Product",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "owner": "a746c11c-b505-5faf-b5f4-488ac120cce6",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "reason": "зимняя витрина"
         }
       ],
       "error": null,
       "entity": [
         {
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "id": "90e00efe-6148-5dda-92c4-910134d778bb",
           "class": "Shop",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
+          "owner": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {},
           "data": {
             "name": "Ромашка"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:33.18987+00"
+          "at": "2026-11-10 20:18:35.94342+00"
         },
         {
-          "id": "546ec826-5f43-5b56-8c42-d88fc09cf4a9",
+          "id": "e6b29fbe-7c0b-5db9-b217-6b9546ad23e4",
           "class": "Product",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
+          "owner": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "C-1",
@@ -406,19 +403,19 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": "новая коллекция",
-          "at": "2026-11-04 05:16:33.206873+00"
+          "at": "2026-11-10 20:18:35.970091+00"
         },
         {
-          "id": "22fe0a50-861e-565b-b8e2-fcd3f05a689c",
+          "id": "71b29de5-6bf4-5173-a59d-6d61f41a4245",
           "class": "Product",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
+          "owner": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "C-2",
@@ -427,19 +424,19 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": "новая коллекция",
-          "at": "2026-11-04 05:16:33.214063+00"
+          "at": "2026-11-10 20:18:35.979298+00"
         },
         {
-          "id": "7079d8ee-da40-5fe6-ac46-00e58ab1af18",
+          "id": "7474cdd3-8075-57eb-90bd-4a381841dc58",
           "class": "Product",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
+          "owner": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "W-1",
@@ -451,40 +448,40 @@
             "зима"
           ],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": "зимняя витрина",
-          "at": "2026-11-04 05:16:33.242639+00"
+          "at": "2026-11-10 20:18:36.009077+00"
         }
       ],
       "removed": [],
       "log": [
         {
-          "seq": "41",
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "seq": "48",
+          "id": "90e00efe-6148-5dda-92c4-910134d778bb",
           "rev": 1,
           "class": "Shop",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {},
           "data": {
             "name": "Ромашка"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:33.18987+00",
-          "tx": "3894178"
+          "at": "2026-11-10 20:18:35.94342+00",
+          "tx": "4260140"
         },
         {
-          "seq": "42",
-          "id": "546ec826-5f43-5b56-8c42-d88fc09cf4a9",
+          "seq": "49",
+          "id": "e6b29fbe-7c0b-5db9-b217-6b9546ad23e4",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "C-1",
@@ -493,20 +490,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": "новая коллекция",
-          "at": "2026-11-04 05:16:33.206873+00",
-          "tx": "3894182"
+          "at": "2026-11-10 20:18:35.970091+00",
+          "tx": "4260144"
         },
         {
-          "seq": "43",
-          "id": "22fe0a50-861e-565b-b8e2-fcd3f05a689c",
+          "seq": "50",
+          "id": "71b29de5-6bf4-5173-a59d-6d61f41a4245",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "C-2",
@@ -515,20 +512,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": "новая коллекция",
-          "at": "2026-11-04 05:16:33.214063+00",
-          "tx": "3894182"
+          "at": "2026-11-10 20:18:35.979298+00",
+          "tx": "4260144"
         },
         {
-          "seq": "44",
-          "id": "7079d8ee-da40-5fe6-ac46-00e58ab1af18",
+          "seq": "51",
+          "id": "7474cdd3-8075-57eb-90bd-4a381841dc58",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "W-1",
@@ -540,11 +537,11 @@
             "зима"
           ],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": "зимняя витрина",
-          "at": "2026-11-04 05:16:33.242639+00",
-          "tx": "3894187"
+          "at": "2026-11-10 20:18:36.009077+00",
+          "tx": "4260149"
         }
       ],
       "secret": [],
@@ -555,8 +552,8 @@
     {
       "result": [
         {
-          "at": "2026-11-04T05:16:33.261103+00:00",
-          "id": "379e28b2-fd4d-58ea-bed9-d4b3b59814d9",
+          "at": "2026-11-10T20:18:36.028694+00:00",
+          "id": "14742ea0-5dc7-5c39-bb9e-bdc04ec384c8",
           "op": "create",
           "rev": 1,
           "data": {
@@ -567,41 +564,40 @@
           "tags": [],
           "class": "Product",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
-          "owner": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c"
+          "owner": "f858da58-f529-511b-8a97-548e78c67df6",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6"
         }
       ],
       "error": null,
       "entity": [
         {
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "id": "90e00efe-6148-5dda-92c4-910134d778bb",
           "class": "Shop",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
+          "owner": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {},
           "data": {
             "name": "Ромашка"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:33.18987+00"
+          "at": "2026-11-10 20:18:35.94342+00"
         },
         {
-          "id": "546ec826-5f43-5b56-8c42-d88fc09cf4a9",
+          "id": "e6b29fbe-7c0b-5db9-b217-6b9546ad23e4",
           "class": "Product",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
+          "owner": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "C-1",
@@ -610,19 +606,19 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": "новая коллекция",
-          "at": "2026-11-04 05:16:33.206873+00"
+          "at": "2026-11-10 20:18:35.970091+00"
         },
         {
-          "id": "22fe0a50-861e-565b-b8e2-fcd3f05a689c",
+          "id": "71b29de5-6bf4-5173-a59d-6d61f41a4245",
           "class": "Product",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
+          "owner": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "C-2",
@@ -631,19 +627,19 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": "новая коллекция",
-          "at": "2026-11-04 05:16:33.214063+00"
+          "at": "2026-11-10 20:18:35.979298+00"
         },
         {
-          "id": "7079d8ee-da40-5fe6-ac46-00e58ab1af18",
+          "id": "7474cdd3-8075-57eb-90bd-4a381841dc58",
           "class": "Product",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
+          "owner": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "W-1",
@@ -655,19 +651,19 @@
             "зима"
           ],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": "зимняя витрина",
-          "at": "2026-11-04 05:16:33.242639+00"
+          "at": "2026-11-10 20:18:36.009077+00"
         },
         {
-          "id": "379e28b2-fd4d-58ea-bed9-d4b3b59814d9",
+          "id": "14742ea0-5dc7-5c39-bb9e-bdc04ec384c8",
           "class": "Product",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
+          "owner": "f858da58-f529-511b-8a97-548e78c67df6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "P-1",
@@ -676,40 +672,40 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:33.261103+00"
+          "at": "2026-11-10 20:18:36.028694+00"
         }
       ],
       "removed": [],
       "log": [
         {
-          "seq": "41",
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "seq": "48",
+          "id": "90e00efe-6148-5dda-92c4-910134d778bb",
           "rev": 1,
           "class": "Shop",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {},
           "data": {
             "name": "Ромашка"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:33.18987+00",
-          "tx": "3894178"
+          "at": "2026-11-10 20:18:35.94342+00",
+          "tx": "4260140"
         },
         {
-          "seq": "42",
-          "id": "546ec826-5f43-5b56-8c42-d88fc09cf4a9",
+          "seq": "49",
+          "id": "e6b29fbe-7c0b-5db9-b217-6b9546ad23e4",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "C-1",
@@ -718,20 +714,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": "новая коллекция",
-          "at": "2026-11-04 05:16:33.206873+00",
-          "tx": "3894182"
+          "at": "2026-11-10 20:18:35.970091+00",
+          "tx": "4260144"
         },
         {
-          "seq": "43",
-          "id": "22fe0a50-861e-565b-b8e2-fcd3f05a689c",
+          "seq": "50",
+          "id": "71b29de5-6bf4-5173-a59d-6d61f41a4245",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "C-2",
@@ -740,20 +736,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": "новая коллекция",
-          "at": "2026-11-04 05:16:33.214063+00",
-          "tx": "3894182"
+          "at": "2026-11-10 20:18:35.979298+00",
+          "tx": "4260144"
         },
         {
-          "seq": "44",
-          "id": "7079d8ee-da40-5fe6-ac46-00e58ab1af18",
+          "seq": "51",
+          "id": "7474cdd3-8075-57eb-90bd-4a381841dc58",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "W-1",
@@ -765,20 +761,20 @@
             "зима"
           ],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": "зимняя витрина",
-          "at": "2026-11-04 05:16:33.242639+00",
-          "tx": "3894187"
+          "at": "2026-11-10 20:18:36.009077+00",
+          "tx": "4260149"
         },
         {
-          "seq": "45",
-          "id": "379e28b2-fd4d-58ea-bed9-d4b3b59814d9",
+          "seq": "52",
+          "id": "14742ea0-5dc7-5c39-bb9e-bdc04ec384c8",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "P-1",
@@ -787,11 +783,11 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:33.261103+00",
-          "tx": "3894191"
+          "at": "2026-11-10 20:18:36.028694+00",
+          "tx": "4260153"
         }
       ],
       "secret": [],
@@ -802,8 +798,8 @@
     {
       "result": [
         {
-          "at": "2026-11-04T05:16:33.309765+00:00",
-          "id": "7079d8ee-da40-5fe6-ac46-00e58ab1af18",
+          "at": "2026-11-10T20:18:36.066281+00:00",
+          "id": "7474cdd3-8075-57eb-90bd-4a381841dc58",
           "op": "update",
           "rev": 2,
           "data": {
@@ -817,41 +813,40 @@
           ],
           "class": "Product",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c"
+          "owner": "a746c11c-b505-5faf-b5f4-488ac120cce6",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6"
         }
       ],
       "error": null,
       "entity": [
         {
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "id": "90e00efe-6148-5dda-92c4-910134d778bb",
           "class": "Shop",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
+          "owner": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {},
           "data": {
             "name": "Ромашка"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:33.18987+00"
+          "at": "2026-11-10 20:18:35.94342+00"
         },
         {
-          "id": "546ec826-5f43-5b56-8c42-d88fc09cf4a9",
+          "id": "e6b29fbe-7c0b-5db9-b217-6b9546ad23e4",
           "class": "Product",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
+          "owner": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "C-1",
@@ -860,19 +855,19 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": "новая коллекция",
-          "at": "2026-11-04 05:16:33.206873+00"
+          "at": "2026-11-10 20:18:35.970091+00"
         },
         {
-          "id": "22fe0a50-861e-565b-b8e2-fcd3f05a689c",
+          "id": "71b29de5-6bf4-5173-a59d-6d61f41a4245",
           "class": "Product",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
+          "owner": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "C-2",
@@ -881,19 +876,19 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": "новая коллекция",
-          "at": "2026-11-04 05:16:33.214063+00"
+          "at": "2026-11-10 20:18:35.979298+00"
         },
         {
-          "id": "7079d8ee-da40-5fe6-ac46-00e58ab1af18",
+          "id": "7474cdd3-8075-57eb-90bd-4a381841dc58",
           "class": "Product",
           "rev": 2,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
+          "owner": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "W-1",
@@ -905,19 +900,19 @@
             "зима"
           ],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:33.309765+00"
+          "at": "2026-11-10 20:18:36.066281+00"
         },
         {
-          "id": "379e28b2-fd4d-58ea-bed9-d4b3b59814d9",
+          "id": "14742ea0-5dc7-5c39-bb9e-bdc04ec384c8",
           "class": "Product",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
+          "owner": "f858da58-f529-511b-8a97-548e78c67df6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "P-1",
@@ -926,40 +921,40 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:33.261103+00"
+          "at": "2026-11-10 20:18:36.028694+00"
         }
       ],
       "removed": [],
       "log": [
         {
-          "seq": "41",
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "seq": "48",
+          "id": "90e00efe-6148-5dda-92c4-910134d778bb",
           "rev": 1,
           "class": "Shop",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {},
           "data": {
             "name": "Ромашка"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:33.18987+00",
-          "tx": "3894178"
+          "at": "2026-11-10 20:18:35.94342+00",
+          "tx": "4260140"
         },
         {
-          "seq": "42",
-          "id": "546ec826-5f43-5b56-8c42-d88fc09cf4a9",
+          "seq": "49",
+          "id": "e6b29fbe-7c0b-5db9-b217-6b9546ad23e4",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "C-1",
@@ -968,20 +963,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": "новая коллекция",
-          "at": "2026-11-04 05:16:33.206873+00",
-          "tx": "3894182"
+          "at": "2026-11-10 20:18:35.970091+00",
+          "tx": "4260144"
         },
         {
-          "seq": "43",
-          "id": "22fe0a50-861e-565b-b8e2-fcd3f05a689c",
+          "seq": "50",
+          "id": "71b29de5-6bf4-5173-a59d-6d61f41a4245",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "C-2",
@@ -990,20 +985,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": "новая коллекция",
-          "at": "2026-11-04 05:16:33.214063+00",
-          "tx": "3894182"
+          "at": "2026-11-10 20:18:35.979298+00",
+          "tx": "4260144"
         },
         {
-          "seq": "44",
-          "id": "7079d8ee-da40-5fe6-ac46-00e58ab1af18",
+          "seq": "51",
+          "id": "7474cdd3-8075-57eb-90bd-4a381841dc58",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "W-1",
@@ -1015,20 +1010,20 @@
             "зима"
           ],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": "зимняя витрина",
-          "at": "2026-11-04 05:16:33.242639+00",
-          "tx": "3894187"
+          "at": "2026-11-10 20:18:36.009077+00",
+          "tx": "4260149"
         },
         {
-          "seq": "45",
-          "id": "379e28b2-fd4d-58ea-bed9-d4b3b59814d9",
+          "seq": "52",
+          "id": "14742ea0-5dc7-5c39-bb9e-bdc04ec384c8",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "P-1",
@@ -1037,20 +1032,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:33.261103+00",
-          "tx": "3894191"
+          "at": "2026-11-10 20:18:36.028694+00",
+          "tx": "4260153"
         },
         {
-          "seq": "46",
-          "id": "7079d8ee-da40-5fe6-ac46-00e58ab1af18",
+          "seq": "53",
+          "id": "7474cdd3-8075-57eb-90bd-4a381841dc58",
           "rev": 2,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "W-1",
@@ -1062,11 +1057,11 @@
             "зима"
           ],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:33.309765+00",
-          "tx": "3894195"
+          "at": "2026-11-10 20:18:36.066281+00",
+          "tx": "4260157"
         }
       ],
       "secret": [],
@@ -1077,8 +1072,8 @@
     {
       "result": [
         {
-          "at": "2026-11-04T05:16:33.343083+00:00",
-          "id": "7079d8ee-da40-5fe6-ac46-00e58ab1af18",
+          "at": "2026-11-10T20:18:36.094334+00:00",
+          "id": "7474cdd3-8075-57eb-90bd-4a381841dc58",
           "op": "update",
           "rev": 3,
           "data": {
@@ -1091,41 +1086,40 @@
           ],
           "class": "Product",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c"
+          "owner": "a746c11c-b505-5faf-b5f4-488ac120cce6",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6"
         }
       ],
       "error": null,
       "entity": [
         {
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "id": "90e00efe-6148-5dda-92c4-910134d778bb",
           "class": "Shop",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
+          "owner": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {},
           "data": {
             "name": "Ромашка"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:33.18987+00"
+          "at": "2026-11-10 20:18:35.94342+00"
         },
         {
-          "id": "546ec826-5f43-5b56-8c42-d88fc09cf4a9",
+          "id": "e6b29fbe-7c0b-5db9-b217-6b9546ad23e4",
           "class": "Product",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
+          "owner": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "C-1",
@@ -1134,19 +1128,19 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": "новая коллекция",
-          "at": "2026-11-04 05:16:33.206873+00"
+          "at": "2026-11-10 20:18:35.970091+00"
         },
         {
-          "id": "22fe0a50-861e-565b-b8e2-fcd3f05a689c",
+          "id": "71b29de5-6bf4-5173-a59d-6d61f41a4245",
           "class": "Product",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
+          "owner": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "C-2",
@@ -1155,19 +1149,19 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": "новая коллекция",
-          "at": "2026-11-04 05:16:33.214063+00"
+          "at": "2026-11-10 20:18:35.979298+00"
         },
         {
-          "id": "7079d8ee-da40-5fe6-ac46-00e58ab1af18",
+          "id": "7474cdd3-8075-57eb-90bd-4a381841dc58",
           "class": "Product",
           "rev": 3,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
+          "owner": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "W-1",
@@ -1178,19 +1172,19 @@
             "зима"
           ],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:33.343083+00"
+          "at": "2026-11-10 20:18:36.094334+00"
         },
         {
-          "id": "379e28b2-fd4d-58ea-bed9-d4b3b59814d9",
+          "id": "14742ea0-5dc7-5c39-bb9e-bdc04ec384c8",
           "class": "Product",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
+          "owner": "f858da58-f529-511b-8a97-548e78c67df6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "P-1",
@@ -1199,40 +1193,40 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:33.261103+00"
+          "at": "2026-11-10 20:18:36.028694+00"
         }
       ],
       "removed": [],
       "log": [
         {
-          "seq": "41",
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "seq": "48",
+          "id": "90e00efe-6148-5dda-92c4-910134d778bb",
           "rev": 1,
           "class": "Shop",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {},
           "data": {
             "name": "Ромашка"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:33.18987+00",
-          "tx": "3894178"
+          "at": "2026-11-10 20:18:35.94342+00",
+          "tx": "4260140"
         },
         {
-          "seq": "42",
-          "id": "546ec826-5f43-5b56-8c42-d88fc09cf4a9",
+          "seq": "49",
+          "id": "e6b29fbe-7c0b-5db9-b217-6b9546ad23e4",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "C-1",
@@ -1241,20 +1235,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": "новая коллекция",
-          "at": "2026-11-04 05:16:33.206873+00",
-          "tx": "3894182"
+          "at": "2026-11-10 20:18:35.970091+00",
+          "tx": "4260144"
         },
         {
-          "seq": "43",
-          "id": "22fe0a50-861e-565b-b8e2-fcd3f05a689c",
+          "seq": "50",
+          "id": "71b29de5-6bf4-5173-a59d-6d61f41a4245",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "C-2",
@@ -1263,20 +1257,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": "новая коллекция",
-          "at": "2026-11-04 05:16:33.214063+00",
-          "tx": "3894182"
+          "at": "2026-11-10 20:18:35.979298+00",
+          "tx": "4260144"
         },
         {
-          "seq": "44",
-          "id": "7079d8ee-da40-5fe6-ac46-00e58ab1af18",
+          "seq": "51",
+          "id": "7474cdd3-8075-57eb-90bd-4a381841dc58",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "W-1",
@@ -1288,20 +1282,20 @@
             "зима"
           ],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": "зимняя витрина",
-          "at": "2026-11-04 05:16:33.242639+00",
-          "tx": "3894187"
+          "at": "2026-11-10 20:18:36.009077+00",
+          "tx": "4260149"
         },
         {
-          "seq": "45",
-          "id": "379e28b2-fd4d-58ea-bed9-d4b3b59814d9",
+          "seq": "52",
+          "id": "14742ea0-5dc7-5c39-bb9e-bdc04ec384c8",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "P-1",
@@ -1310,20 +1304,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:33.261103+00",
-          "tx": "3894191"
+          "at": "2026-11-10 20:18:36.028694+00",
+          "tx": "4260153"
         },
         {
-          "seq": "46",
-          "id": "7079d8ee-da40-5fe6-ac46-00e58ab1af18",
+          "seq": "53",
+          "id": "7474cdd3-8075-57eb-90bd-4a381841dc58",
           "rev": 2,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "W-1",
@@ -1335,20 +1329,20 @@
             "зима"
           ],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:33.309765+00",
-          "tx": "3894195"
+          "at": "2026-11-10 20:18:36.066281+00",
+          "tx": "4260157"
         },
         {
-          "seq": "47",
-          "id": "7079d8ee-da40-5fe6-ac46-00e58ab1af18",
+          "seq": "54",
+          "id": "7474cdd3-8075-57eb-90bd-4a381841dc58",
           "rev": 3,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "W-1",
@@ -1359,11 +1353,11 @@
             "зима"
           ],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:33.343083+00",
-          "tx": "3894199"
+          "at": "2026-11-10 20:18:36.094334+00",
+          "tx": "4260161"
         }
       ],
       "secret": [],
@@ -1379,30 +1373,30 @@
       "error": null,
       "entity": [
         {
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "id": "90e00efe-6148-5dda-92c4-910134d778bb",
           "class": "Shop",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
+          "owner": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {},
           "data": {
             "name": "Ромашка"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:33.18987+00"
+          "at": "2026-11-10 20:18:35.94342+00"
         },
         {
-          "id": "546ec826-5f43-5b56-8c42-d88fc09cf4a9",
+          "id": "e6b29fbe-7c0b-5db9-b217-6b9546ad23e4",
           "class": "Product",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
+          "owner": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "C-1",
@@ -1411,19 +1405,19 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": "новая коллекция",
-          "at": "2026-11-04 05:16:33.206873+00"
+          "at": "2026-11-10 20:18:35.970091+00"
         },
         {
-          "id": "22fe0a50-861e-565b-b8e2-fcd3f05a689c",
+          "id": "71b29de5-6bf4-5173-a59d-6d61f41a4245",
           "class": "Product",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
+          "owner": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "C-2",
@@ -1432,19 +1426,19 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": "новая коллекция",
-          "at": "2026-11-04 05:16:33.214063+00"
+          "at": "2026-11-10 20:18:35.979298+00"
         },
         {
-          "id": "7079d8ee-da40-5fe6-ac46-00e58ab1af18",
+          "id": "7474cdd3-8075-57eb-90bd-4a381841dc58",
           "class": "Product",
           "rev": 3,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
+          "owner": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "W-1",
@@ -1455,19 +1449,19 @@
             "зима"
           ],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:33.343083+00"
+          "at": "2026-11-10 20:18:36.094334+00"
         },
         {
-          "id": "379e28b2-fd4d-58ea-bed9-d4b3b59814d9",
+          "id": "14742ea0-5dc7-5c39-bb9e-bdc04ec384c8",
           "class": "Product",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
+          "owner": "f858da58-f529-511b-8a97-548e78c67df6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "P-1",
@@ -1476,40 +1470,40 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:33.261103+00"
+          "at": "2026-11-10 20:18:36.028694+00"
         }
       ],
       "removed": [],
       "log": [
         {
-          "seq": "41",
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "seq": "48",
+          "id": "90e00efe-6148-5dda-92c4-910134d778bb",
           "rev": 1,
           "class": "Shop",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {},
           "data": {
             "name": "Ромашка"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:33.18987+00",
-          "tx": "3894178"
+          "at": "2026-11-10 20:18:35.94342+00",
+          "tx": "4260140"
         },
         {
-          "seq": "42",
-          "id": "546ec826-5f43-5b56-8c42-d88fc09cf4a9",
+          "seq": "49",
+          "id": "e6b29fbe-7c0b-5db9-b217-6b9546ad23e4",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "C-1",
@@ -1518,20 +1512,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": "новая коллекция",
-          "at": "2026-11-04 05:16:33.206873+00",
-          "tx": "3894182"
+          "at": "2026-11-10 20:18:35.970091+00",
+          "tx": "4260144"
         },
         {
-          "seq": "43",
-          "id": "22fe0a50-861e-565b-b8e2-fcd3f05a689c",
+          "seq": "50",
+          "id": "71b29de5-6bf4-5173-a59d-6d61f41a4245",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "C-2",
@@ -1540,20 +1534,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": "новая коллекция",
-          "at": "2026-11-04 05:16:33.214063+00",
-          "tx": "3894182"
+          "at": "2026-11-10 20:18:35.979298+00",
+          "tx": "4260144"
         },
         {
-          "seq": "44",
-          "id": "7079d8ee-da40-5fe6-ac46-00e58ab1af18",
+          "seq": "51",
+          "id": "7474cdd3-8075-57eb-90bd-4a381841dc58",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "W-1",
@@ -1565,20 +1559,20 @@
             "зима"
           ],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": "зимняя витрина",
-          "at": "2026-11-04 05:16:33.242639+00",
-          "tx": "3894187"
+          "at": "2026-11-10 20:18:36.009077+00",
+          "tx": "4260149"
         },
         {
-          "seq": "45",
-          "id": "379e28b2-fd4d-58ea-bed9-d4b3b59814d9",
+          "seq": "52",
+          "id": "14742ea0-5dc7-5c39-bb9e-bdc04ec384c8",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "P-1",
@@ -1587,20 +1581,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:33.261103+00",
-          "tx": "3894191"
+          "at": "2026-11-10 20:18:36.028694+00",
+          "tx": "4260153"
         },
         {
-          "seq": "46",
-          "id": "7079d8ee-da40-5fe6-ac46-00e58ab1af18",
+          "seq": "53",
+          "id": "7474cdd3-8075-57eb-90bd-4a381841dc58",
           "rev": 2,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "W-1",
@@ -1612,20 +1606,20 @@
             "зима"
           ],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:33.309765+00",
-          "tx": "3894195"
+          "at": "2026-11-10 20:18:36.066281+00",
+          "tx": "4260157"
         },
         {
-          "seq": "47",
-          "id": "7079d8ee-da40-5fe6-ac46-00e58ab1af18",
+          "seq": "54",
+          "id": "7474cdd3-8075-57eb-90bd-4a381841dc58",
           "rev": 3,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "W-1",
@@ -1636,11 +1630,11 @@
             "зима"
           ],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:33.343083+00",
-          "tx": "3894199"
+          "at": "2026-11-10 20:18:36.094334+00",
+          "tx": "4260161"
         }
       ],
       "secret": [],
@@ -1650,35 +1644,35 @@
       "result": null,
       "error": {
         "code": "invalid_query",
-        "message": "letopis: invalid_query: limit() после update() ни на что не действует: глагол проходит по всем целям шага, а ответ — его строки. Цели сужают limit(), offset() и sort() до глагола: db.Класс(…).limit(n).update(…)",
+        "message": "letopis: invalid_query: limit() после update() ни на что не действует: глагол проходит по всем целям шага, а ответ — его строки. Цели сужают limit(), offset() и sort() до глагола: me.Класс(…).limit(n).update(…)",
         "detail": null
       },
       "entity": [
         {
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "id": "90e00efe-6148-5dda-92c4-910134d778bb",
           "class": "Shop",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
+          "owner": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {},
           "data": {
             "name": "Ромашка"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:33.18987+00"
+          "at": "2026-11-10 20:18:35.94342+00"
         },
         {
-          "id": "546ec826-5f43-5b56-8c42-d88fc09cf4a9",
+          "id": "e6b29fbe-7c0b-5db9-b217-6b9546ad23e4",
           "class": "Product",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
+          "owner": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "C-1",
@@ -1687,19 +1681,19 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": "новая коллекция",
-          "at": "2026-11-04 05:16:33.206873+00"
+          "at": "2026-11-10 20:18:35.970091+00"
         },
         {
-          "id": "22fe0a50-861e-565b-b8e2-fcd3f05a689c",
+          "id": "71b29de5-6bf4-5173-a59d-6d61f41a4245",
           "class": "Product",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
+          "owner": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "C-2",
@@ -1708,19 +1702,19 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": "новая коллекция",
-          "at": "2026-11-04 05:16:33.214063+00"
+          "at": "2026-11-10 20:18:35.979298+00"
         },
         {
-          "id": "7079d8ee-da40-5fe6-ac46-00e58ab1af18",
+          "id": "7474cdd3-8075-57eb-90bd-4a381841dc58",
           "class": "Product",
           "rev": 3,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
+          "owner": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "W-1",
@@ -1731,19 +1725,19 @@
             "зима"
           ],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:33.343083+00"
+          "at": "2026-11-10 20:18:36.094334+00"
         },
         {
-          "id": "379e28b2-fd4d-58ea-bed9-d4b3b59814d9",
+          "id": "14742ea0-5dc7-5c39-bb9e-bdc04ec384c8",
           "class": "Product",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
+          "owner": "f858da58-f529-511b-8a97-548e78c67df6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "P-1",
@@ -1752,40 +1746,40 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:33.261103+00"
+          "at": "2026-11-10 20:18:36.028694+00"
         }
       ],
       "removed": [],
       "log": [
         {
-          "seq": "41",
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "seq": "48",
+          "id": "90e00efe-6148-5dda-92c4-910134d778bb",
           "rev": 1,
           "class": "Shop",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {},
           "data": {
             "name": "Ромашка"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:33.18987+00",
-          "tx": "3894178"
+          "at": "2026-11-10 20:18:35.94342+00",
+          "tx": "4260140"
         },
         {
-          "seq": "42",
-          "id": "546ec826-5f43-5b56-8c42-d88fc09cf4a9",
+          "seq": "49",
+          "id": "e6b29fbe-7c0b-5db9-b217-6b9546ad23e4",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "C-1",
@@ -1794,20 +1788,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": "новая коллекция",
-          "at": "2026-11-04 05:16:33.206873+00",
-          "tx": "3894182"
+          "at": "2026-11-10 20:18:35.970091+00",
+          "tx": "4260144"
         },
         {
-          "seq": "43",
-          "id": "22fe0a50-861e-565b-b8e2-fcd3f05a689c",
+          "seq": "50",
+          "id": "71b29de5-6bf4-5173-a59d-6d61f41a4245",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "C-2",
@@ -1816,20 +1810,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": "новая коллекция",
-          "at": "2026-11-04 05:16:33.214063+00",
-          "tx": "3894182"
+          "at": "2026-11-10 20:18:35.979298+00",
+          "tx": "4260144"
         },
         {
-          "seq": "44",
-          "id": "7079d8ee-da40-5fe6-ac46-00e58ab1af18",
+          "seq": "51",
+          "id": "7474cdd3-8075-57eb-90bd-4a381841dc58",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "W-1",
@@ -1841,20 +1835,20 @@
             "зима"
           ],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": "зимняя витрина",
-          "at": "2026-11-04 05:16:33.242639+00",
-          "tx": "3894187"
+          "at": "2026-11-10 20:18:36.009077+00",
+          "tx": "4260149"
         },
         {
-          "seq": "45",
-          "id": "379e28b2-fd4d-58ea-bed9-d4b3b59814d9",
+          "seq": "52",
+          "id": "14742ea0-5dc7-5c39-bb9e-bdc04ec384c8",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "P-1",
@@ -1863,20 +1857,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:33.261103+00",
-          "tx": "3894191"
+          "at": "2026-11-10 20:18:36.028694+00",
+          "tx": "4260153"
         },
         {
-          "seq": "46",
-          "id": "7079d8ee-da40-5fe6-ac46-00e58ab1af18",
+          "seq": "53",
+          "id": "7474cdd3-8075-57eb-90bd-4a381841dc58",
           "rev": 2,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "W-1",
@@ -1888,20 +1882,20 @@
             "зима"
           ],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:33.309765+00",
-          "tx": "3894195"
+          "at": "2026-11-10 20:18:36.066281+00",
+          "tx": "4260157"
         },
         {
-          "seq": "47",
-          "id": "7079d8ee-da40-5fe6-ac46-00e58ab1af18",
+          "seq": "54",
+          "id": "7474cdd3-8075-57eb-90bd-4a381841dc58",
           "rev": 3,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "a746c11c-b505-5faf-b5f4-488ac120cce6",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "90e00efe-6148-5dda-92c4-910134d778bb"
           },
           "data": {
             "sku": "W-1",
@@ -1912,17 +1906,17 @@
             "зима"
           ],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "214a1fa4-6379-5494-9838-7bd8152c8c8c",
+          "author": "f858da58-f529-511b-8a97-548e78c67df6",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:33.343083+00",
-          "tx": "3894199"
+          "at": "2026-11-10 20:18:36.094334+00",
+          "tx": "4260161"
         }
       ],
       "secret": [],
       "signals": []
     }
   ],
-  "output": "Шаг 1. Магазин\n{\n  \"at\": \"2026-11-04T05:16:34.807513+00:00\",\n  \"id\": \"820d0964-969f-5ad6-bc38-f38710912f70\",\n  \"op\": \"create\",\n  \"rev\": 1,\n  \"data\": {\n    \"name\": \"Ромашка\"\n  },\n  \"tags\": [],\n  \"class\": \"Shop\",\n  \"links\": {},\n  \"owner\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n  \"author\": \"3defbabb-a94d-5359-8463-dc947de193e1\",\n  \"tenant\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n  \"agent\": \"e140b53b-d932-54bd-bed1-8cb033f87e79\"\n}\n\nШаг 2. Батч: два товара одной транзакцией\n{\n  \"queued\": 2,\n  \"created\": [\n    1,\n    1\n  ]\n}\n\nШаг 3. discard — очистить очередь\n{\n  \"size\": 0\n}\n\nШаг 4. Теги и причина\n[\n  {\n    \"at\": \"2026-11-04T05:16:34.835449+00:00\",\n    \"id\": \"7079d8ee-da40-5fe6-ac46-00e58ab1af18\",\n    \"op\": \"create\",\n    \"rev\": 1,\n    \"data\": {\n      \"sku\": \"W-1\",\n      \"price\": 700,\n      \"title\": \"Варежки\"\n    },\n    \"tags\": [\n      \"сезон\",\n      \"зима\"\n    ],\n    \"class\": \"Product\",\n    \"links\": {\n      \"Shop\": \"820d0964-969f-5ad6-bc38-f38710912f70\"\n    },\n    \"owner\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n    \"author\": \"3defbabb-a94d-5359-8463-dc947de193e1\",\n    \"tenant\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n    \"agent\": \"e140b53b-d932-54bd-bed1-8cb033f87e79\",\n    \"reason\": \"зимняя витрина\"\n  }\n]\n\nШаг 5. Владелец строки\n[\n  {\n    \"at\": \"2026-11-04T05:16:34.845911+00:00\",\n    \"id\": \"379e28b2-fd4d-58ea-bed9-d4b3b59814d9\",\n    \"op\": \"create\",\n    \"rev\": 1,\n    \"data\": {\n      \"sku\": \"P-1\",\n      \"price\": 100,\n      \"title\": \"Личный заказ\"\n    },\n    \"tags\": [],\n    \"class\": \"Product\",\n    \"links\": {\n      \"Shop\": \"820d0964-969f-5ad6-bc38-f38710912f70\"\n    },\n    \"owner\": \"3defbabb-a94d-5359-8463-dc947de193e1\",\n    \"author\": \"3defbabb-a94d-5359-8463-dc947de193e1\",\n    \"tenant\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n    \"agent\": \"e140b53b-d932-54bd-bed1-8cb033f87e79\"\n  }\n]\n\nШаг 6. Оператор в .tags() перед update только отбирает\n[\n  {\n    \"at\": \"2026-11-04T05:16:34.876477+00:00\",\n    \"id\": \"7079d8ee-da40-5fe6-ac46-00e58ab1af18\",\n    \"op\": \"update\",\n    \"rev\": 2,\n    \"data\": {\n      \"sku\": \"W-1\",\n      \"price\": 800,\n      \"title\": \"Варежки\"\n    },\n    \"tags\": [\n      \"сезон\",\n      \"зима\"\n    ],\n    \"class\": \"Product\",\n    \"links\": {\n      \"Shop\": \"820d0964-969f-5ad6-bc38-f38710912f70\"\n    },\n    \"owner\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n    \"author\": \"3defbabb-a94d-5359-8463-dc947de193e1\",\n    \"tenant\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n    \"agent\": \"e140b53b-d932-54bd-bed1-8cb033f87e79\"\n  }\n]\n\nШаг 7. Строка или список в .tags() перед update ещё и заменяют теги\n[\n  {\n    \"at\": \"2026-11-04T05:16:34.901984+00:00\",\n    \"id\": \"7079d8ee-da40-5fe6-ac46-00e58ab1af18\",\n    \"op\": \"update\",\n    \"rev\": 3,\n    \"data\": {\n      \"sku\": \"W-1\",\n      \"price\": 900,\n      \"title\": \"Варежки\"\n    },\n    \"tags\": [\n      \"зима\"\n    ],\n    \"class\": \"Product\",\n    \"links\": {\n      \"Shop\": \"820d0964-969f-5ad6-bc38-f38710912f70\"\n    },\n    \"owner\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n    \"author\": \"3defbabb-a94d-5359-8463-dc947de193e1\",\n    \"tenant\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n    \"agent\": \"e140b53b-d932-54bd-bed1-8cb033f87e79\"\n  }\n]\n\nШаг 8. Пустой список в hasAll подходит любой строке\n{\n  \"hasAll([])\": 4,\n  \"hasAny([])\": 0\n}\n\nШаг 9. Батч: модификатор после глагола — отказ run()\nотказ, как и задумано: letopis: invalid_query: limit() после update() ни на что не действует: глагол проходит по всем целям шага, а ответ — его строки. Цели сужают limit(), offset() и sort() до глагола: db.Класс(…).limit(n).update(…)",
+  "output": "Шаг 1. Магазин\n{\n  \"at\": \"2026-11-10T20:18:38.086999+00:00\",\n  \"id\": \"b236e8af-0043-567e-84a8-b6222eec51a7\",\n  \"op\": \"create\",\n  \"rev\": 1,\n  \"data\": {\n    \"name\": \"Ромашка\"\n  },\n  \"tags\": [],\n  \"class\": \"Shop\",\n  \"links\": {},\n  \"owner\": \"86d56075-b107-57fc-8dbe-d39d1ca9547d\",\n  \"author\": \"370f0549-b979-5f98-ad0f-bfdc3d2b63eb\",\n  \"tenant\": \"86d56075-b107-57fc-8dbe-d39d1ca9547d\"\n}\n\nШаг 2. Батч: два товара одной транзакцией\n{\n  \"queued\": 2,\n  \"created\": [\n    1,\n    1\n  ]\n}\n\nШаг 3. discard — очистить очередь\n{\n  \"size\": 0\n}\n\nШаг 4. Теги и причина\n[\n  {\n    \"at\": \"2026-11-10T20:18:38.160696+00:00\",\n    \"id\": \"c675e7af-4dfd-537c-9e69-48df10e3a2ff\",\n    \"op\": \"create\",\n    \"rev\": 1,\n    \"data\": {\n      \"sku\": \"W-1\",\n      \"price\": 700,\n      \"title\": \"Варежки\"\n    },\n    \"tags\": [\n      \"сезон\",\n      \"зима\"\n    ],\n    \"class\": \"Product\",\n    \"links\": {\n      \"Shop\": \"b236e8af-0043-567e-84a8-b6222eec51a7\"\n    },\n    \"owner\": \"86d56075-b107-57fc-8dbe-d39d1ca9547d\",\n    \"author\": \"370f0549-b979-5f98-ad0f-bfdc3d2b63eb\",\n    \"tenant\": \"86d56075-b107-57fc-8dbe-d39d1ca9547d\",\n    \"reason\": \"зимняя витрина\"\n  }\n]\n\nШаг 5. Владелец строки\n[\n  {\n    \"at\": \"2026-11-10T20:18:38.17404+00:00\",\n    \"id\": \"2304f6ce-069f-580f-a216-d368db5fdb03\",\n    \"op\": \"create\",\n    \"rev\": 1,\n    \"data\": {\n      \"sku\": \"P-1\",\n      \"price\": 100,\n      \"title\": \"Личный заказ\"\n    },\n    \"tags\": [],\n    \"class\": \"Product\",\n    \"links\": {\n      \"Shop\": \"b236e8af-0043-567e-84a8-b6222eec51a7\"\n    },\n    \"owner\": \"370f0549-b979-5f98-ad0f-bfdc3d2b63eb\",\n    \"author\": \"370f0549-b979-5f98-ad0f-bfdc3d2b63eb\",\n    \"tenant\": \"86d56075-b107-57fc-8dbe-d39d1ca9547d\"\n  }\n]\n\nШаг 6. Оператор в .tags() перед update только отбирает\n[\n  {\n    \"at\": \"2026-11-10T20:18:38.262147+00:00\",\n    \"id\": \"c675e7af-4dfd-537c-9e69-48df10e3a2ff\",\n    \"op\": \"update\",\n    \"rev\": 2,\n    \"data\": {\n      \"sku\": \"W-1\",\n      \"price\": 800,\n      \"title\": \"Варежки\"\n    },\n    \"tags\": [\n      \"сезон\",\n      \"зима\"\n    ],\n    \"class\": \"Product\",\n    \"links\": {\n      \"Shop\": \"b236e8af-0043-567e-84a8-b6222eec51a7\"\n    },\n    \"owner\": \"86d56075-b107-57fc-8dbe-d39d1ca9547d\",\n    \"author\": \"370f0549-b979-5f98-ad0f-bfdc3d2b63eb\",\n    \"tenant\": \"86d56075-b107-57fc-8dbe-d39d1ca9547d\"\n  }\n]\n\nШаг 7. Строка или список в .tags() перед update ещё и заменяют теги\n[\n  {\n    \"at\": \"2026-11-10T20:18:38.301332+00:00\",\n    \"id\": \"c675e7af-4dfd-537c-9e69-48df10e3a2ff\",\n    \"op\": \"update\",\n    \"rev\": 3,\n    \"data\": {\n      \"sku\": \"W-1\",\n      \"price\": 900,\n      \"title\": \"Варежки\"\n    },\n    \"tags\": [\n      \"зима\"\n    ],\n    \"class\": \"Product\",\n    \"links\": {\n      \"Shop\": \"b236e8af-0043-567e-84a8-b6222eec51a7\"\n    },\n    \"owner\": \"86d56075-b107-57fc-8dbe-d39d1ca9547d\",\n    \"author\": \"370f0549-b979-5f98-ad0f-bfdc3d2b63eb\",\n    \"tenant\": \"86d56075-b107-57fc-8dbe-d39d1ca9547d\"\n  }\n]\n\nШаг 8. Пустой список в hasAll подходит любой строке\n{\n  \"hasAll([])\": 4,\n  \"hasAny([])\": 0\n}\n\nШаг 9. Батч: модификатор после глагола — отказ run()\nотказ, как и задумано: letopis: invalid_query: limit() после update() ни на что не действует: глагол проходит по всем целям шага, а ответ — его строки. Цели сужают limit(), offset() и sort() до глагола: me.Класс(…).limit(n).update(…)",
   "exitCode": 0
 }

@@ -19,7 +19,6 @@
       "secret": [],
       "signals": [
         "Category",
-        "Class",
         "Customer",
         "Order",
         "Product",
@@ -79,8 +78,41 @@
       "log": [],
       "secret": [],
       "signals": []
+    },
+    {
+      "result": {
+        "вторая «Ромашка»": "exists",
+        "последний owner выписывается": "last_owner"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "ничья": {
+          "Олег видит заказов": 0,
+          "acl.checkData": "acl_ambiguous"
+        },
+        "разрешение с весом 51": [
+          "A-2 paid"
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": [
+        "Resource",
+        "member",
+        "rule"
+      ]
     }
   ],
-  "output": "Шаг 1. undeclared_end — конец с ролью, которой нет в классе\nотказ, как и задумано: letopis: undeclared_end: конец Stranger не объявлен в классе Customer\n\nШаг 2. id_from_db — свой id у класса без ключа\nотказ, как и задумано: letopis: id_from_db: id класса без ключа Customer выдаёт база\n\nШаг 3. immutable_key — сменить класс простым UPDATE\nотказ, как и задумано: letopis: immutable_key: класс строки Shop неизменен: объект другого класса — новый объект\n\nШаг 4. recreated_in_statement — удалить и создать тот же id одним оператором\nотказ, как и задумано: letopis: recreated_in_statement: id удалён и создан заново одним оператором\n\nШаг 5. isolation_level — удаление в транзакции REPEATABLE READ\nотказ, как и задумано: letopis: isolation_level: удаление разрешено только в read committed",
+  "output": "Шаг 1. undeclared_end — конец с ролью, которой нет в классе\nотказ, как и задумано: letopis: undeclared_end: конец Stranger не объявлен в классе Customer\n\nШаг 2. id_from_db — свой id у класса без ключа\nотказ, как и задумано: letopis: id_from_db: id класса без ключа Customer выдаёт база\n\nШаг 3. immutable_key — сменить класс простым UPDATE\nотказ, как и задумано: letopis: immutable_key: класс строки Shop неизменен: объект другого класса — новый объект\n\nШаг 4. recreated_in_statement — удалить и создать тот же id одним оператором\nотказ, как и задумано: letopis: recreated_in_statement: id удалён и создан заново одним оператором\n\nШаг 5. isolation_level — удаление в транзакции REPEATABLE READ\nотказ, как и задумано: letopis: isolation_level: удаление разрешено только в read committed\n\nШаг 6. exists и last_owner — квартира и её хозяин\n{\n  \"вторая «Ромашка»\": \"exists\",\n  \"последний owner выписывается\": \"last_owner\"\n}\n\nШаг 7. acl_ambiguous — правила с равным счётом спорят\n{\n  \"ничья\": {\n    \"Олег видит заказов\": 0,\n    \"acl.checkData\": \"acl_ambiguous\"\n  },\n  \"разрешение с весом 51\": [\n    \"A-2 paid\"\n  ]\n}",
   "exitCode": 0
 }

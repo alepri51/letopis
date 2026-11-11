@@ -14,10 +14,10 @@
   },
   "steps": [
     {
-      "title": "Модель магазина и магазин",
-      "text": null,
-      "code": "[shop] = await db.Shop().create({ name: 'Ромашка', city: 'Казань' }).rows();\nreturn shop;",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">[shop] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, city: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Казань'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> shop;</span></span></code></pre>",
+      "title": "Магазин",
+      "text": "Модель магазина — общая модель дома: её записал `setup(ADMIN_DSN, name, { models: shopModels })` при подготовке. `me` — корень квартиры «Ромашка», открытый ключом Анны: от него идут все цепочки. `create` записывает магазин — первую версию в `entity` и в журнале `log`.",
+      "code": "[shop] = await me.Shop().create({ name: 'Ромашка', city: 'Казань' }).rows();\nreturn shop;",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">[shop] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, city: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Казань'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> shop;</span></span></code></pre>",
       "result": {
         "at": "t1",
         "id": "Shop «Ромашка»",
@@ -32,8 +32,7 @@
         "links": {},
         "owner": "Ромашка",
         "author": "Анна",
-        "tenant": "Ромашка",
-        "agent": "service"
+        "tenant": "Ромашка"
       },
       "error": null,
       "entity": [
@@ -51,7 +50,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$changed": [
@@ -62,7 +61,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "41",
+          "seq": "48",
           "id": "Shop «Ромашка»",
           "rev": 1,
           "class": "Shop",
@@ -75,7 +74,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": true
@@ -84,15 +83,14 @@
       "secret": [],
       "counts": null,
       "signals": [
-        "Class",
         "Shop"
       ]
     },
     {
       "title": "Два товара",
-      "text": "Конец `Shop` (магазин) берётся из пути цепочки `db.Shop(shop).Product()`.",
-      "code": "[kettle] = await db.Shop(shop).Product()\n  .create({ sku: 'K-1', title: 'Чайник', price: 2500, specs: { color: 'белый', volume: 1.7 }, labels: ['хит'] }).rows();\nreturn db.Shop(shop).Product().create({ sku: 'M-1', title: 'Кружка', price: 400 }).rows();",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">[kettle] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  .</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ sku: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'K-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Чайник'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">2500</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, specs: { color: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'белый'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, volume: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1.7</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, labels: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'хит'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ sku: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'M-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Кружка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">400</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span></code></pre>",
+      "text": "Конец `Shop` (магазин) берётся из пути цепочки `me.Shop(shop).Product()`.",
+      "code": "[kettle] = await me.Shop(shop).Product()\n  .create({ sku: 'K-1', title: 'Чайник', price: 2500, specs: { color: 'белый', volume: 1.7 }, labels: ['хит'] }).rows();\nreturn me.Shop(shop).Product().create({ sku: 'M-1', title: 'Кружка', price: 400 }).rows();",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">[kettle] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  .</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ sku: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'K-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Чайник'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">2500</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, specs: { color: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'белый'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, volume: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1.7</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, labels: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'хит'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ sku: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'M-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Кружка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">400</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span></code></pre>",
       "result": [
         {
           "at": "t3",
@@ -111,8 +109,7 @@
           },
           "owner": "Ромашка",
           "author": "Анна",
-          "tenant": "Ромашка",
-          "agent": "service"
+          "tenant": "Ромашка"
         }
       ],
       "error": null,
@@ -131,7 +128,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$changed": []
@@ -160,7 +157,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t2",
           "$changed": [
@@ -184,7 +181,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$changed": [
@@ -195,7 +192,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "41",
+          "seq": "48",
           "id": "Shop «Ромашка»",
           "rev": 1,
           "class": "Shop",
@@ -208,13 +205,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": false
         },
         {
-          "seq": "42",
+          "seq": "49",
           "id": "Product «Чайник»",
           "rev": 1,
           "class": "Product",
@@ -237,13 +234,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t2",
           "$new": true
         },
         {
-          "seq": "43",
+          "seq": "50",
           "id": "Product «Кружка»",
           "rev": 1,
           "class": "Product",
@@ -259,7 +256,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$new": true
@@ -274,8 +271,8 @@
     {
       "title": "update меняет только переданные поля",
       "text": "Вложенный объект `specs` меняется по полям: передали только цвет — объём остался. Массив `labels` и простые значения (строки, числа) заменяются целиком. Изменения применяет сама база, поэтому одновременные правки разных полей не теряются.",
-      "code": "db.Product(kettle).update({ specs: { color: 'чёрный' }, labels: ['хит', 'новинка'] }).rows()",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ specs: { color: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'чёрный'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, labels: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'хит'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'новинка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
+      "code": "me.Product(kettle).update({ specs: { color: 'чёрный' }, labels: ['хит', 'новинка'] }).rows()",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ specs: { color: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'чёрный'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, labels: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'хит'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'новинка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
       "result": [
         {
           "at": "t4",
@@ -302,8 +299,7 @@
           },
           "owner": "Ромашка",
           "author": "Анна",
-          "tenant": "Ромашка",
-          "agent": "service"
+          "tenant": "Ромашка"
         }
       ],
       "error": null,
@@ -322,7 +318,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$changed": []
@@ -352,7 +348,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t4",
           "$changed": [
@@ -380,7 +376,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$changed": []
@@ -389,7 +385,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "41",
+          "seq": "48",
           "id": "Shop «Ромашка»",
           "rev": 1,
           "class": "Shop",
@@ -402,13 +398,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": false
         },
         {
-          "seq": "42",
+          "seq": "49",
           "id": "Product «Чайник»",
           "rev": 1,
           "class": "Product",
@@ -431,13 +427,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t2",
           "$new": false
         },
         {
-          "seq": "43",
+          "seq": "50",
           "id": "Product «Кружка»",
           "rev": 1,
           "class": "Product",
@@ -453,13 +449,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$new": false
         },
         {
-          "seq": "44",
+          "seq": "51",
           "id": "Product «Чайник»",
           "rev": 2,
           "class": "Product",
@@ -483,7 +479,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t4",
           "$new": true
@@ -498,8 +494,8 @@
     {
       "title": "update по фильтру правит все найденные",
       "text": "Шаг с фильтром `price ≥ 1000` нашёл один товар — он и изменён. Без фильтра `update` правит все строки шага.",
-      "code": "db.Shop(shop).Product({ price: gte(1000) }).update({ title: 'Чайник стеклянный' }).rows()",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ price: </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">gte</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1000</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Чайник стеклянный'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
+      "code": "me.Shop(shop).Product({ price: gte(1000) }).update({ title: 'Чайник стеклянный' }).rows()",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ price: </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">gte</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1000</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Чайник стеклянный'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
       "result": [
         {
           "at": "t5",
@@ -526,8 +522,7 @@
           },
           "owner": "Ромашка",
           "author": "Анна",
-          "tenant": "Ромашка",
-          "agent": "service"
+          "tenant": "Ромашка"
         }
       ],
       "error": null,
@@ -546,7 +541,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$changed": []
@@ -576,7 +571,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t5",
           "$changed": [
@@ -602,7 +597,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$changed": []
@@ -611,7 +606,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "41",
+          "seq": "48",
           "id": "Shop «Ромашка»",
           "rev": 1,
           "class": "Shop",
@@ -624,13 +619,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": false
         },
         {
-          "seq": "42",
+          "seq": "49",
           "id": "Product «Чайник»",
           "rev": 1,
           "class": "Product",
@@ -653,13 +648,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t2",
           "$new": false
         },
         {
-          "seq": "43",
+          "seq": "50",
           "id": "Product «Кружка»",
           "rev": 1,
           "class": "Product",
@@ -675,13 +670,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$new": false
         },
         {
-          "seq": "44",
+          "seq": "51",
           "id": "Product «Чайник»",
           "rev": 2,
           "class": "Product",
@@ -705,13 +700,13 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t4",
           "$new": false
         },
         {
-          "seq": "45",
+          "seq": "52",
           "id": "Product «Чайник»",
           "rev": 3,
           "class": "Product",
@@ -735,7 +730,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t5",
           "$new": true
@@ -750,8 +745,8 @@
     {
       "title": "Ничего не нашлось — пустой ответ, не ошибка",
       "text": "Если шаг не нашёл строк, `update` возвращает пустой список. Проверяйте длину ответа.",
-      "code": "db.Shop(shop).Product({ price: gte(100_000) }).update({ title: 'Золотой чайник' }).rows()",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ price: </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">gte</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">100_000</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Золотой чайник'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
+      "code": "me.Shop(shop).Product({ price: gte(100_000) }).update({ title: 'Золотой чайник' }).rows()",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ price: </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">gte</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">100_000</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Золотой чайник'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
       "result": [],
       "error": null,
       "entity": [
@@ -769,7 +764,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$changed": []
@@ -799,7 +794,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t5",
           "$changed": []
@@ -821,7 +816,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$changed": []
@@ -830,7 +825,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "41",
+          "seq": "48",
           "id": "Shop «Ромашка»",
           "rev": 1,
           "class": "Shop",
@@ -843,13 +838,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": false
         },
         {
-          "seq": "42",
+          "seq": "49",
           "id": "Product «Чайник»",
           "rev": 1,
           "class": "Product",
@@ -872,13 +867,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t2",
           "$new": false
         },
         {
-          "seq": "43",
+          "seq": "50",
           "id": "Product «Кружка»",
           "rev": 1,
           "class": "Product",
@@ -894,13 +889,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$new": false
         },
         {
-          "seq": "44",
+          "seq": "51",
           "id": "Product «Чайник»",
           "rev": 2,
           "class": "Product",
@@ -924,13 +919,13 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t4",
           "$new": false
         },
         {
-          "seq": "45",
+          "seq": "52",
           "id": "Product «Чайник»",
           "rev": 3,
           "class": "Product",
@@ -954,7 +949,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t5",
           "$new": false
@@ -967,8 +962,8 @@
     {
       "title": "Сузить правку — модификатором до глагола",
       "text": "`sort` и `limit` перед `update` выбирают его цели: здесь — один самый дорогой товар магазина. Кружка не изменилась. Так же действует `offset`.",
-      "code": "db.Shop(shop).Product().sort('data.price', 'desc').limit(1).update({ labels: ['дорогой'] }).rows()",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">sort</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'data.price'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'desc'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">limit</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ labels: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'дорогой'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
+      "code": "me.Shop(shop).Product().sort('data.price', 'desc').limit(1).update({ labels: ['дорогой'] }).rows()",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">sort</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'data.price'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'desc'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">limit</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ labels: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'дорогой'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
       "result": [
         {
           "at": "t6",
@@ -994,8 +989,7 @@
           },
           "owner": "Ромашка",
           "author": "Анна",
-          "tenant": "Ромашка",
-          "agent": "service"
+          "tenant": "Ромашка"
         }
       ],
       "error": null,
@@ -1014,7 +1008,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$changed": []
@@ -1043,7 +1037,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t6",
           "$changed": [
@@ -1069,7 +1063,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$changed": []
@@ -1078,7 +1072,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "41",
+          "seq": "48",
           "id": "Shop «Ромашка»",
           "rev": 1,
           "class": "Shop",
@@ -1091,13 +1085,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": false
         },
         {
-          "seq": "42",
+          "seq": "49",
           "id": "Product «Чайник»",
           "rev": 1,
           "class": "Product",
@@ -1120,13 +1114,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t2",
           "$new": false
         },
         {
-          "seq": "43",
+          "seq": "50",
           "id": "Product «Кружка»",
           "rev": 1,
           "class": "Product",
@@ -1142,13 +1136,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$new": false
         },
         {
-          "seq": "44",
+          "seq": "51",
           "id": "Product «Чайник»",
           "rev": 2,
           "class": "Product",
@@ -1172,13 +1166,13 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t4",
           "$new": false
         },
         {
-          "seq": "45",
+          "seq": "52",
           "id": "Product «Чайник»",
           "rev": 3,
           "class": "Product",
@@ -1202,13 +1196,13 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t5",
           "$new": false
         },
         {
-          "seq": "46",
+          "seq": "53",
           "id": "Product «Чайник»",
           "rev": 4,
           "class": "Product",
@@ -1231,7 +1225,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t6",
           "$new": true
@@ -1246,8 +1240,8 @@
     {
       "title": "Ответ правки — в порядке sort() до глагола",
       "text": "Строки ответа глагола идут в порядке его целей: по `sort()` до глагола, без него — по id. Поэтому `first()` после глагола — первая по этому порядку строка, а не случайная из исправленных.",
-      "code": "({\n        'по возрастанию цены': (await db.Shop(shop).Product().sort('data.price').update({ labels: ['по возрастанию'] }).rows()).map((p) => p.data.sku),\n        'по убыванию цены': (await db.Shop(shop).Product().sort('data.price', 'desc').update({ labels: ['по убыванию'] }).rows()).map((p) => p.data.sku),\n        'first() после sort по убыванию': (await db.Shop(shop).Product().sort('data.price', 'desc').update({ labels: ['дорогой'] }).first())?.data.sku,\n      })",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'по возрастанию цены'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">sort</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'data.price'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ labels: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'по возрастанию'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">p</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> p.data.sku),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'по убыванию цены'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">sort</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'data.price'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'desc'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ labels: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'по убыванию'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">p</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> p.data.sku),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'first() после sort по убыванию'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">sort</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'data.price'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'desc'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ labels: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'дорогой'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">first</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">())?.data.sku,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      })</span></span></code></pre>",
+      "code": "({\n        'по возрастанию цены': (await me.Shop(shop).Product().sort('data.price').update({ labels: ['по возрастанию'] }).rows()).map((p) => p.data.sku),\n        'по убыванию цены': (await me.Shop(shop).Product().sort('data.price', 'desc').update({ labels: ['по убыванию'] }).rows()).map((p) => p.data.sku),\n        'first() после sort по убыванию': (await me.Shop(shop).Product().sort('data.price', 'desc').update({ labels: ['дорогой'] }).first())?.data.sku,\n      })",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'по возрастанию цены'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">sort</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'data.price'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ labels: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'по возрастанию'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">p</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> p.data.sku),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'по убыванию цены'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">sort</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'data.price'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'desc'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ labels: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'по убыванию'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">p</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> p.data.sku),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'first() после sort по убыванию'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">sort</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'data.price'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'desc'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ labels: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'дорогой'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">first</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">())?.data.sku,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      })</span></span></code></pre>",
       "result": {
         "по возрастанию цены": [
           "M-1",
@@ -1275,7 +1269,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$changed": []
@@ -1304,7 +1298,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t9",
           "$changed": [
@@ -1332,7 +1326,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t9",
           "$changed": [
@@ -1346,7 +1340,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "41",
+          "seq": "48",
           "id": "Shop «Ромашка»",
           "rev": 1,
           "class": "Shop",
@@ -1359,13 +1353,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": false
         },
         {
-          "seq": "42",
+          "seq": "49",
           "id": "Product «Чайник»",
           "rev": 1,
           "class": "Product",
@@ -1388,13 +1382,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t2",
           "$new": false
         },
         {
-          "seq": "43",
+          "seq": "50",
           "id": "Product «Кружка»",
           "rev": 1,
           "class": "Product",
@@ -1410,13 +1404,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$new": false
         },
         {
-          "seq": "44",
+          "seq": "51",
           "id": "Product «Чайник»",
           "rev": 2,
           "class": "Product",
@@ -1440,13 +1434,13 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t4",
           "$new": false
         },
         {
-          "seq": "45",
+          "seq": "52",
           "id": "Product «Чайник»",
           "rev": 3,
           "class": "Product",
@@ -1470,13 +1464,13 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t5",
           "$new": false
         },
         {
-          "seq": "46",
+          "seq": "53",
           "id": "Product «Чайник»",
           "rev": 4,
           "class": "Product",
@@ -1499,13 +1493,38 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t6",
           "$new": false
         },
         {
-          "seq": "47",
+          "seq": "54",
+          "id": "Product «Кружка»",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "по возрастанию"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t7",
+          "$new": true
+        },
+        {
+          "seq": "55",
           "id": "Product «Чайник»",
           "rev": 5,
           "class": "Product",
@@ -1528,15 +1547,15 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t7",
           "$new": true
         },
         {
-          "seq": "48",
+          "seq": "56",
           "id": "Product «Кружка»",
-          "rev": 2,
+          "rev": 3,
           "class": "Product",
           "tenant": "Ромашка",
           "links": {
@@ -1547,19 +1566,19 @@
             "price": 400,
             "title": "Кружка",
             "labels": [
-              "по возрастанию"
+              "по убыванию"
             ]
           },
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
-          "at": "t7",
+          "at": "t8",
           "$new": true
         },
         {
-          "seq": "49",
+          "seq": "57",
           "id": "Product «Чайник»",
           "rev": 6,
           "class": "Product",
@@ -1582,15 +1601,15 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t8",
           "$new": true
         },
         {
-          "seq": "50",
+          "seq": "58",
           "id": "Product «Кружка»",
-          "rev": 3,
+          "rev": 4,
           "class": "Product",
           "tenant": "Ромашка",
           "links": {
@@ -1601,19 +1620,19 @@
             "price": 400,
             "title": "Кружка",
             "labels": [
-              "по убыванию"
+              "дорогой"
             ]
           },
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
-          "at": "t8",
+          "at": "t9",
           "$new": true
         },
         {
-          "seq": "51",
+          "seq": "59",
           "id": "Product «Чайник»",
           "rev": 7,
           "class": "Product",
@@ -1636,32 +1655,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
-          "reason": null,
-          "at": "t9",
-          "$new": true
-        },
-        {
-          "seq": "52",
-          "id": "Product «Кружка»",
-          "rev": 4,
-          "class": "Product",
-          "tenant": "Ромашка",
-          "links": {
-            "Shop": "Shop «Ромашка»"
-          },
-          "data": {
-            "sku": "M-1",
-            "price": 400,
-            "title": "Кружка",
-            "labels": [
-              "дорогой"
-            ]
-          },
-          "tags": [],
-          "op": "update",
-          "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t9",
           "$new": true
@@ -1676,12 +1670,12 @@
     {
       "title": "limit после глагола — ошибка",
       "text": "Модификатор между глаголом и терминалом уже ничего не сужает: `update` прошёл бы по всем товарам, а `limit` обрезал бы только ответ. Поэтому библиотека отказывает `invalid_query` и ничего не пишет — проверьте журнал.",
-      "code": "db.Shop(shop).Product().update({ labels: ['распродажа'] }).limit(1).rows()",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ labels: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'распродажа'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">limit</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
+      "code": "me.Shop(shop).Product().update({ labels: ['распродажа'] }).limit(1).rows()",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ labels: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'распродажа'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">limit</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
       "result": null,
       "error": {
         "code": "invalid_query",
-        "message": "letopis: invalid_query: limit() после update() ни на что не действует: глагол проходит по всем целям шага, а ответ — его строки. Цели сужают limit(), offset() и sort() до глагола: db.Класс(…).limit(n).update(…)",
+        "message": "letopis: invalid_query: limit() после update() ни на что не действует: глагол проходит по всем целям шага, а ответ — его строки. Цели сужают limit(), offset() и sort() до глагола: me.Класс(…).limit(n).update(…)",
         "detail": null,
         "expected": true
       },
@@ -1700,7 +1694,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$changed": []
@@ -1729,7 +1723,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t9",
           "$changed": []
@@ -1754,7 +1748,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t9",
           "$changed": []
@@ -1763,7 +1757,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "41",
+          "seq": "48",
           "id": "Shop «Ромашка»",
           "rev": 1,
           "class": "Shop",
@@ -1776,13 +1770,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": false
         },
         {
-          "seq": "42",
+          "seq": "49",
           "id": "Product «Чайник»",
           "rev": 1,
           "class": "Product",
@@ -1805,13 +1799,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t2",
           "$new": false
         },
         {
-          "seq": "43",
+          "seq": "50",
           "id": "Product «Кружка»",
           "rev": 1,
           "class": "Product",
@@ -1827,13 +1821,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$new": false
         },
         {
-          "seq": "44",
+          "seq": "51",
           "id": "Product «Чайник»",
           "rev": 2,
           "class": "Product",
@@ -1857,13 +1851,13 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t4",
           "$new": false
         },
         {
-          "seq": "45",
+          "seq": "52",
           "id": "Product «Чайник»",
           "rev": 3,
           "class": "Product",
@@ -1887,13 +1881,13 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t5",
           "$new": false
         },
         {
-          "seq": "46",
+          "seq": "53",
           "id": "Product «Чайник»",
           "rev": 4,
           "class": "Product",
@@ -1916,13 +1910,38 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t6",
           "$new": false
         },
         {
-          "seq": "47",
+          "seq": "54",
+          "id": "Product «Кружка»",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "по возрастанию"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t7",
+          "$new": false
+        },
+        {
+          "seq": "55",
           "id": "Product «Чайник»",
           "rev": 5,
           "class": "Product",
@@ -1945,15 +1964,15 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t7",
           "$new": false
         },
         {
-          "seq": "48",
+          "seq": "56",
           "id": "Product «Кружка»",
-          "rev": 2,
+          "rev": 3,
           "class": "Product",
           "tenant": "Ромашка",
           "links": {
@@ -1964,19 +1983,19 @@
             "price": 400,
             "title": "Кружка",
             "labels": [
-              "по возрастанию"
+              "по убыванию"
             ]
           },
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
-          "at": "t7",
+          "at": "t8",
           "$new": false
         },
         {
-          "seq": "49",
+          "seq": "57",
           "id": "Product «Чайник»",
           "rev": 6,
           "class": "Product",
@@ -1999,15 +2018,15 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t8",
           "$new": false
         },
         {
-          "seq": "50",
+          "seq": "58",
           "id": "Product «Кружка»",
-          "rev": 3,
+          "rev": 4,
           "class": "Product",
           "tenant": "Ромашка",
           "links": {
@@ -2018,19 +2037,19 @@
             "price": 400,
             "title": "Кружка",
             "labels": [
-              "по убыванию"
+              "дорогой"
             ]
           },
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
-          "at": "t8",
+          "at": "t9",
           "$new": false
         },
         {
-          "seq": "51",
+          "seq": "59",
           "id": "Product «Чайник»",
           "rev": 7,
           "class": "Product",
@@ -2053,32 +2072,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
-          "reason": null,
-          "at": "t9",
-          "$new": false
-        },
-        {
-          "seq": "52",
-          "id": "Product «Кружка»",
-          "rev": 4,
-          "class": "Product",
-          "tenant": "Ромашка",
-          "links": {
-            "Shop": "Shop «Ромашка»"
-          },
-          "data": {
-            "sku": "M-1",
-            "price": 400,
-            "title": "Кружка",
-            "labels": [
-              "дорогой"
-            ]
-          },
-          "tags": [],
-          "op": "update",
-          "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t9",
           "$new": false
@@ -2091,8 +2085,8 @@
     {
       "title": "upsert: такого нет — создать",
       "text": "`upsert` — один SQL-оператор `INSERT … ON CONFLICT`. Поэтому не бывает гонки, когда два запроса одновременно убедились, что объекта нет, и оба его создают. Поле `$upsert` в ответе говорит, что произошло: здесь `created`.",
-      "code": "db.Shop().upsert({ name: 'Лютик', city: 'Уфа' }).rows()",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">upsert</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Лютик'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, city: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Уфа'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
+      "code": "me.Shop().upsert({ name: 'Лютик', city: 'Уфа' }).rows()",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">upsert</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Лютик'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, city: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Уфа'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
       "result": [
         {
           "at": "t10",
@@ -2109,7 +2103,6 @@
           "owner": "Ромашка",
           "author": "Анна",
           "tenant": "Ромашка",
-          "agent": "service",
           "$upsert": "created"
         }
       ],
@@ -2129,7 +2122,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$changed": []
@@ -2158,7 +2151,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t9",
           "$changed": []
@@ -2183,7 +2176,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t9",
           "$changed": []
@@ -2202,7 +2195,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t10",
           "$changed": [
@@ -2213,7 +2206,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "41",
+          "seq": "48",
           "id": "Shop «Ромашка»",
           "rev": 1,
           "class": "Shop",
@@ -2226,13 +2219,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": false
         },
         {
-          "seq": "42",
+          "seq": "49",
           "id": "Product «Чайник»",
           "rev": 1,
           "class": "Product",
@@ -2255,13 +2248,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t2",
           "$new": false
         },
         {
-          "seq": "43",
+          "seq": "50",
           "id": "Product «Кружка»",
           "rev": 1,
           "class": "Product",
@@ -2277,13 +2270,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$new": false
         },
         {
-          "seq": "44",
+          "seq": "51",
           "id": "Product «Чайник»",
           "rev": 2,
           "class": "Product",
@@ -2307,13 +2300,13 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t4",
           "$new": false
         },
         {
-          "seq": "45",
+          "seq": "52",
           "id": "Product «Чайник»",
           "rev": 3,
           "class": "Product",
@@ -2337,13 +2330,13 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t5",
           "$new": false
         },
         {
-          "seq": "46",
+          "seq": "53",
           "id": "Product «Чайник»",
           "rev": 4,
           "class": "Product",
@@ -2366,13 +2359,38 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t6",
           "$new": false
         },
         {
-          "seq": "47",
+          "seq": "54",
+          "id": "Product «Кружка»",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "по возрастанию"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t7",
+          "$new": false
+        },
+        {
+          "seq": "55",
           "id": "Product «Чайник»",
           "rev": 5,
           "class": "Product",
@@ -2395,15 +2413,15 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t7",
           "$new": false
         },
         {
-          "seq": "48",
+          "seq": "56",
           "id": "Product «Кружка»",
-          "rev": 2,
+          "rev": 3,
           "class": "Product",
           "tenant": "Ромашка",
           "links": {
@@ -2414,19 +2432,19 @@
             "price": 400,
             "title": "Кружка",
             "labels": [
-              "по возрастанию"
+              "по убыванию"
             ]
           },
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
-          "at": "t7",
+          "at": "t8",
           "$new": false
         },
         {
-          "seq": "49",
+          "seq": "57",
           "id": "Product «Чайник»",
           "rev": 6,
           "class": "Product",
@@ -2449,15 +2467,15 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t8",
           "$new": false
         },
         {
-          "seq": "50",
+          "seq": "58",
           "id": "Product «Кружка»",
-          "rev": 3,
+          "rev": 4,
           "class": "Product",
           "tenant": "Ромашка",
           "links": {
@@ -2468,19 +2486,19 @@
             "price": 400,
             "title": "Кружка",
             "labels": [
-              "по убыванию"
+              "дорогой"
             ]
           },
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
-          "at": "t8",
+          "at": "t9",
           "$new": false
         },
         {
-          "seq": "51",
+          "seq": "59",
           "id": "Product «Чайник»",
           "rev": 7,
           "class": "Product",
@@ -2503,38 +2521,13 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t9",
           "$new": false
         },
         {
-          "seq": "52",
-          "id": "Product «Кружка»",
-          "rev": 4,
-          "class": "Product",
-          "tenant": "Ромашка",
-          "links": {
-            "Shop": "Shop «Ромашка»"
-          },
-          "data": {
-            "sku": "M-1",
-            "price": 400,
-            "title": "Кружка",
-            "labels": [
-              "дорогой"
-            ]
-          },
-          "tags": [],
-          "op": "update",
-          "author": "Анна",
-          "agent": "service",
-          "reason": null,
-          "at": "t9",
-          "$new": false
-        },
-        {
-          "seq": "53",
+          "seq": "60",
           "id": "Shop «Лютик»",
           "rev": 1,
           "class": "Shop",
@@ -2547,7 +2540,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t10",
           "$new": true
@@ -2562,8 +2555,8 @@
     {
       "title": "upsert: то же самое — без изменений",
       "text": null,
-      "code": "db.Shop().upsert({ name: 'Лютик', city: 'Уфа' }).rows()",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">upsert</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Лютик'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, city: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Уфа'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
+      "code": "me.Shop().upsert({ name: 'Лютик', city: 'Уфа' }).rows()",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">upsert</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Лютик'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, city: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Уфа'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
       "result": [
         {
           "at": "t10",
@@ -2580,7 +2573,6 @@
           "owner": "Ромашка",
           "author": "Анна",
           "tenant": "Ромашка",
-          "agent": "service",
           "$upsert": "unchanged"
         }
       ],
@@ -2600,7 +2592,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$changed": []
@@ -2629,7 +2621,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t9",
           "$changed": []
@@ -2654,7 +2646,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t9",
           "$changed": []
@@ -2673,7 +2665,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t10",
           "$changed": []
@@ -2682,7 +2674,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "41",
+          "seq": "48",
           "id": "Shop «Ромашка»",
           "rev": 1,
           "class": "Shop",
@@ -2695,13 +2687,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": false
         },
         {
-          "seq": "42",
+          "seq": "49",
           "id": "Product «Чайник»",
           "rev": 1,
           "class": "Product",
@@ -2724,13 +2716,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t2",
           "$new": false
         },
         {
-          "seq": "43",
+          "seq": "50",
           "id": "Product «Кружка»",
           "rev": 1,
           "class": "Product",
@@ -2746,13 +2738,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$new": false
         },
         {
-          "seq": "44",
+          "seq": "51",
           "id": "Product «Чайник»",
           "rev": 2,
           "class": "Product",
@@ -2776,13 +2768,13 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t4",
           "$new": false
         },
         {
-          "seq": "45",
+          "seq": "52",
           "id": "Product «Чайник»",
           "rev": 3,
           "class": "Product",
@@ -2806,13 +2798,13 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t5",
           "$new": false
         },
         {
-          "seq": "46",
+          "seq": "53",
           "id": "Product «Чайник»",
           "rev": 4,
           "class": "Product",
@@ -2835,13 +2827,38 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t6",
           "$new": false
         },
         {
-          "seq": "47",
+          "seq": "54",
+          "id": "Product «Кружка»",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "по возрастанию"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t7",
+          "$new": false
+        },
+        {
+          "seq": "55",
           "id": "Product «Чайник»",
           "rev": 5,
           "class": "Product",
@@ -2864,15 +2881,15 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t7",
           "$new": false
         },
         {
-          "seq": "48",
+          "seq": "56",
           "id": "Product «Кружка»",
-          "rev": 2,
+          "rev": 3,
           "class": "Product",
           "tenant": "Ромашка",
           "links": {
@@ -2883,19 +2900,19 @@
             "price": 400,
             "title": "Кружка",
             "labels": [
-              "по возрастанию"
+              "по убыванию"
             ]
           },
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
-          "at": "t7",
+          "at": "t8",
           "$new": false
         },
         {
-          "seq": "49",
+          "seq": "57",
           "id": "Product «Чайник»",
           "rev": 6,
           "class": "Product",
@@ -2918,15 +2935,15 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t8",
           "$new": false
         },
         {
-          "seq": "50",
+          "seq": "58",
           "id": "Product «Кружка»",
-          "rev": 3,
+          "rev": 4,
           "class": "Product",
           "tenant": "Ромашка",
           "links": {
@@ -2937,19 +2954,19 @@
             "price": 400,
             "title": "Кружка",
             "labels": [
-              "по убыванию"
+              "дорогой"
             ]
           },
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
-          "at": "t8",
+          "at": "t9",
           "$new": false
         },
         {
-          "seq": "51",
+          "seq": "59",
           "id": "Product «Чайник»",
           "rev": 7,
           "class": "Product",
@@ -2972,38 +2989,13 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t9",
           "$new": false
         },
         {
-          "seq": "52",
-          "id": "Product «Кружка»",
-          "rev": 4,
-          "class": "Product",
-          "tenant": "Ромашка",
-          "links": {
-            "Shop": "Shop «Ромашка»"
-          },
-          "data": {
-            "sku": "M-1",
-            "price": 400,
-            "title": "Кружка",
-            "labels": [
-              "дорогой"
-            ]
-          },
-          "tags": [],
-          "op": "update",
-          "author": "Анна",
-          "agent": "service",
-          "reason": null,
-          "at": "t9",
-          "$new": false
-        },
-        {
-          "seq": "53",
+          "seq": "60",
           "id": "Shop «Лютик»",
           "rev": 1,
           "class": "Shop",
@@ -3016,7 +3008,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t10",
           "$new": false
@@ -3029,8 +3021,8 @@
     {
       "title": "upsert заменяет целиком",
       "text": "Объект передаётся целиком: поля, которых нет в переданном объекте, пропадают. Здесь не передали `city` — город исчез. Для денег `upsert` не годится: он затирает параллельные приращения.",
-      "code": "db.Shop().upsert({ name: 'Лютик' }).rows()",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">upsert</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Лютик'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
+      "code": "me.Shop().upsert({ name: 'Лютик' }).rows()",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">upsert</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Лютик'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
       "result": [
         {
           "at": "t11",
@@ -3046,7 +3038,6 @@
           "owner": "Ромашка",
           "author": "Анна",
           "tenant": "Ромашка",
-          "agent": "service",
           "$upsert": "updated"
         }
       ],
@@ -3066,7 +3057,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$changed": []
@@ -3095,7 +3086,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t9",
           "$changed": []
@@ -3120,7 +3111,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t9",
           "$changed": []
@@ -3138,7 +3129,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t11",
           "$changed": [
@@ -3152,7 +3143,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "41",
+          "seq": "48",
           "id": "Shop «Ромашка»",
           "rev": 1,
           "class": "Shop",
@@ -3165,13 +3156,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": false
         },
         {
-          "seq": "42",
+          "seq": "49",
           "id": "Product «Чайник»",
           "rev": 1,
           "class": "Product",
@@ -3194,13 +3185,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t2",
           "$new": false
         },
         {
-          "seq": "43",
+          "seq": "50",
           "id": "Product «Кружка»",
           "rev": 1,
           "class": "Product",
@@ -3216,13 +3207,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$new": false
         },
         {
-          "seq": "44",
+          "seq": "51",
           "id": "Product «Чайник»",
           "rev": 2,
           "class": "Product",
@@ -3246,13 +3237,13 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t4",
           "$new": false
         },
         {
-          "seq": "45",
+          "seq": "52",
           "id": "Product «Чайник»",
           "rev": 3,
           "class": "Product",
@@ -3276,13 +3267,13 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t5",
           "$new": false
         },
         {
-          "seq": "46",
+          "seq": "53",
           "id": "Product «Чайник»",
           "rev": 4,
           "class": "Product",
@@ -3305,13 +3296,38 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t6",
           "$new": false
         },
         {
-          "seq": "47",
+          "seq": "54",
+          "id": "Product «Кружка»",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "по возрастанию"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t7",
+          "$new": false
+        },
+        {
+          "seq": "55",
           "id": "Product «Чайник»",
           "rev": 5,
           "class": "Product",
@@ -3334,15 +3350,15 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t7",
           "$new": false
         },
         {
-          "seq": "48",
+          "seq": "56",
           "id": "Product «Кружка»",
-          "rev": 2,
+          "rev": 3,
           "class": "Product",
           "tenant": "Ромашка",
           "links": {
@@ -3353,19 +3369,19 @@
             "price": 400,
             "title": "Кружка",
             "labels": [
-              "по возрастанию"
+              "по убыванию"
             ]
           },
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
-          "at": "t7",
+          "at": "t8",
           "$new": false
         },
         {
-          "seq": "49",
+          "seq": "57",
           "id": "Product «Чайник»",
           "rev": 6,
           "class": "Product",
@@ -3388,15 +3404,15 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t8",
           "$new": false
         },
         {
-          "seq": "50",
+          "seq": "58",
           "id": "Product «Кружка»",
-          "rev": 3,
+          "rev": 4,
           "class": "Product",
           "tenant": "Ромашка",
           "links": {
@@ -3407,19 +3423,19 @@
             "price": 400,
             "title": "Кружка",
             "labels": [
-              "по убыванию"
+              "дорогой"
             ]
           },
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
-          "at": "t8",
+          "at": "t9",
           "$new": false
         },
         {
-          "seq": "51",
+          "seq": "59",
           "id": "Product «Чайник»",
           "rev": 7,
           "class": "Product",
@@ -3442,38 +3458,13 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t9",
           "$new": false
         },
         {
-          "seq": "52",
-          "id": "Product «Кружка»",
-          "rev": 4,
-          "class": "Product",
-          "tenant": "Ромашка",
-          "links": {
-            "Shop": "Shop «Ромашка»"
-          },
-          "data": {
-            "sku": "M-1",
-            "price": 400,
-            "title": "Кружка",
-            "labels": [
-              "дорогой"
-            ]
-          },
-          "tags": [],
-          "op": "update",
-          "author": "Анна",
-          "agent": "service",
-          "reason": null,
-          "at": "t9",
-          "$new": false
-        },
-        {
-          "seq": "53",
+          "seq": "60",
           "id": "Shop «Лютик»",
           "rev": 1,
           "class": "Shop",
@@ -3486,13 +3477,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t10",
           "$new": false
         },
         {
-          "seq": "54",
+          "seq": "61",
           "id": "Shop «Лютик»",
           "rev": 2,
           "class": "Shop",
@@ -3504,7 +3495,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t11",
           "$new": true
@@ -3519,8 +3510,8 @@
     {
       "title": "upsert без ключа невозможен",
       "text": "У покупателя нет ключа — найти «тот же» объект не по чему. Отказ `no_key` приходит ещё до обращения к базе.",
-      "code": "db.Customer().upsert({ name: 'Ольга', email: 'olga@mail.ru' }).rows()",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Customer</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">upsert</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ольга'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, email: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'olga@mail.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
+      "code": "me.Customer().upsert({ name: 'Ольга', email: 'olga@mail.ru' }).rows()",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Customer</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">upsert</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ольга'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, email: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'olga@mail.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
       "result": null,
       "error": {
         "code": "no_key",
@@ -3543,7 +3534,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$changed": []
@@ -3572,7 +3563,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t9",
           "$changed": []
@@ -3597,7 +3588,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t9",
           "$changed": []
@@ -3615,7 +3606,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t11",
           "$changed": []
@@ -3624,7 +3615,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "41",
+          "seq": "48",
           "id": "Shop «Ромашка»",
           "rev": 1,
           "class": "Shop",
@@ -3637,13 +3628,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": false
         },
         {
-          "seq": "42",
+          "seq": "49",
           "id": "Product «Чайник»",
           "rev": 1,
           "class": "Product",
@@ -3666,13 +3657,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t2",
           "$new": false
         },
         {
-          "seq": "43",
+          "seq": "50",
           "id": "Product «Кружка»",
           "rev": 1,
           "class": "Product",
@@ -3688,13 +3679,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$new": false
         },
         {
-          "seq": "44",
+          "seq": "51",
           "id": "Product «Чайник»",
           "rev": 2,
           "class": "Product",
@@ -3718,13 +3709,13 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t4",
           "$new": false
         },
         {
-          "seq": "45",
+          "seq": "52",
           "id": "Product «Чайник»",
           "rev": 3,
           "class": "Product",
@@ -3748,13 +3739,13 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t5",
           "$new": false
         },
         {
-          "seq": "46",
+          "seq": "53",
           "id": "Product «Чайник»",
           "rev": 4,
           "class": "Product",
@@ -3777,13 +3768,38 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t6",
           "$new": false
         },
         {
-          "seq": "47",
+          "seq": "54",
+          "id": "Product «Кружка»",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "по возрастанию"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t7",
+          "$new": false
+        },
+        {
+          "seq": "55",
           "id": "Product «Чайник»",
           "rev": 5,
           "class": "Product",
@@ -3806,15 +3822,15 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t7",
           "$new": false
         },
         {
-          "seq": "48",
+          "seq": "56",
           "id": "Product «Кружка»",
-          "rev": 2,
+          "rev": 3,
           "class": "Product",
           "tenant": "Ромашка",
           "links": {
@@ -3825,19 +3841,19 @@
             "price": 400,
             "title": "Кружка",
             "labels": [
-              "по возрастанию"
+              "по убыванию"
             ]
           },
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
-          "at": "t7",
+          "at": "t8",
           "$new": false
         },
         {
-          "seq": "49",
+          "seq": "57",
           "id": "Product «Чайник»",
           "rev": 6,
           "class": "Product",
@@ -3860,15 +3876,15 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t8",
           "$new": false
         },
         {
-          "seq": "50",
+          "seq": "58",
           "id": "Product «Кружка»",
-          "rev": 3,
+          "rev": 4,
           "class": "Product",
           "tenant": "Ромашка",
           "links": {
@@ -3879,19 +3895,19 @@
             "price": 400,
             "title": "Кружка",
             "labels": [
-              "по убыванию"
+              "дорогой"
             ]
           },
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
-          "at": "t8",
+          "at": "t9",
           "$new": false
         },
         {
-          "seq": "51",
+          "seq": "59",
           "id": "Product «Чайник»",
           "rev": 7,
           "class": "Product",
@@ -3914,38 +3930,13 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t9",
           "$new": false
         },
         {
-          "seq": "52",
-          "id": "Product «Кружка»",
-          "rev": 4,
-          "class": "Product",
-          "tenant": "Ромашка",
-          "links": {
-            "Shop": "Shop «Ромашка»"
-          },
-          "data": {
-            "sku": "M-1",
-            "price": 400,
-            "title": "Кружка",
-            "labels": [
-              "дорогой"
-            ]
-          },
-          "tags": [],
-          "op": "update",
-          "author": "Анна",
-          "agent": "service",
-          "reason": null,
-          "at": "t9",
-          "$new": false
-        },
-        {
-          "seq": "53",
+          "seq": "60",
           "id": "Shop «Лютик»",
           "rev": 1,
           "class": "Shop",
@@ -3958,13 +3949,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t10",
           "$new": false
         },
         {
-          "seq": "54",
+          "seq": "61",
           "id": "Shop «Лютик»",
           "rev": 2,
           "class": "Shop",
@@ -3976,7 +3967,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t11",
           "$new": false
@@ -3987,5 +3978,5 @@
       "signals": []
     }
   ],
-  "output": "Шаг 1. Модель магазина и магазин\n{\n  \"at\": \"‹время›\",\n  \"id\": \"‹id 1›\",\n  \"op\": \"create\",\n  \"rev\": 1,\n  \"data\": {\n    \"city\": \"Казань\",\n    \"name\": \"Ромашка\"\n  },\n  \"tags\": [],\n  \"class\": \"Shop\",\n  \"links\": {},\n  \"owner\": \"‹id 2›\",\n  \"author\": \"‹id 3›\",\n  \"tenant\": \"‹id 2›\",\n  \"agent\": \"‹id 4›\"\n}\n\nШаг 2. Два товара\n[\n  {\n    \"at\": \"‹время›\",\n    \"id\": \"‹id 5›\",\n    \"op\": \"create\",\n    \"rev\": 1,\n    \"data\": {\n      \"sku\": \"M-1\",\n      \"price\": 400,\n      \"title\": \"Кружка\"\n    },\n    \"tags\": [],\n    \"class\": \"Product\",\n    \"links\": {\n      \"Shop\": \"‹id 1›\"\n    },\n    \"owner\": \"‹id 2›\",\n    \"author\": \"‹id 3›\",\n    \"tenant\": \"‹id 2›\",\n    \"agent\": \"‹id 4›\"\n  }\n]\n\nШаг 3. update меняет только переданные поля\n[\n  {\n    \"at\": \"‹время›\",\n    \"id\": \"‹id 6›\",\n    \"op\": \"update\",\n    \"rev\": 2,\n    \"data\": {\n      \"sku\": \"K-1\",\n      \"price\": 2500,\n      \"specs\": {\n        \"color\": \"чёрный\",\n        \"volume\": 1.7\n      },\n      \"title\": \"Чайник\",\n      \"labels\": [\n        \"хит\",\n        \"новинка\"\n      ]\n    },\n    \"tags\": [],\n    \"class\": \"Product\",\n    \"links\": {\n      \"Shop\": \"‹id 1›\"\n    },\n    \"owner\": \"‹id 2›\",\n    \"author\": \"‹id 3›\",\n    \"tenant\": \"‹id 2›\",\n    \"agent\": \"‹id 4›\"\n  }\n]\n\nШаг 4. update по фильтру правит все найденные\n[\n  {\n    \"at\": \"‹время›\",\n    \"id\": \"‹id 6›\",\n    \"op\": \"update\",\n    \"rev\": 3,\n    \"data\": {\n      \"sku\": \"K-1\",\n      \"price\": 2500,\n      \"specs\": {\n        \"color\": \"чёрный\",\n        \"volume\": 1.7\n      },\n      \"title\": \"Чайник стеклянный\",\n      \"labels\": [\n        \"хит\",\n        \"новинка\"\n      ]\n    },\n    \"tags\": [],\n    \"class\": \"Product\",\n    \"links\": {\n      \"Shop\": \"‹id 1›\"\n    },\n    \"owner\": \"‹id 2›\",\n    \"author\": \"‹id 3›\",\n    \"tenant\": \"‹id 2›\",\n    \"agent\": \"‹id 4›\"\n  }\n]\n\nШаг 5. Ничего не нашлось — пустой ответ, не ошибка\n[]\n\nШаг 6. Сузить правку — модификатором до глагола\n[\n  {\n    \"at\": \"‹время›\",\n    \"id\": \"‹id 6›\",\n    \"op\": \"update\",\n    \"rev\": 4,\n    \"data\": {\n      \"sku\": \"K-1\",\n      \"price\": 2500,\n      \"specs\": {\n        \"color\": \"чёрный\",\n        \"volume\": 1.7\n      },\n      \"title\": \"Чайник стеклянный\",\n      \"labels\": [\n        \"дорогой\"\n      ]\n    },\n    \"tags\": [],\n    \"class\": \"Product\",\n    \"links\": {\n      \"Shop\": \"‹id 1›\"\n    },\n    \"owner\": \"‹id 2›\",\n    \"author\": \"‹id 3›\",\n    \"tenant\": \"‹id 2›\",\n    \"agent\": \"‹id 4›\"\n  }\n]\n\nШаг 7. Ответ правки — в порядке sort() до глагола\n{\n  \"по возрастанию цены\": [\n    \"M-1\",\n    \"K-1\"\n  ],\n  \"по убыванию цены\": [\n    \"K-1\",\n    \"M-1\"\n  ],\n  \"first() после sort по убыванию\": \"K-1\"\n}\n\nШаг 8. limit после глагола — ошибка\nотказ, как и задумано: letopis: invalid_query: limit() после update() ни на что не действует: глагол проходит по всем целям шага, а ответ — его строки. Цели сужают limit(), offset() и sort() до глагола: db.Класс(…).limit(n).update(…)\n\nШаг 9. upsert: такого нет — создать\n[\n  {\n    \"at\": \"‹время›\",\n    \"id\": \"‹id 7›\",\n    \"op\": \"create\",\n    \"rev\": 1,\n    \"data\": {\n      \"city\": \"Уфа\",\n      \"name\": \"Лютик\"\n    },\n    \"tags\": [],\n    \"class\": \"Shop\",\n    \"links\": {},\n    \"owner\": \"‹id 2›\",\n    \"author\": \"‹id 3›\",\n    \"tenant\": \"‹id 2›\",\n    \"agent\": \"‹id 4›\",\n    \"$upsert\": \"created\"\n  }\n]\n\nШаг 10. upsert: то же самое — без изменений\n[\n  {\n    \"at\": \"‹время›\",\n    \"id\": \"‹id 7›\",\n    \"op\": \"create\",\n    \"rev\": 1,\n    \"data\": {\n      \"city\": \"Уфа\",\n      \"name\": \"Лютик\"\n    },\n    \"tags\": [],\n    \"class\": \"Shop\",\n    \"links\": {},\n    \"owner\": \"‹id 2›\",\n    \"author\": \"‹id 3›\",\n    \"tenant\": \"‹id 2›\",\n    \"agent\": \"‹id 4›\",\n    \"$upsert\": \"unchanged\"\n  }\n]\n\nШаг 11. upsert заменяет целиком\n[\n  {\n    \"at\": \"‹время›\",\n    \"id\": \"‹id 7›\",\n    \"op\": \"update\",\n    \"rev\": 2,\n    \"data\": {\n      \"name\": \"Лютик\"\n    },\n    \"tags\": [],\n    \"class\": \"Shop\",\n    \"links\": {},\n    \"owner\": \"‹id 2›\",\n    \"author\": \"‹id 3›\",\n    \"tenant\": \"‹id 2›\",\n    \"agent\": \"‹id 4›\",\n    \"$upsert\": \"updated\"\n  }\n]\n\nШаг 12. upsert без ключа невозможен\nотказ, как и задумано: letopis: no_key: upsert(): у класса Customer нет ключа — сравнивать не с чем, используйте create()"
+  "output": "Шаг 1. Магазин\n{\n  \"at\": \"‹время›\",\n  \"id\": \"‹id 1›\",\n  \"op\": \"create\",\n  \"rev\": 1,\n  \"data\": {\n    \"city\": \"Казань\",\n    \"name\": \"Ромашка\"\n  },\n  \"tags\": [],\n  \"class\": \"Shop\",\n  \"links\": {},\n  \"owner\": \"‹id 2›\",\n  \"author\": \"‹id 3›\",\n  \"tenant\": \"‹id 2›\"\n}\n\nШаг 2. Два товара\n[\n  {\n    \"at\": \"‹время›\",\n    \"id\": \"‹id 4›\",\n    \"op\": \"create\",\n    \"rev\": 1,\n    \"data\": {\n      \"sku\": \"M-1\",\n      \"price\": 400,\n      \"title\": \"Кружка\"\n    },\n    \"tags\": [],\n    \"class\": \"Product\",\n    \"links\": {\n      \"Shop\": \"‹id 1›\"\n    },\n    \"owner\": \"‹id 2›\",\n    \"author\": \"‹id 3›\",\n    \"tenant\": \"‹id 2›\"\n  }\n]\n\nШаг 3. update меняет только переданные поля\n[\n  {\n    \"at\": \"‹время›\",\n    \"id\": \"‹id 5›\",\n    \"op\": \"update\",\n    \"rev\": 2,\n    \"data\": {\n      \"sku\": \"K-1\",\n      \"price\": 2500,\n      \"specs\": {\n        \"color\": \"чёрный\",\n        \"volume\": 1.7\n      },\n      \"title\": \"Чайник\",\n      \"labels\": [\n        \"хит\",\n        \"новинка\"\n      ]\n    },\n    \"tags\": [],\n    \"class\": \"Product\",\n    \"links\": {\n      \"Shop\": \"‹id 1›\"\n    },\n    \"owner\": \"‹id 2›\",\n    \"author\": \"‹id 3›\",\n    \"tenant\": \"‹id 2›\"\n  }\n]\n\nШаг 4. update по фильтру правит все найденные\n[\n  {\n    \"at\": \"‹время›\",\n    \"id\": \"‹id 5›\",\n    \"op\": \"update\",\n    \"rev\": 3,\n    \"data\": {\n      \"sku\": \"K-1\",\n      \"price\": 2500,\n      \"specs\": {\n        \"color\": \"чёрный\",\n        \"volume\": 1.7\n      },\n      \"title\": \"Чайник стеклянный\",\n      \"labels\": [\n        \"хит\",\n        \"новинка\"\n      ]\n    },\n    \"tags\": [],\n    \"class\": \"Product\",\n    \"links\": {\n      \"Shop\": \"‹id 1›\"\n    },\n    \"owner\": \"‹id 2›\",\n    \"author\": \"‹id 3›\",\n    \"tenant\": \"‹id 2›\"\n  }\n]\n\nШаг 5. Ничего не нашлось — пустой ответ, не ошибка\n[]\n\nШаг 6. Сузить правку — модификатором до глагола\n[\n  {\n    \"at\": \"‹время›\",\n    \"id\": \"‹id 5›\",\n    \"op\": \"update\",\n    \"rev\": 4,\n    \"data\": {\n      \"sku\": \"K-1\",\n      \"price\": 2500,\n      \"specs\": {\n        \"color\": \"чёрный\",\n        \"volume\": 1.7\n      },\n      \"title\": \"Чайник стеклянный\",\n      \"labels\": [\n        \"дорогой\"\n      ]\n    },\n    \"tags\": [],\n    \"class\": \"Product\",\n    \"links\": {\n      \"Shop\": \"‹id 1›\"\n    },\n    \"owner\": \"‹id 2›\",\n    \"author\": \"‹id 3›\",\n    \"tenant\": \"‹id 2›\"\n  }\n]\n\nШаг 7. Ответ правки — в порядке sort() до глагола\n{\n  \"по возрастанию цены\": [\n    \"M-1\",\n    \"K-1\"\n  ],\n  \"по убыванию цены\": [\n    \"K-1\",\n    \"M-1\"\n  ],\n  \"first() после sort по убыванию\": \"K-1\"\n}\n\nШаг 8. limit после глагола — ошибка\nотказ, как и задумано: letopis: invalid_query: limit() после update() ни на что не действует: глагол проходит по всем целям шага, а ответ — его строки. Цели сужают limit(), offset() и sort() до глагола: me.Класс(…).limit(n).update(…)\n\nШаг 9. upsert: такого нет — создать\n[\n  {\n    \"at\": \"‹время›\",\n    \"id\": \"‹id 6›\",\n    \"op\": \"create\",\n    \"rev\": 1,\n    \"data\": {\n      \"city\": \"Уфа\",\n      \"name\": \"Лютик\"\n    },\n    \"tags\": [],\n    \"class\": \"Shop\",\n    \"links\": {},\n    \"owner\": \"‹id 2›\",\n    \"author\": \"‹id 3›\",\n    \"tenant\": \"‹id 2›\",\n    \"$upsert\": \"created\"\n  }\n]\n\nШаг 10. upsert: то же самое — без изменений\n[\n  {\n    \"at\": \"‹время›\",\n    \"id\": \"‹id 6›\",\n    \"op\": \"create\",\n    \"rev\": 1,\n    \"data\": {\n      \"city\": \"Уфа\",\n      \"name\": \"Лютик\"\n    },\n    \"tags\": [],\n    \"class\": \"Shop\",\n    \"links\": {},\n    \"owner\": \"‹id 2›\",\n    \"author\": \"‹id 3›\",\n    \"tenant\": \"‹id 2›\",\n    \"$upsert\": \"unchanged\"\n  }\n]\n\nШаг 11. upsert заменяет целиком\n[\n  {\n    \"at\": \"‹время›\",\n    \"id\": \"‹id 6›\",\n    \"op\": \"update\",\n    \"rev\": 2,\n    \"data\": {\n      \"name\": \"Лютик\"\n    },\n    \"tags\": [],\n    \"class\": \"Shop\",\n    \"links\": {},\n    \"owner\": \"‹id 2›\",\n    \"author\": \"‹id 3›\",\n    \"tenant\": \"‹id 2›\",\n    \"$upsert\": \"updated\"\n  }\n]\n\nШаг 12. upsert без ключа невозможен\nотказ, как и задумано: letopis: no_key: upsert(): у класса Customer нет ключа — сравнивать не с чем, используйте create()"
 }

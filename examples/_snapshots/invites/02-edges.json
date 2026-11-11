@@ -1,0 +1,1043 @@
+{
+  "id": "invites/02-edges",
+  "title": "Края приглашения: повтор, отмена, потеря права, почтальон не доставил",
+  "summary": "Новое приглашение того же контакта гасит прежнюю ссылку; revokeInvite отменяет приглашение. accept заново спрашивает матрицу: звавший потерял право выдать роль — ссылка гаснет. Почтальон бросил ошибку — приглашения нет (postman_failed), без почтальона звать нельзя (no_postman). Прописанного не зовут, неизвестная ссылка — auth_failed.",
+  "tables": [
+    "secret"
+  ],
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": [
+      {
+        "account": "Ромашка",
+        "tenant": "Ромашка",
+        "kind": "INVITE",
+        "ident": "email:anna@romashka.ru",
+        "meta": {
+          "roles": [
+            "owner"
+          ],
+          "status": "used",
+          "contact": {
+            "kind": "email",
+            "address": "anna@romashka.ru"
+          },
+          "attempts": 0
+        },
+        "material": "‹хэш›",
+        "expires_at": "через 7 дн",
+        "created_at": "установка",
+        "deleted_at": "установка"
+      }
+    ],
+    "counts": null
+  },
+  "steps": [
+    {
+      "title": "Повтор: новая ссылка, прежняя гаснет",
+      "text": "Пётр не нашёл письмо, Анна зовёт его ещё раз. Живое приглашение того же контакта в ту же квартиру гаснет (`revoked`), почтальон получает новое письмо с новым токеном. Принять прежнюю ссылку — `auth_failed` (`api.invite_inactive`). В `me.invites()` — одно приглашение.",
+      "code": "await me.invite({ email: 'petr@romashka.ru' }, ['staff']);\nfirst = lastLetter('petr@romashka.ru', 'invite').token;\nawait me.invite({ email: 'petr@romashka.ru' }, ['staff']);\nconst second = lastLetter('petr@romashka.ru', 'invite').token;\nreturn {\n  'новый токен': second !== first,\n  'прежняя ссылка': (await db.invitation(first)).status,\n  'принять прежнюю': await why(db.accept(first)),\n  'новая ссылка': (await db.invitation(second)).status,\n  'ждут ответа': (await me.invites()).map((i) => ({ to: i.to.address, roles: i.roles, from: i.from?.name })),\n};",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">invite</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ email: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'petr@romashka.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'staff'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">]);</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">first </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> lastLetter</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'petr@romashka.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'invite'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).token;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">invite</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ email: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'petr@romashka.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'staff'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">]);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> second</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> lastLetter</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'petr@romashka.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'invite'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).token;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'новый токен'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: second </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!==</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> first,</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'прежняя ссылка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">invitation</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(first)).status,</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'принять прежнюю'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> why</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">accept</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(first)),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'новая ссылка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">invitation</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(second)).status,</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'ждут ответа'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">invites</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">i</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ to: i.to.address, roles: i.roles, from: i.from?.name })),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">};</span></span></code></pre>",
+      "result": {
+        "новый токен": true,
+        "прежняя ссылка": "revoked",
+        "принять прежнюю": "auth_failed (api.invite_inactive)",
+        "новая ссылка": "active",
+        "ждут ответа": [
+          {
+            "to": "petr@romashka.ru",
+            "roles": [
+              "staff"
+            ],
+            "from": "Анна"
+          }
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "установка",
+          "deleted_at": "установка",
+          "$new": false
+        },
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:petr@romashka.ru",
+          "meta": {
+            "by": "Анна",
+            "roles": [
+              "staff"
+            ],
+            "reason": "replaced",
+            "status": "revoked",
+            "contact": {
+              "kind": "email",
+              "address": "petr@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 1",
+          "deleted_at": "шаг 1",
+          "$new": true
+        },
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:petr@romashka.ru",
+          "meta": {
+            "by": "Анна",
+            "roles": [
+              "staff"
+            ],
+            "contact": {
+              "kind": "email",
+              "address": "petr@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 1",
+          "deleted_at": null,
+          "$new": true
+        }
+      ],
+      "counts": null,
+      "signals": []
+    },
+    {
+      "title": "Отмена: revokeInvite",
+      "text": "Анна позвала Колю по ошибке и отменяет приглашение: `me.revokeInvite(id)` — `true`, ссылка погасла. Второй раз — `false`: живого приглашения с таким id нет. Свои приглашения видит и отменяет тот, кто звал; все приглашения квартиры — консьерж и тот, кому матрица разрешает выдать их роли.",
+      "code": "const { id } = await me.invite({ email: 'kolya@romashka.ru' }, ['staff']);\nreturn {\n  'отменено': await me.revokeInvite(id),\n  'ещё раз': await me.revokeInvite(id),\n  'ссылка Коли': (await db.invitation(lastLetter('kolya@romashka.ru', 'invite').token)).status,\n};",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">id</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> } </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">invite</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ email: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'kolya@romashka.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'staff'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">]);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'отменено'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">revokeInvite</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(id),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'ещё раз'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">revokeInvite</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(id),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'ссылка Коли'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">invitation</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">lastLetter</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'kolya@romashka.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'invite'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).token)).status,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">};</span></span></code></pre>",
+      "result": {
+        "отменено": true,
+        "ещё раз": false,
+        "ссылка Коли": "revoked"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "установка",
+          "deleted_at": "установка",
+          "$new": false
+        },
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:petr@romashka.ru",
+          "meta": {
+            "by": "Анна",
+            "roles": [
+              "staff"
+            ],
+            "reason": "replaced",
+            "status": "revoked",
+            "contact": {
+              "kind": "email",
+              "address": "petr@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 1",
+          "deleted_at": "шаг 1",
+          "$new": false
+        },
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:petr@romashka.ru",
+          "meta": {
+            "by": "Анна",
+            "roles": [
+              "staff"
+            ],
+            "contact": {
+              "kind": "email",
+              "address": "petr@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 1",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:kolya@romashka.ru",
+          "meta": {
+            "by": "Анна",
+            "roles": [
+              "staff"
+            ],
+            "reason": "revoked",
+            "status": "revoked",
+            "contact": {
+              "kind": "email",
+              "address": "kolya@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 2",
+          "deleted_at": "шаг 2",
+          "$new": true
+        }
+      ],
+      "counts": null,
+      "signals": []
+    },
+    {
+      "title": "Звавший потерял право — ссылка гаснет",
+      "text": "Олег (роль `staff`) может звать с ролью `guest`: Анна дала роли `staff` право её выдавать — `acl.grant({ role: 'staff', assign: 'guest' })`. Олег зовёт Иру, а Анна снимает это правило раньше, чем Ира открыла ссылку. `accept` проверяет матрицу заново, за звавшего: права больше нет — отказ `acl_denied` (`api.invite_lost`), приглашение погашено (`revoked`).",
+      "code": "oleg = await inviteAndAccept(db, me, { email: 'oleg@romashka.ru' }, ['staff'], { password: 'Олег-2026!', name: 'Олег' });\nawait me.acl.grant({ role: 'staff', assign: 'guest' });\nconst could = (await oleg.acl.checkRole('guest')).allow;\nawait oleg.invite({ email: 'ira@romashka.ru' }, ['guest']);\nawait me.acl.revoke({ role: 'staff', assign: 'guest' });\nconst token = lastLetter('ira@romashka.ru', 'invite').token;\nreturn {\n  'Олегу можно выдать guest': could,\n  'Ира принимает': await why(db.accept(token, { name: 'Ира' })),\n  'ссылка Иры': (await db.invitation(token)).status,\n};",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">oleg </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> inviteAndAccept</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, me, { email: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'oleg@romashka.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'staff'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">], { password: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Олег-2026!'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Олег'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.acl.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">grant</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ role: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'staff'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, assign: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'guest'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> could</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> oleg.acl.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">checkRole</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'guest'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">)).allow;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> oleg.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">invite</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ email: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'ira@romashka.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'guest'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">]);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.acl.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">revoke</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ role: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'staff'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, assign: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'guest'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> token</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> lastLetter</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'ira@romashka.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'invite'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).token;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'Олегу можно выдать guest'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: could,</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'Ира принимает'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> why</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">accept</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(token, { name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ира'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> })),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'ссылка Иры'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">invitation</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(token)).status,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">};</span></span></code></pre>",
+      "result": {
+        "Олегу можно выдать guest": true,
+        "Ира принимает": "acl_denied (api.invite_lost)",
+        "ссылка Иры": "revoked"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "установка",
+          "deleted_at": "установка",
+          "$new": false
+        },
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:petr@romashka.ru",
+          "meta": {
+            "by": "Анна",
+            "roles": [
+              "staff"
+            ],
+            "reason": "replaced",
+            "status": "revoked",
+            "contact": {
+              "kind": "email",
+              "address": "petr@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 1",
+          "deleted_at": "шаг 1",
+          "$new": false
+        },
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:petr@romashka.ru",
+          "meta": {
+            "by": "Анна",
+            "roles": [
+              "staff"
+            ],
+            "contact": {
+              "kind": "email",
+              "address": "petr@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 1",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:kolya@romashka.ru",
+          "meta": {
+            "by": "Анна",
+            "roles": [
+              "staff"
+            ],
+            "reason": "revoked",
+            "status": "revoked",
+            "contact": {
+              "kind": "email",
+              "address": "kolya@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 2",
+          "deleted_at": "шаг 2",
+          "$new": false
+        },
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:oleg@romashka.ru",
+          "meta": {
+            "by": "Анна",
+            "roles": [
+              "staff"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "oleg@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 3",
+          "deleted_at": "шаг 3",
+          "$new": true
+        },
+        {
+          "account": "Олег",
+          "tenant": "System",
+          "kind": "IDENT",
+          "ident": "email:oleg@romashka.ru",
+          "meta": {
+            "kind": "email",
+            "address": "oleg@romashka.ru"
+          },
+          "material": null,
+          "expires_at": null,
+          "created_at": "шаг 3",
+          "deleted_at": null,
+          "$new": true
+        },
+        {
+          "account": "Олег",
+          "tenant": "Ромашка",
+          "kind": "PASSWORD",
+          "ident": "email:oleg@romashka.ru",
+          "meta": {},
+          "material": "‹хэш›",
+          "expires_at": null,
+          "created_at": "шаг 3",
+          "deleted_at": null,
+          "$new": true
+        },
+        {
+          "account": "Олег",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет PASSWORD·2",
+            "methods": [
+              "INVITE",
+              "FIRST"
+            ],
+            "login_at": "шаг 3"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 3",
+          "deleted_at": null,
+          "$new": true
+        },
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:ira@romashka.ru",
+          "meta": {
+            "by": "Олег",
+            "roles": [
+              "guest"
+            ],
+            "reason": "inviter",
+            "status": "revoked",
+            "contact": {
+              "kind": "email",
+              "address": "ira@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 3",
+          "deleted_at": "шаг 3",
+          "$new": true
+        }
+      ],
+      "counts": null,
+      "signals": [
+        "Resource",
+        "member",
+        "rule"
+      ]
+    },
+    {
+      "title": "Почтальон не доставил — приглашения нет",
+      "text": "Почтальона вызывают внутри той же транзакции, что записывает приглашение. Он бросил ошибку — запись отменена, приглашения нет, отказ `postman_failed`, исходная ошибка — в `err.cause`. Прежняя ссылка Петра при этом жива. Консьерж без почтальона звать не может вовсе: `no_postman` — письма доставлять некому.",
+      "code": "const broken = await connect(pass, { postman: async () => { throw new Error('почтовый сервис недоступен'); } });\nconst viaBroken = await (await broken.open(annaKey)).invite({ email: 'petr@romashka.ru' }, ['staff'])\n  .then(() => 'позвала', (e) => ({ code: e.code, cause: e.cause?.message }));\nconst silent = await connect(pass);\nconst viaSilent = await why((await silent.open(annaKey)).invite({ email: 'petr@romashka.ru' }, ['staff']));\nreturn {\n  'почтальон упал': viaBroken,\n  'без почтальона': viaSilent,\n  'ссылка Петра': (await db.invitation(lastLetter('petr@romashka.ru', 'invite').token)).status,\n  'приглашений Петра': (await me.invites()).filter((i) => i.to.address === 'petr@romashka.ru').length,\n};",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> broken</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> connect</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(pass, { </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">postman</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> () </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">throw</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> new</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> Error</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'почтовый сервис недоступен'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">); } });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> viaBroken</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> broken.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">open</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(annaKey)).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">invite</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ email: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'petr@romashka.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'staff'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">])</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  .</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">then</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(() </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'позвала'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, (</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">e</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ code: e.code, cause: e.cause?.message }));</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> silent</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> connect</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(pass);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> viaSilent</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> why</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> silent.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">open</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(annaKey)).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">invite</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ email: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'petr@romashka.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'staff'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">]));</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'почтальон упал'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: viaBroken,</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'без почтальона'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: viaSilent,</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'ссылка Петра'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">invitation</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">lastLetter</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'petr@romashka.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'invite'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).token)).status,</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'приглашений Петра'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">invites</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">filter</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">i</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> i.to.address </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">===</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'petr@romashka.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">length</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">};</span></span></code></pre>",
+      "result": {
+        "почтальон упал": {
+          "code": "postman_failed",
+          "cause": "почтовый сервис недоступен"
+        },
+        "без почтальона": "no_postman (api.no_postman)",
+        "ссылка Петра": "active",
+        "приглашений Петра": 1
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "установка",
+          "deleted_at": "установка",
+          "$new": false
+        },
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:petr@romashka.ru",
+          "meta": {
+            "by": "Анна",
+            "roles": [
+              "staff"
+            ],
+            "reason": "replaced",
+            "status": "revoked",
+            "contact": {
+              "kind": "email",
+              "address": "petr@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 1",
+          "deleted_at": "шаг 1",
+          "$new": false
+        },
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:petr@romashka.ru",
+          "meta": {
+            "by": "Анна",
+            "roles": [
+              "staff"
+            ],
+            "contact": {
+              "kind": "email",
+              "address": "petr@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 1",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:kolya@romashka.ru",
+          "meta": {
+            "by": "Анна",
+            "roles": [
+              "staff"
+            ],
+            "reason": "revoked",
+            "status": "revoked",
+            "contact": {
+              "kind": "email",
+              "address": "kolya@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 2",
+          "deleted_at": "шаг 2",
+          "$new": false
+        },
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:oleg@romashka.ru",
+          "meta": {
+            "by": "Анна",
+            "roles": [
+              "staff"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "oleg@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 3",
+          "deleted_at": "шаг 3",
+          "$new": false
+        },
+        {
+          "account": "Олег",
+          "tenant": "System",
+          "kind": "IDENT",
+          "ident": "email:oleg@romashka.ru",
+          "meta": {
+            "kind": "email",
+            "address": "oleg@romashka.ru"
+          },
+          "material": null,
+          "expires_at": null,
+          "created_at": "шаг 3",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Олег",
+          "tenant": "Ромашка",
+          "kind": "PASSWORD",
+          "ident": "email:oleg@romashka.ru",
+          "meta": {},
+          "material": "‹хэш›",
+          "expires_at": null,
+          "created_at": "шаг 3",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Олег",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет PASSWORD·2",
+            "methods": [
+              "INVITE",
+              "FIRST"
+            ],
+            "login_at": "шаг 3"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 3",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:ira@romashka.ru",
+          "meta": {
+            "by": "Олег",
+            "roles": [
+              "guest"
+            ],
+            "reason": "inviter",
+            "status": "revoked",
+            "contact": {
+              "kind": "email",
+              "address": "ira@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 3",
+          "deleted_at": "шаг 3",
+          "$new": false
+        },
+        {
+          "account": "консьерж",
+          "tenant": "System",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет APIKEY·1",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "шаг 4"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 4",
+          "deleted_at": null,
+          "$new": true
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет PASSWORD·1",
+            "methods": [
+              "PASSWORD"
+            ],
+            "login_at": "шаг 4"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 4",
+          "deleted_at": null,
+          "$new": true
+        },
+        {
+          "account": "консьерж",
+          "tenant": "System",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет APIKEY·1",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "шаг 4"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 4",
+          "deleted_at": null,
+          "$new": true
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет PASSWORD·1",
+            "methods": [
+              "PASSWORD"
+            ],
+            "login_at": "шаг 4"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 4",
+          "deleted_at": null,
+          "$new": true
+        }
+      ],
+      "counts": null,
+      "signals": []
+    },
+    {
+      "title": "Ещё края: прописанный, неизвестная ссылка, приглашение без ролей",
+      "text": "Контакт уже прописан в квартире — `exists` (`sql-access.already_member`): роли прописанного меняют правкой прописки. Ссылки нет в базе — `auth_failed` (`api.invite_unknown`). Позвать без ролей может только тот, кому можно выдать любые роли: у owner это есть, у Олега — нет (`acl_denied`, `sql-access.invite_denied`).",
+      "code": "({\n        'позвать Олега ещё раз': await why(me.invite({ email: 'oleg@romashka.ru' }, ['staff'])),\n        'неизвестная ссылка': await why(db.invitation('0'.repeat(48))),\n        'Олег зовёт без ролей': await why(oleg.invite({ email: 'zoya@romashka.ru' }, [])),\n        'Анна зовёт без ролей': await why(me.invite({ email: 'zoya@romashka.ru' }, [])),\n      })",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'позвать Олега ещё раз'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> why</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">invite</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ email: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'oleg@romashka.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'staff'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">])),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'неизвестная ссылка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> why</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">invitation</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'0'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">repeat</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">48</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">))),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'Олег зовёт без ролей'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> why</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(oleg.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">invite</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ email: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'zoya@romashka.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, [])),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'Анна зовёт без ролей'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> why</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">invite</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ email: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'zoya@romashka.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, [])),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      })</span></span></code></pre>",
+      "result": {
+        "позвать Олега ещё раз": "exists (sql-access.already_member)",
+        "неизвестная ссылка": "auth_failed (api.invite_unknown)",
+        "Олег зовёт без ролей": "acl_denied (sql-access.invite_denied)",
+        "Анна зовёт без ролей": "прошло"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "установка",
+          "deleted_at": "установка",
+          "$new": false
+        },
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:petr@romashka.ru",
+          "meta": {
+            "by": "Анна",
+            "roles": [
+              "staff"
+            ],
+            "reason": "replaced",
+            "status": "revoked",
+            "contact": {
+              "kind": "email",
+              "address": "petr@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 1",
+          "deleted_at": "шаг 1",
+          "$new": false
+        },
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:petr@romashka.ru",
+          "meta": {
+            "by": "Анна",
+            "roles": [
+              "staff"
+            ],
+            "contact": {
+              "kind": "email",
+              "address": "petr@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 1",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:kolya@romashka.ru",
+          "meta": {
+            "by": "Анна",
+            "roles": [
+              "staff"
+            ],
+            "reason": "revoked",
+            "status": "revoked",
+            "contact": {
+              "kind": "email",
+              "address": "kolya@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 2",
+          "deleted_at": "шаг 2",
+          "$new": false
+        },
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:oleg@romashka.ru",
+          "meta": {
+            "by": "Анна",
+            "roles": [
+              "staff"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "oleg@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 3",
+          "deleted_at": "шаг 3",
+          "$new": false
+        },
+        {
+          "account": "Олег",
+          "tenant": "System",
+          "kind": "IDENT",
+          "ident": "email:oleg@romashka.ru",
+          "meta": {
+            "kind": "email",
+            "address": "oleg@romashka.ru"
+          },
+          "material": null,
+          "expires_at": null,
+          "created_at": "шаг 3",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Олег",
+          "tenant": "Ромашка",
+          "kind": "PASSWORD",
+          "ident": "email:oleg@romashka.ru",
+          "meta": {},
+          "material": "‹хэш›",
+          "expires_at": null,
+          "created_at": "шаг 3",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Олег",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет PASSWORD·2",
+            "methods": [
+              "INVITE",
+              "FIRST"
+            ],
+            "login_at": "шаг 3"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 3",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:ira@romashka.ru",
+          "meta": {
+            "by": "Олег",
+            "roles": [
+              "guest"
+            ],
+            "reason": "inviter",
+            "status": "revoked",
+            "contact": {
+              "kind": "email",
+              "address": "ira@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 3",
+          "deleted_at": "шаг 3",
+          "$new": false
+        },
+        {
+          "account": "консьерж",
+          "tenant": "System",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет APIKEY·1",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "шаг 4"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 4",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет PASSWORD·1",
+            "methods": [
+              "PASSWORD"
+            ],
+            "login_at": "шаг 4"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 4",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "консьерж",
+          "tenant": "System",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет APIKEY·1",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "шаг 4"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 4",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет PASSWORD·1",
+            "methods": [
+              "PASSWORD"
+            ],
+            "login_at": "шаг 4"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 4",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:zoya@romashka.ru",
+          "meta": {
+            "by": "Анна",
+            "roles": [],
+            "contact": {
+              "kind": "email",
+              "address": "zoya@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 5",
+          "deleted_at": null,
+          "$new": true
+        }
+      ],
+      "counts": null,
+      "signals": []
+    }
+  ],
+  "output": "Шаг 1. Повтор: новая ссылка, прежняя гаснет\n{\n  \"новый токен\": true,\n  \"прежняя ссылка\": \"revoked\",\n  \"принять прежнюю\": \"auth_failed (api.invite_inactive)\",\n  \"новая ссылка\": \"active\",\n  \"ждут ответа\": [\n    {\n      \"to\": \"petr@romashka.ru\",\n      \"roles\": [\n        \"staff\"\n      ],\n      \"from\": \"Анна\"\n    }\n  ]\n}\n\nШаг 2. Отмена: revokeInvite\n{\n  \"отменено\": true,\n  \"ещё раз\": false,\n  \"ссылка Коли\": \"revoked\"\n}\n\nШаг 3. Звавший потерял право — ссылка гаснет\n{\n  \"Олегу можно выдать guest\": true,\n  \"Ира принимает\": \"acl_denied (api.invite_lost)\",\n  \"ссылка Иры\": \"revoked\"\n}\n\nШаг 4. Почтальон не доставил — приглашения нет\n{\n  \"почтальон упал\": {\n    \"code\": \"postman_failed\",\n    \"cause\": \"почтовый сервис недоступен\"\n  },\n  \"без почтальона\": \"no_postman (api.no_postman)\",\n  \"ссылка Петра\": \"active\",\n  \"приглашений Петра\": 1\n}\n\nШаг 5. Ещё края: прописанный, неизвестная ссылка, приглашение без ролей\n{\n  \"позвать Олега ещё раз\": \"exists (sql-access.already_member)\",\n  \"неизвестная ссылка\": \"auth_failed (api.invite_unknown)\",\n  \"Олег зовёт без ролей\": \"acl_denied (sql-access.invite_denied)\",\n  \"Анна зовёт без ролей\": \"прошло\"\n}"
+}

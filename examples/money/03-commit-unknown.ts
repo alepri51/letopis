@@ -1,6 +1,5 @@
-import postgres from 'postgres';
-import { syncModels, inc, LetopisError } from 'letopis';
-import type { Db } from 'letopis';
+import { inc, LetopisError } from 'letopis';
+import type { House, Room } from 'letopis';
 import { hub, link } from 'letopis/model';
 import { z } from 'zod';
 import { example } from '../_shared/example.ts';
@@ -10,11 +9,11 @@ const Wallet = hub('Wallet', { number: z.string(), balance: z.number().int().min
 const Movement = link('Movement', { opId: z.string(), kind: z.enum(['topup', 'debit']), amount: z.number().int() }, {
   ends: { Wallet }, key: ['Wallet', 'opId'],
 });
-let wallet: { id: string }, proxy: CommitProxy, pool: postgres.Sql, cut: Db;
+let wallet: { id: string }, proxy: CommitProxy, house: House, cut: Room;
 
 /** Провести операцию: запись операции и приращение баланса — одной транзакцией; тот же opId второй раз — «уже было». */
-async function apply(db: Db, opId: string, amount: number): Promise<'проведено' | 'уже было'> {
-  const tr = await db.begin({ reason: `debit ${opId}` });
+async function apply(me: Room, opId: string, amount: number): Promise<'проведено' | 'уже было'> {
+  const tr = await me.begin({ reason: `debit ${opId}` });
   try {
     await tr.Wallet(wallet).Movement().create({ opId, kind: 'debit', amount }).rows();
     await tr.Wallet(wallet).update({ balance: inc(-amount) }).rows();
@@ -26,9 +25,9 @@ async function apply(db: Db, opId: string, amount: number): Promise<'прове�
     throw e;
   }
 }
-const state = async (db: Db, opId: string) => ({
-  [`операция ${opId} в базе`]: (await db.Wallet(wallet).Movement({ opId }).count()) === 1,
-  'баланс': (await db.Wallet(wallet).first())!.data.balance,
+const state = async (me: Room, opId: string) => ({
+  [`операция ${opId} в базе`]: (await me.Wallet(wallet).Movement({ opId }).count()) === 1,
+  'баланс': (await me.Wallet(wallet).first())!.data.balance,
 });
 
 export default example({
@@ -41,22 +40,25 @@ export default example({
   tables: ['entity'],
   classes: ['Wallet', 'Movement'],
   covers: ['error.commit_unknown'],
+  models: [Wallet, Movement],
   steps: [
     {
-      title: 'Кошелёк на 1000 и подключение через прокси',
+      title: 'Кошелёк на 1000 и второй консьерж через прокси',
       text:
-        'Прокси пропускает трафик к базе, пока его не «взведут». Пул через прокси — с `prepare: false`, чтобы прокси ' +
-        'узнал COMMIT по тексту запроса.',
-      run: async ({ db, connect, dsn, schema, up }) => {
-        await syncModels(db, [Wallet, Movement], { apply: true });
-        [wallet] = await db.Wallet().create({ number: 'W-1', balance: 1000 }).rows();
-        const url = new URL(dsn.app);
+        'Прокси пропускает трафик к базе, пока его не «взведут». Пропуск — строка подключения: в его копии хост и порт ' +
+        'базы заменены портом прокси, и `connect()` с ней — второй консьерж, все запросы которого идут через прокси ' +
+        '(`max: 1` — одно соединение, `listen: false` — без канала сигналов). Анна входит через него по своему ключу: ' +
+        '`cut` — её корень квартиры за прокси. COMMIT letopis шлёт простым текстовым запросом, поэтому прокси узнаёт его ' +
+        'по тексту.',
+      run: async ({ me, pass, annaKey, connect }) => {
+        [wallet] = await me.Wallet().create({ number: 'W-1', balance: 1000 }).rows();
+        const url = new URL(pass);
         proxy = await commitProxy(Number(url.port || 5432), url.hostname === 'localhost' ? '127.0.0.1' : url.hostname);
         url.hostname = '127.0.0.1';
-        url.port = String(proxy.port);
-        pool = postgres(url.toString(), { max: 1, prepare: false, onnotice: () => {} });
-        cut = await connect({ sql: pool as never, schema, token: up.tenant!.token!, listen: false, refreshSession: false });
-        return { 'баланс': (await cut.Wallet(wallet).first())!.data.balance };
+        url.port = String(proxy.port); // тот же пропуск — через прокси
+        house = await connect(url.toString(), { max: 1, listen: false });
+        cut = await house.open(annaKey);
+        return { 'баланс через прокси': (await cut.Wallet(wallet).first())!.data.balance };
       },
     },
     {
@@ -72,9 +74,12 @@ export default example({
     },
     {
       title: 'Повтор той же операции: «проведено» — значит, в первый раз не записалось',
-      run: async ({ db }) => {
-        const before = await state(db, 'op-2');
-        return { 'до повтора': before, 'повтор': await apply(db, 'op-2', 300), 'после повтора': await state(db, 'op-2') };
+      text:
+        'Повтор идёт напрямую, через `me`. Повторяют ту же операцию с тем же ключом `op-2` — запись `Movement` и ' +
+        'приращение одной транзакцией: ключ не даст записать её второй раз.',
+      run: async ({ me }) => {
+        const before = await state(me, 'op-2');
+        return { 'до повтора': before, 'повтор': await apply(me, 'op-2', 300), 'после повтора': await state(me, 'op-2') };
       },
     },
     {
@@ -90,14 +95,15 @@ export default example({
     },
     {
       title: 'Повтор той же операции: «уже было» — значит, записалось',
-      text: 'Повтор `op-3` база отклоняет как `exists`: операция уже есть, и деньги не спишутся второй раз.',
-      run: async ({ db }) => {
-        const before = await state(db, 'op-3');
-        const again = await apply(db, 'op-3', 200);
-        await cut.close(); // скрыть
-        await pool.end({ timeout: 2 }); // скрыть
+      text:
+        'Повтор `op-3` база отклоняет как `exists`: операция уже есть, и деньги не спишутся второй раз. Голый ' +
+        '`inc(-200)` без ключа операции повторять нельзя: он списал бы ещё 200.',
+      run: async ({ me }) => {
+        const before = await state(me, 'op-3');
+        const again = await apply(me, 'op-3', 200);
+        await house.close(); // скрыть
         await proxy.close(); // скрыть
-        return { 'до повтора': before, 'повтор': again, 'после повтора': await state(db, 'op-3') };
+        return { 'до повтора': before, 'повтор': again, 'после повтора': await state(me, 'op-3') };
       },
     },
   ],

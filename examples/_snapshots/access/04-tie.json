@@ -1,0 +1,3492 @@
+{
+  "id": "access/04-tie",
+  "title": "Ничья правил: отказ при записи и скрытая строка при чтении",
+  "summary": "Два правила с равным счётом и разными решениями база не выбирает наугад. Правило, которое спорило бы с действующим на тех же масках «кто» и «что», не записывается — rule_tie. Если спорят правила разных ролей, строка, на которой они сошлись, скрыта, остальные читаются, а acl.checkData отвечает acl_ambiguous.",
+  "tables": [
+    "entity"
+  ],
+  "initial": {
+    "entity": [
+      {
+        "id": "Resource·1",
+        "class": "Resource",
+        "rev": 1,
+        "tenant": "System",
+        "owner": "System",
+        "links": {},
+        "data": {
+          "alias": "authenticated:ACCOUNT",
+          "pattern": {
+            "categories": "{User}"
+          },
+          "category": "ACCOUNT"
+        },
+        "tags": [],
+        "op": "create",
+        "author": "System",
+        "agent": null,
+        "reason": null,
+        "at": "установка"
+      },
+      {
+        "id": "Resource·10",
+        "class": "Resource",
+        "rev": 1,
+        "tenant": "System",
+        "owner": "System",
+        "links": {},
+        "data": {
+          "alias": "all:DELETE",
+          "category": "DELETE"
+        },
+        "tags": [],
+        "op": "create",
+        "author": "System",
+        "agent": null,
+        "reason": null,
+        "at": "установка"
+      },
+      {
+        "id": "Resource·2",
+        "class": "Resource",
+        "rev": 1,
+        "tenant": "System",
+        "owner": "System",
+        "links": {},
+        "data": {
+          "alias": "any:ACCOUNT",
+          "category": "ACCOUNT"
+        },
+        "tags": [],
+        "op": "create",
+        "author": "System",
+        "agent": null,
+        "reason": null,
+        "at": "установка"
+      },
+      {
+        "id": "Resource·3",
+        "class": "Resource",
+        "rev": 1,
+        "tenant": "System",
+        "owner": "System",
+        "links": {},
+        "data": {
+          "alias": "service:ACCOUNT",
+          "pattern": {
+            "categories": "{Service}"
+          },
+          "category": "ACCOUNT"
+        },
+        "tags": [],
+        "op": "create",
+        "author": "System",
+        "agent": null,
+        "reason": null,
+        "at": "установка"
+      },
+      {
+        "id": "Resource·4",
+        "class": "Resource",
+        "rev": 1,
+        "tenant": "System",
+        "owner": "System",
+        "links": {},
+        "data": {
+          "alias": "any:API",
+          "category": "API"
+        },
+        "tags": [],
+        "op": "create",
+        "author": "System",
+        "agent": null,
+        "reason": null,
+        "at": "установка"
+      },
+      {
+        "id": "Resource·5",
+        "class": "Resource",
+        "rev": 1,
+        "tenant": "System",
+        "owner": "System",
+        "links": {},
+        "data": {
+          "alias": "signals:API",
+          "pattern": {
+            "endpoint": "letopis.signals"
+          },
+          "category": "API"
+        },
+        "tags": [],
+        "op": "create",
+        "author": "System",
+        "agent": null,
+        "reason": null,
+        "at": "установка"
+      },
+      {
+        "id": "Resource·6",
+        "class": "Resource",
+        "rev": 1,
+        "tenant": "System",
+        "owner": "System",
+        "links": {},
+        "data": {
+          "alias": "maintain:API",
+          "pattern": {
+            "endpoint": "letopis.maintain"
+          },
+          "category": "API"
+        },
+        "tags": [],
+        "op": "create",
+        "author": "System",
+        "agent": null,
+        "reason": null,
+        "at": "установка"
+      },
+      {
+        "id": "Resource·7",
+        "class": "Resource",
+        "rev": 1,
+        "tenant": "System",
+        "owner": "System",
+        "links": {},
+        "data": {
+          "alias": "all:ROLE",
+          "category": "ROLE"
+        },
+        "tags": [],
+        "op": "create",
+        "author": "System",
+        "agent": null,
+        "reason": null,
+        "at": "установка"
+      },
+      {
+        "id": "Resource·8",
+        "class": "Resource",
+        "rev": 1,
+        "tenant": "System",
+        "owner": "System",
+        "links": {},
+        "data": {
+          "alias": "all:READ",
+          "category": "READ"
+        },
+        "tags": [],
+        "op": "create",
+        "author": "System",
+        "agent": null,
+        "reason": null,
+        "at": "установка"
+      },
+      {
+        "id": "Resource·9",
+        "class": "Resource",
+        "rev": 1,
+        "tenant": "System",
+        "owner": "System",
+        "links": {},
+        "data": {
+          "alias": "all:WRITE",
+          "category": "WRITE"
+        },
+        "tags": [],
+        "op": "create",
+        "author": "System",
+        "agent": null,
+        "reason": null,
+        "at": "установка"
+      },
+      {
+        "id": "rule·1",
+        "class": "rule",
+        "rev": 1,
+        "tenant": "System",
+        "owner": "System",
+        "links": {
+          "Group": "Resource·2",
+          "Object": "Resource·4"
+        },
+        "data": {
+          "code": 403,
+          "weight": 0,
+          "default": true,
+          "enabled": true,
+          "permission": "deny"
+        },
+        "tags": [],
+        "op": "create",
+        "author": "System",
+        "agent": null,
+        "reason": null,
+        "at": "установка"
+      },
+      {
+        "id": "rule·2",
+        "class": "rule",
+        "rev": 1,
+        "tenant": "System",
+        "owner": "System",
+        "links": {
+          "Group": "Resource·2",
+          "Object": "Resource·8"
+        },
+        "data": {
+          "weight": 0,
+          "default": true,
+          "enabled": true,
+          "permission": "deny"
+        },
+        "tags": [],
+        "op": "create",
+        "author": "System",
+        "agent": null,
+        "reason": null,
+        "at": "установка"
+      },
+      {
+        "id": "rule·3",
+        "class": "rule",
+        "rev": 1,
+        "tenant": "System",
+        "owner": "System",
+        "links": {
+          "Group": "Resource·2",
+          "Object": "Resource·9"
+        },
+        "data": {
+          "weight": 0,
+          "default": true,
+          "enabled": true,
+          "permission": "deny"
+        },
+        "tags": [],
+        "op": "create",
+        "author": "System",
+        "agent": null,
+        "reason": null,
+        "at": "установка"
+      },
+      {
+        "id": "rule·4",
+        "class": "rule",
+        "rev": 1,
+        "tenant": "System",
+        "owner": "System",
+        "links": {
+          "Group": "Resource·2",
+          "Object": "Resource·10"
+        },
+        "data": {
+          "weight": 0,
+          "default": true,
+          "enabled": true,
+          "permission": "deny"
+        },
+        "tags": [],
+        "op": "create",
+        "author": "System",
+        "agent": null,
+        "reason": null,
+        "at": "установка"
+      },
+      {
+        "id": "rule·5",
+        "class": "rule",
+        "rev": 1,
+        "tenant": "System",
+        "owner": "System",
+        "links": {
+          "Group": "Resource·3",
+          "Object": "Resource·5"
+        },
+        "data": {
+          "weight": 100,
+          "enabled": true,
+          "permission": "allow"
+        },
+        "tags": [],
+        "op": "create",
+        "author": "System",
+        "agent": null,
+        "reason": null,
+        "at": "установка"
+      },
+      {
+        "id": "rule·6",
+        "class": "rule",
+        "rev": 1,
+        "tenant": "System",
+        "owner": "System",
+        "links": {
+          "Group": "Resource·3",
+          "Object": "Resource·6"
+        },
+        "data": {
+          "weight": 100,
+          "enabled": true,
+          "permission": "allow"
+        },
+        "tags": [],
+        "op": "create",
+        "author": "System",
+        "agent": null,
+        "reason": null,
+        "at": "установка"
+      },
+      {
+        "id": "rule·7",
+        "class": "rule",
+        "rev": 1,
+        "tenant": "System",
+        "owner": "System",
+        "links": {
+          "Group": "Resource·3",
+          "Object": "Resource·8"
+        },
+        "data": {
+          "weight": 1000000,
+          "enabled": true,
+          "concierge": true,
+          "permission": "allow"
+        },
+        "tags": [],
+        "op": "create",
+        "author": "System",
+        "agent": null,
+        "reason": null,
+        "at": "установка"
+      },
+      {
+        "id": "rule·8",
+        "class": "rule",
+        "rev": 1,
+        "tenant": "System",
+        "owner": "System",
+        "links": {
+          "Group": "Resource·3",
+          "Object": "Resource·9"
+        },
+        "data": {
+          "weight": 1000000,
+          "enabled": true,
+          "concierge": true,
+          "permission": "allow"
+        },
+        "tags": [],
+        "op": "create",
+        "author": "System",
+        "agent": null,
+        "reason": null,
+        "at": "установка"
+      },
+      {
+        "id": "rule·9",
+        "class": "rule",
+        "rev": 1,
+        "tenant": "System",
+        "owner": "System",
+        "links": {
+          "Group": "Resource·3",
+          "Object": "Resource·10"
+        },
+        "data": {
+          "weight": 1000000,
+          "enabled": true,
+          "concierge": true,
+          "permission": "allow"
+        },
+        "tags": [],
+        "op": "create",
+        "author": "System",
+        "agent": null,
+        "reason": null,
+        "at": "установка"
+      },
+      {
+        "id": "Resource·11",
+        "class": "Resource",
+        "rev": 1,
+        "tenant": "Ромашка",
+        "owner": "Ромашка",
+        "links": {},
+        "data": {
+          "alias": "role:owner:ACCOUNT",
+          "pattern": {
+            "roles": "{owner}"
+          },
+          "category": "ACCOUNT"
+        },
+        "tags": [],
+        "op": "create",
+        "author": "System",
+        "agent": null,
+        "reason": null,
+        "at": "установка"
+      },
+      {
+        "id": "rule·10",
+        "class": "rule",
+        "rev": 1,
+        "tenant": "Ромашка",
+        "owner": "консьерж",
+        "links": {
+          "Group": "Resource·3",
+          "Object": "Resource·8"
+        },
+        "data": {
+          "weight": 1000000,
+          "enabled": true,
+          "concierge": true,
+          "permission": "allow"
+        },
+        "tags": [],
+        "op": "create",
+        "author": "System",
+        "agent": null,
+        "reason": null,
+        "at": "установка"
+      },
+      {
+        "id": "rule·11",
+        "class": "rule",
+        "rev": 1,
+        "tenant": "Ромашка",
+        "owner": "консьерж",
+        "links": {
+          "Group": "Resource·11",
+          "Object": "Resource·8"
+        },
+        "data": {
+          "weight": 100000,
+          "enabled": true,
+          "concierge": true,
+          "permission": "allow"
+        },
+        "tags": [],
+        "op": "create",
+        "author": "System",
+        "agent": null,
+        "reason": null,
+        "at": "установка"
+      },
+      {
+        "id": "rule·12",
+        "class": "rule",
+        "rev": 1,
+        "tenant": "Ромашка",
+        "owner": "консьерж",
+        "links": {
+          "Group": "Resource·3",
+          "Object": "Resource·9"
+        },
+        "data": {
+          "weight": 1000000,
+          "enabled": true,
+          "concierge": true,
+          "permission": "allow"
+        },
+        "tags": [],
+        "op": "create",
+        "author": "System",
+        "agent": null,
+        "reason": null,
+        "at": "установка"
+      },
+      {
+        "id": "rule·13",
+        "class": "rule",
+        "rev": 1,
+        "tenant": "Ромашка",
+        "owner": "консьерж",
+        "links": {
+          "Group": "Resource·11",
+          "Object": "Resource·9"
+        },
+        "data": {
+          "weight": 100000,
+          "enabled": true,
+          "concierge": true,
+          "permission": "allow"
+        },
+        "tags": [],
+        "op": "create",
+        "author": "System",
+        "agent": null,
+        "reason": null,
+        "at": "установка"
+      },
+      {
+        "id": "rule·14",
+        "class": "rule",
+        "rev": 1,
+        "tenant": "Ромашка",
+        "owner": "консьерж",
+        "links": {
+          "Group": "Resource·3",
+          "Object": "Resource·10"
+        },
+        "data": {
+          "weight": 1000000,
+          "enabled": true,
+          "concierge": true,
+          "permission": "allow"
+        },
+        "tags": [],
+        "op": "create",
+        "author": "System",
+        "agent": null,
+        "reason": null,
+        "at": "установка"
+      },
+      {
+        "id": "rule·15",
+        "class": "rule",
+        "rev": 1,
+        "tenant": "Ромашка",
+        "owner": "консьерж",
+        "links": {
+          "Group": "Resource·11",
+          "Object": "Resource·10"
+        },
+        "data": {
+          "weight": 100000,
+          "enabled": true,
+          "concierge": true,
+          "permission": "allow"
+        },
+        "tags": [],
+        "op": "create",
+        "author": "System",
+        "agent": null,
+        "reason": null,
+        "at": "установка"
+      },
+      {
+        "id": "rule·16",
+        "class": "rule",
+        "rev": 1,
+        "tenant": "Ромашка",
+        "owner": "консьерж",
+        "links": {
+          "Group": "Resource·3",
+          "Object": "Resource·4"
+        },
+        "data": {
+          "weight": 1000000,
+          "enabled": true,
+          "concierge": true,
+          "permission": "allow"
+        },
+        "tags": [],
+        "op": "create",
+        "author": "System",
+        "agent": null,
+        "reason": null,
+        "at": "установка"
+      },
+      {
+        "id": "rule·17",
+        "class": "rule",
+        "rev": 1,
+        "tenant": "Ромашка",
+        "owner": "консьерж",
+        "links": {
+          "Group": "Resource·11",
+          "Object": "Resource·4"
+        },
+        "data": {
+          "weight": 100000,
+          "enabled": true,
+          "concierge": true,
+          "permission": "allow"
+        },
+        "tags": [],
+        "op": "create",
+        "author": "System",
+        "agent": null,
+        "reason": null,
+        "at": "установка"
+      },
+      {
+        "id": "rule·18",
+        "class": "rule",
+        "rev": 1,
+        "tenant": "Ромашка",
+        "owner": "консьерж",
+        "links": {
+          "Group": "Resource·3",
+          "Object": "Resource·7"
+        },
+        "data": {
+          "weight": 1000000,
+          "enabled": true,
+          "concierge": true,
+          "permission": "allow"
+        },
+        "tags": [],
+        "op": "create",
+        "author": "System",
+        "agent": null,
+        "reason": null,
+        "at": "установка"
+      },
+      {
+        "id": "rule·19",
+        "class": "rule",
+        "rev": 1,
+        "tenant": "Ромашка",
+        "owner": "консьерж",
+        "links": {
+          "Group": "Resource·11",
+          "Object": "Resource·7"
+        },
+        "data": {
+          "weight": 100000,
+          "enabled": true,
+          "concierge": true,
+          "permission": "allow"
+        },
+        "tags": [],
+        "op": "create",
+        "author": "System",
+        "agent": null,
+        "reason": null,
+        "at": "установка"
+      }
+    ],
+    "log": [],
+    "secret": [],
+    "counts": null
+  },
+  "steps": [
+    {
+      "title": "Ничья при записи: rule_tie",
+      "text": "Анна запрещает роли `staff` писать заказы (счёт 1 + 1 + 1 + 50 = 53). Обёртка `acl` даёт ресурсам постоянные имена, и правило той же пары «кто → что» она бы заменила. Но ресурсы можно завести и напрямую, с другими именами и теми же масками: разрешение через них с весом 51 набрало бы те же 53 и спорило бы с запретом на каждой строке. База его не записывает: `acl_ambiguous` (`sql-access.rule_tie`), в тексте оба правила.",
+      "code": "await me.acl.deny({ role: 'staff', write: 'Order' });\nconst [g] = await me.Resource().upsert({ alias: 'staff-2:ACCOUNT', category: 'ACCOUNT', pattern: { roles: '{staff}' } }).rows();\nconst [o] = await me.Resource().upsert({ alias: 'orders-2:WRITE', category: 'WRITE', pattern: { class: 'Order' } }).rows();\nreturn { 'разрешение весом 51': await why(me.rule().create({ permission: 'allow', weight: 51 }).Group.set(g.id).Object.set(o.id).rows()) };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.acl.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">deny</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ role: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'staff'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, write: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Order'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> [</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">g</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Resource</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">upsert</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ alias: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'staff-2:ACCOUNT'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, category: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'ACCOUNT'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, pattern: { roles: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'{staff}'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> } }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> [</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">o</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Resource</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">upsert</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ alias: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'orders-2:WRITE'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, category: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'WRITE'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, pattern: { class: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Order'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> } }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'разрешение весом 51'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> why</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rule</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ permission: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'allow'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, weight: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">51</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).Group.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">set</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(g.id).Object.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">set</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(o.id).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()) };</span></span></code></pre>",
+      "result": {
+        "разрешение весом 51": "acl_ambiguous (sql-access.rule_tie)"
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "Resource·1",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "authenticated:ACCOUNT",
+            "pattern": {
+              "categories": "{User}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "Resource·10",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "all:DELETE",
+            "category": "DELETE"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "Resource·2",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "any:ACCOUNT",
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "Resource·3",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "service:ACCOUNT",
+            "pattern": {
+              "categories": "{Service}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "Resource·4",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "any:API",
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "Resource·5",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "signals:API",
+            "pattern": {
+              "endpoint": "letopis.signals"
+            },
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "Resource·6",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "maintain:API",
+            "pattern": {
+              "endpoint": "letopis.maintain"
+            },
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "Resource·7",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "all:ROLE",
+            "category": "ROLE"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "Resource·8",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "all:READ",
+            "category": "READ"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "Resource·9",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "all:WRITE",
+            "category": "WRITE"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·1",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·2",
+            "Object": "Resource·4"
+          },
+          "data": {
+            "code": 403,
+            "weight": 0,
+            "default": true,
+            "enabled": true,
+            "permission": "deny"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·2",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·2",
+            "Object": "Resource·8"
+          },
+          "data": {
+            "weight": 0,
+            "default": true,
+            "enabled": true,
+            "permission": "deny"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·3",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·2",
+            "Object": "Resource·9"
+          },
+          "data": {
+            "weight": 0,
+            "default": true,
+            "enabled": true,
+            "permission": "deny"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·4",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·2",
+            "Object": "Resource·10"
+          },
+          "data": {
+            "weight": 0,
+            "default": true,
+            "enabled": true,
+            "permission": "deny"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·5",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·3",
+            "Object": "Resource·5"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·6",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·3",
+            "Object": "Resource·6"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·7",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·3",
+            "Object": "Resource·8"
+          },
+          "data": {
+            "weight": 1000000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·8",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·3",
+            "Object": "Resource·9"
+          },
+          "data": {
+            "weight": 1000000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·9",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·3",
+            "Object": "Resource·10"
+          },
+          "data": {
+            "weight": 1000000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "Resource·11",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "alias": "role:owner:ACCOUNT",
+            "pattern": {
+              "roles": "{owner}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·10",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "консьерж",
+          "links": {
+            "Group": "Resource·3",
+            "Object": "Resource·8"
+          },
+          "data": {
+            "weight": 1000000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·11",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "консьерж",
+          "links": {
+            "Group": "Resource·11",
+            "Object": "Resource·8"
+          },
+          "data": {
+            "weight": 100000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·12",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "консьерж",
+          "links": {
+            "Group": "Resource·3",
+            "Object": "Resource·9"
+          },
+          "data": {
+            "weight": 1000000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·13",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "консьерж",
+          "links": {
+            "Group": "Resource·11",
+            "Object": "Resource·9"
+          },
+          "data": {
+            "weight": 100000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·14",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "консьерж",
+          "links": {
+            "Group": "Resource·3",
+            "Object": "Resource·10"
+          },
+          "data": {
+            "weight": 1000000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·15",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "консьерж",
+          "links": {
+            "Group": "Resource·11",
+            "Object": "Resource·10"
+          },
+          "data": {
+            "weight": 100000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·16",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "консьерж",
+          "links": {
+            "Group": "Resource·3",
+            "Object": "Resource·4"
+          },
+          "data": {
+            "weight": 1000000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·17",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "консьерж",
+          "links": {
+            "Group": "Resource·11",
+            "Object": "Resource·4"
+          },
+          "data": {
+            "weight": 100000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·18",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "консьерж",
+          "links": {
+            "Group": "Resource·3",
+            "Object": "Resource·7"
+          },
+          "data": {
+            "weight": 1000000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·19",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "консьерж",
+          "links": {
+            "Group": "Resource·11",
+            "Object": "Resource·7"
+          },
+          "data": {
+            "weight": 100000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "Resource·12",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Анна",
+          "links": {},
+          "data": {
+            "alias": "role:staff:ACCOUNT",
+            "pattern": {
+              "roles": "{staff}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": "me.acl.deny",
+          "at": "шаг 1",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "Resource·13",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Анна",
+          "links": {},
+          "data": {
+            "alias": "class:Order:WRITE",
+            "pattern": {
+              "class": "Order"
+            },
+            "category": "WRITE"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": "me.acl.deny",
+          "at": "шаг 1",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "rule·20",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Анна",
+          "links": {
+            "Group": "Resource·12",
+            "Object": "Resource·13"
+          },
+          "data": {
+            "weight": 50,
+            "enabled": true,
+            "permission": "deny"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": "me.acl.deny",
+          "at": "шаг 1",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "Resource·14",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Анна",
+          "links": {},
+          "data": {
+            "alias": "staff-2:ACCOUNT",
+            "pattern": {
+              "roles": "{staff}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "шаг 1",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "Resource·15",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Анна",
+          "links": {},
+          "data": {
+            "alias": "orders-2:WRITE",
+            "pattern": {
+              "class": "Order"
+            },
+            "category": "WRITE"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "шаг 1",
+          "$changed": [
+            "*"
+          ]
+        }
+      ],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": null,
+      "signals": [
+        "Resource",
+        "rule"
+      ]
+    },
+    {
+      "title": "Ничья на строке: она скрыта",
+      "text": "Олег — `staff` и `cashier`. Роли `staff` можно читать заказы, но не VIP (запрет с условием — счёт 54), роли `cashier` VIP разрешены с весом 51 — тоже 54. Маски «кто» у правил разные, записать их можно; на строке `A-2` они сходятся с равным счётом и разными решениями. Такую строку не видно ни списком, ни по id, остальные читаются как обычно.",
+      "code": "await me.Order().create({ number: 'A-1' }).rows();\nawait me.Order().create({ number: 'A-2', vip: true }).rows();\noleg = await inviteAndAccept(db, me, { email: 'oleg@romashka.ru' }, ['staff', 'cashier'], { password: 'Олег-2026!', name: 'Олег' });\nawait me.acl.grant({ role: 'staff', read: 'Order' });\nawait me.acl.deny({ role: 'staff', read: { class: 'Order', data: { vip: true } } });\nawait me.acl.grant({ role: 'cashier', read: { class: 'Order', data: { vip: true } }, weight: 51 });\nconst a2 = (await me.Order({ number: 'A-2' }).first())!;\nreturn {\n  'Олег видит': (await oleg.Order().sort('data.number').rows()).map((r) => r.data.number),\n  'A-2 по id': await oleg.Order(a2.id).count(),\n  'Анна видит': await me.Order().count(),\n};",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ number: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'A-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ number: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'A-2'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, vip: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">oleg </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> inviteAndAccept</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, me, { email: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'oleg@romashka.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'staff'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'cashier'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">], { password: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Олег-2026!'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Олег'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.acl.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">grant</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ role: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'staff'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, read: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Order'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.acl.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">deny</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ role: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'staff'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, read: { class: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Order'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, data: { vip: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> } } });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.acl.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">grant</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ role: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'cashier'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, read: { class: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Order'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, data: { vip: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> } }, weight: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">51</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> a2</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ number: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'A-2'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">first</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">())</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'Олег видит'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> oleg.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">sort</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'data.number'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">r</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> r.data.number),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'A-2 по id'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> oleg.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(a2.id).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">count</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'Анна видит'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">count</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">};</span></span></code></pre>",
+      "result": {
+        "Олег видит": [
+          "A-1"
+        ],
+        "A-2 по id": 0,
+        "Анна видит": 2
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "Resource·1",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "authenticated:ACCOUNT",
+            "pattern": {
+              "categories": "{User}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "Resource·10",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "all:DELETE",
+            "category": "DELETE"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "Resource·2",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "any:ACCOUNT",
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "Resource·3",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "service:ACCOUNT",
+            "pattern": {
+              "categories": "{Service}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "Resource·4",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "any:API",
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "Resource·5",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "signals:API",
+            "pattern": {
+              "endpoint": "letopis.signals"
+            },
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "Resource·6",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "maintain:API",
+            "pattern": {
+              "endpoint": "letopis.maintain"
+            },
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "Resource·7",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "all:ROLE",
+            "category": "ROLE"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "Resource·8",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "all:READ",
+            "category": "READ"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "Resource·9",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "all:WRITE",
+            "category": "WRITE"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·1",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·2",
+            "Object": "Resource·4"
+          },
+          "data": {
+            "code": 403,
+            "weight": 0,
+            "default": true,
+            "enabled": true,
+            "permission": "deny"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·2",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·2",
+            "Object": "Resource·8"
+          },
+          "data": {
+            "weight": 0,
+            "default": true,
+            "enabled": true,
+            "permission": "deny"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·3",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·2",
+            "Object": "Resource·9"
+          },
+          "data": {
+            "weight": 0,
+            "default": true,
+            "enabled": true,
+            "permission": "deny"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·4",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·2",
+            "Object": "Resource·10"
+          },
+          "data": {
+            "weight": 0,
+            "default": true,
+            "enabled": true,
+            "permission": "deny"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·5",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·3",
+            "Object": "Resource·5"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·6",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·3",
+            "Object": "Resource·6"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·7",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·3",
+            "Object": "Resource·8"
+          },
+          "data": {
+            "weight": 1000000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·8",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·3",
+            "Object": "Resource·9"
+          },
+          "data": {
+            "weight": 1000000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·9",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·3",
+            "Object": "Resource·10"
+          },
+          "data": {
+            "weight": 1000000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "Resource·11",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "alias": "role:owner:ACCOUNT",
+            "pattern": {
+              "roles": "{owner}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·10",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "консьерж",
+          "links": {
+            "Group": "Resource·3",
+            "Object": "Resource·8"
+          },
+          "data": {
+            "weight": 1000000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·11",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "консьерж",
+          "links": {
+            "Group": "Resource·11",
+            "Object": "Resource·8"
+          },
+          "data": {
+            "weight": 100000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·12",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "консьерж",
+          "links": {
+            "Group": "Resource·3",
+            "Object": "Resource·9"
+          },
+          "data": {
+            "weight": 1000000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·13",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "консьерж",
+          "links": {
+            "Group": "Resource·11",
+            "Object": "Resource·9"
+          },
+          "data": {
+            "weight": 100000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·14",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "консьерж",
+          "links": {
+            "Group": "Resource·3",
+            "Object": "Resource·10"
+          },
+          "data": {
+            "weight": 1000000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·15",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "консьерж",
+          "links": {
+            "Group": "Resource·11",
+            "Object": "Resource·10"
+          },
+          "data": {
+            "weight": 100000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·16",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "консьерж",
+          "links": {
+            "Group": "Resource·3",
+            "Object": "Resource·4"
+          },
+          "data": {
+            "weight": 1000000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·17",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "консьерж",
+          "links": {
+            "Group": "Resource·11",
+            "Object": "Resource·4"
+          },
+          "data": {
+            "weight": 100000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·18",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "консьерж",
+          "links": {
+            "Group": "Resource·3",
+            "Object": "Resource·7"
+          },
+          "data": {
+            "weight": 1000000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·19",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "консьерж",
+          "links": {
+            "Group": "Resource·11",
+            "Object": "Resource·7"
+          },
+          "data": {
+            "weight": 100000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "Resource·12",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Анна",
+          "links": {},
+          "data": {
+            "alias": "role:staff:ACCOUNT",
+            "pattern": {
+              "roles": "{staff}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": "me.acl.deny",
+          "at": "шаг 1",
+          "$changed": []
+        },
+        {
+          "id": "Resource·13",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Анна",
+          "links": {},
+          "data": {
+            "alias": "class:Order:WRITE",
+            "pattern": {
+              "class": "Order"
+            },
+            "category": "WRITE"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": "me.acl.deny",
+          "at": "шаг 1",
+          "$changed": []
+        },
+        {
+          "id": "rule·20",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Анна",
+          "links": {
+            "Group": "Resource·12",
+            "Object": "Resource·13"
+          },
+          "data": {
+            "weight": 50,
+            "enabled": true,
+            "permission": "deny"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": "me.acl.deny",
+          "at": "шаг 1",
+          "$changed": []
+        },
+        {
+          "id": "Resource·14",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Анна",
+          "links": {},
+          "data": {
+            "alias": "staff-2:ACCOUNT",
+            "pattern": {
+              "roles": "{staff}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "шаг 1",
+          "$changed": []
+        },
+        {
+          "id": "Resource·15",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Анна",
+          "links": {},
+          "data": {
+            "alias": "orders-2:WRITE",
+            "pattern": {
+              "class": "Order"
+            },
+            "category": "WRITE"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "шаг 1",
+          "$changed": []
+        },
+        {
+          "id": "Order «A-1»",
+          "class": "Order",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "vip": false,
+            "number": "A-1"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "шаг 2",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "Order «A-2»",
+          "class": "Order",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "vip": true,
+            "number": "A-2"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "шаг 2",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "Resource·16",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Анна",
+          "links": {},
+          "data": {
+            "alias": "class:Order:READ",
+            "pattern": {
+              "class": "Order"
+            },
+            "category": "READ"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": "me.acl.grant",
+          "at": "шаг 2",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "rule·21",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Анна",
+          "links": {
+            "Group": "Resource·12",
+            "Object": "Resource·16"
+          },
+          "data": {
+            "weight": 50,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": "me.acl.grant",
+          "at": "шаг 2",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "Resource·17",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Анна",
+          "links": {},
+          "data": {
+            "alias": "class:Order{\"data\":{\"vip\":true}}:READ",
+            "pattern": {
+              "data": {
+                "vip": true
+              },
+              "class": "Order"
+            },
+            "category": "READ"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": "me.acl.deny",
+          "at": "шаг 2",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "rule·22",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Анна",
+          "links": {
+            "Group": "Resource·12",
+            "Object": "Resource·17"
+          },
+          "data": {
+            "weight": 50,
+            "enabled": true,
+            "permission": "deny"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": "me.acl.deny",
+          "at": "шаг 2",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "Resource·18",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Анна",
+          "links": {},
+          "data": {
+            "alias": "role:cashier:ACCOUNT",
+            "pattern": {
+              "roles": "{cashier}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": "me.acl.grant",
+          "at": "шаг 2",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "rule·23",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Анна",
+          "links": {
+            "Group": "Resource·18",
+            "Object": "Resource·17"
+          },
+          "data": {
+            "weight": 51,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": "me.acl.grant",
+          "at": "шаг 2",
+          "$changed": [
+            "*"
+          ]
+        }
+      ],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": null,
+      "signals": [
+        "Order",
+        "Resource",
+        "member",
+        "rule"
+      ]
+    },
+    {
+      "title": "Ошибку отдаёт проверка; развязывает вес",
+      "text": "`acl.checkData(класс, операция)` на ничьей отвечает `acl_ambiguous`, в `detail.rules` — id спорящих правил. Развязать ничью — поднять вес нужного правила: с весом 60 разрешение кассира набирает 63, и `A-2` Олегу видна.",
+      "code": "const tie = await oleg.acl.checkData('Order', 'READ').then(() => 'решено', (e) => ({ code: e.code, rules: (e.detail?.rules as unknown[])?.length }));\nawait me.acl.grant({ role: 'cashier', read: { class: 'Order', data: { vip: true } }, weight: 60 });\nreturn { 'checkData на ничьей': tie, 'Олег видит после веса 60': (await oleg.Order().sort('data.number').rows()).map((r) => r.data.number) };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> tie</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> oleg.acl.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">checkData</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Order'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'READ'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">then</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(() </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'решено'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, (</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">e</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ code: e.code, rules: (e.detail?.rules </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">as</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> unknown</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">[])?.</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">length</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }));</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.acl.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">grant</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ role: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'cashier'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, read: { class: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Order'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, data: { vip: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> } }, weight: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">60</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'checkData на ничьей'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: tie, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Олег видит после веса 60'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> oleg.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">sort</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'data.number'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">r</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> r.data.number) };</span></span></code></pre>",
+      "result": {
+        "checkData на ничьей": {
+          "code": "acl_ambiguous",
+          "rules": 2
+        },
+        "Олег видит после веса 60": [
+          "A-1",
+          "A-2"
+        ]
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "Resource·1",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "authenticated:ACCOUNT",
+            "pattern": {
+              "categories": "{User}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "Resource·10",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "all:DELETE",
+            "category": "DELETE"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "Resource·2",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "any:ACCOUNT",
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "Resource·3",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "service:ACCOUNT",
+            "pattern": {
+              "categories": "{Service}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "Resource·4",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "any:API",
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "Resource·5",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "signals:API",
+            "pattern": {
+              "endpoint": "letopis.signals"
+            },
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "Resource·6",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "maintain:API",
+            "pattern": {
+              "endpoint": "letopis.maintain"
+            },
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "Resource·7",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "all:ROLE",
+            "category": "ROLE"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "Resource·8",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "all:READ",
+            "category": "READ"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "Resource·9",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "all:WRITE",
+            "category": "WRITE"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·1",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·2",
+            "Object": "Resource·4"
+          },
+          "data": {
+            "code": 403,
+            "weight": 0,
+            "default": true,
+            "enabled": true,
+            "permission": "deny"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·2",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·2",
+            "Object": "Resource·8"
+          },
+          "data": {
+            "weight": 0,
+            "default": true,
+            "enabled": true,
+            "permission": "deny"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·3",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·2",
+            "Object": "Resource·9"
+          },
+          "data": {
+            "weight": 0,
+            "default": true,
+            "enabled": true,
+            "permission": "deny"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·4",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·2",
+            "Object": "Resource·10"
+          },
+          "data": {
+            "weight": 0,
+            "default": true,
+            "enabled": true,
+            "permission": "deny"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·5",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·3",
+            "Object": "Resource·5"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·6",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·3",
+            "Object": "Resource·6"
+          },
+          "data": {
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·7",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·3",
+            "Object": "Resource·8"
+          },
+          "data": {
+            "weight": 1000000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·8",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·3",
+            "Object": "Resource·9"
+          },
+          "data": {
+            "weight": 1000000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·9",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {
+            "Group": "Resource·3",
+            "Object": "Resource·10"
+          },
+          "data": {
+            "weight": 1000000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "Resource·11",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "alias": "role:owner:ACCOUNT",
+            "pattern": {
+              "roles": "{owner}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·10",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "консьерж",
+          "links": {
+            "Group": "Resource·3",
+            "Object": "Resource·8"
+          },
+          "data": {
+            "weight": 1000000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·11",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "консьерж",
+          "links": {
+            "Group": "Resource·11",
+            "Object": "Resource·8"
+          },
+          "data": {
+            "weight": 100000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·12",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "консьерж",
+          "links": {
+            "Group": "Resource·3",
+            "Object": "Resource·9"
+          },
+          "data": {
+            "weight": 1000000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·13",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "консьерж",
+          "links": {
+            "Group": "Resource·11",
+            "Object": "Resource·9"
+          },
+          "data": {
+            "weight": 100000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·14",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "консьерж",
+          "links": {
+            "Group": "Resource·3",
+            "Object": "Resource·10"
+          },
+          "data": {
+            "weight": 1000000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·15",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "консьерж",
+          "links": {
+            "Group": "Resource·11",
+            "Object": "Resource·10"
+          },
+          "data": {
+            "weight": 100000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·16",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "консьерж",
+          "links": {
+            "Group": "Resource·3",
+            "Object": "Resource·4"
+          },
+          "data": {
+            "weight": 1000000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·17",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "консьерж",
+          "links": {
+            "Group": "Resource·11",
+            "Object": "Resource·4"
+          },
+          "data": {
+            "weight": 100000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·18",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "консьерж",
+          "links": {
+            "Group": "Resource·3",
+            "Object": "Resource·7"
+          },
+          "data": {
+            "weight": 1000000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "rule·19",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "консьерж",
+          "links": {
+            "Group": "Resource·11",
+            "Object": "Resource·7"
+          },
+          "data": {
+            "weight": 100000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "установка",
+          "$changed": []
+        },
+        {
+          "id": "Resource·12",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Анна",
+          "links": {},
+          "data": {
+            "alias": "role:staff:ACCOUNT",
+            "pattern": {
+              "roles": "{staff}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": "me.acl.deny",
+          "at": "шаг 1",
+          "$changed": []
+        },
+        {
+          "id": "Resource·13",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Анна",
+          "links": {},
+          "data": {
+            "alias": "class:Order:WRITE",
+            "pattern": {
+              "class": "Order"
+            },
+            "category": "WRITE"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": "me.acl.deny",
+          "at": "шаг 1",
+          "$changed": []
+        },
+        {
+          "id": "rule·20",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Анна",
+          "links": {
+            "Group": "Resource·12",
+            "Object": "Resource·13"
+          },
+          "data": {
+            "weight": 50,
+            "enabled": true,
+            "permission": "deny"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": "me.acl.deny",
+          "at": "шаг 1",
+          "$changed": []
+        },
+        {
+          "id": "Resource·14",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Анна",
+          "links": {},
+          "data": {
+            "alias": "staff-2:ACCOUNT",
+            "pattern": {
+              "roles": "{staff}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "шаг 1",
+          "$changed": []
+        },
+        {
+          "id": "Resource·15",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Анна",
+          "links": {},
+          "data": {
+            "alias": "orders-2:WRITE",
+            "pattern": {
+              "class": "Order"
+            },
+            "category": "WRITE"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "шаг 1",
+          "$changed": []
+        },
+        {
+          "id": "Order «A-1»",
+          "class": "Order",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "vip": false,
+            "number": "A-1"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "шаг 2",
+          "$changed": []
+        },
+        {
+          "id": "Order «A-2»",
+          "class": "Order",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "vip": true,
+            "number": "A-2"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "шаг 2",
+          "$changed": []
+        },
+        {
+          "id": "Resource·16",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Анна",
+          "links": {},
+          "data": {
+            "alias": "class:Order:READ",
+            "pattern": {
+              "class": "Order"
+            },
+            "category": "READ"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": "me.acl.grant",
+          "at": "шаг 2",
+          "$changed": []
+        },
+        {
+          "id": "rule·21",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Анна",
+          "links": {
+            "Group": "Resource·12",
+            "Object": "Resource·16"
+          },
+          "data": {
+            "weight": 50,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": "me.acl.grant",
+          "at": "шаг 2",
+          "$changed": []
+        },
+        {
+          "id": "Resource·17",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Анна",
+          "links": {},
+          "data": {
+            "alias": "class:Order{\"data\":{\"vip\":true}}:READ",
+            "pattern": {
+              "data": {
+                "vip": true
+              },
+              "class": "Order"
+            },
+            "category": "READ"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": "me.acl.deny",
+          "at": "шаг 2",
+          "$changed": []
+        },
+        {
+          "id": "rule·22",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Анна",
+          "links": {
+            "Group": "Resource·12",
+            "Object": "Resource·17"
+          },
+          "data": {
+            "weight": 50,
+            "enabled": true,
+            "permission": "deny"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": "me.acl.deny",
+          "at": "шаг 2",
+          "$changed": []
+        },
+        {
+          "id": "Resource·18",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Анна",
+          "links": {},
+          "data": {
+            "alias": "role:cashier:ACCOUNT",
+            "pattern": {
+              "roles": "{cashier}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": "me.acl.grant",
+          "at": "шаг 2",
+          "$changed": []
+        },
+        {
+          "id": "rule·23",
+          "class": "rule",
+          "rev": 2,
+          "tenant": "Ромашка",
+          "owner": "Анна",
+          "links": {
+            "Group": "Resource·18",
+            "Object": "Resource·17"
+          },
+          "data": {
+            "weight": 60,
+            "enabled": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": null,
+          "reason": "me.acl.grant",
+          "at": "шаг 3",
+          "$changed": [
+            "rev",
+            "data.weight",
+            "op",
+            "at"
+          ]
+        }
+      ],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": null,
+      "signals": [
+        "rule"
+      ]
+    }
+  ],
+  "output": "Шаг 1. Ничья при записи: rule_tie\n{\n  \"разрешение весом 51\": \"acl_ambiguous (sql-access.rule_tie)\"\n}\n\nШаг 2. Ничья на строке: она скрыта\n{\n  \"Олег видит\": [\n    \"A-1\"\n  ],\n  \"A-2 по id\": 0,\n  \"Анна видит\": 2\n}\n\nШаг 3. Ошибку отдаёт проверка; развязывает вес\n{\n  \"checkData на ничьей\": {\n    \"code\": \"acl_ambiguous\",\n    \"rules\": 2\n  },\n  \"Олег видит после веса 60\": [\n    \"A-1\",\n    \"A-2\"\n  ]\n}"
+}

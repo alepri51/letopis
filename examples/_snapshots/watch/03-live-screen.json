@@ -1,0 +1,150 @@
+{
+  "id": "watch/03-live-screen",
+  "title": "Живой экран: подписка, снимок и переподключение по курсору",
+  "summary": "Рецепт экрана, который показывает данные и сам обновляется: сервер открывает подписку, ждёт ready(), снимает снимок и шлёт события потоком SSE; клиент отбрасывает события версий, которые уже показывает. Поток оборвался — сервер говорит об этом клиенту, и тот переподключается с курсора последнего события: ничего не потеряно и не показано дважды.",
+  "tables": [],
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": [],
+    "counts": null
+  },
+  "steps": [
+    {
+      "title": "Экран открыт: подписка, ready(), снимок",
+      "text": "В «Ромашке» два заказа. Сервер экрана ходит в базу своим консьержем (через прокси — он понадобится, чтобы оборвать связь). Экран Анны подключается со своим токеном сессии; сервер открывает подписку, ждёт `ready()` и только потом снимает снимок. В этом окне Анна (в другой вкладке) оплачивает `A-2`: снимок уже показывает `paid` (rev 2), а событие той же версии приходит следом — экран сравнивает `rev` и пропускает его. Сними сервер снимок раньше подписки, запись в этом окне пропала бы с экрана.",
+      "code": "await me.Order().create({ number: 'A-1' }).rows();\nawait me.Order().create({ number: 'A-2' }).rows();\nconst u = new URL(pass);\nproxy = await dbProxy(u.hostname, Number(u.port || 5432));\nu.host = `127.0.0.1:${proxy.port}`;\nviaProxy = u.toString();\nhouse = await connect(viaProxy);\nserver = screenServer(() => house);\nserver.afterReady(() => me.Order({ number: 'A-2' }).update({ status: 'paid' }).rows());\nview = screen(await server.listen(), me.token!);\nawait view.until((_, j) => j.some((x) => x.includes('пропущено')));\nserver.afterReady(null);\nreturn { 'экран': view.view(), 'что делал экран': view.journal() };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ number: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'A-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ number: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'A-2'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> u</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> new</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> URL</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(pass);</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">proxy </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> dbProxy</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(u.hostname, </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Number</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(u.port </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">||</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> 5432</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">));</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">u.host </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> `127.0.0.1:${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">proxy</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">port</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">}`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">viaProxy </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> u.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">toString</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">house </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> connect</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(viaProxy);</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">server </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> screenServer</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(() </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> house);</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">server.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">afterReady</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(() </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ number: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'A-2'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ status: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'paid'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">());</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">view </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> screen</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> server.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">listen</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(), me.token</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> view.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">until</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">_</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">j</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> j.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">some</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">x</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> x.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">includes</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'пропущено'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">)));</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">server.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">afterReady</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">null</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'экран'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: view.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">view</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(), </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'что делал экран'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: view.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">journal</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">() };</span></span></code></pre>",
+      "result": {
+        "экран": [
+          "A-1: new (rev 1)",
+          "A-2: paid (rev 2)"
+        ],
+        "что делал экран": [
+          "снимок: A-1 new (rev 1), A-2 paid (rev 2)",
+          "A-2 rev 2: уже на экране — пропущено"
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": null,
+      "signals": [
+        "Order"
+      ]
+    },
+    {
+      "title": "Изменения приходят на экран",
+      "text": "Анна заводит `A-3` и оплачивает `A-1`. События приходят по порядку журнала, у каждого — курсор (`id` кадра SSE).",
+      "code": "await me.Order().create({ number: 'A-3' }).rows();\nawait me.Order({ number: 'A-1' }).update({ status: 'paid' }).rows();\nawait view.until((o) => o.has('A-3') && o.get('A-1')?.rev === 2);\nreturn { 'экран': view.view(), 'что делал экран': view.journal() };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ number: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'A-3'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ number: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'A-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ status: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'paid'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> view.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">until</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">o</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> o.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">has</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'A-3'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">&#x26;&#x26;</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> o.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">get</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'A-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">)?.rev </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">===</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> 2</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'экран'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: view.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">view</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(), </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'что делал экран'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: view.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">journal</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">() };</span></span></code></pre>",
+      "result": {
+        "экран": [
+          "A-1: paid (rev 2)",
+          "A-2: paid (rev 2)",
+          "A-3: new (rev 1)"
+        ],
+        "что делал экран": [
+          "A-3 rev 1: new — показано",
+          "A-1 rev 2: paid — показано"
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": null,
+      "signals": [
+        "Order"
+      ]
+    },
+    {
+      "title": "Обрыв связи с базой: ошибка в цикле — сигнал и переподключение",
+      "text": "Прокси рвёт соединение, по которому подписка сервера пойдёт читать журнал. Анна отменяет `A-2`; подписка просыпается, её запрос падает — и `for await` бросает ошибку. Сервер её не глотает: шлёт клиенту `reconnect` и закрывает поток. Клиент переподключается с курсором последнего события (`Last-Event-ID`), сервер открывает подписку с него — отмена приходит один раз.",
+      "code": "proxy.cut();\nawait me.Order({ number: 'A-2' }).update({ status: 'cancelled' }).rows();\nawait view.until((o) => o.get('A-2')?.status === 'cancelled');\nreturn { 'сервер': server.journal(), 'экран': view.view(), 'что делал экран': view.journal() };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">proxy.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">cut</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ number: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'A-2'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ status: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'cancelled'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> view.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">until</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">o</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> o.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">get</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'A-2'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">)?.status </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">===</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'cancelled'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'сервер'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: server.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">journal</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(), </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'экран'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: view.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">view</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(), </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'что делал экран'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: view.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">journal</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">() };</span></span></code></pre>",
+      "result": {
+        "сервер": [
+          "подписка упала с ошибкой — клиенту reconnect"
+        ],
+        "экран": [
+          "A-1: paid (rev 2)",
+          "A-2: cancelled (rev 3)",
+          "A-3: new (rev 1)"
+        ],
+        "что делал экран": [
+          "поток прерван — переподключение с курсора",
+          "A-2 rev 3: cancelled — показано"
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": null,
+      "signals": [
+        "Order"
+      ]
+    },
+    {
+      "title": "Сервер перезапущен: цикл кончился без ошибки",
+      "text": "Новый процесс сервера — новый консьерж; прежний закрыт (`close()`), и его подписки кончились: `for await` вышел без ошибки. Без сигнала клиент ждал бы событий из мёртвого потока вечно. Здесь сервер шлёт `reconnect`, экран переподключается с курсора и получает новый заказ `A-4`.",
+      "code": "const old = house;\nhouse = await connect(viaProxy);\nawait old.close();\nawait me.Order().create({ number: 'A-4' }).rows();\nawait view.until((o) => o.has('A-4'));\nreturn { 'сервер': server.journal(), 'экран': view.view(), 'что делал экран': view.journal() };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> old</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> house;</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">house </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> connect</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(viaProxy);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> old.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">close</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ number: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'A-4'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> view.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">until</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">o</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> o.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">has</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'A-4'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">));</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'сервер'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: server.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">journal</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(), </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'экран'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: view.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">view</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(), </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'что делал экран'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: view.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">journal</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">() };</span></span></code></pre>",
+      "result": {
+        "сервер": [
+          "подписка закрыта — клиенту reconnect"
+        ],
+        "экран": [
+          "A-1: paid (rev 2)",
+          "A-2: cancelled (rev 3)",
+          "A-3: new (rev 1)",
+          "A-4: new (rev 1)"
+        ],
+        "что делал экран": [
+          "поток прерван — переподключение с курсора",
+          "A-4 rev 1: new — показано"
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": null,
+      "signals": [
+        "Order"
+      ]
+    },
+    {
+      "title": "Выход: сессия погашена — переподключение не пускает",
+      "text": "Анна выходит: приложение гасит её сессию (`me.close()`) и закрывает потоки этой сессии на сервере. Экран переподключается, но `resume(token)` отвечает `auth_failed` — сервер шлёт `error`, и экран больше не переподключается: нужен новый вход. Закрывать потоки при выходе нужно самому: подписка погашенной сессии не падает, а молчит — журнал под её правами пуст.",
+      "code": "const token = me.token!;\nawait me.close();\nserver.endStreams(token);\nawait view.done;\nawait server.close();\nawait house.close();\nawait proxy.close();\nreturn { 'сервер': server.journal(), 'что делал экран': view.journal() };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> token</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.token</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">close</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">server.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">endStreams</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(token);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> view.done;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> server.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">close</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> house.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">close</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> proxy.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">close</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'сервер'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: server.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">journal</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(), </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'что делал экран'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: view.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">journal</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">() };</span></span></code></pre>",
+      "result": {
+        "сервер": [
+          "подписка закрыта — клиенту reconnect",
+          "сессии нет — клиенту error"
+        ],
+        "что делал экран": [
+          "поток прерван — переподключение с курсора",
+          "отказ auth_failed — экран закрыт, нужен вход"
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": null,
+      "signals": [
+        "session:‹токен 1›"
+      ]
+    }
+  ],
+  "output": "Шаг 1. Экран открыт: подписка, ready(), снимок\n{\n  \"экран\": [\n    \"A-1: new (rev 1)\",\n    \"A-2: paid (rev 2)\"\n  ],\n  \"что делал экран\": [\n    \"снимок: A-1 new (rev 1), A-2 paid (rev 2)\",\n    \"A-2 rev 2: уже на экране — пропущено\"\n  ]\n}\n\nШаг 2. Изменения приходят на экран\n{\n  \"экран\": [\n    \"A-1: paid (rev 2)\",\n    \"A-2: paid (rev 2)\",\n    \"A-3: new (rev 1)\"\n  ],\n  \"что делал экран\": [\n    \"A-3 rev 1: new — показано\",\n    \"A-1 rev 2: paid — показано\"\n  ]\n}\n\nШаг 3. Обрыв связи с базой: ошибка в цикле — сигнал и переподключение\n{\n  \"сервер\": [\n    \"подписка упала с ошибкой — клиенту reconnect\"\n  ],\n  \"экран\": [\n    \"A-1: paid (rev 2)\",\n    \"A-2: cancelled (rev 3)\",\n    \"A-3: new (rev 1)\"\n  ],\n  \"что делал экран\": [\n    \"поток прерван — переподключение с курсора\",\n    \"A-2 rev 3: cancelled — показано\"\n  ]\n}\n\nШаг 4. Сервер перезапущен: цикл кончился без ошибки\n{\n  \"сервер\": [\n    \"подписка закрыта — клиенту reconnect\"\n  ],\n  \"экран\": [\n    \"A-1: paid (rev 2)\",\n    \"A-2: cancelled (rev 3)\",\n    \"A-3: new (rev 1)\",\n    \"A-4: new (rev 1)\"\n  ],\n  \"что делал экран\": [\n    \"поток прерван — переподключение с курсора\",\n    \"A-4 rev 1: new — показано\"\n  ]\n}\n\nШаг 5. Выход: сессия погашена — переподключение не пускает\n{\n  \"сервер\": [\n    \"подписка закрыта — клиенту reconnect\",\n    \"сессии нет — клиенту error\"\n  ],\n  \"что делал экран\": [\n    \"поток прерван — переподключение с курсора\",\n    \"отказ auth_failed — экран закрыт, нужен вход\"\n  ]\n}"
+}

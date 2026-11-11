@@ -1,0 +1,827 @@
+{
+  "id": "auth/06-change-contact",
+  "title": "Смена контакта и имени: код на новый адрес, changeName",
+  "summary": "Контакт аккаунта — он же имя для входа — один на весь дом. me.changeContact(новый) просит код: библиотека выпускает его, почтальон доставляет на новый адрес. me.changeContact(новый + code) меняет контакт во всех квартирах сразу. Занятый контакт не взять, а менять контакт можно только после недавнего входа паролем или кодом. Имя аккаунта меняет me.changeName(имя) — сразу во всех квартирах человека.",
+  "tables": [
+    "secret"
+  ],
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": [
+      {
+        "account": "Ромашка",
+        "tenant": "Ромашка",
+        "kind": "INVITE",
+        "ident": "email:anna@romashka.ru",
+        "meta": {
+          "roles": [
+            "owner"
+          ],
+          "status": "used",
+          "contact": {
+            "kind": "email",
+            "address": "anna@romashka.ru"
+          },
+          "attempts": 0
+        },
+        "material": "‹хэш›",
+        "expires_at": "через 7 дн",
+        "created_at": "установка",
+        "deleted_at": "установка"
+      }
+    ],
+    "counts": null
+  },
+  "steps": [
+    {
+      "title": "Заявка: код уходит на новый адрес",
+      "text": "`me.changeContact({ email: новый })` — код (6 цифр, 10 минут, 5 попыток) почтальону на **новый** адрес, письмо `kind: 'contact'`: так видно, что адрес и правда Анны. Ответ — только срок; занят ли адрес, на этом шаге не сообщается. Анна только что приняла приглашение новым аккаунтом — это недавний вход, менять контакт можно.",
+      "code": "const asked = await me.changeContact({ email: 'anna@example.com' });\nconst letter = lastLetter('anna@example.com', 'contact');\nreturn { 'ответ': Object.keys(asked), 'письмо': { kind: letter.kind, code: '‹только в письме›' } };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> asked</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">changeContact</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ email: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'anna@example.com'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> letter</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> lastLetter</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'anna@example.com'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'contact'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'ответ'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: Object.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">keys</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(asked), </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'письмо'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: { kind: letter.kind, code: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'‹только в письме›'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> } };</span></span></code></pre>",
+      "result": {
+        "ответ": [
+          "expiresAt"
+        ],
+        "письмо": {
+          "kind": "contact",
+          "code": "‹только в письме›"
+        }
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "установка",
+          "deleted_at": "установка",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "System",
+          "kind": "OTP_CONTACT",
+          "ident": "Анна",
+          "meta": {
+            "ident": "email:anna@example.com",
+            "contact": {
+              "kind": "email",
+              "address": "anna@example.com"
+            },
+            "attempts": 0,
+            "max_attempts": 5
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 10 мин",
+          "created_at": "шаг 1",
+          "deleted_at": null,
+          "$new": true
+        }
+      ],
+      "counts": null,
+      "signals": []
+    },
+    {
+      "title": "Подтверждение кодом: контакт сменился везде",
+      "text": "`me.changeContact({ email: новый, code })` — контакт аккаунта и имя для входа у паролей во всех квартирах сменились; ответ — новый контакт. Пароль прежний, а входить им теперь с новым адресом: старый больше не подходит. Неверный код — `auth_failed` (`api.code_failed`).",
+      "code": "const wrong = await why(me.changeContact({ email: 'anna@example.com', code: '000000' }));\nconst changed = await me.changeContact({ email: 'anna@example.com', code: lastLetter('anna@example.com', 'contact').code });\nreturn {\n  'неверный код': wrong,\n  'контакт': changed.contact,\n  'вход с новым адресом': (await db.open({ email: 'anna@example.com', password: annaKey.password })).tenantName,\n  'вход со старым адресом': await why(db.open(annaKey)),\n};",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> wrong</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> why</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">changeContact</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ email: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'anna@example.com'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, code: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'000000'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }));</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> changed</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">changeContact</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ email: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'anna@example.com'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, code: </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">lastLetter</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'anna@example.com'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'contact'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).code });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'неверный код'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: wrong,</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'контакт'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: changed.contact,</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'вход с новым адресом'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">open</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ email: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'anna@example.com'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, password: annaKey.password })).tenantName,</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'вход со старым адресом'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> why</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">open</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(annaKey)),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">};</span></span></code></pre>",
+      "result": {
+        "неверный код": "auth_failed (api.code_failed)",
+        "контакт": {
+          "kind": "email",
+          "address": "anna@example.com"
+        },
+        "вход с новым адресом": "Ромашка",
+        "вход со старым адресом": "auth_failed (api.auth_failed)"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "установка",
+          "deleted_at": "установка",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "System",
+          "kind": "OTP_CONTACT",
+          "ident": "Анна",
+          "meta": {
+            "ident": "email:anna@example.com",
+            "contact": {
+              "kind": "email",
+              "address": "anna@example.com"
+            },
+            "attempts": 1,
+            "max_attempts": 5
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 10 мин",
+          "created_at": "шаг 1",
+          "deleted_at": "шаг 2",
+          "$new": true
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет PASSWORD·1",
+            "methods": [
+              "PASSWORD"
+            ],
+            "login_at": "шаг 2"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 2",
+          "deleted_at": null,
+          "$new": true
+        }
+      ],
+      "counts": null,
+      "signals": []
+    },
+    {
+      "title": "Занятый контакт не взять",
+      "text": "Олег — другой аккаунт дома. Анна просит сменить контакт на адрес Олега: первый шаг отвечает как обычно, код уходит на этот адрес. С кодом — отказ `exists` (`sql-access.identifier_taken`): один контакт — один аккаунт во всём доме. Узнать это можно только с кодом, то есть владея адресом.",
+      "code": "await inviteAndAccept(db, me, { email: 'oleg@romashka.ru' }, ['staff'], { password: 'Олег-2026!', name: 'Олег' });\nconst asked = await me.changeContact({ email: 'oleg@romashka.ru' });\nreturn {\n  'первый шаг': Object.keys(asked),\n  'с кодом': await why(me.changeContact({ email: 'oleg@romashka.ru', code: lastLetter('oleg@romashka.ru', 'contact').code })),\n};",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> inviteAndAccept</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, me, { email: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'oleg@romashka.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'staff'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">], { password: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Олег-2026!'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Олег'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> asked</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">changeContact</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ email: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'oleg@romashka.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'первый шаг'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: Object.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">keys</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(asked),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'с кодом'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> why</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">changeContact</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ email: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'oleg@romashka.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, code: </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">lastLetter</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'oleg@romashka.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'contact'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).code })),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">};</span></span></code></pre>",
+      "result": {
+        "первый шаг": [
+          "expiresAt"
+        ],
+        "с кодом": "exists (sql-access.identifier_taken)"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "установка",
+          "deleted_at": "установка",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "System",
+          "kind": "OTP_CONTACT",
+          "ident": "Анна",
+          "meta": {
+            "ident": "email:anna@example.com",
+            "contact": {
+              "kind": "email",
+              "address": "anna@example.com"
+            },
+            "attempts": 1,
+            "max_attempts": 5
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 10 мин",
+          "created_at": "шаг 1",
+          "deleted_at": "шаг 2",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет PASSWORD·1",
+            "methods": [
+              "PASSWORD"
+            ],
+            "login_at": "шаг 2"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 2",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:oleg@romashka.ru",
+          "meta": {
+            "by": "Анна",
+            "roles": [
+              "staff"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "oleg@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 3",
+          "deleted_at": "шаг 3",
+          "$new": true
+        },
+        {
+          "account": "Олег",
+          "tenant": "System",
+          "kind": "IDENT",
+          "ident": "email:oleg@romashka.ru",
+          "meta": {
+            "kind": "email",
+            "address": "oleg@romashka.ru"
+          },
+          "material": null,
+          "expires_at": null,
+          "created_at": "шаг 3",
+          "deleted_at": null,
+          "$new": true
+        },
+        {
+          "account": "Олег",
+          "tenant": "Ромашка",
+          "kind": "PASSWORD",
+          "ident": "email:oleg@romashka.ru",
+          "meta": {},
+          "material": "‹хэш›",
+          "expires_at": null,
+          "created_at": "шаг 3",
+          "deleted_at": null,
+          "$new": true
+        },
+        {
+          "account": "Олег",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет PASSWORD·2",
+            "methods": [
+              "INVITE",
+              "FIRST"
+            ],
+            "login_at": "шаг 3"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 3",
+          "deleted_at": null,
+          "$new": true
+        },
+        {
+          "account": "Анна",
+          "tenant": "System",
+          "kind": "OTP_CONTACT",
+          "ident": "Анна",
+          "meta": {
+            "ident": "email:oleg@romashka.ru",
+            "contact": {
+              "kind": "email",
+              "address": "oleg@romashka.ru"
+            },
+            "attempts": 0,
+            "max_attempts": 5
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 10 мин",
+          "created_at": "шаг 3",
+          "deleted_at": null,
+          "$new": true
+        }
+      ],
+      "counts": null,
+      "signals": [
+        "member"
+      ]
+    },
+    {
+      "title": "Без недавнего входа — нельзя",
+      "text": "Сессия ключа API — не интерактивный вход: менять из неё контакт нельзя, `acl_denied` (`sql-access.bind_denied`). Так же отвечает сессия из `accept` для аккаунта, который уже был: ссылку можно переслать. Нужен вход паролем или кодом не раньше 10 минут назад.",
+      "code": "const { key } = await me.keys.issueApiKey({ name: 'скрипт' });\nconst bot = await db.open({ apiKey: key });\nreturn { 'из сессии ключа API': await why(bot.changeContact({ email: 'anna@mail.ru' })) };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">key</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> } </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.keys.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">issueApiKey</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'скрипт'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> bot</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">open</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ apiKey: key });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'из сессии ключа API'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> why</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(bot.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">changeContact</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ email: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'anna@mail.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> })) };</span></span></code></pre>",
+      "result": {
+        "из сессии ключа API": "acl_denied (sql-access.bind_denied)"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "установка",
+          "deleted_at": "установка",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "System",
+          "kind": "OTP_CONTACT",
+          "ident": "Анна",
+          "meta": {
+            "ident": "email:anna@example.com",
+            "contact": {
+              "kind": "email",
+              "address": "anna@example.com"
+            },
+            "attempts": 1,
+            "max_attempts": 5
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 10 мин",
+          "created_at": "шаг 1",
+          "deleted_at": "шаг 2",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет PASSWORD·1",
+            "methods": [
+              "PASSWORD"
+            ],
+            "login_at": "шаг 2"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 2",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:oleg@romashka.ru",
+          "meta": {
+            "by": "Анна",
+            "roles": [
+              "staff"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "oleg@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 3",
+          "deleted_at": "шаг 3",
+          "$new": false
+        },
+        {
+          "account": "Олег",
+          "tenant": "System",
+          "kind": "IDENT",
+          "ident": "email:oleg@romashka.ru",
+          "meta": {
+            "kind": "email",
+            "address": "oleg@romashka.ru"
+          },
+          "material": null,
+          "expires_at": null,
+          "created_at": "шаг 3",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Олег",
+          "tenant": "Ромашка",
+          "kind": "PASSWORD",
+          "ident": "email:oleg@romashka.ru",
+          "meta": {},
+          "material": "‹хэш›",
+          "expires_at": null,
+          "created_at": "шаг 3",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Олег",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет PASSWORD·2",
+            "methods": [
+              "INVITE",
+              "FIRST"
+            ],
+            "login_at": "шаг 3"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 3",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "System",
+          "kind": "OTP_CONTACT",
+          "ident": "Анна",
+          "meta": {
+            "ident": "email:oleg@romashka.ru",
+            "contact": {
+              "kind": "email",
+              "address": "oleg@romashka.ru"
+            },
+            "attempts": 0,
+            "max_attempts": 5
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 10 мин",
+          "created_at": "шаг 3",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "APIKEY",
+          "ident": "‹токен 1›",
+          "meta": {
+            "name": "скрипт"
+          },
+          "material": "‹хэш›",
+          "expires_at": null,
+          "created_at": "шаг 4",
+          "deleted_at": null,
+          "$new": true
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет APIKEY·2",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "шаг 4"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 4",
+          "deleted_at": null,
+          "$new": true
+        }
+      ],
+      "counts": null,
+      "signals": []
+    },
+    {
+      "title": "Имя аккаунта: changeName",
+      "text": "Анна зовёт Лену, и Лена принимает приглашение, не назвав себя: имя нового аккаунта — пустая строка (адрес именем не становится). `me.changeName('Лена')` — человек сам задаёт имя: оно сразу меняется во всех его квартирах, хозяйка видит его в `me.acl.people()`. Нужен недавний вход, как для смены контакта; пустое имя — отказ. Приложение может поправить имя и от лица человека — корень консьержа `db.as(аккаунт, квартира)` («поддержка исправляет имя»); у консьержа в квартире (`db.in`) метода нет — он не жилец (`api.resident_only`).",
+      "code": "await me.invite({ email: 'lena@romashka.ru' }, ['staff']);\nconst lena = await db.accept(lastLetter('lena@romashka.ru', 'invite').token);\nconst nameOf = async (account: string) => (await me.acl.people()).find((p) => p.account === account)?.name;\nconst before = await nameOf(lena.account);\nawait lena.changeName('Лена');\nconst after = await nameOf(lena.account);\nconst empty = await why(lena.changeName(''));\nawait (await db.as(lena.account, 'Ромашка')).changeName('Елена');\nreturn {\n  'имя после accept без name': before,\n  'после changeName': after,\n  'пустое имя': empty,\n  'поддержка исправляет имя (db.as)': await nameOf(lena.account),\n  'консьерж в квартире (db.in)': await why((await db.in('Ромашка')).changeName('Кто-то')),\n};",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">invite</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ email: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'lena@romashka.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'staff'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">]);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> lena</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">accept</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">lastLetter</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'lena@romashka.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'invite'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).token);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> nameOf</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">account</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> string</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.acl.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">people</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">find</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">p</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> p.account </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">===</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> account)?.name;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> before</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> nameOf</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(lena.account);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> lena.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">changeName</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Лена'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> after</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> nameOf</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(lena.account);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> empty</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> why</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(lena.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">changeName</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">''</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">));</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">as</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(lena.account, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">)).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">changeName</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Елена'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'имя после accept без name'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: before,</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'после changeName'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: after,</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'пустое имя'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: empty,</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'поддержка исправляет имя (db.as)'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> nameOf</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(lena.account),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'консьерж в квартире (db.in)'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> why</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">in</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">)).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">changeName</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Кто-то'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">)),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">};</span></span></code></pre>",
+      "result": {
+        "имя после accept без name": "",
+        "после changeName": "Лена",
+        "пустое имя": "invalid_data (sql-access.name_args)",
+        "поддержка исправляет имя (db.as)": "Елена",
+        "консьерж в квартире (db.in)": "invalid_query (api.resident_only)"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "установка",
+          "deleted_at": "установка",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "System",
+          "kind": "OTP_CONTACT",
+          "ident": "Анна",
+          "meta": {
+            "ident": "email:anna@example.com",
+            "contact": {
+              "kind": "email",
+              "address": "anna@example.com"
+            },
+            "attempts": 1,
+            "max_attempts": 5
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 10 мин",
+          "created_at": "шаг 1",
+          "deleted_at": "шаг 2",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет PASSWORD·1",
+            "methods": [
+              "PASSWORD"
+            ],
+            "login_at": "шаг 2"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 2",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:oleg@romashka.ru",
+          "meta": {
+            "by": "Анна",
+            "roles": [
+              "staff"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "oleg@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 3",
+          "deleted_at": "шаг 3",
+          "$new": false
+        },
+        {
+          "account": "Олег",
+          "tenant": "System",
+          "kind": "IDENT",
+          "ident": "email:oleg@romashka.ru",
+          "meta": {
+            "kind": "email",
+            "address": "oleg@romashka.ru"
+          },
+          "material": null,
+          "expires_at": null,
+          "created_at": "шаг 3",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Олег",
+          "tenant": "Ромашка",
+          "kind": "PASSWORD",
+          "ident": "email:oleg@romashka.ru",
+          "meta": {},
+          "material": "‹хэш›",
+          "expires_at": null,
+          "created_at": "шаг 3",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Олег",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет PASSWORD·2",
+            "methods": [
+              "INVITE",
+              "FIRST"
+            ],
+            "login_at": "шаг 3"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 3",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "System",
+          "kind": "OTP_CONTACT",
+          "ident": "Анна",
+          "meta": {
+            "ident": "email:oleg@romashka.ru",
+            "contact": {
+              "kind": "email",
+              "address": "oleg@romashka.ru"
+            },
+            "attempts": 0,
+            "max_attempts": 5
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 10 мин",
+          "created_at": "шаг 3",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "APIKEY",
+          "ident": "‹токен 1›",
+          "meta": {
+            "name": "скрипт"
+          },
+          "material": "‹хэш›",
+          "expires_at": null,
+          "created_at": "шаг 4",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет APIKEY·2",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "шаг 4"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 4",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:lena@romashka.ru",
+          "meta": {
+            "by": "Анна",
+            "roles": [
+              "staff"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "lena@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 5",
+          "deleted_at": "шаг 5",
+          "$new": true
+        },
+        {
+          "account": "Елена",
+          "tenant": "System",
+          "kind": "IDENT",
+          "ident": "email:lena@romashka.ru",
+          "meta": {
+            "kind": "email",
+            "address": "lena@romashka.ru"
+          },
+          "material": null,
+          "expires_at": null,
+          "created_at": "шаг 5",
+          "deleted_at": null,
+          "$new": true
+        },
+        {
+          "account": "Елена",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "INVITE",
+              "FIRST"
+            ],
+            "login_at": "шаг 5"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 5",
+          "deleted_at": null,
+          "$new": true
+        }
+      ],
+      "counts": null,
+      "signals": [
+        "Account",
+        "member"
+      ]
+    }
+  ],
+  "output": "Шаг 1. Заявка: код уходит на новый адрес\n{\n  \"ответ\": [\n    \"expiresAt\"\n  ],\n  \"письмо\": {\n    \"kind\": \"contact\",\n    \"code\": \"‹только в письме›\"\n  }\n}\n\nШаг 2. Подтверждение кодом: контакт сменился везде\n{\n  \"неверный код\": \"auth_failed (api.code_failed)\",\n  \"контакт\": {\n    \"kind\": \"email\",\n    \"address\": \"anna@example.com\"\n  },\n  \"вход с новым адресом\": \"Ромашка\",\n  \"вход со старым адресом\": \"auth_failed (api.auth_failed)\"\n}\n\nШаг 3. Занятый контакт не взять\n{\n  \"первый шаг\": [\n    \"expiresAt\"\n  ],\n  \"с кодом\": \"exists (sql-access.identifier_taken)\"\n}\n\nШаг 4. Без недавнего входа — нельзя\n{\n  \"из сессии ключа API\": \"acl_denied (sql-access.bind_denied)\"\n}\n\nШаг 5. Имя аккаунта: changeName\n{\n  \"имя после accept без name\": \"\",\n  \"после changeName\": \"Лена\",\n  \"пустое имя\": \"invalid_data (sql-access.name_args)\",\n  \"поддержка исправляет имя (db.as)\": \"Елена\",\n  \"консьерж в квартире (db.in)\": \"invalid_query (api.resident_only)\"\n}"
+}

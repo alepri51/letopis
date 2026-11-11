@@ -1,5 +1,4 @@
-import { syncModels } from 'letopis';
-import type { Db } from 'letopis';
+import type { Room } from 'letopis';
 import { hub, link, one } from 'letopis/model';
 import { z } from 'zod';
 import { example } from '../_shared/example.ts';
@@ -14,8 +13,8 @@ let ball: { id: string }, anna: { id: string }, petr: { id: string }, loanId: st
 const who = (id: unknown) => (id === anna.id ? 'Анна' : id === petr.id ? 'Пётр' : id);
 
 /** Выдача «прочитал — проверил — записал» под forUpdate(): вещь берётся, только если она ещё свободна. */
-async function issue(db: Db, who: string, before?: () => Promise<void>) {
-  const tr = await db.begin({ reason: `выдача: ${who}` });
+async function issue(me: Room, who: string, before?: () => Promise<void>) {
+  const tr = await me.begin({ reason: `выдача: ${who}` });
   try {
     const free = await tr.Item({ code: 'B-1', status: 'free' }).forUpdate().first();
     await before?.(); // здесь пример ставит вторую выдачу в очередь
@@ -42,14 +41,17 @@ export default example({
   tables: ['entity'],
   classes: ['Item', 'OpenLoan'],
   covers: ['nuance.update-filter-race', 'nuance.one-open-by-key', 'nuance.restore-expect-stale', 'nuance.restore-partial', 'error.conflict'],
+  models: [Item, Member, OpenLoan],
   steps: [
     {
       title: 'Мяч и два участника',
-      run: async ({ db }) => {
-        await syncModels(db, [Item, Member, OpenLoan], { apply: true });
-        [ball] = await db.Item().create({ code: 'B-1', status: 'free' }).rows();
-        [anna] = await db.Member().create({ card: 'C-1', name: 'Анна' }).rows();
-        [petr] = await db.Member().create({ card: 'C-2', name: 'Пётр' }).rows();
+      text:
+        'Классы проката — модели дома. Выдачи в гонках ниже идут двумя транзакциями `me.begin()` одного корня квартиры: ' +
+        'у каждой своё соединение из пула, как у двух одновременных запросов к приложению.',
+      run: async ({ me }) => {
+        [ball] = await me.Item().create({ code: 'B-1', status: 'free' }).rows();
+        [anna] = await me.Member().create({ card: 'C-1', name: 'Анна' }).rows();
+        [petr] = await me.Member().create({ card: 'C-2', name: 'Пётр' }).rows();
         return ball;
       },
     },
@@ -61,19 +63,18 @@ export default example({
         'первая не зафиксировалась, и встала в очередь за строкой. Первая зафиксировалась — вторая перечитала мяч, ' +
         'увидела `status: \'out\'` и ничего не записала. Пустой ответ — это отказ «уже выдан». Так защищена одна строка; ' +
         'правило, которое зависит от других строк (сколько вещей на руках, есть ли открытая выдача), — `forUpdate()` или ключ.',
-      run: async ({ db, connect, dsn, schema, up, admin }) => {
-        const other = await connect({ dsn: dsn.app, schema, token: up.tenant!.token! });
-        const t1 = await db.begin(), t2 = await other.begin();
+      run: async ({ me, admin }) => {
+        const t1 = await me.begin(), t2 = await me.begin();
         const first = await t1.Item({ code: 'B-1', status: 'free' }).update({ status: 'out', holder: 'Анна' }).rows();
         const late = t2.Item({ code: 'B-1', status: 'free' }).update({ status: 'out', holder: 'Пётр' }).rows();
-        const waited = await waitForLock(admin as never);
+        const waited = await waitForLock(admin);
         await t1.commit();
         const second = await late;
         await t2.commit();
         return {
           'вторая ждала строку': waited, 'первая выдача, строк': first.length, 'вторая выдача, строк': second.length,
           'ответ второй': second.length ? 'выдана' : 'отказ: уже выдан',
-          'у кого мяч': (await db.Item(ball).first())!.data.holder,
+          'у кого мяч': (await me.Item(ball).first())!.data.holder,
         };
       },
     },
@@ -83,13 +84,12 @@ export default example({
         'Когда решение принимает код приложения (проверить ещё что-то, посчитать, спросить другой класс), читают под ' +
         'блокировкой: `forUpdate()` в транзакции блокирует строку и, дождавшись очереди, читает её заново — строка, ' +
         'которая перестала подходить под условия шага, в ответ не попадает. Вторая выдача получает пустой ответ и отказывает.',
-      run: async ({ db, connect, dsn, schema, up, admin }) => {
-        await db.Item(ball).update({ status: 'free', holder: null }, { reason: 'снова свободен' }).rows();
-        const other = await connect({ dsn: dsn.app, schema, token: up.tenant!.token! });
+      run: async ({ me, admin }) => {
+        await me.Item(ball).update({ status: 'free', holder: null }, { reason: 'снова свободен' }).rows();
         let second!: Promise<string>, waited = false;
-        const first = await issue(db, 'Анна', async () => {
-          second = issue(other, 'Пётр');
-          waited = await waitForLock(admin as never);
+        const first = await issue(me, 'Анна', async () => {
+          second = issue(me, 'Пётр');
+          waited = await waitForLock(admin);
         });
         return { 'вторая ждала строку': waited, 'первая': first, 'вторая': await second };
       },
@@ -99,12 +99,11 @@ export default example({
       text:
         'Без транзакции: оба прочли мяч свободным в одной версии и пишут с `{ rev }`. Первая запись подняла `rev`, ' +
         'вторая получает `conflict` — ничего не записано. Отказ приложение показывает как «уже выдан».',
-      run: async ({ db, connect, dsn, schema, up }) => {
-        await db.Item(ball).update({ status: 'free', holder: null }, { reason: 'снова свободен' }).rows();
-        const other = await connect({ dsn: dsn.app, schema, token: up.tenant!.token! });
-        const seenA = (await db.Item(ball).first())!, seenP = (await other.Item(ball).first())!;
-        const first = await db.Item(ball).update({ status: 'out', holder: 'Анна' }, { rev: seenA.rev }).rows();
-        const second = await other.Item(ball).update({ status: 'out', holder: 'Пётр' }, { rev: seenP.rev }).rows()
+      run: async ({ me }) => {
+        await me.Item(ball).update({ status: 'free', holder: null }, { reason: 'снова свободен' }).rows();
+        const seenA = (await me.Item(ball).first())!, seenP = (await me.Item(ball).first())!;
+        const first = await me.Item(ball).update({ status: 'out', holder: 'Анна' }, { rev: seenA.rev }).rows();
+        const second = await me.Item(ball).update({ status: 'out', holder: 'Пётр' }, { rev: seenP.rev }).rows()
           .then(() => 'записано', (e) => e.code);
         return { 'прочли версию': [seenA.rev, seenP.rev], 'первая': first.length ? 'записано' : 'пусто', 'вторая': second };
       },
@@ -115,9 +114,9 @@ export default example({
         'Надёжнее всего — уникальность ключом. У связи `OpenLoan` ключ — только конец `Item`, поэтому id выдачи ' +
         'вычисляется из вещи, и вторая открытая выдача той же вещи — `exists`, в том числе при одновременных запросах. ' +
         'Конец `Member` задают вызовом `.Member.set()`.',
-      run: async ({ db }) => {
-        const [loan] = await db.Item(ball).OpenLoan().create({ since: '2026-11-03' }).Member.set(anna).rows();
-        const again = await db.Item(ball).OpenLoan().create({ since: '2026-11-03' }).Member.set(petr).rows()
+      run: async ({ me }) => {
+        const [loan] = await me.Item(ball).OpenLoan().create({ since: '2026-11-03' }).Member.set(anna).rows();
+        const again = await me.Item(ball).OpenLoan().create({ since: '2026-11-03' }).Member.set(petr).rows()
           .then(() => 'создана', (e) => e.code);
         return { 'первая выдача': loan.links.Member === anna.id ? 'Анна' : loan.links.Member, 'вторая выдача': again };
       },
@@ -127,11 +126,11 @@ export default example({
       text:
         'Возврат — удаление открытой выдачи. Следующая выдача той же вещи создаётся тем же ключом и продолжает ' +
         'историю: в журнале выдачи вещи идут версиями одного объекта.',
-      run: async ({ db }) => {
-        const open = await db.Item(ball).OpenLoan().delete().rows(); // предпросмотр: что закроется
-        await db.Item(ball).OpenLoan().delete({ confirm: true, expect: open, reason: 'вернули' }).rows();
-        await db.Item(ball).OpenLoan().create({ since: '2026-11-04' }).Member.set(petr).rows();
-        return (await db.Item(ball).OpenLoan().versions()).map((v) => `v${v.rev} ${v.op} — ${who(v.links.Member)}`);
+      run: async ({ me }) => {
+        const open = await me.Item(ball).OpenLoan().delete().rows(); // предпросмотр: что закроется
+        await me.Item(ball).OpenLoan().delete({ confirm: true, expect: open, reason: 'вернули' }).rows();
+        await me.Item(ball).OpenLoan().create({ since: '2026-11-04' }).Member.set(petr).rows();
+        return (await me.Item(ball).OpenLoan().versions()).map((v) => `v${v.rev} ${v.op} — ${who(v.links.Member)}`);
       },
     },
     {
@@ -140,9 +139,9 @@ export default example({
         'Мяч у Петра. Петра удаляют (по ошибке), и его открытая выдача уходит каскадом (`onDelete(\'cascade\')` у конца ' +
         '`Member`). Ответ `delete` — надгробия этого удаления: у каждой строки `id`, `rev` надгробия и причина. Причину ' +
         'делайте своей для каждого удаления — по ней потом находят его каскад.',
-      run: async ({ db }) => {
-        const preview = await db.Member(petr).delete().rows(); // предпросмотр: Пётр и его открытая выдача
-        const gone = await db.Member(petr).delete({ confirm: true, expect: preview, reason: 'удалён по ошибке (оп. 41)' }).rows();
+      run: async ({ me }) => {
+        const preview = await me.Member(petr).delete().rows(); // предпросмотр: Пётр и его открытая выдача
+        const gone = await me.Member(petr).delete({ confirm: true, expect: preview, reason: 'удалён по ошибке (оп. 41)' }).rows();
         loanId = gone.find((r) => r.class === 'OpenLoan')!.id;
         return gone.map((r) => ({ class: r.class, rev: r.rev, deleted: r.$deleted, reason: r.reason }));
       },
@@ -153,11 +152,11 @@ export default example({
         'Мяч свободен — его выдают Анне и через день принимают. Выдача Анны — та же строка `OpenLoan` (id из ключа по ' +
         'вещи): её история продолжилась версией `create`, и последнее надгробие теперь — закрытая выдача Анны, а не Петра. ' +
         'Историю удалённой строки показывает `versions()` по её id — шаг с явным id берёт и удалённые.',
-      run: async ({ db }) => {
-        await db.Item(ball).OpenLoan().create({ since: '2026-11-05' }).Member.set(anna).rows();
-        const open = await db.Item(ball).OpenLoan().delete().rows(); // предпросмотр: что закроется
-        await db.Item(ball).OpenLoan().delete({ confirm: true, expect: open, reason: 'вернули' }).rows();
-        return (await db.OpenLoan(loanId).versions())
+      run: async ({ me }) => {
+        await me.Item(ball).OpenLoan().create({ since: '2026-11-05' }).Member.set(anna).rows();
+        const open = await me.Item(ball).OpenLoan().delete().rows(); // предпросмотр: что закроется
+        await me.Item(ball).OpenLoan().delete({ confirm: true, expect: open, reason: 'вернули' }).rows();
+        return (await me.OpenLoan(loanId).versions())
           .map((v) => `v${v.rev} ${v.op} — ${who(v.links.Member)}${v.reason ? ` (${v.reason})` : ''}`);
       },
     },
@@ -166,33 +165,33 @@ export default example({
       text:
         'Что ушло удалением Петра — его надгробия: ответ `delete` из шага 7 или, если его не сохранили, версии удаления ' +
         'в журнале с той же причиной (`withDeleted().versions()`, отбор `op === \'delete\'` и `reason`). Переход ' +
-        '`db.Member(petr).OpenLoan().withDeleted()` выдачу уже не найдёт: последняя версия выдачи ведёт на Анну. Петра ' +
+        '`me.Member(petr).OpenLoan().withDeleted()` выдачу уже не найдёт: последняя версия выдачи ведёт на Анну. Петра ' +
         'возвращает `restore({ expect: [его надгробие] })`, выдачи — одним вызовом `restore({ expect: надгробия, partial: ' +
         'true })`: вернутся те, чья последняя версия — то самое надгробие, а остальные придут строками-пропусками ' +
         '`$action: \'skip\'` с причиной `$why` — `changed` (после удаления строку пересоздавали, правили или удалили снова), ' +
         '`reissued` (id занял новый живой объект с тем же ключом), `restored` (уже вернули). Здесь после удаления мяч ' +
         'выдавали Анне: выдача — пропуск `changed`, ничего чужого не ожило, и приложение сообщает «не вернулась». ' +
         '`restore()` без `expect` — отказ: он вернул бы последний снимок — закрытую выдачу Анны, и мяч числился бы у неё.',
-      run: async ({ db }) => {
-        const [tomb] = await db.Member(petr).withDeleted().rows(); // надгробие Петра: причина удаления
+      run: async ({ me }) => {
+        const [tomb] = await me.Member(petr).withDeleted().rows(); // надгробие Петра: причина удаления
         // надгробия его каскада — версии удаления с той же причиной (их же вернул delete в шаге 7)
-        const loans = (await db.OpenLoan().withDeleted().versions()).filter((v) => v.op === 'delete' && v.reason === tomb.reason);
-        await db.Member(petr).restore({ expect: [tomb] }).rows();
-        const back = await db.OpenLoan(loans.map((l) => l.id)).restore({ expect: loans, partial: true }).rows();
+        const loans = (await me.OpenLoan().withDeleted().versions()).filter((v) => v.op === 'delete' && v.reason === tomb.reason);
+        await me.Member(petr).restore({ expect: [tomb] }).rows();
+        const back = await me.OpenLoan(loans.map((l) => l.id)).restore({ expect: loans, partial: true }).rows();
         const WHY = { changed: 'после удаления вещь выдавали другому', reissued: 'выдача этой вещи снова открыта', restored: 'её уже вернули' };
         const report: string[] = [];
         for (const r of back) {
-          const item = (await db.Item(r.links.Item as string).first())!.data.code;
+          const item = (await me.Item(r.links.Item as string).first())!.data.code;
           report.push(r.$action === 'skip' ? `${item}: не вернулась — ${WHY[r.$why!]} (${r.$why})` : `${item}: выдача вернулась`);
         }
-        const last = (await db.OpenLoan(loans[0].id).withDeleted().first())!;
+        const last = (await me.OpenLoan(loans[0].id).withDeleted().first())!;
         return {
-          'переход от Петра к его удалённым выдачам': (await db.Member(petr).OpenLoan().withDeleted().rows()).length,
+          'переход от Петра к его удалённым выдачам': (await me.Member(petr).OpenLoan().withDeleted().rows()).length,
           'выдач в удалении Петра': loans.length,
           'ответ restore': back.map((r) => ({ $action: r.$action ?? 'restore', $why: r.$why ?? null, rev: r.rev })),
           'ответ пользователю': report,
           'последний снимок выдачи': `${who(last.links.Member)}, ${last.$deleted ? 'закрыта' : 'открыта'}`,
-          'у Петра на руках': await db.Member(petr).OpenLoan().count(),
+          'у Петра на руках': await me.Member(petr).OpenLoan().count(),
         };
       },
     },

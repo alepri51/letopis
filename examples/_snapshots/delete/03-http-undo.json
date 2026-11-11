@@ -1,0 +1,4017 @@
+{
+  "id": "delete/03-http-undo",
+  "title": "Удаление по HTTP: предпросмотр, подтверждение, отмена",
+  "summary": "Рецепт веб-сервиса на node:http: предпросмотр удаления отдаёт строки и билет, подтверждение удаляет ровно показанное (delete с expect из билета), ответ — надгробия и билет отмены, отмена возвращает удалённое restore({ expect: надгробия }). Жилец в каждом запросе — db.resume(токен из cookie). Билет гасят только после записи, а повтор запроса с тем же requestId получает сохранённый ответ — если тело то же.",
+  "tables": [
+    "entity",
+    "log"
+  ],
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": [],
+    "counts": null
+  },
+  "steps": [
+    {
+      "title": "Предпросмотр: строки заказа и билет",
+      "text": "Сервер в начале программы — обычный `node:http`: консьерж `db` открывает жильца по токену сессии из cookie (`db.resume(sid)`) в каждом запросе; сама сессия — та, что открыл вход (`me.token`). `GET /orders/:id/delete` строит предпросмотр `delete()` заказа A-2 и запоминает его на сервере под случайным **билетом**: клиент получает строки для показа и билет, а сами строки `expect` остаются на сервере. Без cookie — 401. Сервер поднимается на свободном порту и закрывается в конце шага.",
+      "code": "d = await seedShop(me);\nconst app = await start(db);\nconst r = await app.call(me.token!, 'GET', `/orders/${d.order2}/delete`);\nticket = r.body.ticket as string; // клиент хранит билет, пока пользователь смотрит\nconst anonymous = await app.call('', 'GET', `/orders/${d.order2}/delete`);\nawait app.stop();\nreturn { 'предпросмотр': print(r), 'без cookie': anonymous.status };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">d </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> seedShop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(me);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> app</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> start</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> r</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> app.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">call</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(me.token</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'GET'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">`/orders/${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">d</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">order2</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">}/delete`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">);</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">ticket </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> r.body.ticket </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">as</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> string</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">; </span><span style=\"color:#6A737D;--shiki-dark:#6A737D\">// клиент хранит билет, пока пользователь смотрит</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> anonymous</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> app.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">call</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">''</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'GET'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">`/orders/${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">d</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">order2</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">}/delete`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> app.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">stop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'предпросмотр'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">print</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(r), </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'без cookie'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: anonymous.status };</span></span></code></pre>",
+      "result": {
+        "предпросмотр": {
+          "status": 200,
+          "preview": [
+            {
+              "what": "заказ A-2",
+              "action": "delete",
+              "depth": 0
+            },
+            {
+              "what": "строка: 1 шт. по 1500",
+              "action": "delete",
+              "depth": 1
+            }
+          ],
+          "ticket": "‹билет›"
+        },
+        "без cookie": 401
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "Shop «Ромашка»",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t1",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "Shop «Лютик»",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Уфа",
+            "name": "Лютик"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t2",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "Category «Чай»",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t3",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "Category «Зелёный чай»",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Parent": "Category «Чай»"
+          },
+          "data": {
+            "name": "Зелёный чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t4",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "Category «Посуда»",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Посуда"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t5",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "Product «Чайник»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Category": [
+              "Category «Посуда»"
+            ]
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "белый",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит",
+              "стекло"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t6",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "Product «Сенча»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Category": [
+              "Category «Зелёный чай»"
+            ]
+          },
+          "data": {
+            "sku": "T-7",
+            "price": 900,
+            "title": "Сенча",
+            "labels": [
+              "хит"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t7",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "Product «Пуэр»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Category": [
+              "Category «Чай»"
+            ]
+          },
+          "data": {
+            "sku": "T-9",
+            "price": 1500,
+            "title": "Пуэр"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t8",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "Product «Кружка»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Лютик»",
+            "Category": [
+              "Category «Посуда»"
+            ]
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "стекло"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t9",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "Customer «Ольга»",
+          "class": "Customer",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Ольга",
+            "email": "olga@mail.ru"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t10",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "Vip «Иван»",
+          "class": "Vip",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Иван",
+            "email": "ivan@mail.ru",
+            "discount": 10
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t11",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "Order «A-1»",
+          "class": "Order",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Customer": "Customer «Ольга»"
+          },
+          "data": {
+            "number": "A-1",
+            "status": "new"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t12",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "line·1",
+          "class": "line",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Order": "Order «A-1»",
+            "Product": "Product «Чайник»"
+          },
+          "data": {
+            "qty": 1,
+            "price": 2500
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t12",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "line·2",
+          "class": "line",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Order": "Order «A-1»",
+            "Product": "Product «Сенча»"
+          },
+          "data": {
+            "qty": 2,
+            "price": 900
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t13",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "Order «A-2»",
+          "class": "Order",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Customer": "Vip «Иван»"
+          },
+          "data": {
+            "number": "A-2",
+            "status": "paid"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t14",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "line·3",
+          "class": "line",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Order": "Order «A-2»",
+            "Product": "Product «Пуэр»"
+          },
+          "data": {
+            "qty": 1,
+            "price": 1500
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t14",
+          "$changed": [
+            "*"
+          ]
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "48",
+          "id": "Shop «Ромашка»",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t1",
+          "$new": true
+        },
+        {
+          "seq": "49",
+          "id": "Shop «Лютик»",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Уфа",
+            "name": "Лютик"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t2",
+          "$new": true
+        },
+        {
+          "seq": "50",
+          "id": "Category «Чай»",
+          "rev": 1,
+          "class": "Category",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t3",
+          "$new": true
+        },
+        {
+          "seq": "51",
+          "id": "Category «Зелёный чай»",
+          "rev": 1,
+          "class": "Category",
+          "tenant": "Ромашка",
+          "links": {
+            "Parent": "Category «Чай»"
+          },
+          "data": {
+            "name": "Зелёный чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t4",
+          "$new": true
+        },
+        {
+          "seq": "52",
+          "id": "Category «Посуда»",
+          "rev": 1,
+          "class": "Category",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Посуда"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t5",
+          "$new": true
+        },
+        {
+          "seq": "53",
+          "id": "Product «Чайник»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Category": [
+              "Category «Посуда»"
+            ]
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "белый",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит",
+              "стекло"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t6",
+          "$new": true
+        },
+        {
+          "seq": "54",
+          "id": "Product «Сенча»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Category": [
+              "Category «Зелёный чай»"
+            ]
+          },
+          "data": {
+            "sku": "T-7",
+            "price": 900,
+            "title": "Сенча",
+            "labels": [
+              "хит"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t7",
+          "$new": true
+        },
+        {
+          "seq": "55",
+          "id": "Product «Пуэр»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Category": [
+              "Category «Чай»"
+            ]
+          },
+          "data": {
+            "sku": "T-9",
+            "price": 1500,
+            "title": "Пуэр"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t8",
+          "$new": true
+        },
+        {
+          "seq": "56",
+          "id": "Product «Кружка»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Лютик»",
+            "Category": [
+              "Category «Посуда»"
+            ]
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "стекло"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t9",
+          "$new": true
+        },
+        {
+          "seq": "57",
+          "id": "Customer «Ольга»",
+          "rev": 1,
+          "class": "Customer",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Ольга",
+            "email": "olga@mail.ru"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t10",
+          "$new": true
+        },
+        {
+          "seq": "58",
+          "id": "Vip «Иван»",
+          "rev": 1,
+          "class": "Vip",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Иван",
+            "email": "ivan@mail.ru",
+            "discount": 10
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t11",
+          "$new": true
+        },
+        {
+          "seq": "59",
+          "id": "Order «A-1»",
+          "rev": 1,
+          "class": "Order",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Customer": "Customer «Ольга»"
+          },
+          "data": {
+            "number": "A-1",
+            "status": "new"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t12",
+          "$new": true
+        },
+        {
+          "seq": "60",
+          "id": "line·1",
+          "rev": 1,
+          "class": "line",
+          "tenant": "Ромашка",
+          "links": {
+            "Order": "Order «A-1»",
+            "Product": "Product «Чайник»"
+          },
+          "data": {
+            "qty": 1,
+            "price": 2500
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t12",
+          "$new": true
+        },
+        {
+          "seq": "61",
+          "id": "line·2",
+          "rev": 1,
+          "class": "line",
+          "tenant": "Ромашка",
+          "links": {
+            "Order": "Order «A-1»",
+            "Product": "Product «Сенча»"
+          },
+          "data": {
+            "qty": 2,
+            "price": 900
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t13",
+          "$new": true
+        },
+        {
+          "seq": "62",
+          "id": "Order «A-2»",
+          "rev": 1,
+          "class": "Order",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Customer": "Vip «Иван»"
+          },
+          "data": {
+            "number": "A-2",
+            "status": "paid"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t14",
+          "$new": true
+        },
+        {
+          "seq": "63",
+          "id": "line·3",
+          "rev": 1,
+          "class": "line",
+          "tenant": "Ромашка",
+          "links": {
+            "Order": "Order «A-2»",
+            "Product": "Product «Пуэр»"
+          },
+          "data": {
+            "qty": 1,
+            "price": 1500
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t14",
+          "$new": true
+        }
+      ],
+      "secret": [],
+      "counts": null,
+      "signals": [
+        "Category",
+        "Customer",
+        "Order",
+        "Product",
+        "Shop",
+        "Vip",
+        "line"
+      ]
+    },
+    {
+      "title": "Пока смотрели, заказ изменился: 409 и новый предпросмотр",
+      "text": "Из другой вкладки в строке заказа поменяли количество: у строки новая версия (`rev`). Подтверждение `POST /orders/:id/delete` с билетом и `requestId` вызывает `delete({ confirm: true, expect })` — строки из билета. Предпросмотр уже другой: `conflict`, ничего не удалено, новый предпросмотр — в `err.detail.preview`. Сервер отвечает 409 с ним и новым билетом, прежний гасит.",
+      "code": "await me.Order(d.order2).line().update({ qty: 2 }).rows(); // другая вкладка\nconst app = await start(db);\nconst r = await app.call(me.token!, 'POST', `/orders/${d.order2}/delete`, { ticket, requestId: 'r-1' });\nticket = r.body.ticket as string; // новый билет — к новому предпросмотру\nawait app.stop();\nreturn print(r);",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order2).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">line</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ qty: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">2</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(); </span><span style=\"color:#6A737D;--shiki-dark:#6A737D\">// другая вкладка</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> app</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> start</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> r</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> app.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">call</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(me.token</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'POST'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">`/orders/${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">d</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">order2</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">}/delete`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, { ticket, requestId: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'r-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">ticket </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> r.body.ticket </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">as</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> string</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">; </span><span style=\"color:#6A737D;--shiki-dark:#6A737D\">// новый билет — к новому предпросмотру</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> app.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">stop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> print</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(r);</span></span></code></pre>",
+      "result": {
+        "status": 409,
+        "error": "заказ изменился",
+        "preview": [
+          {
+            "what": "заказ A-2",
+            "action": "delete",
+            "depth": 0
+          },
+          {
+            "what": "строка: 2 шт. по 1500",
+            "action": "delete",
+            "depth": 1
+          }
+        ],
+        "ticket": "‹билет›"
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "Shop «Ромашка»",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t1",
+          "$changed": []
+        },
+        {
+          "id": "Shop «Лютик»",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Уфа",
+            "name": "Лютик"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t2",
+          "$changed": []
+        },
+        {
+          "id": "Category «Чай»",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t3",
+          "$changed": []
+        },
+        {
+          "id": "Category «Зелёный чай»",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Parent": "Category «Чай»"
+          },
+          "data": {
+            "name": "Зелёный чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t4",
+          "$changed": []
+        },
+        {
+          "id": "Category «Посуда»",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Посуда"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t5",
+          "$changed": []
+        },
+        {
+          "id": "Product «Чайник»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Category": [
+              "Category «Посуда»"
+            ]
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "белый",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит",
+              "стекло"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t6",
+          "$changed": []
+        },
+        {
+          "id": "Product «Сенча»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Category": [
+              "Category «Зелёный чай»"
+            ]
+          },
+          "data": {
+            "sku": "T-7",
+            "price": 900,
+            "title": "Сенча",
+            "labels": [
+              "хит"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t7",
+          "$changed": []
+        },
+        {
+          "id": "Product «Пуэр»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Category": [
+              "Category «Чай»"
+            ]
+          },
+          "data": {
+            "sku": "T-9",
+            "price": 1500,
+            "title": "Пуэр"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t8",
+          "$changed": []
+        },
+        {
+          "id": "Product «Кружка»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Лютик»",
+            "Category": [
+              "Category «Посуда»"
+            ]
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "стекло"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t9",
+          "$changed": []
+        },
+        {
+          "id": "Customer «Ольга»",
+          "class": "Customer",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Ольга",
+            "email": "olga@mail.ru"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t10",
+          "$changed": []
+        },
+        {
+          "id": "Vip «Иван»",
+          "class": "Vip",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Иван",
+            "email": "ivan@mail.ru",
+            "discount": 10
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t11",
+          "$changed": []
+        },
+        {
+          "id": "Order «A-1»",
+          "class": "Order",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Customer": "Customer «Ольга»"
+          },
+          "data": {
+            "number": "A-1",
+            "status": "new"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t12",
+          "$changed": []
+        },
+        {
+          "id": "line·1",
+          "class": "line",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Order": "Order «A-1»",
+            "Product": "Product «Чайник»"
+          },
+          "data": {
+            "qty": 1,
+            "price": 2500
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t12",
+          "$changed": []
+        },
+        {
+          "id": "line·2",
+          "class": "line",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Order": "Order «A-1»",
+            "Product": "Product «Сенча»"
+          },
+          "data": {
+            "qty": 2,
+            "price": 900
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t13",
+          "$changed": []
+        },
+        {
+          "id": "Order «A-2»",
+          "class": "Order",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Customer": "Vip «Иван»"
+          },
+          "data": {
+            "number": "A-2",
+            "status": "paid"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t14",
+          "$changed": []
+        },
+        {
+          "id": "line·3",
+          "class": "line",
+          "rev": 2,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Order": "Order «A-2»",
+            "Product": "Product «Пуэр»"
+          },
+          "data": {
+            "qty": 2,
+            "price": 1500
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t15",
+          "$changed": [
+            "rev",
+            "data.qty",
+            "op",
+            "at"
+          ]
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "48",
+          "id": "Shop «Ромашка»",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "49",
+          "id": "Shop «Лютик»",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Уфа",
+            "name": "Лютик"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t2",
+          "$new": false
+        },
+        {
+          "seq": "50",
+          "id": "Category «Чай»",
+          "rev": 1,
+          "class": "Category",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t3",
+          "$new": false
+        },
+        {
+          "seq": "51",
+          "id": "Category «Зелёный чай»",
+          "rev": 1,
+          "class": "Category",
+          "tenant": "Ромашка",
+          "links": {
+            "Parent": "Category «Чай»"
+          },
+          "data": {
+            "name": "Зелёный чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t4",
+          "$new": false
+        },
+        {
+          "seq": "52",
+          "id": "Category «Посуда»",
+          "rev": 1,
+          "class": "Category",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Посуда"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t5",
+          "$new": false
+        },
+        {
+          "seq": "53",
+          "id": "Product «Чайник»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Category": [
+              "Category «Посуда»"
+            ]
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "белый",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит",
+              "стекло"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t6",
+          "$new": false
+        },
+        {
+          "seq": "54",
+          "id": "Product «Сенча»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Category": [
+              "Category «Зелёный чай»"
+            ]
+          },
+          "data": {
+            "sku": "T-7",
+            "price": 900,
+            "title": "Сенча",
+            "labels": [
+              "хит"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t7",
+          "$new": false
+        },
+        {
+          "seq": "55",
+          "id": "Product «Пуэр»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Category": [
+              "Category «Чай»"
+            ]
+          },
+          "data": {
+            "sku": "T-9",
+            "price": 1500,
+            "title": "Пуэр"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t8",
+          "$new": false
+        },
+        {
+          "seq": "56",
+          "id": "Product «Кружка»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Лютик»",
+            "Category": [
+              "Category «Посуда»"
+            ]
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "стекло"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t9",
+          "$new": false
+        },
+        {
+          "seq": "57",
+          "id": "Customer «Ольга»",
+          "rev": 1,
+          "class": "Customer",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Ольга",
+            "email": "olga@mail.ru"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t10",
+          "$new": false
+        },
+        {
+          "seq": "58",
+          "id": "Vip «Иван»",
+          "rev": 1,
+          "class": "Vip",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Иван",
+            "email": "ivan@mail.ru",
+            "discount": 10
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t11",
+          "$new": false
+        },
+        {
+          "seq": "59",
+          "id": "Order «A-1»",
+          "rev": 1,
+          "class": "Order",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Customer": "Customer «Ольга»"
+          },
+          "data": {
+            "number": "A-1",
+            "status": "new"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t12",
+          "$new": false
+        },
+        {
+          "seq": "60",
+          "id": "line·1",
+          "rev": 1,
+          "class": "line",
+          "tenant": "Ромашка",
+          "links": {
+            "Order": "Order «A-1»",
+            "Product": "Product «Чайник»"
+          },
+          "data": {
+            "qty": 1,
+            "price": 2500
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t12",
+          "$new": false
+        },
+        {
+          "seq": "61",
+          "id": "line·2",
+          "rev": 1,
+          "class": "line",
+          "tenant": "Ромашка",
+          "links": {
+            "Order": "Order «A-1»",
+            "Product": "Product «Сенча»"
+          },
+          "data": {
+            "qty": 2,
+            "price": 900
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t13",
+          "$new": false
+        },
+        {
+          "seq": "62",
+          "id": "Order «A-2»",
+          "rev": 1,
+          "class": "Order",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Customer": "Vip «Иван»"
+          },
+          "data": {
+            "number": "A-2",
+            "status": "paid"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t14",
+          "$new": false
+        },
+        {
+          "seq": "63",
+          "id": "line·3",
+          "rev": 1,
+          "class": "line",
+          "tenant": "Ромашка",
+          "links": {
+            "Order": "Order «A-2»",
+            "Product": "Product «Пуэр»"
+          },
+          "data": {
+            "qty": 1,
+            "price": 1500
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t14",
+          "$new": false
+        },
+        {
+          "seq": "64",
+          "id": "line·3",
+          "rev": 2,
+          "class": "line",
+          "tenant": "Ромашка",
+          "links": {
+            "Order": "Order «A-2»",
+            "Product": "Product «Пуэр»"
+          },
+          "data": {
+            "qty": 2,
+            "price": 1500
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t15",
+          "$new": true
+        }
+      ],
+      "secret": [],
+      "counts": null,
+      "signals": [
+        "line"
+      ]
+    },
+    {
+      "title": "Подтверждение: надгробия и билет отмены",
+      "text": "Пользователь посмотрел новый предпросмотр и подтвердил (`r-2`). Удалено ровно показанное: заказ и его строка. Порядок на сервере — сначала запись, потом гашение билета: погаси сервер билет до удаления, повтор после потерянного ответа упёрся бы в «билет погашен», так и не узнав, что удаление прошло. Ответ — надгробия и билет отмены: под ним сервер хранит надгробия этого удаления. Ответ сохранён под `requestId`.",
+      "code": "const app = await start(db);\nconfirmed = await app.call(me.token!, 'POST', `/orders/${d.order2}/delete`, { ticket, requestId: 'r-2' });\nundoTicket = confirmed.body.undo as string;\nawait app.stop();\nreturn print(confirmed);",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> app</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> start</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db);</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">confirmed </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> app.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">call</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(me.token</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'POST'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">`/orders/${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">d</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">order2</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">}/delete`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, { ticket, requestId: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'r-2'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">undoTicket </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> confirmed.body.undo </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">as</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> string</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> app.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">stop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> print</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(confirmed);</span></span></code></pre>",
+      "result": {
+        "status": 200,
+        "deleted": [
+          {
+            "what": "заказ A-2"
+          },
+          {
+            "what": "строка: 2 шт. по 1500"
+          }
+        ],
+        "undo": "‹билет отмены›"
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "Shop «Ромашка»",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t1",
+          "$changed": []
+        },
+        {
+          "id": "Shop «Лютик»",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Уфа",
+            "name": "Лютик"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t2",
+          "$changed": []
+        },
+        {
+          "id": "Category «Чай»",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t3",
+          "$changed": []
+        },
+        {
+          "id": "Category «Зелёный чай»",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Parent": "Category «Чай»"
+          },
+          "data": {
+            "name": "Зелёный чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t4",
+          "$changed": []
+        },
+        {
+          "id": "Category «Посуда»",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Посуда"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t5",
+          "$changed": []
+        },
+        {
+          "id": "Product «Чайник»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Category": [
+              "Category «Посуда»"
+            ]
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "белый",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит",
+              "стекло"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t6",
+          "$changed": []
+        },
+        {
+          "id": "Product «Сенча»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Category": [
+              "Category «Зелёный чай»"
+            ]
+          },
+          "data": {
+            "sku": "T-7",
+            "price": 900,
+            "title": "Сенча",
+            "labels": [
+              "хит"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t7",
+          "$changed": []
+        },
+        {
+          "id": "Product «Пуэр»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Category": [
+              "Category «Чай»"
+            ]
+          },
+          "data": {
+            "sku": "T-9",
+            "price": 1500,
+            "title": "Пуэр"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t8",
+          "$changed": []
+        },
+        {
+          "id": "Product «Кружка»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Лютик»",
+            "Category": [
+              "Category «Посуда»"
+            ]
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "стекло"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t9",
+          "$changed": []
+        },
+        {
+          "id": "Customer «Ольга»",
+          "class": "Customer",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Ольга",
+            "email": "olga@mail.ru"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t10",
+          "$changed": []
+        },
+        {
+          "id": "Vip «Иван»",
+          "class": "Vip",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Иван",
+            "email": "ivan@mail.ru",
+            "discount": 10
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t11",
+          "$changed": []
+        },
+        {
+          "id": "Order «A-1»",
+          "class": "Order",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Customer": "Customer «Ольга»"
+          },
+          "data": {
+            "number": "A-1",
+            "status": "new"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t12",
+          "$changed": []
+        },
+        {
+          "id": "line·1",
+          "class": "line",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Order": "Order «A-1»",
+            "Product": "Product «Чайник»"
+          },
+          "data": {
+            "qty": 1,
+            "price": 2500
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t12",
+          "$changed": []
+        },
+        {
+          "id": "line·2",
+          "class": "line",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Order": "Order «A-1»",
+            "Product": "Product «Сенча»"
+          },
+          "data": {
+            "qty": 2,
+            "price": 900
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t13",
+          "$changed": []
+        }
+      ],
+      "removed": [
+        {
+          "id": "Order «A-2»",
+          "class": "Order",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Customer": "Vip «Иван»"
+          },
+          "data": {
+            "number": "A-2",
+            "status": "paid"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t14"
+        },
+        {
+          "id": "line·3",
+          "class": "line",
+          "rev": 2,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Order": "Order «A-2»",
+            "Product": "Product «Пуэр»"
+          },
+          "data": {
+            "qty": 2,
+            "price": 1500
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t15"
+        }
+      ],
+      "log": [
+        {
+          "seq": "48",
+          "id": "Shop «Ромашка»",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "49",
+          "id": "Shop «Лютик»",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Уфа",
+            "name": "Лютик"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t2",
+          "$new": false
+        },
+        {
+          "seq": "50",
+          "id": "Category «Чай»",
+          "rev": 1,
+          "class": "Category",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t3",
+          "$new": false
+        },
+        {
+          "seq": "51",
+          "id": "Category «Зелёный чай»",
+          "rev": 1,
+          "class": "Category",
+          "tenant": "Ромашка",
+          "links": {
+            "Parent": "Category «Чай»"
+          },
+          "data": {
+            "name": "Зелёный чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t4",
+          "$new": false
+        },
+        {
+          "seq": "52",
+          "id": "Category «Посуда»",
+          "rev": 1,
+          "class": "Category",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Посуда"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t5",
+          "$new": false
+        },
+        {
+          "seq": "53",
+          "id": "Product «Чайник»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Category": [
+              "Category «Посуда»"
+            ]
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "белый",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит",
+              "стекло"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t6",
+          "$new": false
+        },
+        {
+          "seq": "54",
+          "id": "Product «Сенча»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Category": [
+              "Category «Зелёный чай»"
+            ]
+          },
+          "data": {
+            "sku": "T-7",
+            "price": 900,
+            "title": "Сенча",
+            "labels": [
+              "хит"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t7",
+          "$new": false
+        },
+        {
+          "seq": "55",
+          "id": "Product «Пуэр»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Category": [
+              "Category «Чай»"
+            ]
+          },
+          "data": {
+            "sku": "T-9",
+            "price": 1500,
+            "title": "Пуэр"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t8",
+          "$new": false
+        },
+        {
+          "seq": "56",
+          "id": "Product «Кружка»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Лютик»",
+            "Category": [
+              "Category «Посуда»"
+            ]
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "стекло"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t9",
+          "$new": false
+        },
+        {
+          "seq": "57",
+          "id": "Customer «Ольга»",
+          "rev": 1,
+          "class": "Customer",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Ольга",
+            "email": "olga@mail.ru"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t10",
+          "$new": false
+        },
+        {
+          "seq": "58",
+          "id": "Vip «Иван»",
+          "rev": 1,
+          "class": "Vip",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Иван",
+            "email": "ivan@mail.ru",
+            "discount": 10
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t11",
+          "$new": false
+        },
+        {
+          "seq": "59",
+          "id": "Order «A-1»",
+          "rev": 1,
+          "class": "Order",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Customer": "Customer «Ольга»"
+          },
+          "data": {
+            "number": "A-1",
+            "status": "new"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t12",
+          "$new": false
+        },
+        {
+          "seq": "60",
+          "id": "line·1",
+          "rev": 1,
+          "class": "line",
+          "tenant": "Ромашка",
+          "links": {
+            "Order": "Order «A-1»",
+            "Product": "Product «Чайник»"
+          },
+          "data": {
+            "qty": 1,
+            "price": 2500
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t12",
+          "$new": false
+        },
+        {
+          "seq": "61",
+          "id": "line·2",
+          "rev": 1,
+          "class": "line",
+          "tenant": "Ромашка",
+          "links": {
+            "Order": "Order «A-1»",
+            "Product": "Product «Сенча»"
+          },
+          "data": {
+            "qty": 2,
+            "price": 900
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t13",
+          "$new": false
+        },
+        {
+          "seq": "62",
+          "id": "Order «A-2»",
+          "rev": 1,
+          "class": "Order",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Customer": "Vip «Иван»"
+          },
+          "data": {
+            "number": "A-2",
+            "status": "paid"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t14",
+          "$new": false
+        },
+        {
+          "seq": "63",
+          "id": "line·3",
+          "rev": 1,
+          "class": "line",
+          "tenant": "Ромашка",
+          "links": {
+            "Order": "Order «A-2»",
+            "Product": "Product «Пуэр»"
+          },
+          "data": {
+            "qty": 1,
+            "price": 1500
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t14",
+          "$new": false
+        },
+        {
+          "seq": "64",
+          "id": "line·3",
+          "rev": 2,
+          "class": "line",
+          "tenant": "Ромашка",
+          "links": {
+            "Order": "Order «A-2»",
+            "Product": "Product «Пуэр»"
+          },
+          "data": {
+            "qty": 2,
+            "price": 1500
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t15",
+          "$new": false
+        },
+        {
+          "seq": "65",
+          "id": "Order «A-2»",
+          "rev": 2,
+          "class": "Order",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Customer": "Vip «Иван»"
+          },
+          "data": {
+            "number": "A-2",
+            "status": "paid"
+          },
+          "tags": [],
+          "op": "delete",
+          "author": "Анна",
+          "agent": null,
+          "reason": "удаление, запрос r-2",
+          "at": "t16",
+          "$new": true
+        },
+        {
+          "seq": "66",
+          "id": "line·3",
+          "rev": 3,
+          "class": "line",
+          "tenant": "Ромашка",
+          "links": {
+            "Order": "Order «A-2»",
+            "Product": "Product «Пуэр»"
+          },
+          "data": {
+            "qty": 2,
+            "price": 1500
+          },
+          "tags": [],
+          "op": "delete",
+          "author": "Анна",
+          "agent": null,
+          "reason": "удаление, запрос r-2",
+          "at": "t16",
+          "$new": true
+        }
+      ],
+      "secret": [],
+      "counts": null,
+      "signals": [
+        "Order",
+        "line"
+      ]
+    },
+    {
+      "title": "Ответ потерялся: повтор с тем же requestId",
+      "text": "Клиент не дождался ответа и повторил `r-2` с тем же телом — сервер отдал сохранённый ответ (тот же билет отмены), база не тронута: в журнале ничего нового. Тот же `requestId` с другим телом — 422: сервер сверяет отпечаток тела, иначе чужой запрос получил бы ответ первого. Погашенный билет с новым `requestId` — 410.",
+      "code": "const app = await start(db);\nconst path = `/orders/${d.order2}/delete`;\nconst again = await app.call(me.token!, 'POST', path, { ticket, requestId: 'r-2' });\nconst other = await app.call(me.token!, 'POST', path, { ticket: 'другой билет', requestId: 'r-2' });\nconst stale = await app.call(me.token!, 'POST', path, { ticket, requestId: 'r-3' });\nawait app.stop();\nreturn {\n  'повтор r-2': { status: again.status, 'тот же ответ': JSON.stringify(again.body) === JSON.stringify(confirmed.body) },\n  'r-2 с другим телом': print(other),\n  'погашенный билет, r-3': print(stale),\n};",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> app</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> start</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> path</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> `/orders/${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">d</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">order2</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">}/delete`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> again</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> app.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">call</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(me.token</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'POST'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, path, { ticket, requestId: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'r-2'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> other</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> app.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">call</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(me.token</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'POST'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, path, { ticket: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'другой билет'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, requestId: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'r-2'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> stale</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> app.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">call</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(me.token</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'POST'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, path, { ticket, requestId: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'r-3'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> app.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">stop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'повтор r-2'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: { status: again.status, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'тот же ответ'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">JSON</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">stringify</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(again.body) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">===</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> JSON</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">stringify</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(confirmed.body) },</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'r-2 с другим телом'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">print</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(other),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'погашенный билет, r-3'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">print</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(stale),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">};</span></span></code></pre>",
+      "result": {
+        "повтор r-2": {
+          "status": 200,
+          "тот же ответ": true
+        },
+        "r-2 с другим телом": {
+          "status": 422,
+          "error": "requestId уже занят другим запросом"
+        },
+        "погашенный билет, r-3": {
+          "status": 410,
+          "error": "билет погашен или устарел — запросите предпросмотр заново"
+        }
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "Shop «Ромашка»",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t1",
+          "$changed": []
+        },
+        {
+          "id": "Shop «Лютик»",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Уфа",
+            "name": "Лютик"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t2",
+          "$changed": []
+        },
+        {
+          "id": "Category «Чай»",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t3",
+          "$changed": []
+        },
+        {
+          "id": "Category «Зелёный чай»",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Parent": "Category «Чай»"
+          },
+          "data": {
+            "name": "Зелёный чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t4",
+          "$changed": []
+        },
+        {
+          "id": "Category «Посуда»",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Посуда"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t5",
+          "$changed": []
+        },
+        {
+          "id": "Product «Чайник»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Category": [
+              "Category «Посуда»"
+            ]
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "белый",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит",
+              "стекло"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t6",
+          "$changed": []
+        },
+        {
+          "id": "Product «Сенча»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Category": [
+              "Category «Зелёный чай»"
+            ]
+          },
+          "data": {
+            "sku": "T-7",
+            "price": 900,
+            "title": "Сенча",
+            "labels": [
+              "хит"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t7",
+          "$changed": []
+        },
+        {
+          "id": "Product «Пуэр»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Category": [
+              "Category «Чай»"
+            ]
+          },
+          "data": {
+            "sku": "T-9",
+            "price": 1500,
+            "title": "Пуэр"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t8",
+          "$changed": []
+        },
+        {
+          "id": "Product «Кружка»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Лютик»",
+            "Category": [
+              "Category «Посуда»"
+            ]
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "стекло"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t9",
+          "$changed": []
+        },
+        {
+          "id": "Customer «Ольга»",
+          "class": "Customer",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Ольга",
+            "email": "olga@mail.ru"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t10",
+          "$changed": []
+        },
+        {
+          "id": "Vip «Иван»",
+          "class": "Vip",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Иван",
+            "email": "ivan@mail.ru",
+            "discount": 10
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t11",
+          "$changed": []
+        },
+        {
+          "id": "Order «A-1»",
+          "class": "Order",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Customer": "Customer «Ольга»"
+          },
+          "data": {
+            "number": "A-1",
+            "status": "new"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t12",
+          "$changed": []
+        },
+        {
+          "id": "line·1",
+          "class": "line",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Order": "Order «A-1»",
+            "Product": "Product «Чайник»"
+          },
+          "data": {
+            "qty": 1,
+            "price": 2500
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t12",
+          "$changed": []
+        },
+        {
+          "id": "line·2",
+          "class": "line",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Order": "Order «A-1»",
+            "Product": "Product «Сенча»"
+          },
+          "data": {
+            "qty": 2,
+            "price": 900
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t13",
+          "$changed": []
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "48",
+          "id": "Shop «Ромашка»",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "49",
+          "id": "Shop «Лютик»",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Уфа",
+            "name": "Лютик"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t2",
+          "$new": false
+        },
+        {
+          "seq": "50",
+          "id": "Category «Чай»",
+          "rev": 1,
+          "class": "Category",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t3",
+          "$new": false
+        },
+        {
+          "seq": "51",
+          "id": "Category «Зелёный чай»",
+          "rev": 1,
+          "class": "Category",
+          "tenant": "Ромашка",
+          "links": {
+            "Parent": "Category «Чай»"
+          },
+          "data": {
+            "name": "Зелёный чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t4",
+          "$new": false
+        },
+        {
+          "seq": "52",
+          "id": "Category «Посуда»",
+          "rev": 1,
+          "class": "Category",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Посуда"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t5",
+          "$new": false
+        },
+        {
+          "seq": "53",
+          "id": "Product «Чайник»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Category": [
+              "Category «Посуда»"
+            ]
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "белый",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит",
+              "стекло"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t6",
+          "$new": false
+        },
+        {
+          "seq": "54",
+          "id": "Product «Сенча»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Category": [
+              "Category «Зелёный чай»"
+            ]
+          },
+          "data": {
+            "sku": "T-7",
+            "price": 900,
+            "title": "Сенча",
+            "labels": [
+              "хит"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t7",
+          "$new": false
+        },
+        {
+          "seq": "55",
+          "id": "Product «Пуэр»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Category": [
+              "Category «Чай»"
+            ]
+          },
+          "data": {
+            "sku": "T-9",
+            "price": 1500,
+            "title": "Пуэр"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t8",
+          "$new": false
+        },
+        {
+          "seq": "56",
+          "id": "Product «Кружка»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Лютик»",
+            "Category": [
+              "Category «Посуда»"
+            ]
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "стекло"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t9",
+          "$new": false
+        },
+        {
+          "seq": "57",
+          "id": "Customer «Ольга»",
+          "rev": 1,
+          "class": "Customer",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Ольга",
+            "email": "olga@mail.ru"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t10",
+          "$new": false
+        },
+        {
+          "seq": "58",
+          "id": "Vip «Иван»",
+          "rev": 1,
+          "class": "Vip",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Иван",
+            "email": "ivan@mail.ru",
+            "discount": 10
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t11",
+          "$new": false
+        },
+        {
+          "seq": "59",
+          "id": "Order «A-1»",
+          "rev": 1,
+          "class": "Order",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Customer": "Customer «Ольга»"
+          },
+          "data": {
+            "number": "A-1",
+            "status": "new"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t12",
+          "$new": false
+        },
+        {
+          "seq": "60",
+          "id": "line·1",
+          "rev": 1,
+          "class": "line",
+          "tenant": "Ромашка",
+          "links": {
+            "Order": "Order «A-1»",
+            "Product": "Product «Чайник»"
+          },
+          "data": {
+            "qty": 1,
+            "price": 2500
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t12",
+          "$new": false
+        },
+        {
+          "seq": "61",
+          "id": "line·2",
+          "rev": 1,
+          "class": "line",
+          "tenant": "Ромашка",
+          "links": {
+            "Order": "Order «A-1»",
+            "Product": "Product «Сенча»"
+          },
+          "data": {
+            "qty": 2,
+            "price": 900
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t13",
+          "$new": false
+        },
+        {
+          "seq": "62",
+          "id": "Order «A-2»",
+          "rev": 1,
+          "class": "Order",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Customer": "Vip «Иван»"
+          },
+          "data": {
+            "number": "A-2",
+            "status": "paid"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t14",
+          "$new": false
+        },
+        {
+          "seq": "63",
+          "id": "line·3",
+          "rev": 1,
+          "class": "line",
+          "tenant": "Ромашка",
+          "links": {
+            "Order": "Order «A-2»",
+            "Product": "Product «Пуэр»"
+          },
+          "data": {
+            "qty": 1,
+            "price": 1500
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t14",
+          "$new": false
+        },
+        {
+          "seq": "64",
+          "id": "line·3",
+          "rev": 2,
+          "class": "line",
+          "tenant": "Ромашка",
+          "links": {
+            "Order": "Order «A-2»",
+            "Product": "Product «Пуэр»"
+          },
+          "data": {
+            "qty": 2,
+            "price": 1500
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t15",
+          "$new": false
+        },
+        {
+          "seq": "65",
+          "id": "Order «A-2»",
+          "rev": 2,
+          "class": "Order",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Customer": "Vip «Иван»"
+          },
+          "data": {
+            "number": "A-2",
+            "status": "paid"
+          },
+          "tags": [],
+          "op": "delete",
+          "author": "Анна",
+          "agent": null,
+          "reason": "удаление, запрос r-2",
+          "at": "t16",
+          "$new": false
+        },
+        {
+          "seq": "66",
+          "id": "line·3",
+          "rev": 3,
+          "class": "line",
+          "tenant": "Ромашка",
+          "links": {
+            "Order": "Order «A-2»",
+            "Product": "Product «Пуэр»"
+          },
+          "data": {
+            "qty": 2,
+            "price": 1500
+          },
+          "tags": [],
+          "op": "delete",
+          "author": "Анна",
+          "agent": null,
+          "reason": "удаление, запрос r-2",
+          "at": "t16",
+          "$new": false
+        }
+      ],
+      "secret": [],
+      "counts": null,
+      "signals": []
+    },
+    {
+      "title": "Отмена: restore по надгробиям из билета",
+      "text": "`POST /undo` с билетом отмены: одной транзакцией `restore({ expect: надгробия })` возвращает заказ, а `restore({ expect, partial: true })` у шага `line()` — его строки; строку, которую после удаления меняли, вернул бы пропуском `skip` с причиной. Билет отмены гаснет после записи, повтор `r-4` получит тот же ответ.",
+      "code": "const app = await start(db);\nconst r = await app.call(me.token!, 'POST', '/undo', { ticket: undoTicket, requestId: 'r-4' });\nconst again = await app.call(me.token!, 'POST', '/undo', { ticket: undoTicket, requestId: 'r-4' });\nawait app.stop();\nreturn { 'отмена': print(r), 'повтор r-4': again.status, 'строк в заказе': await me.Order(d.order2).line().count() };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> app</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> start</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> r</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> app.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">call</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(me.token</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'POST'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'/undo'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, { ticket: undoTicket, requestId: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'r-4'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> again</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> app.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">call</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(me.token</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'POST'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'/undo'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, { ticket: undoTicket, requestId: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'r-4'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> app.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">stop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'отмена'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">print</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(r), </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'повтор r-4'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: again.status, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'строк в заказе'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.order2).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">line</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">count</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">() };</span></span></code></pre>",
+      "result": {
+        "отмена": {
+          "status": 200,
+          "restored": [
+            {
+              "what": "заказ A-2"
+            },
+            {
+              "what": "строка: 2 шт. по 1500",
+              "action": "restore"
+            }
+          ]
+        },
+        "повтор r-4": 200,
+        "строк в заказе": 1
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "Shop «Ромашка»",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t1",
+          "$changed": []
+        },
+        {
+          "id": "Shop «Лютик»",
+          "class": "Shop",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Уфа",
+            "name": "Лютик"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t2",
+          "$changed": []
+        },
+        {
+          "id": "Category «Чай»",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t3",
+          "$changed": []
+        },
+        {
+          "id": "Category «Зелёный чай»",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Parent": "Category «Чай»"
+          },
+          "data": {
+            "name": "Зелёный чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t4",
+          "$changed": []
+        },
+        {
+          "id": "Category «Посуда»",
+          "class": "Category",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Посуда"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t5",
+          "$changed": []
+        },
+        {
+          "id": "Product «Чайник»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Category": [
+              "Category «Посуда»"
+            ]
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "белый",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит",
+              "стекло"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t6",
+          "$changed": []
+        },
+        {
+          "id": "Product «Сенча»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Category": [
+              "Category «Зелёный чай»"
+            ]
+          },
+          "data": {
+            "sku": "T-7",
+            "price": 900,
+            "title": "Сенча",
+            "labels": [
+              "хит"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t7",
+          "$changed": []
+        },
+        {
+          "id": "Product «Пуэр»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Category": [
+              "Category «Чай»"
+            ]
+          },
+          "data": {
+            "sku": "T-9",
+            "price": 1500,
+            "title": "Пуэр"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t8",
+          "$changed": []
+        },
+        {
+          "id": "Product «Кружка»",
+          "class": "Product",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Лютик»",
+            "Category": [
+              "Category «Посуда»"
+            ]
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "стекло"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t9",
+          "$changed": []
+        },
+        {
+          "id": "Customer «Ольга»",
+          "class": "Customer",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Ольга",
+            "email": "olga@mail.ru"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t10",
+          "$changed": []
+        },
+        {
+          "id": "Vip «Иван»",
+          "class": "Vip",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Иван",
+            "email": "ivan@mail.ru",
+            "discount": 10
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t11",
+          "$changed": []
+        },
+        {
+          "id": "Order «A-1»",
+          "class": "Order",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Customer": "Customer «Ольга»"
+          },
+          "data": {
+            "number": "A-1",
+            "status": "new"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t12",
+          "$changed": []
+        },
+        {
+          "id": "line·1",
+          "class": "line",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Order": "Order «A-1»",
+            "Product": "Product «Чайник»"
+          },
+          "data": {
+            "qty": 1,
+            "price": 2500
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t12",
+          "$changed": []
+        },
+        {
+          "id": "line·2",
+          "class": "line",
+          "rev": 1,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Order": "Order «A-1»",
+            "Product": "Product «Сенча»"
+          },
+          "data": {
+            "qty": 2,
+            "price": 900
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t13",
+          "$changed": []
+        },
+        {
+          "id": "Order «A-2»",
+          "class": "Order",
+          "rev": 3,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Customer": "Vip «Иван»"
+          },
+          "data": {
+            "number": "A-2",
+            "status": "paid"
+          },
+          "tags": [],
+          "op": "restore",
+          "author": "Анна",
+          "agent": null,
+          "reason": "отмена удаления, запрос r-4",
+          "at": "t17",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "line·3",
+          "class": "line",
+          "rev": 4,
+          "tenant": "Ромашка",
+          "owner": "Ромашка",
+          "links": {
+            "Order": "Order «A-2»",
+            "Product": "Product «Пуэр»"
+          },
+          "data": {
+            "qty": 2,
+            "price": 1500
+          },
+          "tags": [],
+          "op": "restore",
+          "author": "Анна",
+          "agent": null,
+          "reason": "отмена удаления, запрос r-4",
+          "at": "t17",
+          "$changed": [
+            "*"
+          ]
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "48",
+          "id": "Shop «Ромашка»",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Казань",
+            "name": "Ромашка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t1",
+          "$new": false
+        },
+        {
+          "seq": "49",
+          "id": "Shop «Лютик»",
+          "rev": 1,
+          "class": "Shop",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "city": "Уфа",
+            "name": "Лютик"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t2",
+          "$new": false
+        },
+        {
+          "seq": "50",
+          "id": "Category «Чай»",
+          "rev": 1,
+          "class": "Category",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t3",
+          "$new": false
+        },
+        {
+          "seq": "51",
+          "id": "Category «Зелёный чай»",
+          "rev": 1,
+          "class": "Category",
+          "tenant": "Ромашка",
+          "links": {
+            "Parent": "Category «Чай»"
+          },
+          "data": {
+            "name": "Зелёный чай"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t4",
+          "$new": false
+        },
+        {
+          "seq": "52",
+          "id": "Category «Посуда»",
+          "rev": 1,
+          "class": "Category",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Посуда"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t5",
+          "$new": false
+        },
+        {
+          "seq": "53",
+          "id": "Product «Чайник»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Category": [
+              "Category «Посуда»"
+            ]
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "белый",
+              "volume": 1.7
+            },
+            "title": "Чайник",
+            "labels": [
+              "хит",
+              "стекло"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t6",
+          "$new": false
+        },
+        {
+          "seq": "54",
+          "id": "Product «Сенча»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Category": [
+              "Category «Зелёный чай»"
+            ]
+          },
+          "data": {
+            "sku": "T-7",
+            "price": 900,
+            "title": "Сенча",
+            "labels": [
+              "хит"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t7",
+          "$new": false
+        },
+        {
+          "seq": "55",
+          "id": "Product «Пуэр»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Category": [
+              "Category «Чай»"
+            ]
+          },
+          "data": {
+            "sku": "T-9",
+            "price": 1500,
+            "title": "Пуэр"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t8",
+          "$new": false
+        },
+        {
+          "seq": "56",
+          "id": "Product «Кружка»",
+          "rev": 1,
+          "class": "Product",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Лютик»",
+            "Category": [
+              "Category «Посуда»"
+            ]
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "стекло"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t9",
+          "$new": false
+        },
+        {
+          "seq": "57",
+          "id": "Customer «Ольга»",
+          "rev": 1,
+          "class": "Customer",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Ольга",
+            "email": "olga@mail.ru"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t10",
+          "$new": false
+        },
+        {
+          "seq": "58",
+          "id": "Vip «Иван»",
+          "rev": 1,
+          "class": "Vip",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "Иван",
+            "email": "ivan@mail.ru",
+            "discount": 10
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t11",
+          "$new": false
+        },
+        {
+          "seq": "59",
+          "id": "Order «A-1»",
+          "rev": 1,
+          "class": "Order",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Customer": "Customer «Ольга»"
+          },
+          "data": {
+            "number": "A-1",
+            "status": "new"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t12",
+          "$new": false
+        },
+        {
+          "seq": "60",
+          "id": "line·1",
+          "rev": 1,
+          "class": "line",
+          "tenant": "Ромашка",
+          "links": {
+            "Order": "Order «A-1»",
+            "Product": "Product «Чайник»"
+          },
+          "data": {
+            "qty": 1,
+            "price": 2500
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t12",
+          "$new": false
+        },
+        {
+          "seq": "61",
+          "id": "line·2",
+          "rev": 1,
+          "class": "line",
+          "tenant": "Ромашка",
+          "links": {
+            "Order": "Order «A-1»",
+            "Product": "Product «Сенча»"
+          },
+          "data": {
+            "qty": 2,
+            "price": 900
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t13",
+          "$new": false
+        },
+        {
+          "seq": "62",
+          "id": "Order «A-2»",
+          "rev": 1,
+          "class": "Order",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Customer": "Vip «Иван»"
+          },
+          "data": {
+            "number": "A-2",
+            "status": "paid"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t14",
+          "$new": false
+        },
+        {
+          "seq": "63",
+          "id": "line·3",
+          "rev": 1,
+          "class": "line",
+          "tenant": "Ромашка",
+          "links": {
+            "Order": "Order «A-2»",
+            "Product": "Product «Пуэр»"
+          },
+          "data": {
+            "qty": 1,
+            "price": 1500
+          },
+          "tags": [],
+          "op": "create",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t14",
+          "$new": false
+        },
+        {
+          "seq": "64",
+          "id": "line·3",
+          "rev": 2,
+          "class": "line",
+          "tenant": "Ромашка",
+          "links": {
+            "Order": "Order «A-2»",
+            "Product": "Product «Пуэр»"
+          },
+          "data": {
+            "qty": 2,
+            "price": 1500
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t15",
+          "$new": false
+        },
+        {
+          "seq": "65",
+          "id": "Order «A-2»",
+          "rev": 2,
+          "class": "Order",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Customer": "Vip «Иван»"
+          },
+          "data": {
+            "number": "A-2",
+            "status": "paid"
+          },
+          "tags": [],
+          "op": "delete",
+          "author": "Анна",
+          "agent": null,
+          "reason": "удаление, запрос r-2",
+          "at": "t16",
+          "$new": false
+        },
+        {
+          "seq": "66",
+          "id": "line·3",
+          "rev": 3,
+          "class": "line",
+          "tenant": "Ромашка",
+          "links": {
+            "Order": "Order «A-2»",
+            "Product": "Product «Пуэр»"
+          },
+          "data": {
+            "qty": 2,
+            "price": 1500
+          },
+          "tags": [],
+          "op": "delete",
+          "author": "Анна",
+          "agent": null,
+          "reason": "удаление, запрос r-2",
+          "at": "t16",
+          "$new": false
+        },
+        {
+          "seq": "67",
+          "id": "Order «A-2»",
+          "rev": 3,
+          "class": "Order",
+          "tenant": "Ромашка",
+          "links": {
+            "Shop": "Shop «Ромашка»",
+            "Customer": "Vip «Иван»"
+          },
+          "data": {
+            "number": "A-2",
+            "status": "paid"
+          },
+          "tags": [],
+          "op": "restore",
+          "author": "Анна",
+          "agent": null,
+          "reason": "отмена удаления, запрос r-4",
+          "at": "t17",
+          "$new": true
+        },
+        {
+          "seq": "68",
+          "id": "line·3",
+          "rev": 4,
+          "class": "line",
+          "tenant": "Ромашка",
+          "links": {
+            "Order": "Order «A-2»",
+            "Product": "Product «Пуэр»"
+          },
+          "data": {
+            "qty": 2,
+            "price": 1500
+          },
+          "tags": [],
+          "op": "restore",
+          "author": "Анна",
+          "agent": null,
+          "reason": "отмена удаления, запрос r-4",
+          "at": "t17",
+          "$new": true
+        }
+      ],
+      "secret": [],
+      "counts": null,
+      "signals": [
+        "Order",
+        "line"
+      ]
+    }
+  ],
+  "output": "Шаг 1. Предпросмотр: строки заказа и билет\n{\n  \"предпросмотр\": {\n    \"status\": 200,\n    \"preview\": [\n      {\n        \"what\": \"заказ A-2\",\n        \"action\": \"delete\",\n        \"depth\": 0\n      },\n      {\n        \"what\": \"строка: 1 шт. по 1500\",\n        \"action\": \"delete\",\n        \"depth\": 1\n      }\n    ],\n    \"ticket\": \"‹билет›\"\n  },\n  \"без cookie\": 401\n}\n\nШаг 2. Пока смотрели, заказ изменился: 409 и новый предпросмотр\n{\n  \"status\": 409,\n  \"error\": \"заказ изменился\",\n  \"preview\": [\n    {\n      \"what\": \"заказ A-2\",\n      \"action\": \"delete\",\n      \"depth\": 0\n    },\n    {\n      \"what\": \"строка: 2 шт. по 1500\",\n      \"action\": \"delete\",\n      \"depth\": 1\n    }\n  ],\n  \"ticket\": \"‹билет›\"\n}\n\nШаг 3. Подтверждение: надгробия и билет отмены\n{\n  \"status\": 200,\n  \"deleted\": [\n    {\n      \"what\": \"заказ A-2\"\n    },\n    {\n      \"what\": \"строка: 2 шт. по 1500\"\n    }\n  ],\n  \"undo\": \"‹билет отмены›\"\n}\n\nШаг 4. Ответ потерялся: повтор с тем же requestId\n{\n  \"повтор r-2\": {\n    \"status\": 200,\n    \"тот же ответ\": true\n  },\n  \"r-2 с другим телом\": {\n    \"status\": 422,\n    \"error\": \"requestId уже занят другим запросом\"\n  },\n  \"погашенный билет, r-3\": {\n    \"status\": 410,\n    \"error\": \"билет погашен или устарел — запросите предпросмотр заново\"\n  }\n}\n\nШаг 5. Отмена: restore по надгробиям из билета\n{\n  \"отмена\": {\n    \"status\": 200,\n    \"restored\": [\n      {\n        \"what\": \"заказ A-2\"\n      },\n      {\n        \"what\": \"строка: 2 шт. по 1500\",\n        \"action\": \"restore\"\n      }\n    ]\n  },\n  \"повтор r-4\": 200,\n  \"строк в заказе\": 1\n}"
+}

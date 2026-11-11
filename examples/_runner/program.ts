@@ -4,23 +4,24 @@
  * вывод» на странице — это вывод самой программы, а не пересказ результатов шагов.
  *
  * Программа кладётся во временный каталог `examples/.standalone-<случайное>/` (в .gitignore, удаляется после прогона)
- * и запускается как у читателя: `node --import tsx <файл>`, рабочий каталог — её папка, `ADMIN_DSN` — строка
- * администратора раннера. Пакеты берутся из `examples/node_modules`, `letopis` — исходниками `lib/src` (tsconfig
+ * и запускается как у читателя: `node --import tsx <файл>`, рабочий каталог — её папка, `ADMIN_DSN` — мастер-ключ
+ * раннера. После прогона её дом (`example_<глава>_<NN>_<имя>`) сносится. Пакеты берутся из `examples/node_modules`, `letopis` — исходниками `lib/src` (tsconfig
  * examples/): в папке программы лежит пакет-заглушка `node_modules/letopis` (экспорты — реэкспорт `lib/src`,
  * `dist/cli.js` и `node_modules/.bin/letopis` — `lib/src/cli.ts` через tsx), поэтому `npx letopis …` и
  * `node node_modules/letopis/dist/cli.js …` в программе исполняют нынешний код, а не, возможно, устаревший `lib/dist`.
- * stdout и stderr пишутся в один файл — в порядке появления.
+ * stdout и stderr пишутся в один файл — в порядке появления. Ошибку, которая дошла до верха программы, печатает
+ * `reader-errors.ts` (как в песочнице сайта): код, текст, подсказка и строка программы, без стека библиотеки.
  *
  * В сохранённом выводе строка подключения раннера заменена строкой по умолчанию из программы (DEFAULT_ADMIN_DSN):
  * читатель видит свой вариант. Для сверки (--check) — вариант с метками вместо id, времени, токенов и длительностей.
  */
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { closeSync, mkdirSync, openSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { closeSync, mkdirSync, openSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { DEFAULT_ADMIN_DSN, standaloneInfo } from '../../guide/.vitepress/standalone.ts';
-import { ADMIN_DSN, ident, type Sql } from './db.ts';
+import { ADMIN_DSN, demolishHouses, houseName, type Sql } from './db.ts';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const LIB = join(ROOT, '..', 'lib');
@@ -29,6 +30,8 @@ const PREFIX = '.standalone-';
 /** Сколько ждать программу; дольше — прогон снимается. */
 const TIMEOUT = 120_000;
 const TSX = import.meta.resolve('tsx');
+/** Ошибка, дошедшая до верха программы, — как в песочнице сайта: без стека библиотеки и путей репозитория. */
+const READER_ERRORS = pathToFileURL(join(ROOT, '_runner', 'reader-errors.ts')).href;
 const PKG_VERSION = JSON.parse(readFileSync(join(LIB, 'package.json'), 'utf8')).version as string;
 
 export interface ProgramRun {
@@ -40,9 +43,17 @@ export interface ProgramRun {
   failures: string[];
 }
 
-/** Временные каталоги прошлых прогонов (прогон сняли — каталог остался). */
+/**
+ * Временные каталоги прошлых прогонов (прогон сняли — каталог остался). Свежие не трогаются: их может держать прогон,
+ * идущий рядом (два `run.ts` по разным главам сразу).
+ */
 export function cleanPrograms(): void {
-  for (const n of readdirSync(ROOT)) if (n.startsWith(PREFIX)) rmSync(join(ROOT, n), { recursive: true, force: true, maxRetries: 3 });
+  const old = Date.now() - 2 * TIMEOUT;
+  for (const n of readdirSync(ROOT)) {
+    if (!n.startsWith(PREFIX)) continue;
+    const dir = join(ROOT, n);
+    if (statSync(dir).mtimeMs < old) rmSync(dir, { recursive: true, force: true, maxRetries: 3 });
+  }
 }
 
 /** Пакет-заглушка letopis в папке программы: экспорты и CLI — исходники lib/src. */
@@ -69,7 +80,7 @@ function fakePackage(dir: string): void {
 }
 
 /** Строка подключения раннера → строка по умолчанию из программы (хост, порт, пользователь, пароль, база). */
-function readerDsn(text: string): string {
+export function readerDsn(text: string): string {
   const u = new URL(ADMIN_DSN);
   const d = new URL(DEFAULT_ADMIN_DSN);
   const pairs: [string, string][] = [
@@ -95,6 +106,8 @@ export function labelOutput(text: string): string {
     return tokens.get(t)!;
   };
   return text
+    // пропуск консьержа — строка подключения его роли с паролем и ключом
+    .replace(/postgres(?:ql)?:\/\/[^\s'"`]*[?&]letopis_key=[^\s'"`]*/g, '‹пропуск›')
     .replace(new RegExp(`${PKG_VERSION.replace(/[.]/g, '\\.')}(?![0-9])`, 'g'), '‹версия пакета›')
     .replace(/sql=[0-9a-f]{16}/g, 'sql=‹хэш SQL›')
     .replace(UUID, (x) => {
@@ -117,7 +130,8 @@ export async function runProgram(file: string, admin: Sql): Promise<ProgramRun> 
   const failures: string[] = [];
   if (info.internal) failures.push('программа ссылается на файлы репозитория letopis — у читателя их нет');
   const id = relative(ROOT, file).split(sep).join('/').replace(/\.ts$/, '');
-  const schema = `v2.example_${id.replace(/[^a-z0-9]+/gi, '_').toLowerCase()}`;
+  // дом программы — то же имя, что в её тексте (standalone.ts)
+  const name = houseName('example_', id);
   const dir = join(ROOT, `${PREFIX}${randomBytes(6).toString('hex')}`);
   mkdirSync(dir, { recursive: true });
   let exitCode: number | null = null;
@@ -137,7 +151,7 @@ export async function runProgram(file: string, admin: Sql): Promise<ProgramRun> 
       const fd = openSync(log, 'w');
       try {
         exitCode = await new Promise<number | null>((resolve, reject) => {
-          const p = spawn(process.execPath, ['--import', 'tsx', program], { cwd: dir, env, stdio: ['ignore', fd, fd], windowsHide: true });
+          const p = spawn(process.execPath, ['--import', 'tsx', '--import', READER_ERRORS, program], { cwd: dir, env, stdio: ['ignore', fd, fd], windowsHide: true });
           const timer = setTimeout(() => {
             failures.push(`программа не закончилась за ${TIMEOUT / 1000} с`);
             p.kill();
@@ -153,10 +167,8 @@ export async function runProgram(file: string, admin: Sql): Promise<ProgramRun> 
     }
   } finally {
     rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
-    // схемы программы (и учебные рядом с ней: `<схема>_up`) — после прогона не нужны
-    for (const { nspname } of await admin.unsafe('select nspname from pg_namespace where starts_with(nspname, $1)', [schema])) {
-      await admin.unsafe(`drop schema if exists ${ident(String(nspname))} cascade`);
-    }
+    // дома программы (и учебные рядом с ним: `<имя>_…`) — после прогона не нужны
+    await demolishHouses(admin, name);
   }
   const output = readerDsn(raw.replace(/\r\n/g, '\n')).replace(/^\n+/, '').replace(/\s+$/, '');
   if (exitCode !== 0) {

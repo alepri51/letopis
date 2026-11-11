@@ -1,46 +1,78 @@
-import type { Db } from 'letopis';
 import { example } from '../_shared/example.ts';
+import { cli } from '../_shared/cli.ts';
+import { lastLetter } from '../_shared/postman.ts';
 
-let adm: Db;
+/** Строки secret по видам: живые и погашенные (срок вышел или строку погасили). */
+const secrets = (schema: string) => `select kind,
+    count(*) filter (where deleted_at is null and (expires_at is null or expires_at > clock_timestamp()))::int as live,
+    count(*) filter (where deleted_at is not null or expires_at <= clock_timestamp())::int as dead
+  from "${schema}".secret where kind in ('SESSION', 'OTP', 'INVITE') group by kind order by kind`;
 
 export default example({
-  title: 'Обслуживание: maintain() убирает погашенные сессии и коды',
+  title: 'Обслуживание: letopis maintain убирает погашенные сессии, коды и истёкшие приглашения',
   summary:
-    'Сессии и одноразовые коды живут в таблице secret. Истёкшие и погашенные строки убирает maintain(): его вызывает ' +
-    'планировщик (letopis maintain) или сама библиотека — connect({ maintain: \'1h\' }). Журнал maintain() не трогает.',
+    'Сессии, одноразовые коды и приглашения живут в таблице secret. Истёкшие и погашенные строки убирает обслуживание — ' +
+    'команда letopis maintain мастер-ключом, которую ставят во внешний планировщик (cron), или db.maintain() консьержа ' +
+    'из самого приложения. Журнал обслуживание не трогает.',
   tables: ['counts'],
-  covers: ['db.maintain'],
+  covers: ['cli.maintain', 'house.maintain', 'house.requestCode', 'house.open', 'db.close', 'db.revokeInvite'],
   steps: [
     {
-      title: 'Сессии и коды копятся в secret',
+      title: 'Сессии, коды и приглашения копятся в secret',
       text:
-        'Анна входит паролем и выходит (`auth.revoke()`) — сессия погашена. Потом сервис присылает ей одноразовый код, ' +
-        'и она входит по нему — код использован. Обе строки остаются в `secret`, пока их не уберёт обслуживание.',
-      run: async ({ svc, connect, dsn, schema, user }) => {
-        const login = await svc.auth.verifyPassword({ identifier: user.login, password: user.password });
-        const anna = await connect({ dsn: dsn.app, schema, token: login!.token });
-        await anna.auth.revoke();
-        const { code } = await svc.auth.issueOtp({ account: login!.account, identifier: user.login });
-        const byCode = await svc.auth.verifyOtp({ identifier: user.login, code });
-        return { 'выход паролем': 'сессия погашена', 'вход по коду': byCode ? 'код использован' : 'не вошла' };
+        'Анна входит паролем и выходит (`close()`) — сессия погашена. Она просит код (`requestCode`, код приходит ' +
+        'почтальону) и входит по нему — код использован. Анна зовёт Олега и тут же отзывает приглашение, ' +
+        'а Веру зовёт со сроком в одну секунду — и это приглашение истекает. Приглашение, по которому Анна стала ' +
+        'жильцом, тоже погашено — его приняли. Все эти строки остаются в `secret`: погашенное приглашение хранится до ' +
+        'своего срока, чтобы по ссылке было видно, что с ним стало (`status`).',
+      run: async ({ db, me, annaKey, admin, schema }) => {
+        const anna = await db.open(annaKey);
+        await anna.close();
+        await db.requestCode({ email: annaKey.email });
+        await db.open({ email: annaKey.email, code: lastLetter(annaKey.email, 'code').code });
+        const { id } = await me.invite({ email: 'oleg@romashka.ru' }, ['staff']);
+        await me.revokeInvite(id);
+        await me.invite({ email: 'vera@romashka.ru' }, ['staff'], { ttl: 1 });
+        await new Promise((r) => setTimeout(r, 1500)); // ждём, пока приглашение Веры истечёт
+        return admin.unsafe(secrets(schema));
       },
     },
     {
-      title: 'maintain() убирает лишнее',
+      title: 'letopis maintain убирает лишнее',
       text:
-        'Отчёт: `sessions` — удалено сессий (истёкших и погашенных), `codes` — кодов (истёкших, использованных, заменённых ' +
-        'новым, исчерпавших попытки), `queue` — заполнение очереди сигналов PostgreSQL (больше половины — предупреждение), ' +
-        '`skipped` — обслуживание уже идёт в другом процессе. Ещё `maintain()` удаляет строки-замки удалённых классов. ' +
-        'Вызывает его системный администратор, роль с правом `letopis.maintain` или администраторское подключение.',
-      run: async ({ connect, dsn, schema, up }) => {
-        adm = await connect({ dsn: dsn.admin, schema, token: up.tenant!.token!, allowBypassRls: true });
-        return adm.maintain();
+        'Отчёт — строка JSON: `sessions` — удалено сессий (истёкших и погашенных), `codes` — кодов (использованных и ' +
+        'истёкших) и приглашений, чей срок вышел, `queue` — заполнение очереди сигналов PostgreSQL (больше половины — ' +
+        'предупреждение), `skipped` — обслуживание уже идёт в другом процессе. Ещё команда удаляет строки-замки удалённых ' +
+        'классов. Истёкшее приглашение Веры убрано; принятое и отозванное ждут своего срока. Живые сессии остались.',
+      run: async ({ ADMIN_DSN, name, admin, schema }) => {
+        const r = await cli(['maintain', '--dsn', ADMIN_DSN, '--schema', name]);
+        const { queue, ...report } = JSON.parse(r.out);
+        return {
+          'код выхода': r.code, 'отчёт': report, 'очередь сигналов меньше половины': queue < 0.5,
+          'secret после': await admin.unsafe(secrets(schema)),
+        };
       },
     },
     {
       title: 'Повторный вызов — убирать нечего',
-      text: 'Обслуживание — одна транзакция под блокировкой обслуживания: из нескольких процессов работает один, остальные получают `skipped: true`.',
-      run: async () => adm.maintain(),
+      text:
+        'Обслуживание — одна транзакция под строкой-замком: из нескольких процессов работает один, остальные получают ' +
+        '`skipped: true`. Запускать его можно сколько угодно часто — повтор ничего не ломает.',
+      run: async ({ ADMIN_DSN, name }) => {
+        const { queue: _queue, ...report } = JSON.parse((await cli(['maintain', '--dsn', ADMIN_DSN, '--schema', name])).out);
+        return report;
+      },
+    },
+    {
+      title: 'Из приложения: db.maintain()',
+      text:
+        'То же обслуживание без мастер-ключа — `db.maintain()` у консьержа: право на него даёт правило System ' +
+        '«консьержу можно `letopis.maintain`». Удобно, когда приложение само раз в несколько минут убирает за собой. ' +
+        'Отчёт — тот же: `skipped`, `sessions`, `codes`, `queue`. У корня жильца `maintain` нет.',
+      run: async ({ db }) => {
+        const { queue, ...report } = await db.maintain();
+        return { 'отчёт': report, 'очередь сигналов меньше половины': queue < 0.5 };
+      },
     },
   ],
 });

@@ -35,7 +35,6 @@
       "secret": [],
       "signals": [
         "Category",
-        "Class",
         "Customer",
         "Order",
         "Product",
@@ -46,40 +45,31 @@
     },
     {
       "result": {
-        "db.sql": [
+        "me.sql": [
           {
             "tenant_name": "Ромашка",
             "reason": ""
           }
         ],
-        "db.transaction — только свой арендатор": [
-          {
-            "class": "Product",
-            "n": 4
-          },
-          {
-            "class": "Shop",
-            "n": 2
-          }
-        ]
+        "магазинов у Анны (me.transaction)": 2,
+        "магазинов мастер-ключом": 3
       },
       "error": null,
       "entity": [],
       "removed": [],
       "log": [],
       "secret": [],
-      "signals": []
+      "signals": [
+        "Shop"
+      ]
     },
     {
       "result": {
-        "stats": {
+        "кэш": {
           "size": 1,
           "hits": 1,
           "misses": 1,
           "stores": 1,
-          "raced": 0,
-          "signals": 0,
-          "listens": 0,
           "enabled": true
         },
         "режим сигналов": "class",
@@ -95,7 +85,8 @@
     {
       "result": {
         "op": "create",
-        "class": "Shop"
+        "class": "Shop",
+        "магазин": "Ромашка"
       },
       "error": null,
       "entity": [],
@@ -105,6 +96,6 @@
       "signals": []
     }
   ],
-  "output": "Шаг 1. Что знает реестр подключения\n{\n  \"has Product / Нет\": [\n    true,\n    false\n  ],\n  \"find Нет\": \"undefined\",\n  \"ключ Product (resolve)\": [\n    \"Shop\",\n    \"sku\"\n  ],\n  \"семейство Customer\": [\n    \"Customer\",\n    \"Vip\"\n  ],\n  \"классов всего (all)\": 12,\n  \"leafType Product.price / title\": [\n    \"numeric\",\n    \"text\"\n  ],\n  \"свой реестр после load: столько же классов\": true\n}\n\nШаг 2. Свой SQL в сессии пользователя\n{\n  \"db.sql\": [\n    {\n      \"tenant_name\": \"Ромашка\",\n      \"reason\": \"\"\n    }\n  ],\n  \"db.transaction — только свой арендатор\": [\n    {\n      \"class\": \"Product\",\n      \"n\": 4\n    },\n    {\n      \"class\": \"Shop\",\n      \"n\": 2\n    }\n  ]\n}\n\nШаг 3. Кэш только по сроку и отправка сигналов сейчас\nletopis: администраторское подключение — RLS не действует, данные всех арендаторов видны\n{\n  \"stats\": {\n    \"size\": 1,\n    \"hits\": 1,\n    \"misses\": 1,\n    \"stores\": 1,\n    \"raced\": 0,\n    \"signals\": 0,\n    \"listens\": 0,\n    \"enabled\": true\n  },\n  \"режим сигналов\": \"class\",\n  \"ответов в кэше после clear()\": 0\n}\n\nШаг 4. Подписка: размер пачки и запасной опрос\n{\n  \"op\": \"create\",\n  \"class\": \"Shop\"\n}",
+  "output": "Шаг 1. Что знает реестр корня\n{\n  \"has Product / Нет\": [\n    true,\n    false\n  ],\n  \"find Нет\": \"undefined\",\n  \"ключ Product (resolve)\": [\n    \"Shop\",\n    \"sku\"\n  ],\n  \"семейство Customer\": [\n    \"Customer\",\n    \"Vip\"\n  ],\n  \"классов всего (all)\": 12,\n  \"leafType Product.price / title\": [\n    \"numeric\",\n    \"text\"\n  ],\n  \"свой реестр после load: столько же классов\": true\n}\n\nШаг 2. Свой SQL под правами жильца\n{\n  \"me.sql\": [\n    {\n      \"tenant_name\": \"Ромашка\",\n      \"reason\": \"\"\n    }\n  ],\n  \"магазинов у Анны (me.transaction)\": 2,\n  \"магазинов мастер-ключом\": 3\n}\n\nШаг 3. Кэш только по сроку и отправка сигналов сейчас\n{\n  \"кэш\": {\n    \"size\": 1,\n    \"hits\": 1,\n    \"misses\": 1,\n    \"stores\": 1,\n    \"enabled\": true\n  },\n  \"режим сигналов\": \"class\",\n  \"ответов в кэше после clear()\": 0\n}\n\nШаг 4. Подписка: размер пачки и запасной опрос\n{\n  \"op\": \"create\",\n  \"class\": \"Shop\",\n  \"магазин\": \"Ромашка\"\n}",
   "exitCode": 0
 }

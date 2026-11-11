@@ -7,8 +7,12 @@
  * правленый. Сервер сайта запускает этот файл отдельным процессом с рабочим каталогом examples/; он кладёт программу
  * во временный каталог `examples/.sandbox-<случайное>/program.ts` (на той же глубине, что `<глава>/`, — относительные
  * импорты работают как в оригинале; `letopis` — исходниками ../lib/src по `examples/tsconfig.json`) и выполняет её ещё
- * одним процессом `node --import tsx program.ts` с `ADMIN_DSN` — база стенда (`ENTITY_DSN`, иначе `ADMIN_DSN`, иначе
- * база примеров по умолчанию). Схему программа ставит сама (`up({ fresh: true })`). Каталог удаляется после прогона.
+ * одним процессом `node --import tsx program.ts` с `ADMIN_DSN` — мастер-ключ базы стенда (`ENTITY_DSN`, иначе
+ * `ADMIN_DSN`, иначе база примеров по умолчанию). Дом программа строит сама (`demolish`, затем `setup`). Каталог
+ * удаляется после прогона.
+ *
+ * Ошибку, которая дошла до верха программы, печатает `reader-errors.ts`: код, текст, подсказка и строка программы — без
+ * стека библиотеки, локальных путей и ссылки на тег выпуска.
  *
  * Вывод программы (stdout и stderr одним потоком, в порядке появления) идёт в stdout этого процесса как есть; в конце —
  * строка `@@RESULT@@{ exitCode, ms, timedOut }` или `@@RESULT@@{ error }`.
@@ -17,12 +21,15 @@ import { spawn } from 'node:child_process';
 import { mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 const MARK = '@@RESULT@@';
 // examples/ — рабочий каталог процесса (его задаёт сервер сайта)
 const ROOT = join(import.meta.dirname, '..');
 const DSN = process.env.ENTITY_DSN ?? process.env.ADMIN_DSN ?? 'postgres://postgres:test@localhost:15433/letopis';
 const TIMEOUT = Number(process.env.SANDBOX_TIMEOUT_MS ?? 120_000);
+/** Ошибка, дошедшая до верха программы, печатается без стека библиотеки и путей репозитория (`reader-errors.ts`). */
+const READER_ERRORS = pathToFileURL(join(import.meta.dirname, 'reader-errors.ts')).href;
 
 async function readStdin(): Promise<string> {
   const chunks: Buffer[] = [];
@@ -36,7 +43,7 @@ const write = (s: string | Buffer) => new Promise<void>((r) => process.stdout.wr
 function execute(file: string): Promise<{ exitCode: number | null; ms: number; timedOut: boolean }> {
   return new Promise((resolve) => {
     const started = Date.now();
-    const child = spawn(process.execPath, ['--import', 'tsx', file], {
+    const child = spawn(process.execPath, ['--import', 'tsx', '--import', READER_ERRORS, file], {
       cwd: ROOT,
       env: { ...process.env, ADMIN_DSN: DSN },
       stdio: ['ignore', 'pipe', 'pipe'],

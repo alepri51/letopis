@@ -1,0 +1,735 @@
+{
+  "id": "install/01-setup-and-connect",
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": {
+        "schema": "v2.g_install_01_setup_and_connect",
+        "created": true,
+        "revision": 12,
+        "warnings": [],
+        "пропуск: роль консьержа": "letopis_c_g_install_01_setup_and_connect",
+        "пропуск: дом": "v2.g_install_01_setup_and_connect",
+        "пропуск: ключ консьержа": "lts_…"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "KEY",
+          "ident": null,
+          "meta": {
+            "v": 25,
+            "signals": "class"
+          },
+          "material": "c3defca44fea5b764151d3f7f6b0efb899833526b78d370c47d168f6871b1d43",
+          "expires_at": null,
+          "created_at": "2026-11-10 20:14:39.541735+00",
+          "deleted_at": null
+        },
+        {
+          "account": "8b90a2db-46b0-5faf-9e0c-e1f7feb378d1",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "APIKEY",
+          "ident": "lts_4edaa8a6",
+          "meta": {},
+          "material": "7a801d64d772313344e0d4ddd0893bad1c20736b58143d7a50fec27a34b2bfb8",
+          "expires_at": null,
+          "created_at": "2026-11-10 20:14:39.690353+00",
+          "deleted_at": null
+        },
+        {
+          "account": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "CONCIERGE",
+          "ident": null,
+          "meta": {},
+          "material": "‹пропуск›",
+          "expires_at": null,
+          "created_at": "2026-11-10 20:14:39.715678+00",
+          "deleted_at": null
+        }
+      ],
+      "signals": []
+    },
+    {
+      "result": {
+        "created": false,
+        "тот же пропуск": true
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "KEY",
+          "ident": null,
+          "meta": {
+            "v": 25,
+            "signals": "class"
+          },
+          "material": "c3defca44fea5b764151d3f7f6b0efb899833526b78d370c47d168f6871b1d43",
+          "expires_at": null,
+          "created_at": "2026-11-10 20:14:39.541735+00",
+          "deleted_at": null
+        },
+        {
+          "account": "8b90a2db-46b0-5faf-9e0c-e1f7feb378d1",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "APIKEY",
+          "ident": "lts_4edaa8a6",
+          "meta": {},
+          "material": "7a801d64d772313344e0d4ddd0893bad1c20736b58143d7a50fec27a34b2bfb8",
+          "expires_at": null,
+          "created_at": "2026-11-10 20:14:39.690353+00",
+          "deleted_at": null
+        },
+        {
+          "account": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "CONCIERGE",
+          "ident": null,
+          "meta": {},
+          "material": "‹пропуск›",
+          "expires_at": null,
+          "created_at": "2026-11-10 20:14:39.715678+00",
+          "deleted_at": null
+        }
+      ],
+      "signals": []
+    },
+    {
+      "result": {
+        "дом": "v2.g_install_01_setup_and_connect",
+        "шаг класса Order": false,
+        "методы консьержа": [
+          "schema",
+          "open",
+          "resume",
+          "invitation",
+          "accept",
+          "requestCode",
+          "tenantsOf",
+          "createTenant",
+          "in",
+          "as",
+          "tenants",
+          "contactOf",
+          "deleteAccount",
+          "maintain",
+          "close"
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "KEY",
+          "ident": null,
+          "meta": {
+            "v": 25,
+            "signals": "class"
+          },
+          "material": "c3defca44fea5b764151d3f7f6b0efb899833526b78d370c47d168f6871b1d43",
+          "expires_at": null,
+          "created_at": "2026-11-10 20:14:39.541735+00",
+          "deleted_at": null
+        },
+        {
+          "account": "8b90a2db-46b0-5faf-9e0c-e1f7feb378d1",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "APIKEY",
+          "ident": "lts_4edaa8a6",
+          "meta": {},
+          "material": "7a801d64d772313344e0d4ddd0893bad1c20736b58143d7a50fec27a34b2bfb8",
+          "expires_at": null,
+          "created_at": "2026-11-10 20:14:39.690353+00",
+          "deleted_at": null
+        },
+        {
+          "account": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "CONCIERGE",
+          "ident": null,
+          "meta": {},
+          "material": "‹пропуск›",
+          "expires_at": null,
+          "created_at": "2026-11-10 20:14:39.715678+00",
+          "deleted_at": null
+        },
+        {
+          "account": "8b90a2db-46b0-5faf-9e0c-e1f7feb378d1",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "a96316ba-64a8-46ad-9aee-48a4dc166d33",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "2026-11-10T20:14:40.373397+00:00"
+          },
+          "material": "e25801780544790b3b4d81a42408b3046614cbe159c5d292eb494c8521abb6e6",
+          "expires_at": "2026-11-17 20:14:40.373407+00",
+          "created_at": "2026-11-10 20:14:40.373413+00",
+          "deleted_at": null
+        }
+      ],
+      "signals": []
+    },
+    {
+      "result": {
+        "квартира": "Ромашка",
+        "второй раз": "exists"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "KEY",
+          "ident": null,
+          "meta": {
+            "v": 37,
+            "signals": "class"
+          },
+          "material": "c3defca44fea5b764151d3f7f6b0efb899833526b78d370c47d168f6871b1d43",
+          "expires_at": null,
+          "created_at": "2026-11-10 20:14:39.541735+00",
+          "deleted_at": null
+        },
+        {
+          "account": "8b90a2db-46b0-5faf-9e0c-e1f7feb378d1",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "APIKEY",
+          "ident": "lts_4edaa8a6",
+          "meta": {},
+          "material": "7a801d64d772313344e0d4ddd0893bad1c20736b58143d7a50fec27a34b2bfb8",
+          "expires_at": null,
+          "created_at": "2026-11-10 20:14:39.690353+00",
+          "deleted_at": null
+        },
+        {
+          "account": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "CONCIERGE",
+          "ident": null,
+          "meta": {},
+          "material": "‹пропуск›",
+          "expires_at": null,
+          "created_at": "2026-11-10 20:14:39.715678+00",
+          "deleted_at": null
+        },
+        {
+          "account": "8b90a2db-46b0-5faf-9e0c-e1f7feb378d1",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "a96316ba-64a8-46ad-9aee-48a4dc166d33",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "2026-11-10T20:14:40.373397+00:00"
+          },
+          "material": "e25801780544790b3b4d81a42408b3046614cbe159c5d292eb494c8521abb6e6",
+          "expires_at": "2026-11-17 20:14:40.373407+00",
+          "created_at": "2026-11-10 20:14:40.373413+00",
+          "deleted_at": null
+        }
+      ],
+      "signals": []
+    },
+    {
+      "result": {
+        "ответ invite": [
+          "id",
+          "expiresAt"
+        ],
+        "письмо почтальону": {
+          "to": {
+            "kind": "email",
+            "address": "anna@romashka.ru"
+          },
+          "kind": "invite"
+        },
+        "ждали приглашения": [
+          {
+            "to": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "roles": [
+              "owner"
+            ]
+          }
+        ],
+        "по ссылке": {
+          "квартира": "Ромашка",
+          "роли": [
+            "owner"
+          ],
+          "статус": "active"
+        },
+        "квартира Анны": "Ромашка",
+        "консьерж?": false,
+        "та же ссылка второй раз": "auth_failed"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "KEY",
+          "ident": null,
+          "meta": {
+            "v": 39,
+            "signals": "class"
+          },
+          "material": "c3defca44fea5b764151d3f7f6b0efb899833526b78d370c47d168f6871b1d43",
+          "expires_at": null,
+          "created_at": "2026-11-10 20:14:39.541735+00",
+          "deleted_at": null
+        },
+        {
+          "account": "8b90a2db-46b0-5faf-9e0c-e1f7feb378d1",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "APIKEY",
+          "ident": "lts_4edaa8a6",
+          "meta": {},
+          "material": "7a801d64d772313344e0d4ddd0893bad1c20736b58143d7a50fec27a34b2bfb8",
+          "expires_at": null,
+          "created_at": "2026-11-10 20:14:39.690353+00",
+          "deleted_at": null
+        },
+        {
+          "account": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "CONCIERGE",
+          "ident": null,
+          "meta": {},
+          "material": "‹пропуск›",
+          "expires_at": null,
+          "created_at": "2026-11-10 20:14:39.715678+00",
+          "deleted_at": null
+        },
+        {
+          "account": "8b90a2db-46b0-5faf-9e0c-e1f7feb378d1",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "a96316ba-64a8-46ad-9aee-48a4dc166d33",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "2026-11-10T20:14:40.373397+00:00"
+          },
+          "material": "e25801780544790b3b4d81a42408b3046614cbe159c5d292eb494c8521abb6e6",
+          "expires_at": "2026-11-17 20:14:40.373407+00",
+          "created_at": "2026-11-10 20:14:40.373413+00",
+          "deleted_at": null
+        },
+        {
+          "account": "9479d15e-5c8a-5b01-ab64-16b42f2b86b5",
+          "tenant": "9479d15e-5c8a-5b01-ab64-16b42f2b86b5",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "1861c9cb1810312491109f7f7576362b9dc81fa9be4426715e73332a12f40258",
+          "expires_at": "2026-11-17 20:14:40.484614+00",
+          "created_at": "2026-11-10 20:14:40.486172+00",
+          "deleted_at": "2026-11-10 20:14:40.608848+00"
+        },
+        {
+          "account": "c0e7e69a-b316-52ea-a9ee-fe1a21943bf8",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "IDENT",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "kind": "email",
+            "address": "anna@romashka.ru"
+          },
+          "material": null,
+          "expires_at": null,
+          "created_at": "2026-11-10 20:14:40.606793+00",
+          "deleted_at": null
+        },
+        {
+          "account": "c0e7e69a-b316-52ea-a9ee-fe1a21943bf8",
+          "tenant": "9479d15e-5c8a-5b01-ab64-16b42f2b86b5",
+          "kind": "PASSWORD",
+          "ident": "email:anna@romashka.ru",
+          "meta": {},
+          "material": "7363727970742433323736382438243124495551317059514d374830685462377a6659723857773d3d24444e355578746e31553536547146495845377a43707a68595264335642747a41516750305343574a37364d3d",
+          "expires_at": null,
+          "created_at": "2026-11-10 20:14:40.608715+00",
+          "deleted_at": null
+        },
+        {
+          "account": "c0e7e69a-b316-52ea-a9ee-fe1a21943bf8",
+          "tenant": "9479d15e-5c8a-5b01-ab64-16b42f2b86b5",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "16572d1a-99ea-422e-855d-bdeccd8c9f56",
+            "methods": [
+              "INVITE",
+              "FIRST"
+            ],
+            "login_at": "2026-11-10T20:14:40.608991+00:00"
+          },
+          "material": "e79dae33f9b3de7400853e1238aa462c9eb6c28b12cc5c1bc7e2935f5e5a7f84",
+          "expires_at": "2026-11-17 20:14:40.609+00",
+          "created_at": "2026-11-10 20:14:40.609002+00",
+          "deleted_at": null
+        }
+      ],
+      "signals": [
+        "member"
+      ]
+    },
+    {
+      "result": {
+        "квартира": "Ромашка",
+        "тот же аккаунт": true,
+        "неверный пароль": "auth_failed"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "KEY",
+          "ident": null,
+          "meta": {
+            "v": 39,
+            "signals": "class"
+          },
+          "material": "c3defca44fea5b764151d3f7f6b0efb899833526b78d370c47d168f6871b1d43",
+          "expires_at": null,
+          "created_at": "2026-11-10 20:14:39.541735+00",
+          "deleted_at": null
+        },
+        {
+          "account": "8b90a2db-46b0-5faf-9e0c-e1f7feb378d1",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "APIKEY",
+          "ident": "lts_4edaa8a6",
+          "meta": {},
+          "material": "7a801d64d772313344e0d4ddd0893bad1c20736b58143d7a50fec27a34b2bfb8",
+          "expires_at": null,
+          "created_at": "2026-11-10 20:14:39.690353+00",
+          "deleted_at": null
+        },
+        {
+          "account": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "CONCIERGE",
+          "ident": null,
+          "meta": {},
+          "material": "‹пропуск›",
+          "expires_at": null,
+          "created_at": "2026-11-10 20:14:39.715678+00",
+          "deleted_at": null
+        },
+        {
+          "account": "8b90a2db-46b0-5faf-9e0c-e1f7feb378d1",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "a96316ba-64a8-46ad-9aee-48a4dc166d33",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "2026-11-10T20:14:40.373397+00:00"
+          },
+          "material": "e25801780544790b3b4d81a42408b3046614cbe159c5d292eb494c8521abb6e6",
+          "expires_at": "2026-11-17 20:14:40.373407+00",
+          "created_at": "2026-11-10 20:14:40.373413+00",
+          "deleted_at": null
+        },
+        {
+          "account": "9479d15e-5c8a-5b01-ab64-16b42f2b86b5",
+          "tenant": "9479d15e-5c8a-5b01-ab64-16b42f2b86b5",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "1861c9cb1810312491109f7f7576362b9dc81fa9be4426715e73332a12f40258",
+          "expires_at": "2026-11-17 20:14:40.484614+00",
+          "created_at": "2026-11-10 20:14:40.486172+00",
+          "deleted_at": "2026-11-10 20:14:40.608848+00"
+        },
+        {
+          "account": "c0e7e69a-b316-52ea-a9ee-fe1a21943bf8",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "IDENT",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "kind": "email",
+            "address": "anna@romashka.ru"
+          },
+          "material": null,
+          "expires_at": null,
+          "created_at": "2026-11-10 20:14:40.606793+00",
+          "deleted_at": null
+        },
+        {
+          "account": "c0e7e69a-b316-52ea-a9ee-fe1a21943bf8",
+          "tenant": "9479d15e-5c8a-5b01-ab64-16b42f2b86b5",
+          "kind": "PASSWORD",
+          "ident": "email:anna@romashka.ru",
+          "meta": {},
+          "material": "7363727970742433323736382438243124495551317059514d374830685462377a6659723857773d3d24444e355578746e31553536547146495845377a43707a68595264335642747a41516750305343574a37364d3d",
+          "expires_at": null,
+          "created_at": "2026-11-10 20:14:40.608715+00",
+          "deleted_at": null
+        },
+        {
+          "account": "c0e7e69a-b316-52ea-a9ee-fe1a21943bf8",
+          "tenant": "9479d15e-5c8a-5b01-ab64-16b42f2b86b5",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "16572d1a-99ea-422e-855d-bdeccd8c9f56",
+            "methods": [
+              "INVITE",
+              "FIRST"
+            ],
+            "login_at": "2026-11-10T20:14:40.608991+00:00"
+          },
+          "material": "e79dae33f9b3de7400853e1238aa462c9eb6c28b12cc5c1bc7e2935f5e5a7f84",
+          "expires_at": "2026-11-17 20:14:40.609+00",
+          "created_at": "2026-11-10 20:14:40.609002+00",
+          "deleted_at": null
+        },
+        {
+          "account": "c0e7e69a-b316-52ea-a9ee-fe1a21943bf8",
+          "tenant": "9479d15e-5c8a-5b01-ab64-16b42f2b86b5",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "16572d1a-99ea-422e-855d-bdeccd8c9f56",
+            "methods": [
+              "PASSWORD"
+            ],
+            "login_at": "2026-11-10T20:14:40.749911+00:00"
+          },
+          "material": "74de8e2d5f59f7df3a35317eb58a833c2460acac9f005852963ff15d15a133f3",
+          "expires_at": "2026-11-17 20:14:40.749926+00",
+          "created_at": "2026-11-10 20:14:40.749928+00",
+          "deleted_at": null
+        }
+      ],
+      "signals": []
+    },
+    {
+      "result": {
+        "консьерж?": true,
+        "квартира": "Ромашка",
+        "та же квартира, что у Анны": true,
+        "квартиры дома": [
+          "Ромашка"
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "KEY",
+          "ident": null,
+          "meta": {
+            "v": 39,
+            "signals": "class"
+          },
+          "material": "c3defca44fea5b764151d3f7f6b0efb899833526b78d370c47d168f6871b1d43",
+          "expires_at": null,
+          "created_at": "2026-11-10 20:14:39.541735+00",
+          "deleted_at": null
+        },
+        {
+          "account": "8b90a2db-46b0-5faf-9e0c-e1f7feb378d1",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "APIKEY",
+          "ident": "lts_4edaa8a6",
+          "meta": {},
+          "material": "7a801d64d772313344e0d4ddd0893bad1c20736b58143d7a50fec27a34b2bfb8",
+          "expires_at": null,
+          "created_at": "2026-11-10 20:14:39.690353+00",
+          "deleted_at": null
+        },
+        {
+          "account": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "CONCIERGE",
+          "ident": null,
+          "meta": {},
+          "material": "‹пропуск›",
+          "expires_at": null,
+          "created_at": "2026-11-10 20:14:39.715678+00",
+          "deleted_at": null
+        },
+        {
+          "account": "8b90a2db-46b0-5faf-9e0c-e1f7feb378d1",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "a96316ba-64a8-46ad-9aee-48a4dc166d33",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "2026-11-10T20:14:40.373397+00:00"
+          },
+          "material": "e25801780544790b3b4d81a42408b3046614cbe159c5d292eb494c8521abb6e6",
+          "expires_at": "2026-11-17 20:14:40.373407+00",
+          "created_at": "2026-11-10 20:14:40.373413+00",
+          "deleted_at": null
+        },
+        {
+          "account": "9479d15e-5c8a-5b01-ab64-16b42f2b86b5",
+          "tenant": "9479d15e-5c8a-5b01-ab64-16b42f2b86b5",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "1861c9cb1810312491109f7f7576362b9dc81fa9be4426715e73332a12f40258",
+          "expires_at": "2026-11-17 20:14:40.484614+00",
+          "created_at": "2026-11-10 20:14:40.486172+00",
+          "deleted_at": "2026-11-10 20:14:40.608848+00"
+        },
+        {
+          "account": "c0e7e69a-b316-52ea-a9ee-fe1a21943bf8",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "IDENT",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "kind": "email",
+            "address": "anna@romashka.ru"
+          },
+          "material": null,
+          "expires_at": null,
+          "created_at": "2026-11-10 20:14:40.606793+00",
+          "deleted_at": null
+        },
+        {
+          "account": "c0e7e69a-b316-52ea-a9ee-fe1a21943bf8",
+          "tenant": "9479d15e-5c8a-5b01-ab64-16b42f2b86b5",
+          "kind": "PASSWORD",
+          "ident": "email:anna@romashka.ru",
+          "meta": {},
+          "material": "7363727970742433323736382438243124495551317059514d374830685462377a6659723857773d3d24444e355578746e31553536547146495845377a43707a68595264335642747a41516750305343574a37364d3d",
+          "expires_at": null,
+          "created_at": "2026-11-10 20:14:40.608715+00",
+          "deleted_at": null
+        },
+        {
+          "account": "c0e7e69a-b316-52ea-a9ee-fe1a21943bf8",
+          "tenant": "9479d15e-5c8a-5b01-ab64-16b42f2b86b5",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "16572d1a-99ea-422e-855d-bdeccd8c9f56",
+            "methods": [
+              "INVITE",
+              "FIRST"
+            ],
+            "login_at": "2026-11-10T20:14:40.608991+00:00"
+          },
+          "material": "e79dae33f9b3de7400853e1238aa462c9eb6c28b12cc5c1bc7e2935f5e5a7f84",
+          "expires_at": "2026-11-17 20:14:40.609+00",
+          "created_at": "2026-11-10 20:14:40.609002+00",
+          "deleted_at": null
+        },
+        {
+          "account": "c0e7e69a-b316-52ea-a9ee-fe1a21943bf8",
+          "tenant": "9479d15e-5c8a-5b01-ab64-16b42f2b86b5",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "16572d1a-99ea-422e-855d-bdeccd8c9f56",
+            "methods": [
+              "PASSWORD"
+            ],
+            "login_at": "2026-11-10T20:14:40.749911+00:00"
+          },
+          "material": "74de8e2d5f59f7df3a35317eb58a833c2460acac9f005852963ff15d15a133f3",
+          "expires_at": "2026-11-17 20:14:40.749926+00",
+          "created_at": "2026-11-10 20:14:40.749928+00",
+          "deleted_at": null
+        }
+      ],
+      "signals": []
+    }
+  ],
+  "output": "Шаг 1. Строим дом: setup()\n{\n  \"schema\": \"v2.example_install_01_setup_and_connect\",\n  \"created\": true,\n  \"revision\": 12,\n  \"warnings\": [],\n  \"пропуск: роль консьержа\": \"letopis_c_example_install_01_setup_and_connect\",\n  \"пропуск: дом\": \"v2.example_install_01_setup_and_connect\",\n  \"пропуск: ключ консьержа\": \"lts_…\"\n}\n\nШаг 2. Повторный setup() — тот же пропуск\n{\n  \"created\": false,\n  \"тот же пропуск\": true\n}\n\nШаг 3. Консьерж: connect(pass, { postman })\n{\n  \"дом\": \"v2.example_install_01_setup_and_connect\",\n  \"шаг класса Order\": false,\n  \"методы консьержа\": [\n    \"schema\",\n    \"open\",\n    \"resume\",\n    \"invitation\",\n    \"accept\",\n    \"requestCode\",\n    \"tenantsOf\",\n    \"createTenant\",\n    \"in\",\n    \"as\",\n    \"tenants\",\n    \"contactOf\",\n    \"deleteAccount\",\n    \"maintain\",\n    \"close\"\n  ]\n}\n\nШаг 4. Квартира: createTenant()\n{\n  \"квартира\": \"Ромашка\",\n  \"второй раз\": \"exists\"\n}\n\nШаг 5. Первый жилец: приглашение и accept()\n{\n  \"ответ invite\": [\n    \"id\",\n    \"expiresAt\"\n  ],\n  \"письмо почтальону\": {\n    \"to\": {\n      \"kind\": \"email\",\n      \"address\": \"anna@romashka.ru\"\n    },\n    \"kind\": \"invite\"\n  },\n  \"ждали приглашения\": [\n    {\n      \"to\": {\n        \"kind\": \"email\",\n        \"address\": \"anna@romashka.ru\"\n      },\n      \"roles\": [\n        \"owner\"\n      ]\n    }\n  ],\n  \"по ссылке\": {\n    \"квартира\": \"Ромашка\",\n    \"роли\": [\n      \"owner\"\n    ],\n    \"статус\": \"active\"\n  },\n  \"квартира Анны\": \"Ромашка\",\n  \"консьерж?\": false,\n  \"та же ссылка второй раз\": \"auth_failed\"\n}\n\nШаг 6. Вход по ключу: open()\n{\n  \"квартира\": \"Ромашка\",\n  \"тот же аккаунт\": true,\n  \"неверный пароль\": \"auth_failed\"\n}\n\nШаг 7. Консьерж в квартире: in() и tenants()\n{\n  \"консьерж?\": true,\n  \"квартира\": \"Ромашка\",\n  \"та же квартира, что у Анны\": true,\n  \"квартиры дома\": [\n    \"Ромашка\"\n  ]\n}",
+  "exitCode": 0
+}

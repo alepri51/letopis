@@ -9,7 +9,7 @@
     {
       "result": {
         "text": "Hello, world!",
-        "id": "321d005c-fe58-506d-bf92-c8d6c4cc3319",
+        "id": "96bd0d90-6ca0-5672-9352-3d0da64610c5",
         "rev": 1
       },
       "error": null,
@@ -22,6 +22,7 @@
           "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "links": {},
           "data": {
+            "kind": "system",
             "name": "System",
             "enabled": true,
             "categories": [
@@ -33,7 +34,7 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:01.259255+00"
+          "at": "2026-11-10 20:14:32.894075+00"
         },
         {
           "id": "8377cd73-5caa-5d11-8540-03388e4e92bf",
@@ -128,7 +129,7 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:01.261783+00"
+          "at": "2026-11-10 20:14:32.899984+00"
         },
         {
           "id": "ddf164b8-cc60-5500-a377-c4fd4b7a6817",
@@ -146,6 +147,15 @@
                 "name"
               ],
               "properties": {
+                "kind": {
+                  "enum": [
+                    "system",
+                    "service",
+                    "tenant",
+                    "person"
+                  ],
+                  "type": "string"
+                },
                 "name": {
                   "type": "string"
                 },
@@ -169,7 +179,12 @@
               "kind": "hub",
               "meta": {},
               "name": "Account",
-              "vars": {},
+              "vars": {
+                "v1": "system",
+                "v2": "service",
+                "v3": "tenant",
+                "v4": "person"
+              },
               "cache": null,
               "rules": [
                 {
@@ -187,6 +202,29 @@
                   "vars": {},
                   "keyword": "required",
                   "path_expr": "$"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "kind"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"kind\").value"
+                },
+                {
+                  "cond": "((@.type() == \"string\" && @ == $v1) || (@.type() == \"string\" && @ == $v2) || (@.type() == \"string\" && @ == $v3) || (@.type() == \"string\" && @ == $v4))",
+                  "path": [
+                    "kind"
+                  ],
+                  "vars": {
+                    "v1": "system",
+                    "v2": "service",
+                    "v3": "tenant",
+                    "v4": "person"
+                  },
+                  "keyword": "enum",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"kind\").value"
                 },
                 {
                   "cond": "@.type() == \"string\"",
@@ -238,7 +276,7 @@
                   "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"categories\").value ? (@.type() == \"array\")[*]"
                 },
                 {
-                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"name\" || @.key == \"enabled\" || @.key == \"categories\"))))",
+                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"kind\" || @.key == \"name\" || @.key == \"enabled\" || @.key == \"categories\"))))",
                   "path": [],
                   "vars": {},
                   "keyword": "additionalProperties",
@@ -251,6 +289,15 @@
                   "name"
                 ],
                 "properties": {
+                  "kind": {
+                    "enum": [
+                      "system",
+                      "service",
+                      "tenant",
+                      "person"
+                    ],
+                    "type": "string"
+                  },
                   "name": {
                     "type": "string"
                   },
@@ -281,7 +328,7 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:01.270759+00"
+          "at": "2026-11-10 20:14:32.912103+00"
         },
         {
           "id": "4e09c113-fbc8-5cc0-8795-27e521aece0a",
@@ -419,7 +466,7 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:01.275071+00"
+          "at": "2026-11-10 20:14:32.917153+00"
         },
         {
           "id": "73bf3192-9d1c-55cd-a85c-ddecce5bedb8",
@@ -447,6 +494,9 @@
                 "pattern": {
                   "type": "object",
                   "properties": {
+                    "role": {
+                      "type": "string"
+                    },
                     "class": {
                       "type": "string"
                     },
@@ -467,7 +517,8 @@
                     "API",
                     "READ",
                     "WRITE",
-                    "DELETE"
+                    "DELETE",
+                    "ROLE"
                   ],
                   "type": "string"
                 },
@@ -490,7 +541,8 @@
                 "v2": "API",
                 "v3": "READ",
                 "v4": "WRITE",
-                "v5": "DELETE"
+                "v5": "DELETE",
+                "v6": "ROLE"
               },
               "cache": null,
               "rules": [
@@ -555,6 +607,16 @@
                   "cond": "@.type() == \"string\"",
                   "path": [
                     "pattern",
+                    "role"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value ? (@.type() == \"object\").keyvalue() ? (@.key == \"role\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "pattern",
                     "class"
                   ],
                   "vars": {},
@@ -601,7 +663,7 @@
                   "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"category\").value"
                 },
                 {
-                  "cond": "((@.type() == \"string\" && @ == $v1) || (@.type() == \"string\" && @ == $v2) || (@.type() == \"string\" && @ == $v3) || (@.type() == \"string\" && @ == $v4) || (@.type() == \"string\" && @ == $v5))",
+                  "cond": "((@.type() == \"string\" && @ == $v1) || (@.type() == \"string\" && @ == $v2) || (@.type() == \"string\" && @ == $v3) || (@.type() == \"string\" && @ == $v4) || (@.type() == \"string\" && @ == $v5) || (@.type() == \"string\" && @ == $v6))",
                   "path": [
                     "category"
                   ],
@@ -610,7 +672,8 @@
                     "v2": "API",
                     "v3": "READ",
                     "v4": "WRITE",
-                    "v5": "DELETE"
+                    "v5": "DELETE",
+                    "v6": "ROLE"
                   },
                   "keyword": "enum",
                   "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"category\").value"
@@ -646,6 +709,9 @@
                   "pattern": {
                     "type": "object",
                     "properties": {
+                      "role": {
+                        "type": "string"
+                      },
                       "class": {
                         "type": "string"
                       },
@@ -666,7 +732,8 @@
                       "API",
                       "READ",
                       "WRITE",
-                      "DELETE"
+                      "DELETE",
+                      "ROLE"
                     ],
                     "type": "string"
                   },
@@ -689,7 +756,7 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:01.278907+00"
+          "at": "2026-11-10 20:14:32.921774+00"
         },
         {
           "id": "f8ea2a20-5167-5daa-be31-f27111d0adcb",
@@ -729,12 +796,18 @@
                   "type": "integer",
                   "default": 0
                 },
+                "default": {
+                  "type": "boolean"
+                },
                 "enabled": {
                   "type": "boolean",
                   "default": true
                 },
                 "message": {
                   "type": "string"
+                },
+                "concierge": {
+                  "type": "boolean"
                 },
                 "permission": {
                   "enum": [
@@ -812,6 +885,15 @@
                 {
                   "cond": "@.type() == \"boolean\"",
                   "path": [
+                    "default"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"default\").value"
+                },
+                {
+                  "cond": "@.type() == \"boolean\"",
+                  "path": [
                     "enabled"
                   ],
                   "vars": {},
@@ -826,6 +908,15 @@
                   "vars": {},
                   "keyword": "type",
                   "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"message\").value"
+                },
+                {
+                  "cond": "@.type() == \"boolean\"",
+                  "path": [
+                    "concierge"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"concierge\").value"
                 },
                 {
                   "cond": "@.type() == \"string\"",
@@ -858,7 +949,7 @@
                   "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"description\").value"
                 },
                 {
-                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"code\" || @.key == \"weight\" || @.key == \"enabled\" || @.key == \"message\" || @.key == \"permission\" || @.key == \"description\"))))",
+                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"code\" || @.key == \"weight\" || @.key == \"default\" || @.key == \"enabled\" || @.key == \"message\" || @.key == \"concierge\" || @.key == \"permission\" || @.key == \"description\"))))",
                   "path": [],
                   "vars": {},
                   "keyword": "additionalProperties",
@@ -878,12 +969,18 @@
                     "type": "integer",
                     "default": 0
                   },
+                  "default": {
+                    "type": "boolean"
+                  },
                   "enabled": {
                     "type": "boolean",
                     "default": true
                   },
                   "message": {
                     "type": "string"
+                  },
+                  "concierge": {
+                    "type": "boolean"
                   },
                   "permission": {
                     "enum": [
@@ -911,28 +1008,7 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:01.282737+00"
-        },
-        {
-          "id": "119dfcbb-59e0-5d0a-bc27-84e12f080e26",
-          "class": "Resource",
-          "rev": 1,
-          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "links": {},
-          "data": {
-            "alias": "anonymous:ACCOUNT",
-            "pattern": {
-              "categories": "{Anonymous,Shadow}"
-            },
-            "category": "ACCOUNT"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "agent": null,
-          "reason": null,
-          "at": "2026-11-04 05:14:01.286929+00"
+          "at": "2026-11-10 20:14:32.926782+00"
         },
         {
           "id": "6754c8dc-3c63-589a-a733-fdf1a402bf80",
@@ -944,7 +1020,7 @@
           "data": {
             "alias": "authenticated:ACCOUNT",
             "pattern": {
-              "categories": "!{Anonymous,Shadow}"
+              "categories": "{User}"
             },
             "category": "ACCOUNT"
           },
@@ -953,7 +1029,7 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:01.28749+00"
+          "at": "2026-11-10 20:14:32.932079+00"
         },
         {
           "id": "8480ebe7-78c5-5bb1-af92-d3f7345e5e31",
@@ -971,7 +1047,7 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:01.288097+00"
+          "at": "2026-11-10 20:14:32.932629+00"
         },
         {
           "id": "dd7a57a8-b157-5edb-bfc1-6ee0d9261596",
@@ -992,28 +1068,7 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:01.288573+00"
-        },
-        {
-          "id": "3dc680e8-f312-52e4-89de-f7713757ce16",
-          "class": "Resource",
-          "rev": 1,
-          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "links": {},
-          "data": {
-            "alias": "admin:ACCOUNT",
-            "pattern": {
-              "roles": "{admin}"
-            },
-            "category": "ACCOUNT"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "agent": null,
-          "reason": null,
-          "at": "2026-11-04 05:14:01.289042+00"
+          "at": "2026-11-10 20:14:32.933095+00"
         },
         {
           "id": "ad9e1531-ea24-527b-85f6-931ff9e00720",
@@ -1031,49 +1086,7 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:01.289628+00"
-        },
-        {
-          "id": "9af9baec-4209-5387-9fb7-b85d9b205453",
-          "class": "Resource",
-          "rev": 1,
-          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "links": {},
-          "data": {
-            "alias": "auth:API",
-            "pattern": {
-              "endpoint": "auth.*"
-            },
-            "category": "API"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "agent": null,
-          "reason": null,
-          "at": "2026-11-04 05:14:01.29004+00"
-        },
-        {
-          "id": "f3b9fd80-8cef-575e-abb9-c8b5b1170c43",
-          "class": "Resource",
-          "rev": 1,
-          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "links": {},
-          "data": {
-            "alias": "letopis:API",
-            "pattern": {
-              "endpoint": "letopis.*"
-            },
-            "category": "API"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "agent": null,
-          "reason": null,
-          "at": "2026-11-04 05:14:01.29115+00"
+          "at": "2026-11-10 20:14:32.933376+00"
         },
         {
           "id": "d176df5c-a823-56b3-b6d4-d145c52a45b2",
@@ -1094,7 +1107,46 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:01.291637+00"
+          "at": "2026-11-10 20:14:32.933607+00"
+        },
+        {
+          "id": "4789576f-d229-598c-be4d-ef37fecaab99",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "maintain:API",
+            "pattern": {
+              "endpoint": "letopis.maintain"
+            },
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:14:32.933858+00"
+        },
+        {
+          "id": "6af3a4f1-3a3d-565f-a533-6df8f37aa023",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "all:ROLE",
+            "category": "ROLE"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:14:32.934203+00"
         },
         {
           "id": "3490678a-6711-56d2-9d5d-9f0d23928bd0",
@@ -1109,8 +1161,8 @@
           "data": {
             "code": 403,
             "weight": 0,
+            "default": true,
             "enabled": true,
-            "message": "Доступ запрещён по умолчанию",
             "permission": "deny"
           },
           "tags": [],
@@ -1118,29 +1170,130 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:01.292252+00"
+          "at": "2026-11-10 20:14:32.934512+00"
         },
         {
-          "id": "4ecea0ae-3813-5c73-9ca6-e35faf0c227a",
-          "class": "rule",
+          "id": "9e1249cc-5986-5314-81ae-6dd4154b5970",
+          "class": "Resource",
           "rev": 1,
           "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "links": {
-            "Group": "dd7a57a8-b157-5edb-bfc1-6ee0d9261596",
-            "Object": "9af9baec-4209-5387-9fb7-b85d9b205453"
-          },
+          "links": {},
           "data": {
-            "weight": 100,
-            "enabled": true,
-            "permission": "allow"
+            "alias": "all:READ",
+            "category": "READ"
           },
           "tags": [],
           "op": "create",
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:01.29291+00"
+          "at": "2026-11-10 20:14:32.93478+00"
+        },
+        {
+          "id": "0c2aaff8-159d-58d6-8a54-04ffaf377771",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "8480ebe7-78c5-5bb1-af92-d3f7345e5e31",
+            "Object": "9e1249cc-5986-5314-81ae-6dd4154b5970"
+          },
+          "data": {
+            "weight": 0,
+            "default": true,
+            "enabled": true,
+            "permission": "deny"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:14:32.934994+00"
+        },
+        {
+          "id": "682403e8-c9ca-55f2-a8ea-62786cd83758",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "all:WRITE",
+            "category": "WRITE"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:14:32.935201+00"
+        },
+        {
+          "id": "e57bd46f-7b2c-504a-bb36-9d25da249e12",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "8480ebe7-78c5-5bb1-af92-d3f7345e5e31",
+            "Object": "682403e8-c9ca-55f2-a8ea-62786cd83758"
+          },
+          "data": {
+            "weight": 0,
+            "default": true,
+            "enabled": true,
+            "permission": "deny"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:14:32.935389+00"
+        },
+        {
+          "id": "42495a98-5543-51d5-a60c-5525c21b7a05",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "all:DELETE",
+            "category": "DELETE"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:14:32.93558+00"
+        },
+        {
+          "id": "f0bd3883-9405-5ce7-adfa-d9c523278153",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "8480ebe7-78c5-5bb1-af92-d3f7345e5e31",
+            "Object": "42495a98-5543-51d5-a60c-5525c21b7a05"
+          },
+          "data": {
+            "weight": 0,
+            "default": true,
+            "enabled": true,
+            "permission": "deny"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:14:32.935926+00"
         },
         {
           "id": "5646a5e0-0298-5f40-9fce-59d27211a0fa",
@@ -1162,17 +1315,17 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:01.293338+00"
+          "at": "2026-11-10 20:14:32.936169+00"
         },
         {
-          "id": "1d8fc7f0-053d-5495-8bbe-ae85feaf290c",
+          "id": "c0b979cf-2674-560b-a719-0b890f7acb7b",
           "class": "rule",
           "rev": 1,
           "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "links": {
-            "Group": "3dc680e8-f312-52e4-89de-f7713757ce16",
-            "Object": "9af9baec-4209-5387-9fb7-b85d9b205453"
+            "Group": "dd7a57a8-b157-5edb-bfc1-6ee0d9261596",
+            "Object": "4789576f-d229-598c-be4d-ef37fecaab99"
           },
           "data": {
             "weight": 100,
@@ -1184,61 +1337,22 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:01.293794+00"
+          "at": "2026-11-10 20:14:32.936438+00"
         },
         {
-          "id": "52acc9d2-b850-59bd-980b-59717be1c8b9",
+          "id": "8c407535-1785-5a0b-8482-bb5b2404e68d",
           "class": "rule",
           "rev": 1,
           "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "links": {
-            "Group": "3dc680e8-f312-52e4-89de-f7713757ce16",
-            "Object": "f3b9fd80-8cef-575e-abb9-c8b5b1170c43"
-          },
-          "data": {
-            "weight": 100,
-            "enabled": true,
-            "permission": "allow"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "agent": null,
-          "reason": null,
-          "at": "2026-11-04 05:14:01.294188+00"
-        },
-        {
-          "id": "9e1249cc-5986-5314-81ae-6dd4154b5970",
-          "class": "Resource",
-          "rev": 1,
-          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "links": {},
-          "data": {
-            "alias": "all:READ",
-            "category": "READ"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "agent": null,
-          "reason": null,
-          "at": "2026-11-04 05:14:01.294563+00"
-        },
-        {
-          "id": "40fd537a-d2f9-52df-9f6b-d970b68da1cd",
-          "class": "rule",
-          "rev": 1,
-          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "links": {
-            "Group": "3dc680e8-f312-52e4-89de-f7713757ce16",
+            "Group": "dd7a57a8-b157-5edb-bfc1-6ee0d9261596",
             "Object": "9e1249cc-5986-5314-81ae-6dd4154b5970"
           },
           "data": {
-            "weight": 100,
+            "weight": 1000000,
             "enabled": true,
+            "concierge": true,
             "permission": "allow"
           },
           "tags": [],
@@ -1246,39 +1360,22 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:01.295541+00"
+          "at": "2026-11-10 20:14:32.936861+00"
         },
         {
-          "id": "682403e8-c9ca-55f2-a8ea-62786cd83758",
-          "class": "Resource",
-          "rev": 1,
-          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "links": {},
-          "data": {
-            "alias": "all:WRITE",
-            "category": "WRITE"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "agent": null,
-          "reason": null,
-          "at": "2026-11-04 05:14:01.295943+00"
-        },
-        {
-          "id": "0342fcd5-4d89-51ac-a388-43bf77b7446e",
+          "id": "fe1c3067-d1b8-57e0-a2f9-6702ee7d50ed",
           "class": "rule",
           "rev": 1,
           "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "links": {
-            "Group": "3dc680e8-f312-52e4-89de-f7713757ce16",
+            "Group": "dd7a57a8-b157-5edb-bfc1-6ee0d9261596",
             "Object": "682403e8-c9ca-55f2-a8ea-62786cd83758"
           },
           "data": {
-            "weight": 100,
+            "weight": 1000000,
             "enabled": true,
+            "concierge": true,
             "permission": "allow"
           },
           "tags": [],
@@ -1286,39 +1383,22 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:01.296206+00"
+          "at": "2026-11-10 20:14:32.937112+00"
         },
         {
-          "id": "42495a98-5543-51d5-a60c-5525c21b7a05",
-          "class": "Resource",
-          "rev": 1,
-          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "links": {},
-          "data": {
-            "alias": "all:DELETE",
-            "category": "DELETE"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "agent": null,
-          "reason": null,
-          "at": "2026-11-04 05:14:01.296511+00"
-        },
-        {
-          "id": "4777d615-8e88-54a2-9763-30b8a25da7e4",
+          "id": "bc9b20d4-7a1a-566d-92a0-62de2520701b",
           "class": "rule",
           "rev": 1,
           "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "links": {
-            "Group": "3dc680e8-f312-52e4-89de-f7713757ce16",
+            "Group": "dd7a57a8-b157-5edb-bfc1-6ee0d9261596",
             "Object": "42495a98-5543-51d5-a60c-5525c21b7a05"
           },
           "data": {
-            "weight": 100,
+            "weight": 1000000,
             "enabled": true,
+            "concierge": true,
             "permission": "allow"
           },
           "tags": [],
@@ -1326,17 +1406,18 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:01.296732+00"
+          "at": "2026-11-10 20:14:32.937314+00"
         },
         {
-          "id": "0439f92b-6a26-5e31-8aff-367d35aaa771",
+          "id": "bcce1326-673d-558a-a707-5ac0b1f3b0b0",
           "class": "Account",
           "rev": 1,
           "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "links": {},
           "data": {
-            "name": "service",
+            "kind": "service",
+            "name": "concierge",
             "enabled": true,
             "categories": [
               "Service"
@@ -1347,142 +1428,14 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:01.302929+00"
+          "at": "2026-11-10 20:14:33.042694+00"
         },
         {
-          "id": "8ca20722-c00b-5c5c-b9e6-21c5a3ec843d",
-          "class": "Account",
-          "rev": 1,
-          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "links": {},
-          "data": {
-            "name": "Мир",
-            "enabled": true,
-            "categories": []
-          },
-          "tags": [],
-          "op": "create",
-          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "agent": null,
-          "reason": null,
-          "at": "2026-11-04 05:14:01.561649+00"
-        },
-        {
-          "id": "13382de7-4d8f-5958-b804-0a6a24125fce",
-          "class": "rule",
-          "rev": 1,
-          "tenant": "8ca20722-c00b-5c5c-b9e6-21c5a3ec843d",
-          "owner": "8ca20722-c00b-5c5c-b9e6-21c5a3ec843d",
-          "links": {
-            "Group": "6754c8dc-3c63-589a-a733-fdf1a402bf80",
-            "Object": "9e1249cc-5986-5314-81ae-6dd4154b5970"
-          },
-          "data": {
-            "weight": 10,
-            "enabled": true,
-            "permission": "allow"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "agent": null,
-          "reason": null,
-          "at": "2026-11-04 05:14:01.566915+00"
-        },
-        {
-          "id": "4cc91c6d-8f4a-5878-b079-151330452d4d",
-          "class": "rule",
-          "rev": 1,
-          "tenant": "8ca20722-c00b-5c5c-b9e6-21c5a3ec843d",
-          "owner": "8ca20722-c00b-5c5c-b9e6-21c5a3ec843d",
-          "links": {
-            "Group": "6754c8dc-3c63-589a-a733-fdf1a402bf80",
-            "Object": "682403e8-c9ca-55f2-a8ea-62786cd83758"
-          },
-          "data": {
-            "weight": 10,
-            "enabled": true,
-            "permission": "allow"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "agent": null,
-          "reason": null,
-          "at": "2026-11-04 05:14:01.567754+00"
-        },
-        {
-          "id": "948c7e43-ba25-5af0-92c6-ebf21439bbdd",
-          "class": "rule",
-          "rev": 1,
-          "tenant": "8ca20722-c00b-5c5c-b9e6-21c5a3ec843d",
-          "owner": "8ca20722-c00b-5c5c-b9e6-21c5a3ec843d",
-          "links": {
-            "Group": "6754c8dc-3c63-589a-a733-fdf1a402bf80",
-            "Object": "42495a98-5543-51d5-a60c-5525c21b7a05"
-          },
-          "data": {
-            "weight": 10,
-            "enabled": true,
-            "permission": "allow"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "agent": null,
-          "reason": null,
-          "at": "2026-11-04 05:14:01.568502+00"
-        },
-        {
-          "id": "b4bf3a6e-62ba-5668-812e-480c2b7a1558",
-          "class": "Account",
-          "rev": 1,
-          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "links": {},
-          "data": {
-            "name": "Аня",
-            "enabled": true,
-            "categories": [
-              "User"
-            ]
-          },
-          "tags": [],
-          "op": "create",
-          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "agent": null,
-          "reason": null,
-          "at": "2026-11-04 05:14:01.572302+00"
-        },
-        {
-          "id": "f7808007-6dc6-5659-85e7-11c35b497ef0",
-          "class": "member",
-          "rev": 1,
-          "tenant": "8ca20722-c00b-5c5c-b9e6-21c5a3ec843d",
-          "owner": "8ca20722-c00b-5c5c-b9e6-21c5a3ec843d",
-          "links": {
-            "User": "b4bf3a6e-62ba-5668-812e-480c2b7a1558",
-            "Tenant": "8ca20722-c00b-5c5c-b9e6-21c5a3ec843d"
-          },
-          "data": {
-            "roles": [
-              "owner"
-            ]
-          },
-          "tags": [],
-          "op": "create",
-          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "agent": null,
-          "reason": null,
-          "at": "2026-11-04 05:14:01.577935+00"
-        },
-        {
-          "id": "37ec5623-51c3-5885-bb0d-1aa57d1d1ec5",
+          "id": "c89ae66e-82f0-57b6-bf64-a3abc2f064c5",
           "class": "Class",
           "rev": 1,
-          "tenant": "8ca20722-c00b-5c5c-b9e6-21c5a3ec843d",
-          "owner": "8ca20722-c00b-5c5c-b9e6-21c5a3ec843d",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "links": {},
           "data": {
             "kind": "hub",
@@ -1561,27 +1514,342 @@
           },
           "tags": [],
           "op": "create",
-          "author": "b4bf3a6e-62ba-5668-812e-480c2b7a1558",
+          "author": "bcce1326-673d-558a-a707-5ac0b1f3b0b0",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:01.707486+00"
+          "at": "2026-11-10 20:14:33.190143+00"
         },
         {
-          "id": "321d005c-fe58-506d-bf92-c8d6c4cc3319",
+          "id": "b74c3cb7-72c2-59ac-9b71-cadb70cd718e",
+          "class": "Account",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "kind": "tenant",
+            "name": "Мир",
+            "enabled": true,
+            "categories": []
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:14:33.299206+00"
+        },
+        {
+          "id": "9a4928b7-90a0-5b6b-a39a-46ddb91f4fa2",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "b74c3cb7-72c2-59ac-9b71-cadb70cd718e",
+          "owner": "b74c3cb7-72c2-59ac-9b71-cadb70cd718e",
+          "links": {},
+          "data": {
+            "alias": "role:owner:ACCOUNT",
+            "pattern": {
+              "roles": "{owner}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:14:33.302573+00"
+        },
+        {
+          "id": "03ecdf1b-4368-5ffa-b4eb-3945a0253907",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "b74c3cb7-72c2-59ac-9b71-cadb70cd718e",
+          "owner": "bcce1326-673d-558a-a707-5ac0b1f3b0b0",
+          "links": {
+            "Group": "dd7a57a8-b157-5edb-bfc1-6ee0d9261596",
+            "Object": "9e1249cc-5986-5314-81ae-6dd4154b5970"
+          },
+          "data": {
+            "weight": 1000000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:14:33.304003+00"
+        },
+        {
+          "id": "16100d5f-3370-5f3a-a65b-cf1b4692c6e2",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "b74c3cb7-72c2-59ac-9b71-cadb70cd718e",
+          "owner": "bcce1326-673d-558a-a707-5ac0b1f3b0b0",
+          "links": {
+            "Group": "9a4928b7-90a0-5b6b-a39a-46ddb91f4fa2",
+            "Object": "9e1249cc-5986-5314-81ae-6dd4154b5970"
+          },
+          "data": {
+            "weight": 100000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:14:33.304975+00"
+        },
+        {
+          "id": "fcf9a2e7-004c-58ff-964f-e5c5e5490c38",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "b74c3cb7-72c2-59ac-9b71-cadb70cd718e",
+          "owner": "bcce1326-673d-558a-a707-5ac0b1f3b0b0",
+          "links": {
+            "Group": "dd7a57a8-b157-5edb-bfc1-6ee0d9261596",
+            "Object": "682403e8-c9ca-55f2-a8ea-62786cd83758"
+          },
+          "data": {
+            "weight": 1000000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:14:33.305768+00"
+        },
+        {
+          "id": "525044c8-302b-59a5-a057-67ac20c6ba60",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "b74c3cb7-72c2-59ac-9b71-cadb70cd718e",
+          "owner": "bcce1326-673d-558a-a707-5ac0b1f3b0b0",
+          "links": {
+            "Group": "9a4928b7-90a0-5b6b-a39a-46ddb91f4fa2",
+            "Object": "682403e8-c9ca-55f2-a8ea-62786cd83758"
+          },
+          "data": {
+            "weight": 100000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:14:33.306248+00"
+        },
+        {
+          "id": "1353099d-5ad2-54af-9666-5c8497d166a4",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "b74c3cb7-72c2-59ac-9b71-cadb70cd718e",
+          "owner": "bcce1326-673d-558a-a707-5ac0b1f3b0b0",
+          "links": {
+            "Group": "dd7a57a8-b157-5edb-bfc1-6ee0d9261596",
+            "Object": "42495a98-5543-51d5-a60c-5525c21b7a05"
+          },
+          "data": {
+            "weight": 1000000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:14:33.306727+00"
+        },
+        {
+          "id": "6518dc05-dd60-5735-a153-050b2c5c94bb",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "b74c3cb7-72c2-59ac-9b71-cadb70cd718e",
+          "owner": "bcce1326-673d-558a-a707-5ac0b1f3b0b0",
+          "links": {
+            "Group": "9a4928b7-90a0-5b6b-a39a-46ddb91f4fa2",
+            "Object": "42495a98-5543-51d5-a60c-5525c21b7a05"
+          },
+          "data": {
+            "weight": 100000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:14:33.307065+00"
+        },
+        {
+          "id": "42e082e5-f4bd-56fc-af15-a5864b7d17e5",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "b74c3cb7-72c2-59ac-9b71-cadb70cd718e",
+          "owner": "bcce1326-673d-558a-a707-5ac0b1f3b0b0",
+          "links": {
+            "Group": "dd7a57a8-b157-5edb-bfc1-6ee0d9261596",
+            "Object": "ad9e1531-ea24-527b-85f6-931ff9e00720"
+          },
+          "data": {
+            "weight": 1000000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:14:33.307449+00"
+        },
+        {
+          "id": "6e296345-c49c-5d06-a040-758773a73cf9",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "b74c3cb7-72c2-59ac-9b71-cadb70cd718e",
+          "owner": "bcce1326-673d-558a-a707-5ac0b1f3b0b0",
+          "links": {
+            "Group": "9a4928b7-90a0-5b6b-a39a-46ddb91f4fa2",
+            "Object": "ad9e1531-ea24-527b-85f6-931ff9e00720"
+          },
+          "data": {
+            "weight": 100000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:14:33.307672+00"
+        },
+        {
+          "id": "335efd79-e9e8-51c8-aeda-601e6d953f6c",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "b74c3cb7-72c2-59ac-9b71-cadb70cd718e",
+          "owner": "bcce1326-673d-558a-a707-5ac0b1f3b0b0",
+          "links": {
+            "Group": "dd7a57a8-b157-5edb-bfc1-6ee0d9261596",
+            "Object": "6af3a4f1-3a3d-565f-a533-6df8f37aa023"
+          },
+          "data": {
+            "weight": 1000000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:14:33.307916+00"
+        },
+        {
+          "id": "f4845864-9198-57f7-bca0-c11f865e0e34",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "b74c3cb7-72c2-59ac-9b71-cadb70cd718e",
+          "owner": "bcce1326-673d-558a-a707-5ac0b1f3b0b0",
+          "links": {
+            "Group": "9a4928b7-90a0-5b6b-a39a-46ddb91f4fa2",
+            "Object": "6af3a4f1-3a3d-565f-a533-6df8f37aa023"
+          },
+          "data": {
+            "weight": 100000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:14:33.308118+00"
+        },
+        {
+          "id": "5752b0e6-d863-58ad-ad78-8fbb9d3025be",
+          "class": "Account",
+          "rev": 1,
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "kind": "person",
+            "name": "Аня",
+            "enabled": true,
+            "categories": [
+              "User"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:14:33.356582+00"
+        },
+        {
+          "id": "ad3dc051-16cf-5a9c-90f3-fa0ccbe04001",
+          "class": "member",
+          "rev": 1,
+          "tenant": "b74c3cb7-72c2-59ac-9b71-cadb70cd718e",
+          "owner": "b74c3cb7-72c2-59ac-9b71-cadb70cd718e",
+          "links": {
+            "User": "5752b0e6-d863-58ad-ad78-8fbb9d3025be",
+            "Tenant": "b74c3cb7-72c2-59ac-9b71-cadb70cd718e"
+          },
+          "data": {
+            "roles": [
+              "owner"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:14:33.357968+00"
+        },
+        {
+          "id": "96bd0d90-6ca0-5672-9352-3d0da64610c5",
           "class": "Greeting",
           "rev": 1,
-          "tenant": "8ca20722-c00b-5c5c-b9e6-21c5a3ec843d",
-          "owner": "8ca20722-c00b-5c5c-b9e6-21c5a3ec843d",
+          "tenant": "b74c3cb7-72c2-59ac-9b71-cadb70cd718e",
+          "owner": "b74c3cb7-72c2-59ac-9b71-cadb70cd718e",
           "links": {},
           "data": {
             "text": "Hello, world!"
           },
           "tags": [],
           "op": "create",
-          "author": "b4bf3a6e-62ba-5668-812e-480c2b7a1558",
+          "author": "5752b0e6-d863-58ad-ad78-8fbb9d3025be",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:01.726676+00"
+          "at": "2026-11-10 20:14:33.385792+00"
         }
       ],
       "removed": [],
@@ -1594,6 +1862,7 @@
           "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "links": {},
           "data": {
+            "kind": "system",
             "name": "System",
             "enabled": true,
             "categories": [
@@ -1605,8 +1874,8 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:01.259255+00",
-          "tx": "3891732"
+          "at": "2026-11-10 20:14:32.894075+00",
+          "tx": "4255267"
         },
         {
           "seq": "2",
@@ -1701,8 +1970,8 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:01.261783+00",
-          "tx": "3891732"
+          "at": "2026-11-10 20:14:32.899984+00",
+          "tx": "4255267"
         },
         {
           "seq": "3",
@@ -1720,6 +1989,15 @@
                 "name"
               ],
               "properties": {
+                "kind": {
+                  "enum": [
+                    "system",
+                    "service",
+                    "tenant",
+                    "person"
+                  ],
+                  "type": "string"
+                },
                 "name": {
                   "type": "string"
                 },
@@ -1743,7 +2021,12 @@
               "kind": "hub",
               "meta": {},
               "name": "Account",
-              "vars": {},
+              "vars": {
+                "v1": "system",
+                "v2": "service",
+                "v3": "tenant",
+                "v4": "person"
+              },
               "cache": null,
               "rules": [
                 {
@@ -1761,6 +2044,29 @@
                   "vars": {},
                   "keyword": "required",
                   "path_expr": "$"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "kind"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"kind\").value"
+                },
+                {
+                  "cond": "((@.type() == \"string\" && @ == $v1) || (@.type() == \"string\" && @ == $v2) || (@.type() == \"string\" && @ == $v3) || (@.type() == \"string\" && @ == $v4))",
+                  "path": [
+                    "kind"
+                  ],
+                  "vars": {
+                    "v1": "system",
+                    "v2": "service",
+                    "v3": "tenant",
+                    "v4": "person"
+                  },
+                  "keyword": "enum",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"kind\").value"
                 },
                 {
                   "cond": "@.type() == \"string\"",
@@ -1812,7 +2118,7 @@
                   "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"categories\").value ? (@.type() == \"array\")[*]"
                 },
                 {
-                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"name\" || @.key == \"enabled\" || @.key == \"categories\"))))",
+                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"kind\" || @.key == \"name\" || @.key == \"enabled\" || @.key == \"categories\"))))",
                   "path": [],
                   "vars": {},
                   "keyword": "additionalProperties",
@@ -1825,6 +2131,15 @@
                   "name"
                 ],
                 "properties": {
+                  "kind": {
+                    "enum": [
+                      "system",
+                      "service",
+                      "tenant",
+                      "person"
+                    ],
+                    "type": "string"
+                  },
                   "name": {
                     "type": "string"
                   },
@@ -1855,8 +2170,8 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:01.270759+00",
-          "tx": "3891732"
+          "at": "2026-11-10 20:14:32.912103+00",
+          "tx": "4255267"
         },
         {
           "seq": "4",
@@ -1994,8 +2309,8 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:01.275071+00",
-          "tx": "3891732"
+          "at": "2026-11-10 20:14:32.917153+00",
+          "tx": "4255267"
         },
         {
           "seq": "5",
@@ -2023,6 +2338,9 @@
                 "pattern": {
                   "type": "object",
                   "properties": {
+                    "role": {
+                      "type": "string"
+                    },
                     "class": {
                       "type": "string"
                     },
@@ -2043,7 +2361,8 @@
                     "API",
                     "READ",
                     "WRITE",
-                    "DELETE"
+                    "DELETE",
+                    "ROLE"
                   ],
                   "type": "string"
                 },
@@ -2066,7 +2385,8 @@
                 "v2": "API",
                 "v3": "READ",
                 "v4": "WRITE",
-                "v5": "DELETE"
+                "v5": "DELETE",
+                "v6": "ROLE"
               },
               "cache": null,
               "rules": [
@@ -2131,6 +2451,16 @@
                   "cond": "@.type() == \"string\"",
                   "path": [
                     "pattern",
+                    "role"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value ? (@.type() == \"object\").keyvalue() ? (@.key == \"role\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "pattern",
                     "class"
                   ],
                   "vars": {},
@@ -2177,7 +2507,7 @@
                   "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"category\").value"
                 },
                 {
-                  "cond": "((@.type() == \"string\" && @ == $v1) || (@.type() == \"string\" && @ == $v2) || (@.type() == \"string\" && @ == $v3) || (@.type() == \"string\" && @ == $v4) || (@.type() == \"string\" && @ == $v5))",
+                  "cond": "((@.type() == \"string\" && @ == $v1) || (@.type() == \"string\" && @ == $v2) || (@.type() == \"string\" && @ == $v3) || (@.type() == \"string\" && @ == $v4) || (@.type() == \"string\" && @ == $v5) || (@.type() == \"string\" && @ == $v6))",
                   "path": [
                     "category"
                   ],
@@ -2186,7 +2516,8 @@
                     "v2": "API",
                     "v3": "READ",
                     "v4": "WRITE",
-                    "v5": "DELETE"
+                    "v5": "DELETE",
+                    "v6": "ROLE"
                   },
                   "keyword": "enum",
                   "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"category\").value"
@@ -2222,6 +2553,9 @@
                   "pattern": {
                     "type": "object",
                     "properties": {
+                      "role": {
+                        "type": "string"
+                      },
                       "class": {
                         "type": "string"
                       },
@@ -2242,7 +2576,8 @@
                       "API",
                       "READ",
                       "WRITE",
-                      "DELETE"
+                      "DELETE",
+                      "ROLE"
                     ],
                     "type": "string"
                   },
@@ -2265,8 +2600,8 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:01.278907+00",
-          "tx": "3891732"
+          "at": "2026-11-10 20:14:32.921774+00",
+          "tx": "4255267"
         },
         {
           "seq": "6",
@@ -2306,12 +2641,18 @@
                   "type": "integer",
                   "default": 0
                 },
+                "default": {
+                  "type": "boolean"
+                },
                 "enabled": {
                   "type": "boolean",
                   "default": true
                 },
                 "message": {
                   "type": "string"
+                },
+                "concierge": {
+                  "type": "boolean"
                 },
                 "permission": {
                   "enum": [
@@ -2389,6 +2730,15 @@
                 {
                   "cond": "@.type() == \"boolean\"",
                   "path": [
+                    "default"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"default\").value"
+                },
+                {
+                  "cond": "@.type() == \"boolean\"",
+                  "path": [
                     "enabled"
                   ],
                   "vars": {},
@@ -2403,6 +2753,15 @@
                   "vars": {},
                   "keyword": "type",
                   "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"message\").value"
+                },
+                {
+                  "cond": "@.type() == \"boolean\"",
+                  "path": [
+                    "concierge"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"concierge\").value"
                 },
                 {
                   "cond": "@.type() == \"string\"",
@@ -2435,7 +2794,7 @@
                   "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"description\").value"
                 },
                 {
-                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"code\" || @.key == \"weight\" || @.key == \"enabled\" || @.key == \"message\" || @.key == \"permission\" || @.key == \"description\"))))",
+                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"code\" || @.key == \"weight\" || @.key == \"default\" || @.key == \"enabled\" || @.key == \"message\" || @.key == \"concierge\" || @.key == \"permission\" || @.key == \"description\"))))",
                   "path": [],
                   "vars": {},
                   "keyword": "additionalProperties",
@@ -2455,12 +2814,18 @@
                     "type": "integer",
                     "default": 0
                   },
+                  "default": {
+                    "type": "boolean"
+                  },
                   "enabled": {
                     "type": "boolean",
                     "default": true
                   },
                   "message": {
                     "type": "string"
+                  },
+                  "concierge": {
+                    "type": "boolean"
                   },
                   "permission": {
                     "enum": [
@@ -2488,33 +2853,11 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:01.282737+00",
-          "tx": "3891732"
+          "at": "2026-11-10 20:14:32.926782+00",
+          "tx": "4255267"
         },
         {
           "seq": "7",
-          "id": "119dfcbb-59e0-5d0a-bc27-84e12f080e26",
-          "rev": 1,
-          "class": "Resource",
-          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "links": {},
-          "data": {
-            "alias": "anonymous:ACCOUNT",
-            "pattern": {
-              "categories": "{Anonymous,Shadow}"
-            },
-            "category": "ACCOUNT"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "agent": null,
-          "reason": null,
-          "at": "2026-11-04 05:14:01.286929+00",
-          "tx": "3891732"
-        },
-        {
-          "seq": "8",
           "id": "6754c8dc-3c63-589a-a733-fdf1a402bf80",
           "rev": 1,
           "class": "Resource",
@@ -2523,7 +2866,7 @@
           "data": {
             "alias": "authenticated:ACCOUNT",
             "pattern": {
-              "categories": "!{Anonymous,Shadow}"
+              "categories": "{User}"
             },
             "category": "ACCOUNT"
           },
@@ -2532,11 +2875,11 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:01.28749+00",
-          "tx": "3891732"
+          "at": "2026-11-10 20:14:32.932079+00",
+          "tx": "4255267"
         },
         {
-          "seq": "9",
+          "seq": "8",
           "id": "8480ebe7-78c5-5bb1-af92-d3f7345e5e31",
           "rev": 1,
           "class": "Resource",
@@ -2551,11 +2894,11 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:01.288097+00",
-          "tx": "3891732"
+          "at": "2026-11-10 20:14:32.932629+00",
+          "tx": "4255267"
         },
         {
-          "seq": "10",
+          "seq": "9",
           "id": "dd7a57a8-b157-5edb-bfc1-6ee0d9261596",
           "rev": 1,
           "class": "Resource",
@@ -2573,33 +2916,11 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:01.288573+00",
-          "tx": "3891732"
+          "at": "2026-11-10 20:14:32.933095+00",
+          "tx": "4255267"
         },
         {
-          "seq": "11",
-          "id": "3dc680e8-f312-52e4-89de-f7713757ce16",
-          "rev": 1,
-          "class": "Resource",
-          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "links": {},
-          "data": {
-            "alias": "admin:ACCOUNT",
-            "pattern": {
-              "roles": "{admin}"
-            },
-            "category": "ACCOUNT"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "agent": null,
-          "reason": null,
-          "at": "2026-11-04 05:14:01.289042+00",
-          "tx": "3891732"
-        },
-        {
-          "seq": "12",
+          "seq": "10",
           "id": "ad9e1531-ea24-527b-85f6-931ff9e00720",
           "rev": 1,
           "class": "Resource",
@@ -2614,55 +2935,11 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:01.289628+00",
-          "tx": "3891732"
+          "at": "2026-11-10 20:14:32.933376+00",
+          "tx": "4255267"
         },
         {
-          "seq": "13",
-          "id": "9af9baec-4209-5387-9fb7-b85d9b205453",
-          "rev": 1,
-          "class": "Resource",
-          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "links": {},
-          "data": {
-            "alias": "auth:API",
-            "pattern": {
-              "endpoint": "auth.*"
-            },
-            "category": "API"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "agent": null,
-          "reason": null,
-          "at": "2026-11-04 05:14:01.29004+00",
-          "tx": "3891732"
-        },
-        {
-          "seq": "14",
-          "id": "f3b9fd80-8cef-575e-abb9-c8b5b1170c43",
-          "rev": 1,
-          "class": "Resource",
-          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "links": {},
-          "data": {
-            "alias": "letopis:API",
-            "pattern": {
-              "endpoint": "letopis.*"
-            },
-            "category": "API"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "agent": null,
-          "reason": null,
-          "at": "2026-11-04 05:14:01.29115+00",
-          "tx": "3891732"
-        },
-        {
-          "seq": "15",
+          "seq": "11",
           "id": "d176df5c-a823-56b3-b6d4-d145c52a45b2",
           "rev": 1,
           "class": "Resource",
@@ -2680,11 +2957,52 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:01.291637+00",
-          "tx": "3891732"
+          "at": "2026-11-10 20:14:32.933607+00",
+          "tx": "4255267"
         },
         {
-          "seq": "16",
+          "seq": "12",
+          "id": "4789576f-d229-598c-be4d-ef37fecaab99",
+          "rev": 1,
+          "class": "Resource",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "maintain:API",
+            "pattern": {
+              "endpoint": "letopis.maintain"
+            },
+            "category": "API"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:14:32.933858+00",
+          "tx": "4255267"
+        },
+        {
+          "seq": "13",
+          "id": "6af3a4f1-3a3d-565f-a533-6df8f37aa023",
+          "rev": 1,
+          "class": "Resource",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "all:ROLE",
+            "category": "ROLE"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:14:32.934203+00",
+          "tx": "4255267"
+        },
+        {
+          "seq": "14",
           "id": "3490678a-6711-56d2-9d5d-9f0d23928bd0",
           "rev": 1,
           "class": "rule",
@@ -2696,8 +3014,8 @@
           "data": {
             "code": 403,
             "weight": 0,
+            "default": true,
             "enabled": true,
-            "message": "Доступ запрещён по умолчанию",
             "permission": "deny"
           },
           "tags": [],
@@ -2705,34 +3023,140 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:01.292252+00",
-          "tx": "3891732"
+          "at": "2026-11-10 20:14:32.934512+00",
+          "tx": "4255267"
         },
         {
-          "seq": "17",
-          "id": "4ecea0ae-3813-5c73-9ca6-e35faf0c227a",
+          "seq": "15",
+          "id": "9e1249cc-5986-5314-81ae-6dd4154b5970",
           "rev": 1,
-          "class": "rule",
+          "class": "Resource",
           "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "links": {
-            "Group": "dd7a57a8-b157-5edb-bfc1-6ee0d9261596",
-            "Object": "9af9baec-4209-5387-9fb7-b85d9b205453"
-          },
+          "links": {},
           "data": {
-            "weight": 100,
-            "enabled": true,
-            "permission": "allow"
+            "alias": "all:READ",
+            "category": "READ"
           },
           "tags": [],
           "op": "create",
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:01.29291+00",
-          "tx": "3891732"
+          "at": "2026-11-10 20:14:32.93478+00",
+          "tx": "4255267"
+        },
+        {
+          "seq": "16",
+          "id": "0c2aaff8-159d-58d6-8a54-04ffaf377771",
+          "rev": 1,
+          "class": "rule",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "8480ebe7-78c5-5bb1-af92-d3f7345e5e31",
+            "Object": "9e1249cc-5986-5314-81ae-6dd4154b5970"
+          },
+          "data": {
+            "weight": 0,
+            "default": true,
+            "enabled": true,
+            "permission": "deny"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:14:32.934994+00",
+          "tx": "4255267"
+        },
+        {
+          "seq": "17",
+          "id": "682403e8-c9ca-55f2-a8ea-62786cd83758",
+          "rev": 1,
+          "class": "Resource",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "all:WRITE",
+            "category": "WRITE"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:14:32.935201+00",
+          "tx": "4255267"
         },
         {
           "seq": "18",
+          "id": "e57bd46f-7b2c-504a-bb36-9d25da249e12",
+          "rev": 1,
+          "class": "rule",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "8480ebe7-78c5-5bb1-af92-d3f7345e5e31",
+            "Object": "682403e8-c9ca-55f2-a8ea-62786cd83758"
+          },
+          "data": {
+            "weight": 0,
+            "default": true,
+            "enabled": true,
+            "permission": "deny"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:14:32.935389+00",
+          "tx": "4255267"
+        },
+        {
+          "seq": "19",
+          "id": "42495a98-5543-51d5-a60c-5525c21b7a05",
+          "rev": 1,
+          "class": "Resource",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "alias": "all:DELETE",
+            "category": "DELETE"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:14:32.93558+00",
+          "tx": "4255267"
+        },
+        {
+          "seq": "20",
+          "id": "f0bd3883-9405-5ce7-adfa-d9c523278153",
+          "rev": 1,
+          "class": "rule",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {
+            "Group": "8480ebe7-78c5-5bb1-af92-d3f7345e5e31",
+            "Object": "42495a98-5543-51d5-a60c-5525c21b7a05"
+          },
+          "data": {
+            "weight": 0,
+            "default": true,
+            "enabled": true,
+            "permission": "deny"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:14:32.935926+00",
+          "tx": "4255267"
+        },
+        {
+          "seq": "21",
           "id": "5646a5e0-0298-5f40-9fce-59d27211a0fa",
           "rev": 1,
           "class": "rule",
@@ -2751,83 +3175,18 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:01.293338+00",
-          "tx": "3891732"
-        },
-        {
-          "seq": "19",
-          "id": "1d8fc7f0-053d-5495-8bbe-ae85feaf290c",
-          "rev": 1,
-          "class": "rule",
-          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "links": {
-            "Group": "3dc680e8-f312-52e4-89de-f7713757ce16",
-            "Object": "9af9baec-4209-5387-9fb7-b85d9b205453"
-          },
-          "data": {
-            "weight": 100,
-            "enabled": true,
-            "permission": "allow"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "agent": null,
-          "reason": null,
-          "at": "2026-11-04 05:14:01.293794+00",
-          "tx": "3891732"
-        },
-        {
-          "seq": "20",
-          "id": "52acc9d2-b850-59bd-980b-59717be1c8b9",
-          "rev": 1,
-          "class": "rule",
-          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "links": {
-            "Group": "3dc680e8-f312-52e4-89de-f7713757ce16",
-            "Object": "f3b9fd80-8cef-575e-abb9-c8b5b1170c43"
-          },
-          "data": {
-            "weight": 100,
-            "enabled": true,
-            "permission": "allow"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "agent": null,
-          "reason": null,
-          "at": "2026-11-04 05:14:01.294188+00",
-          "tx": "3891732"
-        },
-        {
-          "seq": "21",
-          "id": "9e1249cc-5986-5314-81ae-6dd4154b5970",
-          "rev": 1,
-          "class": "Resource",
-          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "links": {},
-          "data": {
-            "alias": "all:READ",
-            "category": "READ"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "agent": null,
-          "reason": null,
-          "at": "2026-11-04 05:14:01.294563+00",
-          "tx": "3891732"
+          "at": "2026-11-10 20:14:32.936169+00",
+          "tx": "4255267"
         },
         {
           "seq": "22",
-          "id": "40fd537a-d2f9-52df-9f6b-d970b68da1cd",
+          "id": "c0b979cf-2674-560b-a719-0b890f7acb7b",
           "rev": 1,
           "class": "rule",
           "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "links": {
-            "Group": "3dc680e8-f312-52e4-89de-f7713757ce16",
-            "Object": "9e1249cc-5986-5314-81ae-6dd4154b5970"
+            "Group": "dd7a57a8-b157-5edb-bfc1-6ee0d9261596",
+            "Object": "4789576f-d229-598c-be4d-ef37fecaab99"
           },
           "data": {
             "weight": 100,
@@ -2839,41 +3198,47 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:01.295541+00",
-          "tx": "3891732"
+          "at": "2026-11-10 20:14:32.936438+00",
+          "tx": "4255267"
         },
         {
           "seq": "23",
-          "id": "682403e8-c9ca-55f2-a8ea-62786cd83758",
+          "id": "8c407535-1785-5a0b-8482-bb5b2404e68d",
           "rev": 1,
-          "class": "Resource",
+          "class": "rule",
           "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "links": {},
+          "links": {
+            "Group": "dd7a57a8-b157-5edb-bfc1-6ee0d9261596",
+            "Object": "9e1249cc-5986-5314-81ae-6dd4154b5970"
+          },
           "data": {
-            "alias": "all:WRITE",
-            "category": "WRITE"
+            "weight": 1000000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
           },
           "tags": [],
           "op": "create",
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:01.295943+00",
-          "tx": "3891732"
+          "at": "2026-11-10 20:14:32.936861+00",
+          "tx": "4255267"
         },
         {
           "seq": "24",
-          "id": "0342fcd5-4d89-51ac-a388-43bf77b7446e",
+          "id": "fe1c3067-d1b8-57e0-a2f9-6702ee7d50ed",
           "rev": 1,
           "class": "rule",
           "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "links": {
-            "Group": "3dc680e8-f312-52e4-89de-f7713757ce16",
+            "Group": "dd7a57a8-b157-5edb-bfc1-6ee0d9261596",
             "Object": "682403e8-c9ca-55f2-a8ea-62786cd83758"
           },
           "data": {
-            "weight": 100,
+            "weight": 1000000,
             "enabled": true,
+            "concierge": true,
             "permission": "allow"
           },
           "tags": [],
@@ -2881,41 +3246,23 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:01.296206+00",
-          "tx": "3891732"
+          "at": "2026-11-10 20:14:32.937112+00",
+          "tx": "4255267"
         },
         {
           "seq": "25",
-          "id": "42495a98-5543-51d5-a60c-5525c21b7a05",
-          "rev": 1,
-          "class": "Resource",
-          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "links": {},
-          "data": {
-            "alias": "all:DELETE",
-            "category": "DELETE"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "agent": null,
-          "reason": null,
-          "at": "2026-11-04 05:14:01.296511+00",
-          "tx": "3891732"
-        },
-        {
-          "seq": "26",
-          "id": "4777d615-8e88-54a2-9763-30b8a25da7e4",
+          "id": "bc9b20d4-7a1a-566d-92a0-62de2520701b",
           "rev": 1,
           "class": "rule",
           "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "links": {
-            "Group": "3dc680e8-f312-52e4-89de-f7713757ce16",
+            "Group": "dd7a57a8-b157-5edb-bfc1-6ee0d9261596",
             "Object": "42495a98-5543-51d5-a60c-5525c21b7a05"
           },
           "data": {
-            "weight": 100,
+            "weight": 1000000,
             "enabled": true,
+            "concierge": true,
             "permission": "allow"
           },
           "tags": [],
@@ -2923,18 +3270,19 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:01.296732+00",
-          "tx": "3891732"
+          "at": "2026-11-10 20:14:32.937314+00",
+          "tx": "4255267"
         },
         {
-          "seq": "27",
-          "id": "0439f92b-6a26-5e31-8aff-367d35aaa771",
+          "seq": "26",
+          "id": "bcce1326-673d-558a-a707-5ac0b1f3b0b0",
           "rev": 1,
           "class": "Account",
           "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "links": {},
           "data": {
-            "name": "service",
+            "kind": "service",
+            "name": "concierge",
             "enabled": true,
             "categories": [
               "Service"
@@ -2945,149 +3293,15 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:01.302929+00",
-          "tx": "3891732"
+          "at": "2026-11-10 20:14:33.042694+00",
+          "tx": "4255283"
         },
         {
-          "seq": "28",
-          "id": "8ca20722-c00b-5c5c-b9e6-21c5a3ec843d",
-          "rev": 1,
-          "class": "Account",
-          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "links": {},
-          "data": {
-            "name": "Мир",
-            "enabled": true,
-            "categories": []
-          },
-          "tags": [],
-          "op": "create",
-          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "agent": null,
-          "reason": null,
-          "at": "2026-11-04 05:14:01.561649+00",
-          "tx": "3891734"
-        },
-        {
-          "seq": "29",
-          "id": "13382de7-4d8f-5958-b804-0a6a24125fce",
-          "rev": 1,
-          "class": "rule",
-          "tenant": "8ca20722-c00b-5c5c-b9e6-21c5a3ec843d",
-          "links": {
-            "Group": "6754c8dc-3c63-589a-a733-fdf1a402bf80",
-            "Object": "9e1249cc-5986-5314-81ae-6dd4154b5970"
-          },
-          "data": {
-            "weight": 10,
-            "enabled": true,
-            "permission": "allow"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "agent": null,
-          "reason": null,
-          "at": "2026-11-04 05:14:01.566915+00",
-          "tx": "3891734"
-        },
-        {
-          "seq": "30",
-          "id": "4cc91c6d-8f4a-5878-b079-151330452d4d",
-          "rev": 1,
-          "class": "rule",
-          "tenant": "8ca20722-c00b-5c5c-b9e6-21c5a3ec843d",
-          "links": {
-            "Group": "6754c8dc-3c63-589a-a733-fdf1a402bf80",
-            "Object": "682403e8-c9ca-55f2-a8ea-62786cd83758"
-          },
-          "data": {
-            "weight": 10,
-            "enabled": true,
-            "permission": "allow"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "agent": null,
-          "reason": null,
-          "at": "2026-11-04 05:14:01.567754+00",
-          "tx": "3891734"
-        },
-        {
-          "seq": "31",
-          "id": "948c7e43-ba25-5af0-92c6-ebf21439bbdd",
-          "rev": 1,
-          "class": "rule",
-          "tenant": "8ca20722-c00b-5c5c-b9e6-21c5a3ec843d",
-          "links": {
-            "Group": "6754c8dc-3c63-589a-a733-fdf1a402bf80",
-            "Object": "42495a98-5543-51d5-a60c-5525c21b7a05"
-          },
-          "data": {
-            "weight": 10,
-            "enabled": true,
-            "permission": "allow"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "agent": null,
-          "reason": null,
-          "at": "2026-11-04 05:14:01.568502+00",
-          "tx": "3891734"
-        },
-        {
-          "seq": "32",
-          "id": "b4bf3a6e-62ba-5668-812e-480c2b7a1558",
-          "rev": 1,
-          "class": "Account",
-          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "links": {},
-          "data": {
-            "name": "Аня",
-            "enabled": true,
-            "categories": [
-              "User"
-            ]
-          },
-          "tags": [],
-          "op": "create",
-          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "agent": null,
-          "reason": null,
-          "at": "2026-11-04 05:14:01.572302+00",
-          "tx": "3891734"
-        },
-        {
-          "seq": "33",
-          "id": "f7808007-6dc6-5659-85e7-11c35b497ef0",
-          "rev": 1,
-          "class": "member",
-          "tenant": "8ca20722-c00b-5c5c-b9e6-21c5a3ec843d",
-          "links": {
-            "User": "b4bf3a6e-62ba-5668-812e-480c2b7a1558",
-            "Tenant": "8ca20722-c00b-5c5c-b9e6-21c5a3ec843d"
-          },
-          "data": {
-            "roles": [
-              "owner"
-            ]
-          },
-          "tags": [],
-          "op": "create",
-          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
-          "agent": null,
-          "reason": null,
-          "at": "2026-11-04 05:14:01.577935+00",
-          "tx": "3891734"
-        },
-        {
-          "seq": "34",
-          "id": "37ec5623-51c3-5885-bb0d-1aa57d1d1ec5",
+          "seq": "27",
+          "id": "c89ae66e-82f0-57b6-bf64-a3abc2f064c5",
           "rev": 1,
           "class": "Class",
-          "tenant": "8ca20722-c00b-5c5c-b9e6-21c5a3ec843d",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "links": {},
           "data": {
             "kind": "hub",
@@ -3166,38 +3380,368 @@
           },
           "tags": [],
           "op": "create",
-          "author": "b4bf3a6e-62ba-5668-812e-480c2b7a1558",
+          "author": "bcce1326-673d-558a-a707-5ac0b1f3b0b0",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:01.707486+00",
-          "tx": "3891736"
+          "at": "2026-11-10 20:14:33.190143+00",
+          "tx": "4255287"
+        },
+        {
+          "seq": "28",
+          "id": "b74c3cb7-72c2-59ac-9b71-cadb70cd718e",
+          "rev": 1,
+          "class": "Account",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "kind": "tenant",
+            "name": "Мир",
+            "enabled": true,
+            "categories": []
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:14:33.299206+00",
+          "tx": "4255292"
+        },
+        {
+          "seq": "29",
+          "id": "9a4928b7-90a0-5b6b-a39a-46ddb91f4fa2",
+          "rev": 1,
+          "class": "Resource",
+          "tenant": "b74c3cb7-72c2-59ac-9b71-cadb70cd718e",
+          "links": {},
+          "data": {
+            "alias": "role:owner:ACCOUNT",
+            "pattern": {
+              "roles": "{owner}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:14:33.302573+00",
+          "tx": "4255292"
+        },
+        {
+          "seq": "30",
+          "id": "03ecdf1b-4368-5ffa-b4eb-3945a0253907",
+          "rev": 1,
+          "class": "rule",
+          "tenant": "b74c3cb7-72c2-59ac-9b71-cadb70cd718e",
+          "links": {
+            "Group": "dd7a57a8-b157-5edb-bfc1-6ee0d9261596",
+            "Object": "9e1249cc-5986-5314-81ae-6dd4154b5970"
+          },
+          "data": {
+            "weight": 1000000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:14:33.304003+00",
+          "tx": "4255292"
+        },
+        {
+          "seq": "31",
+          "id": "16100d5f-3370-5f3a-a65b-cf1b4692c6e2",
+          "rev": 1,
+          "class": "rule",
+          "tenant": "b74c3cb7-72c2-59ac-9b71-cadb70cd718e",
+          "links": {
+            "Group": "9a4928b7-90a0-5b6b-a39a-46ddb91f4fa2",
+            "Object": "9e1249cc-5986-5314-81ae-6dd4154b5970"
+          },
+          "data": {
+            "weight": 100000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:14:33.304975+00",
+          "tx": "4255292"
+        },
+        {
+          "seq": "32",
+          "id": "fcf9a2e7-004c-58ff-964f-e5c5e5490c38",
+          "rev": 1,
+          "class": "rule",
+          "tenant": "b74c3cb7-72c2-59ac-9b71-cadb70cd718e",
+          "links": {
+            "Group": "dd7a57a8-b157-5edb-bfc1-6ee0d9261596",
+            "Object": "682403e8-c9ca-55f2-a8ea-62786cd83758"
+          },
+          "data": {
+            "weight": 1000000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:14:33.305768+00",
+          "tx": "4255292"
+        },
+        {
+          "seq": "33",
+          "id": "525044c8-302b-59a5-a057-67ac20c6ba60",
+          "rev": 1,
+          "class": "rule",
+          "tenant": "b74c3cb7-72c2-59ac-9b71-cadb70cd718e",
+          "links": {
+            "Group": "9a4928b7-90a0-5b6b-a39a-46ddb91f4fa2",
+            "Object": "682403e8-c9ca-55f2-a8ea-62786cd83758"
+          },
+          "data": {
+            "weight": 100000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:14:33.306248+00",
+          "tx": "4255292"
+        },
+        {
+          "seq": "34",
+          "id": "1353099d-5ad2-54af-9666-5c8497d166a4",
+          "rev": 1,
+          "class": "rule",
+          "tenant": "b74c3cb7-72c2-59ac-9b71-cadb70cd718e",
+          "links": {
+            "Group": "dd7a57a8-b157-5edb-bfc1-6ee0d9261596",
+            "Object": "42495a98-5543-51d5-a60c-5525c21b7a05"
+          },
+          "data": {
+            "weight": 1000000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:14:33.306727+00",
+          "tx": "4255292"
         },
         {
           "seq": "35",
-          "id": "321d005c-fe58-506d-bf92-c8d6c4cc3319",
+          "id": "6518dc05-dd60-5735-a153-050b2c5c94bb",
+          "rev": 1,
+          "class": "rule",
+          "tenant": "b74c3cb7-72c2-59ac-9b71-cadb70cd718e",
+          "links": {
+            "Group": "9a4928b7-90a0-5b6b-a39a-46ddb91f4fa2",
+            "Object": "42495a98-5543-51d5-a60c-5525c21b7a05"
+          },
+          "data": {
+            "weight": 100000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:14:33.307065+00",
+          "tx": "4255292"
+        },
+        {
+          "seq": "36",
+          "id": "42e082e5-f4bd-56fc-af15-a5864b7d17e5",
+          "rev": 1,
+          "class": "rule",
+          "tenant": "b74c3cb7-72c2-59ac-9b71-cadb70cd718e",
+          "links": {
+            "Group": "dd7a57a8-b157-5edb-bfc1-6ee0d9261596",
+            "Object": "ad9e1531-ea24-527b-85f6-931ff9e00720"
+          },
+          "data": {
+            "weight": 1000000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:14:33.307449+00",
+          "tx": "4255292"
+        },
+        {
+          "seq": "37",
+          "id": "6e296345-c49c-5d06-a040-758773a73cf9",
+          "rev": 1,
+          "class": "rule",
+          "tenant": "b74c3cb7-72c2-59ac-9b71-cadb70cd718e",
+          "links": {
+            "Group": "9a4928b7-90a0-5b6b-a39a-46ddb91f4fa2",
+            "Object": "ad9e1531-ea24-527b-85f6-931ff9e00720"
+          },
+          "data": {
+            "weight": 100000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:14:33.307672+00",
+          "tx": "4255292"
+        },
+        {
+          "seq": "38",
+          "id": "335efd79-e9e8-51c8-aeda-601e6d953f6c",
+          "rev": 1,
+          "class": "rule",
+          "tenant": "b74c3cb7-72c2-59ac-9b71-cadb70cd718e",
+          "links": {
+            "Group": "dd7a57a8-b157-5edb-bfc1-6ee0d9261596",
+            "Object": "6af3a4f1-3a3d-565f-a533-6df8f37aa023"
+          },
+          "data": {
+            "weight": 1000000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:14:33.307916+00",
+          "tx": "4255292"
+        },
+        {
+          "seq": "39",
+          "id": "f4845864-9198-57f7-bca0-c11f865e0e34",
+          "rev": 1,
+          "class": "rule",
+          "tenant": "b74c3cb7-72c2-59ac-9b71-cadb70cd718e",
+          "links": {
+            "Group": "9a4928b7-90a0-5b6b-a39a-46ddb91f4fa2",
+            "Object": "6af3a4f1-3a3d-565f-a533-6df8f37aa023"
+          },
+          "data": {
+            "weight": 100000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:14:33.308118+00",
+          "tx": "4255292"
+        },
+        {
+          "seq": "40",
+          "id": "5752b0e6-d863-58ad-ad78-8fbb9d3025be",
+          "rev": 1,
+          "class": "Account",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "links": {},
+          "data": {
+            "kind": "person",
+            "name": "Аня",
+            "enabled": true,
+            "categories": [
+              "User"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:14:33.356582+00",
+          "tx": "4255295"
+        },
+        {
+          "seq": "41",
+          "id": "ad3dc051-16cf-5a9c-90f3-fa0ccbe04001",
+          "rev": 1,
+          "class": "member",
+          "tenant": "b74c3cb7-72c2-59ac-9b71-cadb70cd718e",
+          "links": {
+            "User": "5752b0e6-d863-58ad-ad78-8fbb9d3025be",
+            "Tenant": "b74c3cb7-72c2-59ac-9b71-cadb70cd718e"
+          },
+          "data": {
+            "roles": [
+              "owner"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:14:33.357968+00",
+          "tx": "4255295"
+        },
+        {
+          "seq": "42",
+          "id": "96bd0d90-6ca0-5672-9352-3d0da64610c5",
           "rev": 1,
           "class": "Greeting",
-          "tenant": "8ca20722-c00b-5c5c-b9e6-21c5a3ec843d",
+          "tenant": "b74c3cb7-72c2-59ac-9b71-cadb70cd718e",
           "links": {},
           "data": {
             "text": "Hello, world!"
           },
           "tags": [],
           "op": "create",
-          "author": "b4bf3a6e-62ba-5668-812e-480c2b7a1558",
+          "author": "5752b0e6-d863-58ad-ad78-8fbb9d3025be",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:01.726676+00",
-          "tx": "3891738"
+          "at": "2026-11-10 20:14:33.385792+00",
+          "tx": "4255298"
         }
       ],
       "secret": [],
       "signals": [
         "Class",
-        "Greeting"
+        "Greeting",
+        "member"
       ]
     }
   ],
-  "output": "Шаг 1. Hello, world!\n{\n  \"text\": \"Hello, world!\",\n  \"id\": \"15ce745c-e6dd-58d3-81a6-d5e481910c47\",\n  \"rev\": 1\n}",
+  "output": "Шаг 1. Hello, world!\n{\n  \"text\": \"Hello, world!\",\n  \"id\": \"7c03ecc1-286d-5485-9537-6cb3e9626093\",\n  \"rev\": 1\n}",
   "exitCode": 0
 }

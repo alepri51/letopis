@@ -7,30 +7,36 @@
   },
   "steps": [
     {
-      "result": "классы записаны — данных нет",
+      "result": {
+        "магазинов": 0,
+        "товаров": 0,
+        "строк в файле": 301
+      },
       "error": null,
       "entity": [],
       "removed": [],
       "log": [],
       "secret": [],
-      "signals": [
-        "Class"
-      ]
+      "signals": []
     },
     {
       "result": {
-        "rows": 301,
-        "loaded": 301,
-        "updated": 0,
-        "skipped": 0,
-        "duplicates": 0,
-        "byClass": {
-          "Shop": 1,
-          "Product": 300
+        "код выхода": 0,
+        "отчёт": {
+          "rows": 301,
+          "loaded": 301,
+          "updated": 0,
+          "skipped": 0,
+          "duplicates": 0,
+          "byClass": {
+            "Shop": 1,
+            "Product": 300
+          },
+          "external": 0,
+          "portions": 1,
+          "ms": 345.1614999999874
         },
-        "external": 0,
-        "portions": 1,
-        "ms": 377.8715000000084
+        "товаров у Анны": 300
       },
       "error": null,
       "entity": [],
@@ -43,12 +49,11 @@
       ]
     },
     {
-      "result": null,
-      "error": {
-        "code": "not_empty",
-        "message": "letopis: not_empty: первая заливка — только в пустую схему: в entity и log, кроме строк системных классов (Class, Account, member, Resource, rule), ничего быть не должно",
-        "detail": null
+      "result": {
+        "код выхода": 1,
+        "ошибка": "letopis: not_empty: первая заливка — только в пустую схему: в entity и log, кроме строк системных классов (Class, Account, member, Resource, rule), ничего быть не должно"
       },
+      "error": null,
       "entity": [],
       "removed": [],
       "log": [],
@@ -56,6 +61,6 @@
       "signals": []
     }
   ],
-  "output": "Шаг 1. Свежая установка и модель\nletopis: администраторское подключение — RLS не действует, данные всех арендаторов видны\n\"классы записаны — данных нет\"\n\nШаг 2. Залить магазин и 300 товаров\n{\n  \"rows\": 301,\n  \"loaded\": 301,\n  \"updated\": 0,\n  \"skipped\": 0,\n  \"duplicates\": 0,\n  \"byClass\": {\n    \"Shop\": 1,\n    \"Product\": 300\n  },\n  \"external\": 0,\n  \"portions\": 1,\n  \"ms\": 313.54060000000004\n}\n\nШаг 3. Вторая первая заливка — нельзя\nотказ, как и задумано: letopis: not_empty: первая заливка — только в пустую схему: в entity и log, кроме строк системных классов (Class, Account, member, Resource, rule), ничего быть не должно",
+  "output": "Шаг 1. Дом с моделью — данных ещё нет\n{\n  \"магазинов\": 0,\n  \"товаров\": 0,\n  \"строк в файле\": 301\n}\n\nШаг 2. Залить магазин и 300 товаров\n{\n  \"код выхода\": 0,\n  \"отчёт\": {\n    \"rows\": 301,\n    \"loaded\": 301,\n    \"updated\": 0,\n    \"skipped\": 0,\n    \"duplicates\": 0,\n    \"byClass\": {\n      \"Shop\": 1,\n      \"Product\": 300\n    },\n    \"external\": 0,\n    \"portions\": 1,\n    \"ms\": 411.85670000000005\n  },\n  \"товаров у Анны\": 300\n}\n\nШаг 3. Вторая первая заливка — not_empty\n{\n  \"код выхода\": 1,\n  \"ошибка\": \"letopis: not_empty: первая заливка — только в пустую схему: в entity и log, кроме строк системных классов (Class, Account, member, Resource, rule), ничего быть не должно\"\n}",
   "exitCode": 0
 }

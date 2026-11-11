@@ -43,7 +43,6 @@
       "secret": [],
       "signals": [
         "Category",
-        "Class",
         "Customer",
         "Order",
         "Product",

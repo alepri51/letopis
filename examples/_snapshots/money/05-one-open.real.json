@@ -8,8 +8,8 @@
   "steps": [
     {
       "result": {
-        "at": "2026-11-04T05:15:36.089105+00:00",
-        "id": "045522e2-9af3-58fd-ba83-0e9ff2e5e113",
+        "at": "2026-11-10T20:16:59.118523+00:00",
+        "id": "5699da5f-1cbb-53d4-94d5-58a028661843",
         "op": "create",
         "rev": 1,
         "data": {
@@ -19,19 +19,18 @@
         "tags": [],
         "class": "Item",
         "links": {},
-        "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-        "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-        "agent": "23b04c70-4717-504b-9dfa-253eeb1c5465"
+        "owner": "3212b68f-5843-56a5-9194-e666df46fcee",
+        "author": "072eda51-6273-5b3a-880a-b61247622d1c",
+        "tenant": "3212b68f-5843-56a5-9194-e666df46fcee"
       },
       "error": null,
       "entity": [
         {
-          "id": "045522e2-9af3-58fd-ba83-0e9ff2e5e113",
+          "id": "5699da5f-1cbb-53d4-94d5-58a028661843",
           "class": "Item",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3212b68f-5843-56a5-9194-e666df46fcee",
+          "owner": "3212b68f-5843-56a5-9194-e666df46fcee",
           "links": {},
           "data": {
             "code": "B-1",
@@ -39,17 +38,17 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "23b04c70-4717-504b-9dfa-253eeb1c5465",
+          "author": "072eda51-6273-5b3a-880a-b61247622d1c",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:36.089105+00"
+          "at": "2026-11-10 20:16:59.118523+00"
         },
         {
-          "id": "6b969aa8-4ebb-56d4-95c7-1fdc9b70b315",
+          "id": "eddfb363-8f38-579f-933a-5a396bc83cd7",
           "class": "Member",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3212b68f-5843-56a5-9194-e666df46fcee",
+          "owner": "3212b68f-5843-56a5-9194-e666df46fcee",
           "links": {},
           "data": {
             "card": "C-1",
@@ -57,17 +56,17 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "23b04c70-4717-504b-9dfa-253eeb1c5465",
+          "author": "072eda51-6273-5b3a-880a-b61247622d1c",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:36.096822+00"
+          "at": "2026-11-10 20:16:59.131691+00"
         },
         {
-          "id": "f2f14e35-dfe8-555d-87fe-44f512267f33",
+          "id": "0aa94b21-de2d-57ce-a99c-2e2fb9d5b0e2",
           "class": "Member",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3212b68f-5843-56a5-9194-e666df46fcee",
+          "owner": "3212b68f-5843-56a5-9194-e666df46fcee",
           "links": {},
           "data": {
             "card": "C-2",
@@ -75,17 +74,16 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "23b04c70-4717-504b-9dfa-253eeb1c5465",
+          "author": "072eda51-6273-5b3a-880a-b61247622d1c",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:36.103598+00"
+          "at": "2026-11-10 20:16:59.138936+00"
         }
       ],
       "removed": [],
       "log": [],
       "secret": [],
       "signals": [
-        "Class",
         "Item",
         "Member"
       ]
@@ -101,11 +99,11 @@
       "error": null,
       "entity": [
         {
-          "id": "045522e2-9af3-58fd-ba83-0e9ff2e5e113",
+          "id": "5699da5f-1cbb-53d4-94d5-58a028661843",
           "class": "Item",
           "rev": 2,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3212b68f-5843-56a5-9194-e666df46fcee",
+          "owner": "3212b68f-5843-56a5-9194-e666df46fcee",
           "links": {},
           "data": {
             "code": "B-1",
@@ -114,17 +112,17 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "23b04c70-4717-504b-9dfa-253eeb1c5465",
+          "author": "072eda51-6273-5b3a-880a-b61247622d1c",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:36.193384+00"
+          "at": "2026-11-10 20:16:59.198861+00"
         },
         {
-          "id": "6b969aa8-4ebb-56d4-95c7-1fdc9b70b315",
+          "id": "eddfb363-8f38-579f-933a-5a396bc83cd7",
           "class": "Member",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3212b68f-5843-56a5-9194-e666df46fcee",
+          "owner": "3212b68f-5843-56a5-9194-e666df46fcee",
           "links": {},
           "data": {
             "card": "C-1",
@@ -132,17 +130,17 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "23b04c70-4717-504b-9dfa-253eeb1c5465",
+          "author": "072eda51-6273-5b3a-880a-b61247622d1c",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:36.096822+00"
+          "at": "2026-11-10 20:16:59.131691+00"
         },
         {
-          "id": "f2f14e35-dfe8-555d-87fe-44f512267f33",
+          "id": "0aa94b21-de2d-57ce-a99c-2e2fb9d5b0e2",
           "class": "Member",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3212b68f-5843-56a5-9194-e666df46fcee",
+          "owner": "3212b68f-5843-56a5-9194-e666df46fcee",
           "links": {},
           "data": {
             "card": "C-2",
@@ -150,10 +148,10 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "23b04c70-4717-504b-9dfa-253eeb1c5465",
+          "author": "072eda51-6273-5b3a-880a-b61247622d1c",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:36.103598+00"
+          "at": "2026-11-10 20:16:59.138936+00"
         }
       ],
       "removed": [],
@@ -172,11 +170,11 @@
       "error": null,
       "entity": [
         {
-          "id": "045522e2-9af3-58fd-ba83-0e9ff2e5e113",
+          "id": "5699da5f-1cbb-53d4-94d5-58a028661843",
           "class": "Item",
           "rev": 4,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3212b68f-5843-56a5-9194-e666df46fcee",
+          "owner": "3212b68f-5843-56a5-9194-e666df46fcee",
           "links": {},
           "data": {
             "code": "B-1",
@@ -185,17 +183,17 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "23b04c70-4717-504b-9dfa-253eeb1c5465",
+          "author": "072eda51-6273-5b3a-880a-b61247622d1c",
+          "agent": null,
           "reason": "выдача: Анна",
-          "at": "2026-11-04 05:15:36.469796+00"
+          "at": "2026-11-10 20:16:59.320773+00"
         },
         {
-          "id": "6b969aa8-4ebb-56d4-95c7-1fdc9b70b315",
+          "id": "eddfb363-8f38-579f-933a-5a396bc83cd7",
           "class": "Member",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3212b68f-5843-56a5-9194-e666df46fcee",
+          "owner": "3212b68f-5843-56a5-9194-e666df46fcee",
           "links": {},
           "data": {
             "card": "C-1",
@@ -203,17 +201,17 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "23b04c70-4717-504b-9dfa-253eeb1c5465",
+          "author": "072eda51-6273-5b3a-880a-b61247622d1c",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:36.096822+00"
+          "at": "2026-11-10 20:16:59.131691+00"
         },
         {
-          "id": "f2f14e35-dfe8-555d-87fe-44f512267f33",
+          "id": "0aa94b21-de2d-57ce-a99c-2e2fb9d5b0e2",
           "class": "Member",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3212b68f-5843-56a5-9194-e666df46fcee",
+          "owner": "3212b68f-5843-56a5-9194-e666df46fcee",
           "links": {},
           "data": {
             "card": "C-2",
@@ -221,10 +219,10 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "23b04c70-4717-504b-9dfa-253eeb1c5465",
+          "author": "072eda51-6273-5b3a-880a-b61247622d1c",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:36.103598+00"
+          "at": "2026-11-10 20:16:59.138936+00"
         }
       ],
       "removed": [],
@@ -246,11 +244,11 @@
       "error": null,
       "entity": [
         {
-          "id": "045522e2-9af3-58fd-ba83-0e9ff2e5e113",
+          "id": "5699da5f-1cbb-53d4-94d5-58a028661843",
           "class": "Item",
           "rev": 6,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3212b68f-5843-56a5-9194-e666df46fcee",
+          "owner": "3212b68f-5843-56a5-9194-e666df46fcee",
           "links": {},
           "data": {
             "code": "B-1",
@@ -259,17 +257,17 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "23b04c70-4717-504b-9dfa-253eeb1c5465",
+          "author": "072eda51-6273-5b3a-880a-b61247622d1c",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:36.587202+00"
+          "at": "2026-11-10 20:16:59.414941+00"
         },
         {
-          "id": "6b969aa8-4ebb-56d4-95c7-1fdc9b70b315",
+          "id": "eddfb363-8f38-579f-933a-5a396bc83cd7",
           "class": "Member",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3212b68f-5843-56a5-9194-e666df46fcee",
+          "owner": "3212b68f-5843-56a5-9194-e666df46fcee",
           "links": {},
           "data": {
             "card": "C-1",
@@ -277,17 +275,17 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "23b04c70-4717-504b-9dfa-253eeb1c5465",
+          "author": "072eda51-6273-5b3a-880a-b61247622d1c",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:36.096822+00"
+          "at": "2026-11-10 20:16:59.131691+00"
         },
         {
-          "id": "f2f14e35-dfe8-555d-87fe-44f512267f33",
+          "id": "0aa94b21-de2d-57ce-a99c-2e2fb9d5b0e2",
           "class": "Member",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3212b68f-5843-56a5-9194-e666df46fcee",
+          "owner": "3212b68f-5843-56a5-9194-e666df46fcee",
           "links": {},
           "data": {
             "card": "C-2",
@@ -295,10 +293,10 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "23b04c70-4717-504b-9dfa-253eeb1c5465",
+          "author": "072eda51-6273-5b3a-880a-b61247622d1c",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:36.103598+00"
+          "at": "2026-11-10 20:16:59.138936+00"
         }
       ],
       "removed": [],
@@ -316,11 +314,11 @@
       "error": null,
       "entity": [
         {
-          "id": "045522e2-9af3-58fd-ba83-0e9ff2e5e113",
+          "id": "5699da5f-1cbb-53d4-94d5-58a028661843",
           "class": "Item",
           "rev": 6,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3212b68f-5843-56a5-9194-e666df46fcee",
+          "owner": "3212b68f-5843-56a5-9194-e666df46fcee",
           "links": {},
           "data": {
             "code": "B-1",
@@ -329,17 +327,17 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "23b04c70-4717-504b-9dfa-253eeb1c5465",
+          "author": "072eda51-6273-5b3a-880a-b61247622d1c",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:36.587202+00"
+          "at": "2026-11-10 20:16:59.414941+00"
         },
         {
-          "id": "6b969aa8-4ebb-56d4-95c7-1fdc9b70b315",
+          "id": "eddfb363-8f38-579f-933a-5a396bc83cd7",
           "class": "Member",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3212b68f-5843-56a5-9194-e666df46fcee",
+          "owner": "3212b68f-5843-56a5-9194-e666df46fcee",
           "links": {},
           "data": {
             "card": "C-1",
@@ -347,17 +345,17 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "23b04c70-4717-504b-9dfa-253eeb1c5465",
+          "author": "072eda51-6273-5b3a-880a-b61247622d1c",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:36.096822+00"
+          "at": "2026-11-10 20:16:59.131691+00"
         },
         {
-          "id": "f2f14e35-dfe8-555d-87fe-44f512267f33",
+          "id": "0aa94b21-de2d-57ce-a99c-2e2fb9d5b0e2",
           "class": "Member",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3212b68f-5843-56a5-9194-e666df46fcee",
+          "owner": "3212b68f-5843-56a5-9194-e666df46fcee",
           "links": {},
           "data": {
             "card": "C-2",
@@ -365,30 +363,30 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "23b04c70-4717-504b-9dfa-253eeb1c5465",
+          "author": "072eda51-6273-5b3a-880a-b61247622d1c",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:36.103598+00"
+          "at": "2026-11-10 20:16:59.138936+00"
         },
         {
-          "id": "09a365a1-6694-5e8f-8d7e-26d755429093",
+          "id": "fab5fb6d-6c66-56e2-b77f-203de35e0ce5",
           "class": "OpenLoan",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3212b68f-5843-56a5-9194-e666df46fcee",
+          "owner": "3212b68f-5843-56a5-9194-e666df46fcee",
           "links": {
-            "Item": "045522e2-9af3-58fd-ba83-0e9ff2e5e113",
-            "Member": "6b969aa8-4ebb-56d4-95c7-1fdc9b70b315"
+            "Item": "5699da5f-1cbb-53d4-94d5-58a028661843",
+            "Member": "eddfb363-8f38-579f-933a-5a396bc83cd7"
           },
           "data": {
             "since": "2026-11-03"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "23b04c70-4717-504b-9dfa-253eeb1c5465",
+          "author": "072eda51-6273-5b3a-880a-b61247622d1c",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:36.610154+00"
+          "at": "2026-11-10 20:16:59.448653+00"
         }
       ],
       "removed": [],
@@ -407,11 +405,11 @@
       "error": null,
       "entity": [
         {
-          "id": "045522e2-9af3-58fd-ba83-0e9ff2e5e113",
+          "id": "5699da5f-1cbb-53d4-94d5-58a028661843",
           "class": "Item",
           "rev": 6,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3212b68f-5843-56a5-9194-e666df46fcee",
+          "owner": "3212b68f-5843-56a5-9194-e666df46fcee",
           "links": {},
           "data": {
             "code": "B-1",
@@ -420,17 +418,17 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "23b04c70-4717-504b-9dfa-253eeb1c5465",
+          "author": "072eda51-6273-5b3a-880a-b61247622d1c",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:36.587202+00"
+          "at": "2026-11-10 20:16:59.414941+00"
         },
         {
-          "id": "6b969aa8-4ebb-56d4-95c7-1fdc9b70b315",
+          "id": "eddfb363-8f38-579f-933a-5a396bc83cd7",
           "class": "Member",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3212b68f-5843-56a5-9194-e666df46fcee",
+          "owner": "3212b68f-5843-56a5-9194-e666df46fcee",
           "links": {},
           "data": {
             "card": "C-1",
@@ -438,17 +436,17 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "23b04c70-4717-504b-9dfa-253eeb1c5465",
+          "author": "072eda51-6273-5b3a-880a-b61247622d1c",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:36.096822+00"
+          "at": "2026-11-10 20:16:59.131691+00"
         },
         {
-          "id": "f2f14e35-dfe8-555d-87fe-44f512267f33",
+          "id": "0aa94b21-de2d-57ce-a99c-2e2fb9d5b0e2",
           "class": "Member",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3212b68f-5843-56a5-9194-e666df46fcee",
+          "owner": "3212b68f-5843-56a5-9194-e666df46fcee",
           "links": {},
           "data": {
             "card": "C-2",
@@ -456,30 +454,30 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "23b04c70-4717-504b-9dfa-253eeb1c5465",
+          "author": "072eda51-6273-5b3a-880a-b61247622d1c",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:36.103598+00"
+          "at": "2026-11-10 20:16:59.138936+00"
         },
         {
-          "id": "09a365a1-6694-5e8f-8d7e-26d755429093",
+          "id": "fab5fb6d-6c66-56e2-b77f-203de35e0ce5",
           "class": "OpenLoan",
           "rev": 3,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3212b68f-5843-56a5-9194-e666df46fcee",
+          "owner": "3212b68f-5843-56a5-9194-e666df46fcee",
           "links": {
-            "Item": "045522e2-9af3-58fd-ba83-0e9ff2e5e113",
-            "Member": "f2f14e35-dfe8-555d-87fe-44f512267f33"
+            "Item": "5699da5f-1cbb-53d4-94d5-58a028661843",
+            "Member": "0aa94b21-de2d-57ce-a99c-2e2fb9d5b0e2"
           },
           "data": {
             "since": "2026-11-04"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "23b04c70-4717-504b-9dfa-253eeb1c5465",
+          "author": "072eda51-6273-5b3a-880a-b61247622d1c",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:36.690842+00"
+          "at": "2026-11-10 20:16:59.531892+00"
         }
       ],
       "removed": [],
@@ -507,11 +505,11 @@
       "error": null,
       "entity": [
         {
-          "id": "045522e2-9af3-58fd-ba83-0e9ff2e5e113",
+          "id": "5699da5f-1cbb-53d4-94d5-58a028661843",
           "class": "Item",
           "rev": 6,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3212b68f-5843-56a5-9194-e666df46fcee",
+          "owner": "3212b68f-5843-56a5-9194-e666df46fcee",
           "links": {},
           "data": {
             "code": "B-1",
@@ -520,17 +518,17 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "23b04c70-4717-504b-9dfa-253eeb1c5465",
+          "author": "072eda51-6273-5b3a-880a-b61247622d1c",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:36.587202+00"
+          "at": "2026-11-10 20:16:59.414941+00"
         },
         {
-          "id": "6b969aa8-4ebb-56d4-95c7-1fdc9b70b315",
+          "id": "eddfb363-8f38-579f-933a-5a396bc83cd7",
           "class": "Member",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3212b68f-5843-56a5-9194-e666df46fcee",
+          "owner": "3212b68f-5843-56a5-9194-e666df46fcee",
           "links": {},
           "data": {
             "card": "C-1",
@@ -538,19 +536,19 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "23b04c70-4717-504b-9dfa-253eeb1c5465",
+          "author": "072eda51-6273-5b3a-880a-b61247622d1c",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:36.096822+00"
+          "at": "2026-11-10 20:16:59.131691+00"
         }
       ],
       "removed": [
         {
-          "id": "f2f14e35-dfe8-555d-87fe-44f512267f33",
+          "id": "0aa94b21-de2d-57ce-a99c-2e2fb9d5b0e2",
           "class": "Member",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3212b68f-5843-56a5-9194-e666df46fcee",
+          "owner": "3212b68f-5843-56a5-9194-e666df46fcee",
           "links": {},
           "data": {
             "card": "C-2",
@@ -558,30 +556,30 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "23b04c70-4717-504b-9dfa-253eeb1c5465",
+          "author": "072eda51-6273-5b3a-880a-b61247622d1c",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:36.103598+00"
+          "at": "2026-11-10 20:16:59.138936+00"
         },
         {
-          "id": "09a365a1-6694-5e8f-8d7e-26d755429093",
+          "id": "fab5fb6d-6c66-56e2-b77f-203de35e0ce5",
           "class": "OpenLoan",
           "rev": 3,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3212b68f-5843-56a5-9194-e666df46fcee",
+          "owner": "3212b68f-5843-56a5-9194-e666df46fcee",
           "links": {
-            "Item": "045522e2-9af3-58fd-ba83-0e9ff2e5e113",
-            "Member": "f2f14e35-dfe8-555d-87fe-44f512267f33"
+            "Item": "5699da5f-1cbb-53d4-94d5-58a028661843",
+            "Member": "0aa94b21-de2d-57ce-a99c-2e2fb9d5b0e2"
           },
           "data": {
             "since": "2026-11-04"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "23b04c70-4717-504b-9dfa-253eeb1c5465",
+          "author": "072eda51-6273-5b3a-880a-b61247622d1c",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:36.690842+00"
+          "at": "2026-11-10 20:16:59.531892+00"
         }
       ],
       "log": [],
@@ -603,11 +601,11 @@
       "error": null,
       "entity": [
         {
-          "id": "045522e2-9af3-58fd-ba83-0e9ff2e5e113",
+          "id": "5699da5f-1cbb-53d4-94d5-58a028661843",
           "class": "Item",
           "rev": 6,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3212b68f-5843-56a5-9194-e666df46fcee",
+          "owner": "3212b68f-5843-56a5-9194-e666df46fcee",
           "links": {},
           "data": {
             "code": "B-1",
@@ -616,17 +614,17 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "23b04c70-4717-504b-9dfa-253eeb1c5465",
+          "author": "072eda51-6273-5b3a-880a-b61247622d1c",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:36.587202+00"
+          "at": "2026-11-10 20:16:59.414941+00"
         },
         {
-          "id": "6b969aa8-4ebb-56d4-95c7-1fdc9b70b315",
+          "id": "eddfb363-8f38-579f-933a-5a396bc83cd7",
           "class": "Member",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3212b68f-5843-56a5-9194-e666df46fcee",
+          "owner": "3212b68f-5843-56a5-9194-e666df46fcee",
           "links": {},
           "data": {
             "card": "C-1",
@@ -634,10 +632,10 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "23b04c70-4717-504b-9dfa-253eeb1c5465",
+          "author": "072eda51-6273-5b3a-880a-b61247622d1c",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:36.096822+00"
+          "at": "2026-11-10 20:16:59.131691+00"
         }
       ],
       "removed": [],
@@ -667,11 +665,11 @@
       "error": null,
       "entity": [
         {
-          "id": "045522e2-9af3-58fd-ba83-0e9ff2e5e113",
+          "id": "5699da5f-1cbb-53d4-94d5-58a028661843",
           "class": "Item",
           "rev": 6,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3212b68f-5843-56a5-9194-e666df46fcee",
+          "owner": "3212b68f-5843-56a5-9194-e666df46fcee",
           "links": {},
           "data": {
             "code": "B-1",
@@ -680,17 +678,17 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "23b04c70-4717-504b-9dfa-253eeb1c5465",
+          "author": "072eda51-6273-5b3a-880a-b61247622d1c",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:36.587202+00"
+          "at": "2026-11-10 20:16:59.414941+00"
         },
         {
-          "id": "6b969aa8-4ebb-56d4-95c7-1fdc9b70b315",
+          "id": "eddfb363-8f38-579f-933a-5a396bc83cd7",
           "class": "Member",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3212b68f-5843-56a5-9194-e666df46fcee",
+          "owner": "3212b68f-5843-56a5-9194-e666df46fcee",
           "links": {},
           "data": {
             "card": "C-1",
@@ -698,17 +696,17 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "23b04c70-4717-504b-9dfa-253eeb1c5465",
+          "author": "072eda51-6273-5b3a-880a-b61247622d1c",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:36.096822+00"
+          "at": "2026-11-10 20:16:59.131691+00"
         },
         {
-          "id": "f2f14e35-dfe8-555d-87fe-44f512267f33",
+          "id": "0aa94b21-de2d-57ce-a99c-2e2fb9d5b0e2",
           "class": "Member",
           "rev": 3,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3212b68f-5843-56a5-9194-e666df46fcee",
+          "owner": "3212b68f-5843-56a5-9194-e666df46fcee",
           "links": {},
           "data": {
             "card": "C-2",
@@ -716,10 +714,10 @@
           },
           "tags": [],
           "op": "restore",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "23b04c70-4717-504b-9dfa-253eeb1c5465",
+          "author": "072eda51-6273-5b3a-880a-b61247622d1c",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:36.860339+00"
+          "at": "2026-11-10 20:16:59.683544+00"
         }
       ],
       "removed": [],
@@ -730,6 +728,6 @@
       ]
     }
   ],
-  "output": "Шаг 1. Мяч и два участника\n{\n  \"at\": \"2026-11-04T05:15:38.371994+00:00\",\n  \"id\": \"045522e2-9af3-58fd-ba83-0e9ff2e5e113\",\n  \"op\": \"create\",\n  \"rev\": 1,\n  \"data\": {\n    \"code\": \"B-1\",\n    \"status\": \"free\"\n  },\n  \"tags\": [],\n  \"class\": \"Item\",\n  \"links\": {},\n  \"owner\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n  \"author\": \"3defbabb-a94d-5359-8463-dc947de193e1\",\n  \"tenant\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n  \"agent\": \"7f8b7d10-a670-588e-a543-fdf9b3b9b333\"\n}\n\nШаг 2. Фильтр update() перепроверяется: вторая выдача — пустой ответ\n{\n  \"вторая ждала строку\": true,\n  \"первая выдача, строк\": 1,\n  \"вторая выдача, строк\": 0,\n  \"ответ второй\": \"отказ: уже выдан\",\n  \"у кого мяч\": \"Анна\"\n}\n\nШаг 3. forUpdate(): прочитал — проверил — записал\n{\n  \"вторая ждала строку\": true,\n  \"первая\": \"выдана: Анна\",\n  \"вторая\": \"отказ: вещь уже выдана\"\n}\n\nШаг 4. { rev }: прочитал одну версию — записать можно один раз\n{\n  \"прочли версию\": [\n    5,\n    5\n  ],\n  \"первая\": \"записано\",\n  \"вторая\": \"conflict\"\n}\n\nШаг 5. Ключ: вторую открытую выдачу база не заведёт\n{\n  \"первая выдача\": \"Анна\",\n  \"вторая выдача\": \"exists\"\n}\n\nШаг 6. Вернули — выдать снова можно, история выдач — в журнале\n[\n  \"v1 create — Анна\",\n  \"v2 delete — Анна\",\n  \"v3 create — Пётр\"\n]\n\nШаг 7. Петра удалили — его открытая выдача ушла вместе с ним\n[\n  {\n    \"class\": \"Member\",\n    \"rev\": 2,\n    \"deleted\": true,\n    \"reason\": \"удалён по ошибке (оп. 41)\"\n  },\n  {\n    \"class\": \"OpenLoan\",\n    \"rev\": 4,\n    \"deleted\": true,\n    \"reason\": \"удалён по ошибке (оп. 41)\"\n  }\n]\n\nШаг 8. Пока Петра нет, мяч выдали Анне и приняли обратно\n[\n  \"v1 create — Анна\",\n  \"v2 delete — Анна (вернули)\",\n  \"v3 create — Пётр\",\n  \"v4 delete — Пётр (удалён по ошибке (оп. 41))\",\n  \"v5 create — Анна\",\n  \"v6 delete — Анна (вернули)\"\n]\n\nШаг 9. Петра вернули: выдача — только та, что ушла вместе с ним\n{\n  \"переход от Петра к его удалённым выдачам\": 0,\n  \"выдач в удалении Петра\": 1,\n  \"ответ restore\": [\n    {\n      \"$action\": \"skip\",\n      \"$why\": \"changed\",\n      \"rev\": 6\n    }\n  ],\n  \"ответ пользователю\": [\n    \"B-1: не вернулась — после удаления вещь выдавали другому (changed)\"\n  ],\n  \"последний снимок выдачи\": \"Анна, закрыта\",\n  \"у Петра на руках\": 0\n}",
+  "output": "Шаг 1. Мяч и два участника\n{\n  \"at\": \"2026-11-10T20:17:01.573313+00:00\",\n  \"id\": \"b7658749-18d7-5082-8b82-04df740d7826\",\n  \"op\": \"create\",\n  \"rev\": 1,\n  \"data\": {\n    \"code\": \"B-1\",\n    \"status\": \"free\"\n  },\n  \"tags\": [],\n  \"class\": \"Item\",\n  \"links\": {},\n  \"owner\": \"84b35650-7c72-56d3-9403-a0d1baaa503f\",\n  \"author\": \"896b8d11-2744-5cb2-b648-7cea46edafbf\",\n  \"tenant\": \"84b35650-7c72-56d3-9403-a0d1baaa503f\"\n}\n\nШаг 2. Фильтр update() перепроверяется: вторая выдача — пустой ответ\n{\n  \"вторая ждала строку\": true,\n  \"первая выдача, строк\": 1,\n  \"вторая выдача, строк\": 0,\n  \"ответ второй\": \"отказ: уже выдан\",\n  \"у кого мяч\": \"Анна\"\n}\n\nШаг 3. forUpdate(): прочитал — проверил — записал\n{\n  \"вторая ждала строку\": true,\n  \"первая\": \"выдана: Анна\",\n  \"вторая\": \"отказ: вещь уже выдана\"\n}\n\nШаг 4. { rev }: прочитал одну версию — записать можно один раз\n{\n  \"прочли версию\": [\n    5,\n    5\n  ],\n  \"первая\": \"записано\",\n  \"вторая\": \"conflict\"\n}\n\nШаг 5. Ключ: вторую открытую выдачу база не заведёт\n{\n  \"первая выдача\": \"Анна\",\n  \"вторая выдача\": \"exists\"\n}\n\nШаг 6. Вернули — выдать снова можно, история выдач — в журнале\n[\n  \"v1 create — Анна\",\n  \"v2 delete — Анна\",\n  \"v3 create — Пётр\"\n]\n\nШаг 7. Петра удалили — его открытая выдача ушла вместе с ним\n[\n  {\n    \"class\": \"Member\",\n    \"rev\": 2,\n    \"deleted\": true,\n    \"reason\": \"удалён по ошибке (оп. 41)\"\n  },\n  {\n    \"class\": \"OpenLoan\",\n    \"rev\": 4,\n    \"deleted\": true,\n    \"reason\": \"удалён по ошибке (оп. 41)\"\n  }\n]\n\nШаг 8. Пока Петра нет, мяч выдали Анне и приняли обратно\n[\n  \"v1 create — Анна\",\n  \"v2 delete — Анна (вернули)\",\n  \"v3 create — Пётр\",\n  \"v4 delete — Пётр (удалён по ошибке (оп. 41))\",\n  \"v5 create — Анна\",\n  \"v6 delete — Анна (вернули)\"\n]\n\nШаг 9. Петра вернули: выдача — только та, что ушла вместе с ним\n{\n  \"переход от Петра к его удалённым выдачам\": 0,\n  \"выдач в удалении Петра\": 1,\n  \"ответ restore\": [\n    {\n      \"$action\": \"skip\",\n      \"$why\": \"changed\",\n      \"rev\": 6\n    }\n  ],\n  \"ответ пользователю\": [\n    \"B-1: не вернулась — после удаления вещь выдавали другому (changed)\"\n  ],\n  \"последний снимок выдачи\": \"Анна, закрыта\",\n  \"у Петра на руках\": 0\n}",
   "exitCode": 0
 }

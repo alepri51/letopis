@@ -1,0 +1,939 @@
+{
+  "id": "install/01-setup-and-connect",
+  "title": "Дом, консьерж, квартира и первый жилец",
+  "summary": "setup() мастер-ключом строит дом и отдаёт пропуск консьержа. connect(pass, { postman }) — консьерж: он заводит квартиры, зовёт в них жильцов приглашениями (ссылку доставляет почтальон приложения) и впускает по ключам. Цепочки с данными идут только от корня квартиры.",
+  "tables": [
+    "counts",
+    "secret"
+  ],
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": [],
+    "counts": {
+      "entity": {},
+      "log": {},
+      "secret": {}
+    }
+  },
+  "steps": [
+    {
+      "title": "Строим дом: setup()",
+      "text": "`setup(ADMIN_DSN, name)` вызывают мастер-ключом — строкой подключения администратора PostgreSQL. Дома нет, поэтому `setup()` строит его целиком: схему `v2.<имя>` с тремя таблицами, системные классы, матрицу прав с правилом по умолчанию и консьержа — роль базы `letopis_c_<имя>` и служебный аккаунт с ключом. Ответ — **пропуск** консьержа `r.pass`: строка подключения его роли, в которой ещё дом и ключ. Пропуск — секрет: его кладут в настройки приложения. Здесь он показан разобранным, без пароля.",
+      "code": "r = await setup(ADMIN_DSN, name, { quiet: true });\nconst pass = new URL(r.pass);\nreturn {\n  schema: r.schema, created: r.created, revision: r.revision, warnings: r.warnings,\n  'пропуск: роль консьержа': pass.username,\n  'пропуск: дом': pass.searchParams.get('letopis_schema'),\n  'пропуск: ключ консьержа': `${pass.searchParams.get('letopis_key')!.slice(0, 4)}…`,\n};",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">r </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> setup</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">ADMIN_DSN</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, name, { quiet: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> pass</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> new</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> URL</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(r.pass);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  schema: r.schema, created: r.created, revision: r.revision, warnings: r.warnings,</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'пропуск: роль консьержа'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: pass.username,</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'пропуск: дом'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: pass.searchParams.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">get</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'letopis_schema'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'пропуск: ключ консьержа'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">`${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">pass</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">searchParams</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">get</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'letopis_key'</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">)</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">slice</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">0</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">, </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">4</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">)</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">}…`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">};</span></span></code></pre>",
+      "result": {
+        "schema": "v2.g_install_01_setup_and_connect",
+        "created": true,
+        "revision": 12,
+        "warnings": [],
+        "пропуск: роль консьержа": "‹токен 1›",
+        "пропуск: дом": "v2.g_install_01_setup_and_connect",
+        "пропуск: ключ консьержа": "lts_…"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "System",
+          "tenant": "System",
+          "kind": "KEY",
+          "ident": null,
+          "meta": {
+            "v": 25,
+            "signals": "class"
+          },
+          "material": "‹хэш›",
+          "expires_at": null,
+          "created_at": "шаг 1",
+          "deleted_at": null,
+          "$new": true
+        },
+        {
+          "account": "консьерж",
+          "tenant": "System",
+          "kind": "APIKEY",
+          "ident": "‹токен 2›",
+          "meta": {},
+          "material": "‹хэш›",
+          "expires_at": null,
+          "created_at": "шаг 1",
+          "deleted_at": null,
+          "$new": true
+        },
+        {
+          "account": "System",
+          "tenant": "System",
+          "kind": "CONCIERGE",
+          "ident": null,
+          "meta": {},
+          "material": "‹хэш›",
+          "expires_at": null,
+          "created_at": "шаг 1",
+          "deleted_at": null,
+          "$new": true
+        }
+      ],
+      "counts": {
+        "entity": {
+          "Account": 2,
+          "Class": 5,
+          "Resource": 10,
+          "rule": 9
+        },
+        "log": {
+          "create": 26
+        },
+        "secret": {
+          "APIKEY": 1,
+          "CONCIERGE": 1,
+          "KEY": 1
+        }
+      },
+      "signals": []
+    },
+    {
+      "title": "Повторный setup() — тот же пропуск",
+      "text": "Второй вызов ничего не дублирует: `created: false`, данные на месте (сводка не изменилась), а пропуск — тот же. Поэтому `setup()` можно вызывать при каждом развёртывании: он достраивает дом (новые модели, сиды, правило по умолчанию) и накатывает функции движка. Новый пропуск выдаёт только `setup(…, { rotate: true })`.",
+      "code": "const again = await setup(ADMIN_DSN, name, { quiet: true });\nreturn { created: again.created, 'тот же пропуск': again.pass === r.pass };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> again</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> setup</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">ADMIN_DSN</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, name, { quiet: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { created: again.created, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'тот же пропуск'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: again.pass </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">===</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> r.pass };</span></span></code></pre>",
+      "result": {
+        "created": false,
+        "тот же пропуск": true
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "System",
+          "tenant": "System",
+          "kind": "KEY",
+          "ident": null,
+          "meta": {
+            "v": 25,
+            "signals": "class"
+          },
+          "material": "‹хэш›",
+          "expires_at": null,
+          "created_at": "шаг 1",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "консьерж",
+          "tenant": "System",
+          "kind": "APIKEY",
+          "ident": "‹токен 2›",
+          "meta": {},
+          "material": "‹хэш›",
+          "expires_at": null,
+          "created_at": "шаг 1",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "System",
+          "tenant": "System",
+          "kind": "CONCIERGE",
+          "ident": null,
+          "meta": {},
+          "material": "‹хэш›",
+          "expires_at": null,
+          "created_at": "шаг 1",
+          "deleted_at": null,
+          "$new": false
+        }
+      ],
+      "counts": {
+        "entity": {
+          "Account": 2,
+          "Class": 5,
+          "Resource": 10,
+          "rule": 9
+        },
+        "log": {
+          "create": 26
+        },
+        "secret": {
+          "APIKEY": 1,
+          "CONCIERGE": 1,
+          "KEY": 1
+        }
+      },
+      "signals": []
+    },
+    {
+      "title": "Консьерж: connect(pass, { postman })",
+      "text": "`connect(pass, { postman })` — подключение консьержа. Почтальон — функция приложения: консьерж отдаёт ей письма со ссылками-приглашениями и кодами входа, а она отправляет их письмом или СМС. Здесь почтальон — заглушка, письма складываются в ящик `mail`. У консьержа нет шагов классов: `db.Order` — `undefined`, данные читают и пишут только в квартире. Методы консьержа — дверь дома: квартиры (`createTenant`, `tenants`), приглашения и ссылки (`invitation`, `accept`), вход жильцов по ключам и кодам (`open`, `resume`, `requestCode`, `tenantsOf`), работа в квартире (`in`, `as`) и обслуживание (`maintain`, `deleteAccount`).",
+      "code": "db = await connect(r.pass, { postman });\nreturn { 'дом': db.schema, 'шаг класса Order': 'Order' in db, 'методы консьержа': Object.keys(db) };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> connect</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(r.pass, { postman });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'дом'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: db.schema, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'шаг класса Order'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Order'</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> in</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'методы консьержа'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: Object.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">keys</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db) };</span></span></code></pre>",
+      "result": {
+        "дом": "v2.g_install_01_setup_and_connect",
+        "шаг класса Order": false,
+        "методы консьержа": [
+          "schema",
+          "open",
+          "resume",
+          "invitation",
+          "accept",
+          "requestCode",
+          "tenantsOf",
+          "createTenant",
+          "in",
+          "as",
+          "tenants",
+          "contactOf",
+          "deleteAccount",
+          "maintain",
+          "close"
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "System",
+          "tenant": "System",
+          "kind": "KEY",
+          "ident": null,
+          "meta": {
+            "v": 25,
+            "signals": "class"
+          },
+          "material": "‹хэш›",
+          "expires_at": null,
+          "created_at": "шаг 1",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "консьерж",
+          "tenant": "System",
+          "kind": "APIKEY",
+          "ident": "‹токен 2›",
+          "meta": {},
+          "material": "‹хэш›",
+          "expires_at": null,
+          "created_at": "шаг 1",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "System",
+          "tenant": "System",
+          "kind": "CONCIERGE",
+          "ident": null,
+          "meta": {},
+          "material": "‹хэш›",
+          "expires_at": null,
+          "created_at": "шаг 1",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "консьерж",
+          "tenant": "System",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет APIKEY·1",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "шаг 3"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 3",
+          "deleted_at": null,
+          "$new": true
+        }
+      ],
+      "counts": {
+        "entity": {
+          "Account": 2,
+          "Class": 5,
+          "Resource": 10,
+          "rule": 9
+        },
+        "log": {
+          "create": 26
+        },
+        "secret": {
+          "APIKEY": 1,
+          "CONCIERGE": 1,
+          "KEY": 1,
+          "SESSION": 1
+        }
+      },
+      "signals": []
+    },
+    {
+      "title": "Квартира: createTenant()",
+      "text": "Квартира — это «чьи данные»: компания, магазин, клуб. `createTenant` заводит пустую квартиру «Ромашка» и её правила: консьержу можно всё, хозяину (роль `owner`) — тоже, включая выдачу любых ролей. Имя квартиры уникально в доме: второй `createTenant` с тем же именем — отказ `exists`. В сводке: +1 аккаунт (квартира), +1 ресурс (группа «роль owner») и +10 правил — консьержу и хозяину по правилу на чтение, запись, удаление, действия API и выдачу ролей.",
+      "code": "const created = await db.createTenant('Ромашка');\nconst again = await db.createTenant('Ромашка').then(() => 'создана', (e) => e.code);\nreturn { 'квартира': created.name, 'второй раз': again };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> created</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">createTenant</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> again</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">createTenant</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">then</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(() </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'создана'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, (</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">e</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> e.code);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'квартира'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: created.name, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'второй раз'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: again };</span></span></code></pre>",
+      "result": {
+        "квартира": "Ромашка",
+        "второй раз": "exists"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "System",
+          "tenant": "System",
+          "kind": "KEY",
+          "ident": null,
+          "meta": {
+            "v": 37,
+            "signals": "class"
+          },
+          "material": "‹хэш›",
+          "expires_at": null,
+          "created_at": "шаг 1",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "консьерж",
+          "tenant": "System",
+          "kind": "APIKEY",
+          "ident": "‹токен 2›",
+          "meta": {},
+          "material": "‹хэш›",
+          "expires_at": null,
+          "created_at": "шаг 1",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "System",
+          "tenant": "System",
+          "kind": "CONCIERGE",
+          "ident": null,
+          "meta": {},
+          "material": "‹хэш›",
+          "expires_at": null,
+          "created_at": "шаг 1",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "консьерж",
+          "tenant": "System",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет APIKEY·1",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "шаг 3"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 3",
+          "deleted_at": null,
+          "$new": false
+        }
+      ],
+      "counts": {
+        "entity": {
+          "Account": 3,
+          "Class": 5,
+          "Resource": 11,
+          "rule": 19
+        },
+        "log": {
+          "create": 38
+        },
+        "secret": {
+          "APIKEY": 1,
+          "CONCIERGE": 1,
+          "KEY": 1,
+          "SESSION": 1
+        }
+      },
+      "signals": []
+    },
+    {
+      "title": "Первый жилец: приглашение и accept()",
+      "text": "Регистрации нет — только приглашения. `db.in('Ромашка')` — консьерж в квартире; `invite` заводит приглашение для `anna@romashka.ru` с ролью `owner` (в `secret` — строка `INVITE` с хэшем токена) и отдаёт почтальону письмо со ссылкой; ответ — только `{ id, expiresAt }`. Анна открывает ссылку: `db.invitation(token)` показывает приглашение, ничего не меняя, а `db.accept(token, { password, name })` — её согласие: аккаунт Анны с этим контактом, прописка в «Ромашке» с ролью `owner`, пароль — ключ от квартиры — и сессия. Ссылка гаснет: тот же токен второй раз — `auth_failed`.",
+      "code": "const romashka = await db.in('Ромашка');\nconst sent = await romashka.invite({ email: 'anna@romashka.ru' }, ['owner']);\nconst waiting = (await romashka.invites()).map((i) => ({ to: i.to, roles: i.roles }));\nconst { token } = lastLetter('anna@romashka.ru', 'invite'); // ссылка из письма\nconst seen = await db.invitation(token);\nanna = await db.accept(token, { password: 'Ромашка-2026!', name: 'Анна' });\nconst again = await db.accept(token).then(() => 'принято', (e) => e.code);\nreturn {\n  'ответ invite': Object.keys(sent), 'письмо почтальону': { to: mail.at(-1)!.to, kind: mail.at(-1)!.message.kind }, 'ждали приглашения': waiting,\n  'по ссылке': { 'квартира': seen.tenantName, 'роли': seen.roles, 'статус': seen.status },\n  'квартира Анны': anna.tenantName, 'консьерж?': anna.concierge, 'та же ссылка второй раз': again,\n};",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> romashka</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">in</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> sent</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> romashka.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">invite</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ email: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'anna@romashka.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'owner'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">]);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> waiting</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> romashka.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">invites</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">i</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ to: i.to, roles: i.roles }));</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">token</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> } </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> lastLetter</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'anna@romashka.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'invite'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">); </span><span style=\"color:#6A737D;--shiki-dark:#6A737D\">// ссылка из письма</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> seen</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">invitation</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(token);</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">anna </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">accept</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(token, { password: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка-2026!'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Анна'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> again</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">accept</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(token).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">then</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(() </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'принято'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, (</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">e</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> e.code);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'ответ invite'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: Object.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">keys</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(sent), </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'письмо почтальону'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: { to: mail.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">at</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">-</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">)</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.to, kind: mail.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">at</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">-</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">)</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.message.kind }, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'ждали приглашения'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: waiting,</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'по ссылке'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'квартира'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: seen.tenantName, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'роли'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: seen.roles, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'статус'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: seen.status },</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'квартира Анны'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: anna.tenantName, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'консьерж?'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: anna.concierge, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'та же ссылка второй раз'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: again,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">};</span></span></code></pre>",
+      "result": {
+        "ответ invite": [
+          "id",
+          "expiresAt"
+        ],
+        "письмо почтальону": {
+          "to": {
+            "kind": "email",
+            "address": "anna@romashka.ru"
+          },
+          "kind": "invite"
+        },
+        "ждали приглашения": [
+          {
+            "to": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "roles": [
+              "owner"
+            ]
+          }
+        ],
+        "по ссылке": {
+          "квартира": "Ромашка",
+          "роли": [
+            "owner"
+          ],
+          "статус": "active"
+        },
+        "квартира Анны": "Ромашка",
+        "консьерж?": false,
+        "та же ссылка второй раз": "auth_failed"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "System",
+          "tenant": "System",
+          "kind": "KEY",
+          "ident": null,
+          "meta": {
+            "v": 39,
+            "signals": "class"
+          },
+          "material": "‹хэш›",
+          "expires_at": null,
+          "created_at": "шаг 1",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "консьерж",
+          "tenant": "System",
+          "kind": "APIKEY",
+          "ident": "‹токен 2›",
+          "meta": {},
+          "material": "‹хэш›",
+          "expires_at": null,
+          "created_at": "шаг 1",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "System",
+          "tenant": "System",
+          "kind": "CONCIERGE",
+          "ident": null,
+          "meta": {},
+          "material": "‹хэш›",
+          "expires_at": null,
+          "created_at": "шаг 1",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "консьерж",
+          "tenant": "System",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет APIKEY·1",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "шаг 3"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 3",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 5",
+          "deleted_at": "шаг 5",
+          "$new": true
+        },
+        {
+          "account": "Анна",
+          "tenant": "System",
+          "kind": "IDENT",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "kind": "email",
+            "address": "anna@romashka.ru"
+          },
+          "material": null,
+          "expires_at": null,
+          "created_at": "шаг 5",
+          "deleted_at": null,
+          "$new": true
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "PASSWORD",
+          "ident": "email:anna@romashka.ru",
+          "meta": {},
+          "material": "‹хэш›",
+          "expires_at": null,
+          "created_at": "шаг 5",
+          "deleted_at": null,
+          "$new": true
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет PASSWORD·1",
+            "methods": [
+              "INVITE",
+              "FIRST"
+            ],
+            "login_at": "шаг 5"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 5",
+          "deleted_at": null,
+          "$new": true
+        }
+      ],
+      "counts": {
+        "entity": {
+          "Account": 4,
+          "Class": 5,
+          "member": 1,
+          "Resource": 11,
+          "rule": 19
+        },
+        "log": {
+          "create": 40
+        },
+        "secret": {
+          "APIKEY": 1,
+          "CONCIERGE": 1,
+          "IDENT": 1,
+          "KEY": 1,
+          "PASSWORD": 1,
+          "SESSION": 2
+        }
+      },
+      "signals": [
+        "member"
+      ]
+    },
+    {
+      "title": "Вход по ключу: open()",
+      "text": "`db.open(ключ)` — вход жильца: ключ открывает ровно одну квартиру, и корень открывается сразу в ней. Аккаунт тот же, что завёл `accept`; имя для входа — контакт Анны. Неверный пароль — `auth_failed` («ключ не подошёл»), и так же отвечает неизвестный контакт: по ответу не узнать, есть ли такой аккаунт. Каждый вход — новая сессия в `secret`.",
+      "code": "const me = await db.open({ email: 'anna@romashka.ru', password: 'Ромашка-2026!' });\nconst wrong = await db.open({ email: 'anna@romashka.ru', password: 'не тот' }).then(() => 'вошла', (e) => e.code);\nreturn { 'квартира': me.tenantName, 'тот же аккаунт': me.account === anna.account, 'неверный пароль': wrong };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> me</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">open</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ email: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'anna@romashka.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, password: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка-2026!'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> wrong</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">open</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ email: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'anna@romashka.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, password: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'не тот'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">then</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(() </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'вошла'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, (</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">e</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> e.code);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'квартира'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: me.tenantName, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'тот же аккаунт'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: me.account </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">===</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> anna.account, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'неверный пароль'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: wrong };</span></span></code></pre>",
+      "result": {
+        "квартира": "Ромашка",
+        "тот же аккаунт": true,
+        "неверный пароль": "auth_failed"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "System",
+          "tenant": "System",
+          "kind": "KEY",
+          "ident": null,
+          "meta": {
+            "v": 39,
+            "signals": "class"
+          },
+          "material": "‹хэш›",
+          "expires_at": null,
+          "created_at": "шаг 1",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "консьерж",
+          "tenant": "System",
+          "kind": "APIKEY",
+          "ident": "‹токен 2›",
+          "meta": {},
+          "material": "‹хэш›",
+          "expires_at": null,
+          "created_at": "шаг 1",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "System",
+          "tenant": "System",
+          "kind": "CONCIERGE",
+          "ident": null,
+          "meta": {},
+          "material": "‹хэш›",
+          "expires_at": null,
+          "created_at": "шаг 1",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "консьерж",
+          "tenant": "System",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет APIKEY·1",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "шаг 3"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 3",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 5",
+          "deleted_at": "шаг 5",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "System",
+          "kind": "IDENT",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "kind": "email",
+            "address": "anna@romashka.ru"
+          },
+          "material": null,
+          "expires_at": null,
+          "created_at": "шаг 5",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "PASSWORD",
+          "ident": "email:anna@romashka.ru",
+          "meta": {},
+          "material": "‹хэш›",
+          "expires_at": null,
+          "created_at": "шаг 5",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет PASSWORD·1",
+            "methods": [
+              "INVITE",
+              "FIRST"
+            ],
+            "login_at": "шаг 5"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 5",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет PASSWORD·1",
+            "methods": [
+              "PASSWORD"
+            ],
+            "login_at": "шаг 6"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 6",
+          "deleted_at": null,
+          "$new": true
+        }
+      ],
+      "counts": {
+        "entity": {
+          "Account": 4,
+          "Class": 5,
+          "member": 1,
+          "Resource": 11,
+          "rule": 19
+        },
+        "log": {
+          "create": 40
+        },
+        "secret": {
+          "APIKEY": 1,
+          "CONCIERGE": 1,
+          "IDENT": 1,
+          "KEY": 1,
+          "PASSWORD": 1,
+          "SESSION": 3
+        }
+      },
+      "signals": []
+    },
+    {
+      "title": "Консьерж в квартире: in() и tenants()",
+      "text": "`db.in(квартира)` — корень консьержа в квартире (по имени или id): полный доступ, для фоновых задач и обслуживания. Жилец так не работает — у него свой корень по ключу. `db.tenants()` — все квартиры дома.",
+      "code": "const romashka = await db.in('Ромашка');\nreturn {\n  'консьерж?': romashka.concierge, 'квартира': romashka.tenantName,\n  'та же квартира, что у Анны': romashka.tenant === anna.tenant,\n  'квартиры дома': (await db.tenants()).map((t) => t.name),\n};",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> romashka</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">in</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'консьерж?'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: romashka.concierge, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'квартира'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: romashka.tenantName,</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'та же квартира, что у Анны'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: romashka.tenant </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">===</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> anna.tenant,</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'квартиры дома'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">tenants</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">t</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> t.name),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">};</span></span></code></pre>",
+      "result": {
+        "консьерж?": true,
+        "квартира": "Ромашка",
+        "та же квартира, что у Анны": true,
+        "квартиры дома": [
+          "Ромашка"
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "System",
+          "tenant": "System",
+          "kind": "KEY",
+          "ident": null,
+          "meta": {
+            "v": 39,
+            "signals": "class"
+          },
+          "material": "‹хэш›",
+          "expires_at": null,
+          "created_at": "шаг 1",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "консьерж",
+          "tenant": "System",
+          "kind": "APIKEY",
+          "ident": "‹токен 2›",
+          "meta": {},
+          "material": "‹хэш›",
+          "expires_at": null,
+          "created_at": "шаг 1",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "System",
+          "tenant": "System",
+          "kind": "CONCIERGE",
+          "ident": null,
+          "meta": {},
+          "material": "‹хэш›",
+          "expires_at": null,
+          "created_at": "шаг 1",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "консьерж",
+          "tenant": "System",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет APIKEY·1",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "шаг 3"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 3",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 5",
+          "deleted_at": "шаг 5",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "System",
+          "kind": "IDENT",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "kind": "email",
+            "address": "anna@romashka.ru"
+          },
+          "material": null,
+          "expires_at": null,
+          "created_at": "шаг 5",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "PASSWORD",
+          "ident": "email:anna@romashka.ru",
+          "meta": {},
+          "material": "‹хэш›",
+          "expires_at": null,
+          "created_at": "шаг 5",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет PASSWORD·1",
+            "methods": [
+              "INVITE",
+              "FIRST"
+            ],
+            "login_at": "шаг 5"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 5",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет PASSWORD·1",
+            "methods": [
+              "PASSWORD"
+            ],
+            "login_at": "шаг 6"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 6",
+          "deleted_at": null,
+          "$new": false
+        }
+      ],
+      "counts": {
+        "entity": {
+          "Account": 4,
+          "Class": 5,
+          "member": 1,
+          "Resource": 11,
+          "rule": 19
+        },
+        "log": {
+          "create": 40
+        },
+        "secret": {
+          "APIKEY": 1,
+          "CONCIERGE": 1,
+          "IDENT": 1,
+          "KEY": 1,
+          "PASSWORD": 1,
+          "SESSION": 3
+        }
+      },
+      "signals": []
+    }
+  ],
+  "output": "Шаг 1. Строим дом: setup()\n{\n  \"schema\": \"v2.example_install_01_setup_and_connect\",\n  \"created\": true,\n  \"revision\": 12,\n  \"warnings\": [],\n  \"пропуск: роль консьержа\": \"letopis_c_example_install_01_setup_and_connect\",\n  \"пропуск: дом\": \"v2.example_install_01_setup_and_connect\",\n  \"пропуск: ключ консьержа\": \"lts_…\"\n}\n\nШаг 2. Повторный setup() — тот же пропуск\n{\n  \"created\": false,\n  \"тот же пропуск\": true\n}\n\nШаг 3. Консьерж: connect(pass, { postman })\n{\n  \"дом\": \"v2.example_install_01_setup_and_connect\",\n  \"шаг класса Order\": false,\n  \"методы консьержа\": [\n    \"schema\",\n    \"open\",\n    \"resume\",\n    \"invitation\",\n    \"accept\",\n    \"requestCode\",\n    \"tenantsOf\",\n    \"createTenant\",\n    \"in\",\n    \"as\",\n    \"tenants\",\n    \"contactOf\",\n    \"deleteAccount\",\n    \"maintain\",\n    \"close\"\n  ]\n}\n\nШаг 4. Квартира: createTenant()\n{\n  \"квартира\": \"Ромашка\",\n  \"второй раз\": \"exists\"\n}\n\nШаг 5. Первый жилец: приглашение и accept()\n{\n  \"ответ invite\": [\n    \"id\",\n    \"expiresAt\"\n  ],\n  \"письмо почтальону\": {\n    \"to\": {\n      \"kind\": \"email\",\n      \"address\": \"anna@romashka.ru\"\n    },\n    \"kind\": \"invite\"\n  },\n  \"ждали приглашения\": [\n    {\n      \"to\": {\n        \"kind\": \"email\",\n        \"address\": \"anna@romashka.ru\"\n      },\n      \"roles\": [\n        \"owner\"\n      ]\n    }\n  ],\n  \"по ссылке\": {\n    \"квартира\": \"Ромашка\",\n    \"роли\": [\n      \"owner\"\n    ],\n    \"статус\": \"active\"\n  },\n  \"квартира Анны\": \"Ромашка\",\n  \"консьерж?\": false,\n  \"та же ссылка второй раз\": \"auth_failed\"\n}\n\nШаг 6. Вход по ключу: open()\n{\n  \"квартира\": \"Ромашка\",\n  \"тот же аккаунт\": true,\n  \"неверный пароль\": \"auth_failed\"\n}\n\nШаг 7. Консьерж в квартире: in() и tenants()\n{\n  \"консьерж?\": true,\n  \"квартира\": \"Ромашка\",\n  \"та же квартира, что у Анны\": true,\n  \"квартиры дома\": [\n    \"Ромашка\"\n  ]\n}"
+}

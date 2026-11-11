@@ -16,8 +16,8 @@
     {
       "title": "Магазин и чайник за 2500",
       "text": null,
-      "code": "[shop] = await db.Shop().create({ name: 'Ромашка' }).rows();\n[kettle] = await db.Shop(shop).Product().create({ sku: 'K-1', title: 'Чайник', price: 2500 }).rows();\nreturn kettle;",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">[shop] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">[kettle] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ sku: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'K-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Чайник'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">2500</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> kettle;</span></span></code></pre>",
+      "code": "[shop] = await me.Shop().create({ name: 'Ромашка' }).rows();\n[kettle] = await me.Shop(shop).Product().create({ sku: 'K-1', title: 'Чайник', price: 2500 }).rows();\nreturn kettle;",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">[shop] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">[kettle] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ sku: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'K-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Чайник'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">2500</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> kettle;</span></span></code></pre>",
       "result": {
         "at": "t2",
         "id": "Product «Чайник»",
@@ -35,8 +35,7 @@
         },
         "owner": "Ромашка",
         "author": "Анна",
-        "tenant": "Ромашка",
-        "agent": "service"
+        "tenant": "Ромашка"
       },
       "error": null,
       "entity": [
@@ -53,7 +52,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$changed": [
@@ -77,7 +76,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t2",
           "$changed": [
@@ -101,7 +100,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$changed": [
@@ -112,7 +111,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "41",
+          "seq": "48",
           "id": "Shop «Ромашка»",
           "rev": 1,
           "class": "Shop",
@@ -124,13 +123,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": true
         },
         {
-          "seq": "42",
+          "seq": "49",
           "id": "Product «Чайник»",
           "rev": 1,
           "class": "Product",
@@ -146,13 +145,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t2",
           "$new": true
         },
         {
-          "seq": "43",
+          "seq": "50",
           "id": "Product «Кружка»",
           "rev": 1,
           "class": "Product",
@@ -168,7 +167,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$new": true
@@ -177,7 +176,6 @@
       "secret": [],
       "counts": null,
       "signals": [
-        "Class",
         "Product",
         "Shop"
       ]
@@ -185,8 +183,8 @@
     {
       "title": "Скидка 500 — внутри базы",
       "text": "`inc(-500)` не читает цену в приложении: база вычитает сама, внутри оператора UPDATE. Было 2500 — стало 2000.",
-      "code": "db.Product(kettle).update({ price: inc(-500) }).rows()",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ price: </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">inc</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">-</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">500</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
+      "code": "me.Product(kettle).update({ price: inc(-500) }).rows()",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ price: </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">inc</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">-</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">500</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
       "result": [
         {
           "at": "t4",
@@ -205,8 +203,7 @@
           },
           "owner": "Ромашка",
           "author": "Анна",
-          "tenant": "Ромашка",
-          "agent": "service"
+          "tenant": "Ромашка"
         }
       ],
       "error": null,
@@ -224,7 +221,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$changed": []
@@ -246,7 +243,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t4",
           "$changed": [
@@ -273,7 +270,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$changed": []
@@ -282,7 +279,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "41",
+          "seq": "48",
           "id": "Shop «Ромашка»",
           "rev": 1,
           "class": "Shop",
@@ -294,13 +291,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": false
         },
         {
-          "seq": "42",
+          "seq": "49",
           "id": "Product «Чайник»",
           "rev": 1,
           "class": "Product",
@@ -316,13 +313,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t2",
           "$new": false
         },
         {
-          "seq": "43",
+          "seq": "50",
           "id": "Product «Кружка»",
           "rev": 1,
           "class": "Product",
@@ -338,13 +335,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$new": false
         },
         {
-          "seq": "44",
+          "seq": "51",
           "id": "Product «Чайник»",
           "rev": 2,
           "class": "Product",
@@ -360,7 +357,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t4",
           "$new": true
@@ -375,8 +372,8 @@
     {
       "title": "Счётчика ещё нет — начать с 0",
       "text": "Поля `views` у чайника нет. `inc(1, { start: 0 })` начинает с нуля; без `start` был бы отказ.",
-      "code": "db.Product(kettle).update({ views: inc(1, { start: 0 }) }).rows()",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ views: </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">inc</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, { start: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">0</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
+      "code": "me.Product(kettle).update({ views: inc(1, { start: 0 }) }).rows()",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ views: </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">inc</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, { start: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">0</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
       "result": [
         {
           "at": "t5",
@@ -396,8 +393,7 @@
           },
           "owner": "Ромашка",
           "author": "Анна",
-          "tenant": "Ромашка",
-          "agent": "service"
+          "tenant": "Ромашка"
         }
       ],
       "error": null,
@@ -415,7 +411,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$changed": []
@@ -438,7 +434,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t5",
           "$changed": [
@@ -464,7 +460,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$changed": []
@@ -473,7 +469,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "41",
+          "seq": "48",
           "id": "Shop «Ромашка»",
           "rev": 1,
           "class": "Shop",
@@ -485,13 +481,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": false
         },
         {
-          "seq": "42",
+          "seq": "49",
           "id": "Product «Чайник»",
           "rev": 1,
           "class": "Product",
@@ -507,13 +503,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t2",
           "$new": false
         },
         {
-          "seq": "43",
+          "seq": "50",
           "id": "Product «Кружка»",
           "rev": 1,
           "class": "Product",
@@ -529,13 +525,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$new": false
         },
         {
-          "seq": "44",
+          "seq": "51",
           "id": "Product «Чайник»",
           "rev": 2,
           "class": "Product",
@@ -551,13 +547,13 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t4",
           "$new": false
         },
         {
-          "seq": "45",
+          "seq": "52",
           "id": "Product «Чайник»",
           "rev": 3,
           "class": "Product",
@@ -574,7 +570,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t5",
           "$new": true
@@ -589,8 +585,8 @@
     {
       "title": "В минус уйти нельзя",
       "text": "Цена по модели не меньше 0. `inc(-5000)` дал бы −3000 — база проверяет ограничение модели для получившегося значения и отказывает: `invalid_data`.",
-      "code": "db.Product(kettle).update({ price: inc(-5000) }).rows()",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ price: </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">inc</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">-</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">5000</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
+      "code": "me.Product(kettle).update({ price: inc(-5000) }).rows()",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ price: </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">inc</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">-</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">5000</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
       "result": null,
       "error": {
         "code": "invalid_data",
@@ -620,7 +616,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$changed": []
@@ -643,7 +639,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t5",
           "$changed": []
@@ -665,7 +661,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$changed": []
@@ -674,7 +670,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "41",
+          "seq": "48",
           "id": "Shop «Ромашка»",
           "rev": 1,
           "class": "Shop",
@@ -686,13 +682,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": false
         },
         {
-          "seq": "42",
+          "seq": "49",
           "id": "Product «Чайник»",
           "rev": 1,
           "class": "Product",
@@ -708,13 +704,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t2",
           "$new": false
         },
         {
-          "seq": "43",
+          "seq": "50",
           "id": "Product «Кружка»",
           "rev": 1,
           "class": "Product",
@@ -730,13 +726,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$new": false
         },
         {
-          "seq": "44",
+          "seq": "51",
           "id": "Product «Чайник»",
           "rev": 2,
           "class": "Product",
@@ -752,13 +748,13 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t4",
           "$new": false
         },
         {
-          "seq": "45",
+          "seq": "52",
           "id": "Product «Чайник»",
           "rev": 3,
           "class": "Product",
@@ -775,7 +771,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t5",
           "$new": false
@@ -788,8 +784,8 @@
     {
       "title": "Читаем версию",
       "text": "Правка с проверкой версии `{ rev }` нужна, когда новое значение вычислено из прочитанного. Запоминаем `rev`.",
-      "code": "rev = (await db.Product(kettle).first())!.rev;\nreturn { rev };",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">rev </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">first</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">())</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.rev;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { rev };</span></span></code></pre>",
+      "code": "rev = (await me.Product(kettle).first())!.rev;\nreturn { rev };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">rev </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">first</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">())</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.rev;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { rev };</span></span></code></pre>",
       "result": {
         "rev": 3
       },
@@ -808,7 +804,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$changed": []
@@ -831,7 +827,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t5",
           "$changed": []
@@ -853,7 +849,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$changed": []
@@ -862,7 +858,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "41",
+          "seq": "48",
           "id": "Shop «Ромашка»",
           "rev": 1,
           "class": "Shop",
@@ -874,13 +870,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": false
         },
         {
-          "seq": "42",
+          "seq": "49",
           "id": "Product «Чайник»",
           "rev": 1,
           "class": "Product",
@@ -896,13 +892,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t2",
           "$new": false
         },
         {
-          "seq": "43",
+          "seq": "50",
           "id": "Product «Кружка»",
           "rev": 1,
           "class": "Product",
@@ -918,13 +914,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$new": false
         },
         {
-          "seq": "44",
+          "seq": "51",
           "id": "Product «Чайник»",
           "rev": 2,
           "class": "Product",
@@ -940,13 +936,13 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t4",
           "$new": false
         },
         {
-          "seq": "45",
+          "seq": "52",
           "id": "Product «Чайник»",
           "rev": 3,
           "class": "Product",
@@ -963,7 +959,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t5",
           "$new": false
@@ -976,8 +972,8 @@
     {
       "title": "Версия совпала — записано",
       "text": null,
-      "code": "db.Product(kettle).update({ price: 1900 }, { rev }).rows()",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1900</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, { rev }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
+      "code": "me.Product(kettle).update({ price: 1900 }, { rev }).rows()",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1900</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, { rev }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
       "result": [
         {
           "at": "t6",
@@ -997,8 +993,7 @@
           },
           "owner": "Ромашка",
           "author": "Анна",
-          "tenant": "Ромашка",
-          "agent": "service"
+          "tenant": "Ромашка"
         }
       ],
       "error": null,
@@ -1016,7 +1011,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$changed": []
@@ -1039,7 +1034,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t6",
           "$changed": [
@@ -1065,7 +1060,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$changed": []
@@ -1074,7 +1069,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "41",
+          "seq": "48",
           "id": "Shop «Ромашка»",
           "rev": 1,
           "class": "Shop",
@@ -1086,13 +1081,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": false
         },
         {
-          "seq": "42",
+          "seq": "49",
           "id": "Product «Чайник»",
           "rev": 1,
           "class": "Product",
@@ -1108,13 +1103,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t2",
           "$new": false
         },
         {
-          "seq": "43",
+          "seq": "50",
           "id": "Product «Кружка»",
           "rev": 1,
           "class": "Product",
@@ -1130,13 +1125,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$new": false
         },
         {
-          "seq": "44",
+          "seq": "51",
           "id": "Product «Чайник»",
           "rev": 2,
           "class": "Product",
@@ -1152,13 +1147,13 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t4",
           "$new": false
         },
         {
-          "seq": "45",
+          "seq": "52",
           "id": "Product «Чайник»",
           "rev": 3,
           "class": "Product",
@@ -1175,13 +1170,13 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t5",
           "$new": false
         },
         {
-          "seq": "46",
+          "seq": "53",
           "id": "Product «Чайник»",
           "rev": 4,
           "class": "Product",
@@ -1198,7 +1193,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t6",
           "$new": true
@@ -1213,8 +1208,8 @@
     {
       "title": "Версия уже другая — conflict",
       "text": "Повторяем правку с той же прочитанной версией, а строка уже изменилась. Приходит `conflict`, и ничего не записывается: что делать с новыми данными, решает приложение (перечитать и решить заново).",
-      "code": "db.Product(kettle).update({ price: 1800 }, { rev }).rows()",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1800</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, { rev }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
+      "code": "me.Product(kettle).update({ price: 1800 }, { rev }).rows()",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1800</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, { rev }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
       "result": null,
       "error": {
         "code": "conflict",
@@ -1240,7 +1235,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$changed": []
@@ -1263,7 +1258,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t6",
           "$changed": []
@@ -1285,7 +1280,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$changed": []
@@ -1294,7 +1289,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "41",
+          "seq": "48",
           "id": "Shop «Ромашка»",
           "rev": 1,
           "class": "Shop",
@@ -1306,13 +1301,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": false
         },
         {
-          "seq": "42",
+          "seq": "49",
           "id": "Product «Чайник»",
           "rev": 1,
           "class": "Product",
@@ -1328,13 +1323,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t2",
           "$new": false
         },
         {
-          "seq": "43",
+          "seq": "50",
           "id": "Product «Кружка»",
           "rev": 1,
           "class": "Product",
@@ -1350,13 +1345,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$new": false
         },
         {
-          "seq": "44",
+          "seq": "51",
           "id": "Product «Чайник»",
           "rev": 2,
           "class": "Product",
@@ -1372,13 +1367,13 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t4",
           "$new": false
         },
         {
-          "seq": "45",
+          "seq": "52",
           "id": "Product «Чайник»",
           "rev": 3,
           "class": "Product",
@@ -1395,13 +1390,13 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t5",
           "$new": false
         },
         {
-          "seq": "46",
+          "seq": "53",
           "id": "Product «Чайник»",
           "rev": 4,
           "class": "Product",
@@ -1418,7 +1413,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t6",
           "$new": false
@@ -1431,8 +1426,8 @@
     {
       "title": "{ rev } — только для одной цели",
       "text": "Шаг нашёл два товара — с какой версией сверять? Отказ `rev_ambiguous`.",
-      "code": "db.Shop(shop).Product().update({ title: 'Товар' }, { rev }).rows()",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Товар'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, { rev }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
+      "code": "me.Shop(shop).Product().update({ title: 'Товар' }, { rev }).rows()",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Товар'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, { rev }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
       "result": null,
       "error": {
         "code": "rev_ambiguous",
@@ -1454,7 +1449,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$changed": []
@@ -1477,7 +1472,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t6",
           "$changed": []
@@ -1499,7 +1494,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$changed": []
@@ -1508,7 +1503,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "41",
+          "seq": "48",
           "id": "Shop «Ромашка»",
           "rev": 1,
           "class": "Shop",
@@ -1520,13 +1515,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": false
         },
         {
-          "seq": "42",
+          "seq": "49",
           "id": "Product «Чайник»",
           "rev": 1,
           "class": "Product",
@@ -1542,13 +1537,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t2",
           "$new": false
         },
         {
-          "seq": "43",
+          "seq": "50",
           "id": "Product «Кружка»",
           "rev": 1,
           "class": "Product",
@@ -1564,13 +1559,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$new": false
         },
         {
-          "seq": "44",
+          "seq": "51",
           "id": "Product «Чайник»",
           "rev": 2,
           "class": "Product",
@@ -1586,13 +1581,13 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t4",
           "$new": false
         },
         {
-          "seq": "45",
+          "seq": "52",
           "id": "Product «Чайник»",
           "rev": 3,
           "class": "Product",
@@ -1609,13 +1604,13 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t5",
           "$new": false
         },
         {
-          "seq": "46",
+          "seq": "53",
           "id": "Product «Чайник»",
           "rev": 4,
           "class": "Product",
@@ -1632,7 +1627,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t6",
           "$new": false
@@ -1666,7 +1661,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$changed": []
@@ -1689,7 +1684,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t6",
           "$changed": []
@@ -1711,7 +1706,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$changed": []
@@ -1720,7 +1715,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "41",
+          "seq": "48",
           "id": "Shop «Ромашка»",
           "rev": 1,
           "class": "Shop",
@@ -1732,13 +1727,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": false
         },
         {
-          "seq": "42",
+          "seq": "49",
           "id": "Product «Чайник»",
           "rev": 1,
           "class": "Product",
@@ -1754,13 +1749,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t2",
           "$new": false
         },
         {
-          "seq": "43",
+          "seq": "50",
           "id": "Product «Кружка»",
           "rev": 1,
           "class": "Product",
@@ -1776,13 +1771,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$new": false
         },
         {
-          "seq": "44",
+          "seq": "51",
           "id": "Product «Чайник»",
           "rev": 2,
           "class": "Product",
@@ -1798,13 +1793,13 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t4",
           "$new": false
         },
         {
-          "seq": "45",
+          "seq": "52",
           "id": "Product «Чайник»",
           "rev": 3,
           "class": "Product",
@@ -1821,13 +1816,13 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t5",
           "$new": false
         },
         {
-          "seq": "46",
+          "seq": "53",
           "id": "Product «Чайник»",
           "rev": 4,
           "class": "Product",
@@ -1844,7 +1839,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t6",
           "$new": false
@@ -1855,5 +1850,5 @@
       "signals": []
     }
   ],
-  "output": "Шаг 1. Магазин и чайник за 2500\n{\n  \"at\": \"‹время›\",\n  \"id\": \"‹id 1›\",\n  \"op\": \"create\",\n  \"rev\": 1,\n  \"data\": {\n    \"sku\": \"K-1\",\n    \"price\": 2500,\n    \"title\": \"Чайник\"\n  },\n  \"tags\": [],\n  \"class\": \"Product\",\n  \"links\": {\n    \"Shop\": \"‹id 2›\"\n  },\n  \"owner\": \"‹id 3›\",\n  \"author\": \"‹id 4›\",\n  \"tenant\": \"‹id 3›\",\n  \"agent\": \"‹id 5›\"\n}\n\nШаг 2. Скидка 500 — внутри базы\n[\n  {\n    \"at\": \"‹время›\",\n    \"id\": \"‹id 1›\",\n    \"op\": \"update\",\n    \"rev\": 2,\n    \"data\": {\n      \"sku\": \"K-1\",\n      \"price\": 2000,\n      \"title\": \"Чайник\"\n    },\n    \"tags\": [],\n    \"class\": \"Product\",\n    \"links\": {\n      \"Shop\": \"‹id 2›\"\n    },\n    \"owner\": \"‹id 3›\",\n    \"author\": \"‹id 4›\",\n    \"tenant\": \"‹id 3›\",\n    \"agent\": \"‹id 5›\"\n  }\n]\n\nШаг 3. Счётчика ещё нет — начать с 0\n[\n  {\n    \"at\": \"‹время›\",\n    \"id\": \"‹id 1›\",\n    \"op\": \"update\",\n    \"rev\": 3,\n    \"data\": {\n      \"sku\": \"K-1\",\n      \"price\": 2000,\n      \"title\": \"Чайник\",\n      \"views\": 1\n    },\n    \"tags\": [],\n    \"class\": \"Product\",\n    \"links\": {\n      \"Shop\": \"‹id 2›\"\n    },\n    \"owner\": \"‹id 3›\",\n    \"author\": \"‹id 4›\",\n    \"tenant\": \"‹id 3›\",\n    \"agent\": \"‹id 5›\"\n  }\n]\n\nШаг 4. В минус уйти нельзя\nотказ, как и задумано: letopis: invalid_data: данные не проходят описание класса Product: price — нарушено правило minimum\n\nШаг 5. Читаем версию\n{\n  \"rev\": 3\n}\n\nШаг 6. Версия совпала — записано\n[\n  {\n    \"at\": \"‹время›\",\n    \"id\": \"‹id 1›\",\n    \"op\": \"update\",\n    \"rev\": 4,\n    \"data\": {\n      \"sku\": \"K-1\",\n      \"price\": 1900,\n      \"title\": \"Чайник\",\n      \"views\": 1\n    },\n    \"tags\": [],\n    \"class\": \"Product\",\n    \"links\": {\n      \"Shop\": \"‹id 2›\"\n    },\n    \"owner\": \"‹id 3›\",\n    \"author\": \"‹id 4›\",\n    \"tenant\": \"‹id 3›\",\n    \"agent\": \"‹id 5›\"\n  }\n]\n\nШаг 7. Версия уже другая — conflict\nотказ, как и задумано: letopis: conflict: строку ‹id 1› успели изменить: версия 4, а не 3 — перечитайте и повторите\n\nШаг 8. { rev } — только для одной цели\nотказ, как и задумано: letopis: rev_ambiguous: update(patch, { rev }): у шага Product 2 целей — проверить версию { rev } можно только у одной цели\n\nШаг 9. inc — маркер, а не число\n{\n  \"marker\": true,\n  \"fromJson\": false\n}"
+  "output": "Шаг 1. Магазин и чайник за 2500\n{\n  \"at\": \"‹время›\",\n  \"id\": \"‹id 1›\",\n  \"op\": \"create\",\n  \"rev\": 1,\n  \"data\": {\n    \"sku\": \"K-1\",\n    \"price\": 2500,\n    \"title\": \"Чайник\"\n  },\n  \"tags\": [],\n  \"class\": \"Product\",\n  \"links\": {\n    \"Shop\": \"‹id 2›\"\n  },\n  \"owner\": \"‹id 3›\",\n  \"author\": \"‹id 4›\",\n  \"tenant\": \"‹id 3›\"\n}\n\nШаг 2. Скидка 500 — внутри базы\n[\n  {\n    \"at\": \"‹время›\",\n    \"id\": \"‹id 1›\",\n    \"op\": \"update\",\n    \"rev\": 2,\n    \"data\": {\n      \"sku\": \"K-1\",\n      \"price\": 2000,\n      \"title\": \"Чайник\"\n    },\n    \"tags\": [],\n    \"class\": \"Product\",\n    \"links\": {\n      \"Shop\": \"‹id 2›\"\n    },\n    \"owner\": \"‹id 3›\",\n    \"author\": \"‹id 4›\",\n    \"tenant\": \"‹id 3›\"\n  }\n]\n\nШаг 3. Счётчика ещё нет — начать с 0\n[\n  {\n    \"at\": \"‹время›\",\n    \"id\": \"‹id 1›\",\n    \"op\": \"update\",\n    \"rev\": 3,\n    \"data\": {\n      \"sku\": \"K-1\",\n      \"price\": 2000,\n      \"title\": \"Чайник\",\n      \"views\": 1\n    },\n    \"tags\": [],\n    \"class\": \"Product\",\n    \"links\": {\n      \"Shop\": \"‹id 2›\"\n    },\n    \"owner\": \"‹id 3›\",\n    \"author\": \"‹id 4›\",\n    \"tenant\": \"‹id 3›\"\n  }\n]\n\nШаг 4. В минус уйти нельзя\nотказ, как и задумано: letopis: invalid_data: данные не проходят описание класса Product: price — нарушено правило minimum\n\nШаг 5. Читаем версию\n{\n  \"rev\": 3\n}\n\nШаг 6. Версия совпала — записано\n[\n  {\n    \"at\": \"‹время›\",\n    \"id\": \"‹id 1›\",\n    \"op\": \"update\",\n    \"rev\": 4,\n    \"data\": {\n      \"sku\": \"K-1\",\n      \"price\": 1900,\n      \"title\": \"Чайник\",\n      \"views\": 1\n    },\n    \"tags\": [],\n    \"class\": \"Product\",\n    \"links\": {\n      \"Shop\": \"‹id 2›\"\n    },\n    \"owner\": \"‹id 3›\",\n    \"author\": \"‹id 4›\",\n    \"tenant\": \"‹id 3›\"\n  }\n]\n\nШаг 7. Версия уже другая — conflict\nотказ, как и задумано: letopis: conflict: строку ‹id 1› успели изменить: версия 4, а не 3 — перечитайте и повторите\n\nШаг 8. { rev } — только для одной цели\nотказ, как и задумано: letopis: rev_ambiguous: update(patch, { rev }): у шага Product 2 целей — проверить версию { rev } можно только у одной цели\n\nШаг 9. inc — маркер, а не число\n{\n  \"marker\": true,\n  \"fromJson\": false\n}"
 }

@@ -14,10 +14,10 @@
   },
   "steps": [
     {
-      "title": "Классы и магазин",
-      "text": null,
-      "code": "await syncModels(db, [Shop, Visitor, Email], { apply: true });\n[shop] = await db.Shop().create({ name: 'Ромашка' }).rows();\nreturn shop;",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> syncModels</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, [Shop, Visitor, Email], { apply: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">[shop] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> shop;</span></span></code></pre>",
+      "title": "Магазин",
+      "text": "Классы `Shop`, `Visitor` и `Email` — модели дома (`setup({ models })` при подготовке).",
+      "code": "[shop] = await me.Shop().create({ name: 'Ромашка' }).rows();\nreturn shop;",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">[shop] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> shop;</span></span></code></pre>",
       "result": {
         "at": "t1",
         "id": "Shop «Ромашка»",
@@ -31,8 +31,7 @@
         "links": {},
         "owner": "Ромашка",
         "author": "Анна",
-        "tenant": "Ромашка",
-        "agent": "service"
+        "tenant": "Ромашка"
       },
       "error": null,
       "entity": [
@@ -49,7 +48,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$changed": [
@@ -60,7 +59,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "37",
+          "seq": "44",
           "id": "Shop «Ромашка»",
           "rev": 1,
           "class": "Shop",
@@ -72,7 +71,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": true
@@ -81,15 +80,14 @@
       "secret": [],
       "counts": null,
       "signals": [
-        "Class",
         "Shop"
       ]
     },
     {
       "title": "id можно вычислить даже без базы",
-      "text": "`v5Id(арендатор, класс, значения ключа)` — та же формула, что в базе. Значит, приложение знает id заранее и может ссылаться на объект, не читая его.",
-      "code": "v5Id(db.tenant!, 'Shop', ['Ромашка']) === shop.id",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">v5Id</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db.tenant</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Shop'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">]) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">===</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> shop.id</span></span></code></pre>",
+      "text": "`v5Id(квартира, класс, значения ключа)` — та же формула, что в базе: id квартиры — `me.tenant`. Значит, приложение знает id заранее и может ссылаться на объект, не читая его.",
+      "code": "v5Id(me.tenant, 'Shop', ['Ромашка']) === shop.id",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">v5Id</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(me.tenant, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Shop'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">]) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">===</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> shop.id</span></span></code></pre>",
       "result": true,
       "error": null,
       "entity": [
@@ -106,7 +104,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$changed": []
@@ -115,7 +113,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "37",
+          "seq": "44",
           "id": "Shop «Ромашка»",
           "rev": 1,
           "class": "Shop",
@@ -127,7 +125,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": false
@@ -140,8 +138,8 @@
     {
       "title": "id в create не передают",
       "text": "id объекта с ключом вычисляет база, у объекта без ключа — выдаёт база. Поле `id` в данных `create` — лишнее поле, которого нет в описании класса, поэтому отказ `invalid_data`. (Коды `id_mismatch` и `id_from_db` — в главе про ошибки.)",
-      "code": "db.Shop().create({ id: randomUUID(), name: 'Лютик' }).rows()",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ id: </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">randomUUID</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(), name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Лютик'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
+      "code": "me.Shop().create({ id: randomUUID(), name: 'Лютик' }).rows()",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ id: </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">randomUUID</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(), name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Лютик'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
       "result": null,
       "error": {
         "code": "invalid_data",
@@ -169,7 +167,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$changed": []
@@ -178,7 +176,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "37",
+          "seq": "44",
           "id": "Shop «Ромашка»",
           "rev": 1,
           "class": "Shop",
@@ -190,7 +188,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": false
@@ -203,8 +201,8 @@
     {
       "title": "Без ключа повтор создаёт второй объект",
       "text": "Класс без ключа не защищён от повтора: две одинаковые записи — два разных объекта. Если повтор после сбоя сети возможен, давайте классу ключ.",
-      "code": "await db.Visitor().create({ name: 'Пётр' }).rows();\nawait db.Visitor().create({ name: 'Пётр' }).rows();\nreturn db.Visitor().count();",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Visitor</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Пётр'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Visitor</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Пётр'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Visitor</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">count</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span></code></pre>",
+      "code": "await me.Visitor().create({ name: 'Пётр' }).rows();\nawait me.Visitor().create({ name: 'Пётр' }).rows();\nreturn me.Visitor().count();",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Visitor</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Пётр'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Visitor</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Пётр'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Visitor</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">count</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span></code></pre>",
       "result": 2,
       "error": null,
       "entity": [
@@ -221,7 +219,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$changed": []
@@ -239,7 +237,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t2",
           "$changed": [
@@ -259,7 +257,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$changed": [
@@ -270,7 +268,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "37",
+          "seq": "44",
           "id": "Shop «Ромашка»",
           "rev": 1,
           "class": "Shop",
@@ -282,13 +280,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": false
         },
         {
-          "seq": "38",
+          "seq": "45",
           "id": "Visitor «Пётр»",
           "rev": 1,
           "class": "Visitor",
@@ -300,13 +298,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t2",
           "$new": true
         },
         {
-          "seq": "39",
+          "seq": "46",
           "id": "Visitor «Пётр»·2",
           "rev": 1,
           "class": "Visitor",
@@ -318,7 +316,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$new": true
@@ -333,8 +331,8 @@
     {
       "title": "Ключ правкой не меняется",
       "text": "Поле ключа нельзя изменить правкой (`immutable_key`): новый ключ — это новый id, то есть новый объект. Его создают, переводят на него концы других строк и удаляют прежний (глава «Запись», «Ключ и класс неизменны»).",
-      "code": "db.Shop(shop).update({ name: 'Лютик' }).rows()",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Лютик'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
+      "code": "me.Shop(shop).update({ name: 'Лютик' }).rows()",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Лютик'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
       "result": null,
       "error": {
         "code": "immutable_key",
@@ -356,7 +354,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$changed": []
@@ -374,7 +372,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t2",
           "$changed": []
@@ -392,7 +390,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$changed": []
@@ -401,7 +399,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "37",
+          "seq": "44",
           "id": "Shop «Ромашка»",
           "rev": 1,
           "class": "Shop",
@@ -413,13 +411,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": false
         },
         {
-          "seq": "38",
+          "seq": "45",
           "id": "Visitor «Пётр»",
           "rev": 1,
           "class": "Visitor",
@@ -431,13 +429,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t2",
           "$new": false
         },
         {
-          "seq": "39",
+          "seq": "46",
           "id": "Visitor «Пётр»·2",
           "rev": 1,
           "class": "Visitor",
@@ -449,7 +447,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$new": false
@@ -462,8 +460,8 @@
     {
       "title": "Регистр важен",
       "text": "Значения ключа берутся как есть: `Anna@Mail.ru` и `anna@mail.ru` дают разные id. Приводите такие значения к одному виду в приложении или задайте формат в модели.",
-      "code": "(await db.idOf('Email', { address: 'Anna@Mail.ru' })) !== (await db.idOf('Email', { address: 'anna@mail.ru' }))",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">idOf</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Email'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, { address: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Anna@Mail.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> })) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!==</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">idOf</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Email'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, { address: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'anna@mail.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }))</span></span></code></pre>",
+      "code": "(await me.idOf('Email', { address: 'Anna@Mail.ru' })) !== (await me.idOf('Email', { address: 'anna@mail.ru' }))",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">idOf</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Email'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, { address: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Anna@Mail.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> })) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!==</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">idOf</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Email'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, { address: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'anna@mail.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }))</span></span></code></pre>",
       "result": true,
       "error": null,
       "entity": [
@@ -480,7 +478,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$changed": []
@@ -498,7 +496,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t2",
           "$changed": []
@@ -516,7 +514,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$changed": []
@@ -525,7 +523,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "37",
+          "seq": "44",
           "id": "Shop «Ромашка»",
           "rev": 1,
           "class": "Shop",
@@ -537,13 +535,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": false
         },
         {
-          "seq": "38",
+          "seq": "45",
           "id": "Visitor «Пётр»",
           "rev": 1,
           "class": "Visitor",
@@ -555,13 +553,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t2",
           "$new": false
         },
         {
-          "seq": "39",
+          "seq": "46",
           "id": "Visitor «Пётр»·2",
           "rev": 1,
           "class": "Visitor",
@@ -573,7 +571,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$new": false
@@ -584,5 +582,5 @@
       "signals": []
     }
   ],
-  "output": "Шаг 1. Классы и магазин\n{\n  \"at\": \"‹время›\",\n  \"id\": \"‹id 1›\",\n  \"op\": \"create\",\n  \"rev\": 1,\n  \"data\": {\n    \"name\": \"Ромашка\"\n  },\n  \"tags\": [],\n  \"class\": \"Shop\",\n  \"links\": {},\n  \"owner\": \"‹id 2›\",\n  \"author\": \"‹id 3›\",\n  \"tenant\": \"‹id 2›\",\n  \"agent\": \"‹id 4›\"\n}\n\nШаг 2. id можно вычислить даже без базы\ntrue\n\nШаг 3. id в create не передают\nотказ, как и задумано: letopis: invalid_data: данные не проходят описание класса Shop: данные — лишний ключ id\n\nШаг 4. Без ключа повтор создаёт второй объект\n2\n\nШаг 5. Ключ правкой не меняется\nотказ, как и задумано: letopis: immutable_key: ключевое поле класса Shop менять нельзя: id изменился бы\n\nШаг 6. Регистр важен\ntrue"
+  "output": "Шаг 1. Магазин\n{\n  \"at\": \"‹время›\",\n  \"id\": \"‹id 1›\",\n  \"op\": \"create\",\n  \"rev\": 1,\n  \"data\": {\n    \"name\": \"Ромашка\"\n  },\n  \"tags\": [],\n  \"class\": \"Shop\",\n  \"links\": {},\n  \"owner\": \"‹id 2›\",\n  \"author\": \"‹id 3›\",\n  \"tenant\": \"‹id 2›\"\n}\n\nШаг 2. id можно вычислить даже без базы\ntrue\n\nШаг 3. id в create не передают\nотказ, как и задумано: letopis: invalid_data: данные не проходят описание класса Shop: данные — лишний ключ id\n\nШаг 4. Без ключа повтор создаёт второй объект\n2\n\nШаг 5. Ключ правкой не меняется\nотказ, как и задумано: letopis: immutable_key: ключевое поле класса Shop менять нельзя: id изменился бы\n\nШаг 6. Регистр важен\ntrue"
 }

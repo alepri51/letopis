@@ -1,7 +1,7 @@
 {
   "id": "money/01-transactions",
   "title": "Явная транзакция: всё или ничего",
-  "summary": "Каждый терминал цепочки — своя транзакция. Когда несколько записей должны пройти вместе, берут db.begin(): внутри те же цепочки, а commit() фиксирует всё сразу. Ошибка — rollback(), и не записано ничего.",
+  "summary": "Каждый терминал цепочки — своя транзакция. Когда несколько записей должны пройти вместе, берут me.begin(): внутри те же цепочки, а commit() фиксирует всё сразу. Ошибка — rollback(), и не записано ничего.",
   "tables": [
     "entity",
     "log"
@@ -15,9 +15,9 @@
   "steps": [
     {
       "title": "Данные магазина",
-      "text": null,
-      "code": "d = await seedShop(db);\nreturn 'готово';",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">d </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> seedShop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'готово'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span></code></pre>",
+      "text": "Модель магазина — модель дома (её записал `setup()` при подготовке), `seedShop(me)` заводит в квартире Анны магазины, товары, покупателей и заказы.",
+      "code": "d = await seedShop(me);\nreturn 'готово';",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">d </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> seedShop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(me);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'готово'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span></code></pre>",
       "result": "готово",
       "error": null,
       "entity": [
@@ -35,7 +35,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$changed": [
@@ -56,7 +56,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t2",
           "$changed": [
@@ -76,7 +76,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$changed": [
@@ -98,7 +98,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t4",
           "$changed": [
@@ -118,7 +118,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t5",
           "$changed": [
@@ -153,7 +153,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t6",
           "$changed": [
@@ -183,7 +183,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t7",
           "$changed": [
@@ -210,7 +210,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t8",
           "$changed": [
@@ -240,7 +240,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t9",
           "$changed": [
@@ -261,7 +261,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t10",
           "$changed": [
@@ -283,7 +283,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t11",
           "$changed": [
@@ -307,7 +307,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t12",
           "$changed": [
@@ -331,7 +331,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t12",
           "$changed": [
@@ -355,7 +355,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t13",
           "$changed": [
@@ -379,7 +379,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t14",
           "$changed": [
@@ -403,7 +403,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t14",
           "$changed": [
@@ -414,7 +414,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "41",
+          "seq": "48",
           "id": "Shop «Ромашка»",
           "rev": 1,
           "class": "Shop",
@@ -427,13 +427,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": true
         },
         {
-          "seq": "42",
+          "seq": "49",
           "id": "Shop «Лютик»",
           "rev": 1,
           "class": "Shop",
@@ -446,13 +446,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t2",
           "$new": true
         },
         {
-          "seq": "43",
+          "seq": "50",
           "id": "Category «Чай»",
           "rev": 1,
           "class": "Category",
@@ -464,13 +464,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$new": true
         },
         {
-          "seq": "44",
+          "seq": "51",
           "id": "Category «Зелёный чай»",
           "rev": 1,
           "class": "Category",
@@ -484,13 +484,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t4",
           "$new": true
         },
         {
-          "seq": "45",
+          "seq": "52",
           "id": "Category «Посуда»",
           "rev": 1,
           "class": "Category",
@@ -502,13 +502,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t5",
           "$new": true
         },
         {
-          "seq": "46",
+          "seq": "53",
           "id": "Product «Чайник»",
           "rev": 1,
           "class": "Product",
@@ -535,13 +535,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t6",
           "$new": true
         },
         {
-          "seq": "47",
+          "seq": "54",
           "id": "Product «Сенча»",
           "rev": 1,
           "class": "Product",
@@ -563,13 +563,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t7",
           "$new": true
         },
         {
-          "seq": "48",
+          "seq": "55",
           "id": "Product «Пуэр»",
           "rev": 1,
           "class": "Product",
@@ -588,13 +588,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t8",
           "$new": true
         },
         {
-          "seq": "49",
+          "seq": "56",
           "id": "Product «Кружка»",
           "rev": 1,
           "class": "Product",
@@ -616,13 +616,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t9",
           "$new": true
         },
         {
-          "seq": "50",
+          "seq": "57",
           "id": "Customer «Ольга»",
           "rev": 1,
           "class": "Customer",
@@ -635,13 +635,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t10",
           "$new": true
         },
         {
-          "seq": "51",
+          "seq": "58",
           "id": "Vip «Иван»",
           "rev": 1,
           "class": "Vip",
@@ -655,13 +655,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t11",
           "$new": true
         },
         {
-          "seq": "52",
+          "seq": "59",
           "id": "Order «A-1»",
           "rev": 1,
           "class": "Order",
@@ -677,13 +677,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t12",
           "$new": true
         },
         {
-          "seq": "53",
+          "seq": "60",
           "id": "line·1",
           "rev": 1,
           "class": "line",
@@ -699,13 +699,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t12",
           "$new": true
         },
         {
-          "seq": "54",
+          "seq": "61",
           "id": "line·2",
           "rev": 1,
           "class": "line",
@@ -721,13 +721,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t13",
           "$new": true
         },
         {
-          "seq": "55",
+          "seq": "62",
           "id": "Order «A-2»",
           "rev": 1,
           "class": "Order",
@@ -743,13 +743,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t14",
           "$new": true
         },
         {
-          "seq": "56",
+          "seq": "63",
           "id": "line·3",
           "rev": 1,
           "class": "line",
@@ -765,7 +765,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t14",
           "$new": true
@@ -775,7 +775,6 @@
       "counts": null,
       "signals": [
         "Category",
-        "Class",
         "Customer",
         "Order",
         "Product",
@@ -786,9 +785,9 @@
     },
     {
       "title": "Заказ и строка — одной транзакцией",
-      "text": "Две записи внутри `db.begin()`. До `commit()` их не видит никто; после — обе появились разом.",
-      "code": "const tr = await db.begin({ reason: 'заказ с витрины' });\ntry {\n  const [o] = await tr.Customer(d.olga).Order().create({ number: 'A-3' }).Shop.set(d.romashka).rows();\n  await tr.Order(o).line().create({ qty: 1, price: 900 }).Product.set(d.sencha).rows();\n  await tr.commit();\n  return o;\n} catch (e) {\n  await tr.rollback();\n  throw e;\n}",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> tr</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">begin</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ reason: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'заказ с витрины'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">try</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">  const</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> [</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">o</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> tr.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Customer</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.olga).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ number: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'A-3'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).Shop.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">set</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.romashka).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">  await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> tr.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(o).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">line</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ qty: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">900</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).Product.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">set</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.sencha).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">  await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> tr.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">commit</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">  return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> o;</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">} </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">catch</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (e) {</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">  await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> tr.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rollback</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">  throw</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> e;</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">}</span></span></code></pre>",
+      "text": "Две записи внутри `me.begin()`. До `commit()` их не видит никто; после — обе появились разом.",
+      "code": "const tr = await me.begin({ reason: 'заказ с витрины' });\ntry {\n  const [o] = await tr.Customer(d.olga).Order().create({ number: 'A-3' }).Shop.set(d.romashka).rows();\n  await tr.Order(o).line().create({ qty: 1, price: 900 }).Product.set(d.sencha).rows();\n  await tr.commit();\n  return o;\n} catch (e) {\n  await tr.rollback();\n  throw e;\n}",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> tr</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">begin</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ reason: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'заказ с витрины'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">try</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">  const</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> [</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">o</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> tr.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Customer</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.olga).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ number: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'A-3'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).Shop.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">set</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.romashka).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">  await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> tr.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(o).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">line</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ qty: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">900</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).Product.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">set</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.sencha).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">  await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> tr.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">commit</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">  return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> o;</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">} </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">catch</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (e) {</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">  await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> tr.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rollback</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">  throw</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> e;</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">}</span></span></code></pre>",
       "result": {
         "at": "t15",
         "id": "Order «A-3»",
@@ -807,7 +806,6 @@
         "owner": "Ромашка",
         "author": "Анна",
         "tenant": "Ромашка",
-        "agent": "service",
         "reason": "заказ с витрины"
       },
       "error": null,
@@ -826,7 +824,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$changed": []
@@ -845,7 +843,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t2",
           "$changed": []
@@ -863,7 +861,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$changed": []
@@ -883,7 +881,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t4",
           "$changed": []
@@ -901,7 +899,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t5",
           "$changed": []
@@ -934,7 +932,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t6",
           "$changed": []
@@ -962,7 +960,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t7",
           "$changed": []
@@ -987,7 +985,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t8",
           "$changed": []
@@ -1015,7 +1013,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t9",
           "$changed": []
@@ -1034,7 +1032,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t10",
           "$changed": []
@@ -1054,7 +1052,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t11",
           "$changed": []
@@ -1076,7 +1074,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t12",
           "$changed": []
@@ -1098,7 +1096,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t12",
           "$changed": []
@@ -1120,7 +1118,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t13",
           "$changed": []
@@ -1142,7 +1140,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t14",
           "$changed": []
@@ -1164,7 +1162,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t14",
           "$changed": []
@@ -1186,7 +1184,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "заказ с витрины",
           "at": "t15",
           "$changed": [
@@ -1210,7 +1208,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "заказ с витрины",
           "at": "t15",
           "$changed": [
@@ -1221,7 +1219,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "41",
+          "seq": "48",
           "id": "Shop «Ромашка»",
           "rev": 1,
           "class": "Shop",
@@ -1234,13 +1232,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": false
         },
         {
-          "seq": "42",
+          "seq": "49",
           "id": "Shop «Лютик»",
           "rev": 1,
           "class": "Shop",
@@ -1253,13 +1251,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t2",
           "$new": false
         },
         {
-          "seq": "43",
+          "seq": "50",
           "id": "Category «Чай»",
           "rev": 1,
           "class": "Category",
@@ -1271,13 +1269,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$new": false
         },
         {
-          "seq": "44",
+          "seq": "51",
           "id": "Category «Зелёный чай»",
           "rev": 1,
           "class": "Category",
@@ -1291,13 +1289,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t4",
           "$new": false
         },
         {
-          "seq": "45",
+          "seq": "52",
           "id": "Category «Посуда»",
           "rev": 1,
           "class": "Category",
@@ -1309,13 +1307,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t5",
           "$new": false
         },
         {
-          "seq": "46",
+          "seq": "53",
           "id": "Product «Чайник»",
           "rev": 1,
           "class": "Product",
@@ -1342,13 +1340,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t6",
           "$new": false
         },
         {
-          "seq": "47",
+          "seq": "54",
           "id": "Product «Сенча»",
           "rev": 1,
           "class": "Product",
@@ -1370,13 +1368,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t7",
           "$new": false
         },
         {
-          "seq": "48",
+          "seq": "55",
           "id": "Product «Пуэр»",
           "rev": 1,
           "class": "Product",
@@ -1395,13 +1393,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t8",
           "$new": false
         },
         {
-          "seq": "49",
+          "seq": "56",
           "id": "Product «Кружка»",
           "rev": 1,
           "class": "Product",
@@ -1423,13 +1421,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t9",
           "$new": false
         },
         {
-          "seq": "50",
+          "seq": "57",
           "id": "Customer «Ольга»",
           "rev": 1,
           "class": "Customer",
@@ -1442,13 +1440,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t10",
           "$new": false
         },
         {
-          "seq": "51",
+          "seq": "58",
           "id": "Vip «Иван»",
           "rev": 1,
           "class": "Vip",
@@ -1462,13 +1460,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t11",
           "$new": false
         },
         {
-          "seq": "52",
+          "seq": "59",
           "id": "Order «A-1»",
           "rev": 1,
           "class": "Order",
@@ -1484,13 +1482,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t12",
           "$new": false
         },
         {
-          "seq": "53",
+          "seq": "60",
           "id": "line·1",
           "rev": 1,
           "class": "line",
@@ -1506,13 +1504,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t12",
           "$new": false
         },
         {
-          "seq": "54",
+          "seq": "61",
           "id": "line·2",
           "rev": 1,
           "class": "line",
@@ -1528,13 +1526,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t13",
           "$new": false
         },
         {
-          "seq": "55",
+          "seq": "62",
           "id": "Order «A-2»",
           "rev": 1,
           "class": "Order",
@@ -1550,13 +1548,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t14",
           "$new": false
         },
         {
-          "seq": "56",
+          "seq": "63",
           "id": "line·3",
           "rev": 1,
           "class": "line",
@@ -1572,13 +1570,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t14",
           "$new": false
         },
         {
-          "seq": "57",
+          "seq": "64",
           "id": "Order «A-3»",
           "rev": 1,
           "class": "Order",
@@ -1594,13 +1592,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "заказ с витрины",
           "at": "t15",
           "$new": true
         },
         {
-          "seq": "58",
+          "seq": "65",
           "id": "line·4",
           "rev": 1,
           "class": "line",
@@ -1616,7 +1614,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "заказ с витрины",
           "at": "t15",
           "$new": true
@@ -1632,8 +1630,8 @@
     {
       "title": "Ошибка внутри — не записано ничего",
       "text": "Заказ создан, а строка заказа нарушает модель (количество 0). `rollback()` отменил всё: в таблицах нет ни заказа A-4, ни строки — сравните с прошлым шагом.",
-      "code": "const tr = await db.begin();\ntry {\n  const [o] = await tr.Customer(d.olga).Order().create({ number: 'A-4' }).Shop.set(d.romashka).rows();\n  await tr.Order(o).line().create({ qty: 0, price: 900 }).Product.set(d.sencha).rows();\n  await tr.commit();\n} catch (e) {\n  await tr.rollback();\n  return { откат: (e as { code?: string }).code, заказов_A4: await db.Order({ number: 'A-4' }).count() };\n}",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> tr</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">begin</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">try</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">  const</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> [</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">o</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> tr.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Customer</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.olga).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ number: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'A-4'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).Shop.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">set</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.romashka).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">  await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> tr.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(o).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">line</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ qty: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">0</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">900</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).Product.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">set</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.sencha).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">  await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> tr.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">commit</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">} </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">catch</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (e) {</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">  await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> tr.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rollback</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">  return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { откат: (e </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">as</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">code</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">?:</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> string</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).code, заказов_A4: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ number: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'A-4'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">count</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">() };</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">}</span></span></code></pre>",
+      "code": "const tr = await me.begin();\ntry {\n  const [o] = await tr.Customer(d.olga).Order().create({ number: 'A-4' }).Shop.set(d.romashka).rows();\n  await tr.Order(o).line().create({ qty: 0, price: 900 }).Product.set(d.sencha).rows();\n  await tr.commit();\n} catch (e) {\n  await tr.rollback();\n  return { откат: (e as { code?: string }).code, заказов_A4: await me.Order({ number: 'A-4' }).count() };\n}",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> tr</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">begin</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">try</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">  const</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> [</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">o</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> tr.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Customer</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.olga).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ number: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'A-4'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).Shop.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">set</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.romashka).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">  await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> tr.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(o).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">line</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ qty: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">0</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">900</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).Product.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">set</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.sencha).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">  await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> tr.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">commit</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">} </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">catch</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (e) {</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">  await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> tr.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rollback</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">  return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { откат: (e </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">as</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">code</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">?:</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> string</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).code, заказов_A4: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Order</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ number: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'A-4'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">count</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">() };</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">}</span></span></code></pre>",
       "result": {
         "откат": "invalid_data",
         "заказов_A4": 0
@@ -1654,7 +1652,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$changed": []
@@ -1673,7 +1671,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t2",
           "$changed": []
@@ -1691,7 +1689,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$changed": []
@@ -1711,7 +1709,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t4",
           "$changed": []
@@ -1729,7 +1727,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t5",
           "$changed": []
@@ -1762,7 +1760,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t6",
           "$changed": []
@@ -1790,7 +1788,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t7",
           "$changed": []
@@ -1815,7 +1813,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t8",
           "$changed": []
@@ -1843,7 +1841,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t9",
           "$changed": []
@@ -1862,7 +1860,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t10",
           "$changed": []
@@ -1882,7 +1880,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t11",
           "$changed": []
@@ -1904,7 +1902,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t12",
           "$changed": []
@@ -1926,7 +1924,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t12",
           "$changed": []
@@ -1948,7 +1946,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t13",
           "$changed": []
@@ -1970,7 +1968,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t14",
           "$changed": []
@@ -1992,7 +1990,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t14",
           "$changed": []
@@ -2014,7 +2012,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "заказ с витрины",
           "at": "t15",
           "$changed": []
@@ -2036,7 +2034,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "заказ с витрины",
           "at": "t15",
           "$changed": []
@@ -2045,7 +2043,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "41",
+          "seq": "48",
           "id": "Shop «Ромашка»",
           "rev": 1,
           "class": "Shop",
@@ -2058,13 +2056,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": false
         },
         {
-          "seq": "42",
+          "seq": "49",
           "id": "Shop «Лютик»",
           "rev": 1,
           "class": "Shop",
@@ -2077,13 +2075,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t2",
           "$new": false
         },
         {
-          "seq": "43",
+          "seq": "50",
           "id": "Category «Чай»",
           "rev": 1,
           "class": "Category",
@@ -2095,13 +2093,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$new": false
         },
         {
-          "seq": "44",
+          "seq": "51",
           "id": "Category «Зелёный чай»",
           "rev": 1,
           "class": "Category",
@@ -2115,13 +2113,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t4",
           "$new": false
         },
         {
-          "seq": "45",
+          "seq": "52",
           "id": "Category «Посуда»",
           "rev": 1,
           "class": "Category",
@@ -2133,13 +2131,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t5",
           "$new": false
         },
         {
-          "seq": "46",
+          "seq": "53",
           "id": "Product «Чайник»",
           "rev": 1,
           "class": "Product",
@@ -2166,13 +2164,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t6",
           "$new": false
         },
         {
-          "seq": "47",
+          "seq": "54",
           "id": "Product «Сенча»",
           "rev": 1,
           "class": "Product",
@@ -2194,13 +2192,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t7",
           "$new": false
         },
         {
-          "seq": "48",
+          "seq": "55",
           "id": "Product «Пуэр»",
           "rev": 1,
           "class": "Product",
@@ -2219,13 +2217,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t8",
           "$new": false
         },
         {
-          "seq": "49",
+          "seq": "56",
           "id": "Product «Кружка»",
           "rev": 1,
           "class": "Product",
@@ -2247,13 +2245,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t9",
           "$new": false
         },
         {
-          "seq": "50",
+          "seq": "57",
           "id": "Customer «Ольга»",
           "rev": 1,
           "class": "Customer",
@@ -2266,13 +2264,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t10",
           "$new": false
         },
         {
-          "seq": "51",
+          "seq": "58",
           "id": "Vip «Иван»",
           "rev": 1,
           "class": "Vip",
@@ -2286,13 +2284,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t11",
           "$new": false
         },
         {
-          "seq": "52",
+          "seq": "59",
           "id": "Order «A-1»",
           "rev": 1,
           "class": "Order",
@@ -2308,13 +2306,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t12",
           "$new": false
         },
         {
-          "seq": "53",
+          "seq": "60",
           "id": "line·1",
           "rev": 1,
           "class": "line",
@@ -2330,13 +2328,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t12",
           "$new": false
         },
         {
-          "seq": "54",
+          "seq": "61",
           "id": "line·2",
           "rev": 1,
           "class": "line",
@@ -2352,13 +2350,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t13",
           "$new": false
         },
         {
-          "seq": "55",
+          "seq": "62",
           "id": "Order «A-2»",
           "rev": 1,
           "class": "Order",
@@ -2374,13 +2372,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t14",
           "$new": false
         },
         {
-          "seq": "56",
+          "seq": "63",
           "id": "line·3",
           "rev": 1,
           "class": "line",
@@ -2396,13 +2394,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t14",
           "$new": false
         },
         {
-          "seq": "57",
+          "seq": "64",
           "id": "Order «A-3»",
           "rev": 1,
           "class": "Order",
@@ -2418,13 +2416,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "заказ с витрины",
           "at": "t15",
           "$new": false
         },
         {
-          "seq": "58",
+          "seq": "65",
           "id": "line·4",
           "rev": 1,
           "class": "line",
@@ -2440,7 +2438,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "заказ с витрины",
           "at": "t15",
           "$new": false
@@ -2453,8 +2451,8 @@
     {
       "title": "Блокировки: lock() и forUpdate()",
       "text": "`lock(ключ)` — блокировка до конца транзакции: её берут все, кто правит эти данные, и они идут по очереди. `forUpdate()` читает строки с блокировкой — их никто не изменит до `commit()`.",
-      "code": "const tr = await db.begin();\nawait tr.lock('цены', d.romashka);\nconst [p] = await tr.Product(d.kettle).forUpdate().rows();\nawait tr.Product(d.kettle).update({ price: (p.data.price as number) - 100 }).rows();\nawait tr.commit();\nreturn (await db.Product(d.kettle).first())?.data.price;",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> tr</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">begin</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> tr.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">lock</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'цены'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, d.romashka);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> [</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">p</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> tr.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">forUpdate</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> tr.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ price: (p.data.price </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">as</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> number</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">-</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> 100</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> tr.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">commit</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">first</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">())?.data.price;</span></span></code></pre>",
+      "code": "const tr = await me.begin();\nawait tr.lock('цены', d.romashka);\nconst [p] = await tr.Product(d.kettle).forUpdate().rows();\nawait tr.Product(d.kettle).update({ price: (p.data.price as number) - 100 }).rows();\nawait tr.commit();\nreturn (await me.Product(d.kettle).first())?.data.price;",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> tr</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">begin</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> tr.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">lock</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'цены'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, d.romashka);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> [</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">p</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> tr.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">forUpdate</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> tr.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ price: (p.data.price </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">as</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> number</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">-</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> 100</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> tr.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">commit</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">first</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">())?.data.price;</span></span></code></pre>",
       "result": 2400,
       "error": null,
       "entity": [
@@ -2472,7 +2470,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$changed": []
@@ -2491,7 +2489,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t2",
           "$changed": []
@@ -2509,7 +2507,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$changed": []
@@ -2529,7 +2527,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t4",
           "$changed": []
@@ -2547,7 +2545,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t5",
           "$changed": []
@@ -2580,7 +2578,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t16",
           "$changed": [
@@ -2613,7 +2611,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t7",
           "$changed": []
@@ -2638,7 +2636,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t8",
           "$changed": []
@@ -2666,7 +2664,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t9",
           "$changed": []
@@ -2685,7 +2683,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t10",
           "$changed": []
@@ -2705,7 +2703,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t11",
           "$changed": []
@@ -2727,7 +2725,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t12",
           "$changed": []
@@ -2749,7 +2747,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t12",
           "$changed": []
@@ -2771,7 +2769,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t13",
           "$changed": []
@@ -2793,7 +2791,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t14",
           "$changed": []
@@ -2815,7 +2813,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t14",
           "$changed": []
@@ -2837,7 +2835,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "заказ с витрины",
           "at": "t15",
           "$changed": []
@@ -2859,7 +2857,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "заказ с витрины",
           "at": "t15",
           "$changed": []
@@ -2868,7 +2866,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "41",
+          "seq": "48",
           "id": "Shop «Ромашка»",
           "rev": 1,
           "class": "Shop",
@@ -2881,13 +2879,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": false
         },
         {
-          "seq": "42",
+          "seq": "49",
           "id": "Shop «Лютик»",
           "rev": 1,
           "class": "Shop",
@@ -2900,13 +2898,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t2",
           "$new": false
         },
         {
-          "seq": "43",
+          "seq": "50",
           "id": "Category «Чай»",
           "rev": 1,
           "class": "Category",
@@ -2918,13 +2916,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$new": false
         },
         {
-          "seq": "44",
+          "seq": "51",
           "id": "Category «Зелёный чай»",
           "rev": 1,
           "class": "Category",
@@ -2938,13 +2936,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t4",
           "$new": false
         },
         {
-          "seq": "45",
+          "seq": "52",
           "id": "Category «Посуда»",
           "rev": 1,
           "class": "Category",
@@ -2956,13 +2954,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t5",
           "$new": false
         },
         {
-          "seq": "46",
+          "seq": "53",
           "id": "Product «Чайник»",
           "rev": 1,
           "class": "Product",
@@ -2989,13 +2987,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t6",
           "$new": false
         },
         {
-          "seq": "47",
+          "seq": "54",
           "id": "Product «Сенча»",
           "rev": 1,
           "class": "Product",
@@ -3017,13 +3015,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t7",
           "$new": false
         },
         {
-          "seq": "48",
+          "seq": "55",
           "id": "Product «Пуэр»",
           "rev": 1,
           "class": "Product",
@@ -3042,13 +3040,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t8",
           "$new": false
         },
         {
-          "seq": "49",
+          "seq": "56",
           "id": "Product «Кружка»",
           "rev": 1,
           "class": "Product",
@@ -3070,13 +3068,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t9",
           "$new": false
         },
         {
-          "seq": "50",
+          "seq": "57",
           "id": "Customer «Ольга»",
           "rev": 1,
           "class": "Customer",
@@ -3089,13 +3087,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t10",
           "$new": false
         },
         {
-          "seq": "51",
+          "seq": "58",
           "id": "Vip «Иван»",
           "rev": 1,
           "class": "Vip",
@@ -3109,13 +3107,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t11",
           "$new": false
         },
         {
-          "seq": "52",
+          "seq": "59",
           "id": "Order «A-1»",
           "rev": 1,
           "class": "Order",
@@ -3131,13 +3129,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t12",
           "$new": false
         },
         {
-          "seq": "53",
+          "seq": "60",
           "id": "line·1",
           "rev": 1,
           "class": "line",
@@ -3153,13 +3151,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t12",
           "$new": false
         },
         {
-          "seq": "54",
+          "seq": "61",
           "id": "line·2",
           "rev": 1,
           "class": "line",
@@ -3175,13 +3173,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t13",
           "$new": false
         },
         {
-          "seq": "55",
+          "seq": "62",
           "id": "Order «A-2»",
           "rev": 1,
           "class": "Order",
@@ -3197,13 +3195,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t14",
           "$new": false
         },
         {
-          "seq": "56",
+          "seq": "63",
           "id": "line·3",
           "rev": 1,
           "class": "line",
@@ -3219,13 +3217,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t14",
           "$new": false
         },
         {
-          "seq": "57",
+          "seq": "64",
           "id": "Order «A-3»",
           "rev": 1,
           "class": "Order",
@@ -3241,13 +3239,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "заказ с витрины",
           "at": "t15",
           "$new": false
         },
         {
-          "seq": "58",
+          "seq": "65",
           "id": "line·4",
           "rev": 1,
           "class": "line",
@@ -3263,13 +3261,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "заказ с витрины",
           "at": "t15",
           "$new": false
         },
         {
-          "seq": "60",
+          "seq": "67",
           "id": "Product «Чайник»",
           "rev": 2,
           "class": "Product",
@@ -3296,7 +3294,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t16",
           "$new": true
@@ -3310,13 +3308,13 @@
     },
     {
       "title": "forUpdate вне транзакции — отказ",
-      "text": "Блокировка вне `db.begin()` снялась бы сразу после чтения, поэтому библиотека отказывает: `tx_required`.",
-      "code": "db.Product(d.kettle).forUpdate().rows()",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">forUpdate</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
+      "text": "Блокировка вне `me.begin()` снялась бы сразу после чтения, поэтому библиотека отказывает: `tx_required`.",
+      "code": "me.Product(d.kettle).forUpdate().rows()",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(d.kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">forUpdate</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
       "result": null,
       "error": {
         "code": "tx_required",
-        "message": "letopis: tx_required: forUpdate() — только внутри db.begin(): вне явной транзакции блокировка снялась бы сразу",
+        "message": "letopis: tx_required: forUpdate() — только внутри me.begin(): вне явной транзакции блокировка снялась бы сразу",
         "detail": null,
         "expected": true
       },
@@ -3335,7 +3333,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$changed": []
@@ -3354,7 +3352,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t2",
           "$changed": []
@@ -3372,7 +3370,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$changed": []
@@ -3392,7 +3390,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t4",
           "$changed": []
@@ -3410,7 +3408,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t5",
           "$changed": []
@@ -3443,7 +3441,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t16",
           "$changed": []
@@ -3471,7 +3469,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t7",
           "$changed": []
@@ -3496,7 +3494,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t8",
           "$changed": []
@@ -3524,7 +3522,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t9",
           "$changed": []
@@ -3543,7 +3541,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t10",
           "$changed": []
@@ -3563,7 +3561,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t11",
           "$changed": []
@@ -3585,7 +3583,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t12",
           "$changed": []
@@ -3607,7 +3605,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t12",
           "$changed": []
@@ -3629,7 +3627,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t13",
           "$changed": []
@@ -3651,7 +3649,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t14",
           "$changed": []
@@ -3673,7 +3671,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t14",
           "$changed": []
@@ -3695,7 +3693,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "заказ с витрины",
           "at": "t15",
           "$changed": []
@@ -3717,7 +3715,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "заказ с витрины",
           "at": "t15",
           "$changed": []
@@ -3726,7 +3724,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "41",
+          "seq": "48",
           "id": "Shop «Ромашка»",
           "rev": 1,
           "class": "Shop",
@@ -3739,13 +3737,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": false
         },
         {
-          "seq": "42",
+          "seq": "49",
           "id": "Shop «Лютик»",
           "rev": 1,
           "class": "Shop",
@@ -3758,13 +3756,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t2",
           "$new": false
         },
         {
-          "seq": "43",
+          "seq": "50",
           "id": "Category «Чай»",
           "rev": 1,
           "class": "Category",
@@ -3776,13 +3774,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$new": false
         },
         {
-          "seq": "44",
+          "seq": "51",
           "id": "Category «Зелёный чай»",
           "rev": 1,
           "class": "Category",
@@ -3796,13 +3794,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t4",
           "$new": false
         },
         {
-          "seq": "45",
+          "seq": "52",
           "id": "Category «Посуда»",
           "rev": 1,
           "class": "Category",
@@ -3814,13 +3812,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t5",
           "$new": false
         },
         {
-          "seq": "46",
+          "seq": "53",
           "id": "Product «Чайник»",
           "rev": 1,
           "class": "Product",
@@ -3847,13 +3845,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t6",
           "$new": false
         },
         {
-          "seq": "47",
+          "seq": "54",
           "id": "Product «Сенча»",
           "rev": 1,
           "class": "Product",
@@ -3875,13 +3873,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t7",
           "$new": false
         },
         {
-          "seq": "48",
+          "seq": "55",
           "id": "Product «Пуэр»",
           "rev": 1,
           "class": "Product",
@@ -3900,13 +3898,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t8",
           "$new": false
         },
         {
-          "seq": "49",
+          "seq": "56",
           "id": "Product «Кружка»",
           "rev": 1,
           "class": "Product",
@@ -3928,13 +3926,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t9",
           "$new": false
         },
         {
-          "seq": "50",
+          "seq": "57",
           "id": "Customer «Ольга»",
           "rev": 1,
           "class": "Customer",
@@ -3947,13 +3945,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t10",
           "$new": false
         },
         {
-          "seq": "51",
+          "seq": "58",
           "id": "Vip «Иван»",
           "rev": 1,
           "class": "Vip",
@@ -3967,13 +3965,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t11",
           "$new": false
         },
         {
-          "seq": "52",
+          "seq": "59",
           "id": "Order «A-1»",
           "rev": 1,
           "class": "Order",
@@ -3989,13 +3987,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t12",
           "$new": false
         },
         {
-          "seq": "53",
+          "seq": "60",
           "id": "line·1",
           "rev": 1,
           "class": "line",
@@ -4011,13 +4009,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t12",
           "$new": false
         },
         {
-          "seq": "54",
+          "seq": "61",
           "id": "line·2",
           "rev": 1,
           "class": "line",
@@ -4033,13 +4031,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t13",
           "$new": false
         },
         {
-          "seq": "55",
+          "seq": "62",
           "id": "Order «A-2»",
           "rev": 1,
           "class": "Order",
@@ -4055,13 +4053,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t14",
           "$new": false
         },
         {
-          "seq": "56",
+          "seq": "63",
           "id": "line·3",
           "rev": 1,
           "class": "line",
@@ -4077,13 +4075,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t14",
           "$new": false
         },
         {
-          "seq": "57",
+          "seq": "64",
           "id": "Order «A-3»",
           "rev": 1,
           "class": "Order",
@@ -4099,13 +4097,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "заказ с витрины",
           "at": "t15",
           "$new": false
         },
         {
-          "seq": "58",
+          "seq": "65",
           "id": "line·4",
           "rev": 1,
           "class": "line",
@@ -4121,13 +4119,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "заказ с витрины",
           "at": "t15",
           "$new": false
         },
         {
-          "seq": "60",
+          "seq": "67",
           "id": "Product «Чайник»",
           "rev": 2,
           "class": "Product",
@@ -4154,7 +4152,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t16",
           "$new": false
@@ -4165,5 +4163,5 @@
       "signals": []
     }
   ],
-  "output": "Шаг 1. Данные магазина\n\"готово\"\n\nШаг 2. Заказ и строка — одной транзакцией\n{\n  \"at\": \"‹время›\",\n  \"id\": \"‹id 1›\",\n  \"op\": \"create\",\n  \"rev\": 1,\n  \"data\": {\n    \"number\": \"A-3\",\n    \"status\": \"new\"\n  },\n  \"tags\": [],\n  \"class\": \"Order\",\n  \"links\": {\n    \"Shop\": \"‹id 2›\",\n    \"Customer\": \"‹id 3›\"\n  },\n  \"owner\": \"‹id 4›\",\n  \"author\": \"‹id 5›\",\n  \"tenant\": \"‹id 4›\",\n  \"agent\": \"‹id 6›\",\n  \"reason\": \"заказ с витрины\"\n}\n\nШаг 3. Ошибка внутри — не записано ничего\n{\n  \"откат\": \"invalid_data\",\n  \"заказов_A4\": 0\n}\n\nШаг 4. Блокировки: lock() и forUpdate()\n2400\n\nШаг 5. forUpdate вне транзакции — отказ\nотказ, как и задумано: letopis: tx_required: forUpdate() — только внутри db.begin(): вне явной транзакции блокировка снялась бы сразу"
+  "output": "Шаг 1. Данные магазина\n\"готово\"\n\nШаг 2. Заказ и строка — одной транзакцией\n{\n  \"at\": \"‹время›\",\n  \"id\": \"‹id 1›\",\n  \"op\": \"create\",\n  \"rev\": 1,\n  \"data\": {\n    \"number\": \"A-3\",\n    \"status\": \"new\"\n  },\n  \"tags\": [],\n  \"class\": \"Order\",\n  \"links\": {\n    \"Shop\": \"‹id 2›\",\n    \"Customer\": \"‹id 3›\"\n  },\n  \"owner\": \"‹id 4›\",\n  \"author\": \"‹id 5›\",\n  \"tenant\": \"‹id 4›\",\n  \"reason\": \"заказ с витрины\"\n}\n\nШаг 3. Ошибка внутри — не записано ничего\n{\n  \"откат\": \"invalid_data\",\n  \"заказов_A4\": 0\n}\n\nШаг 4. Блокировки: lock() и forUpdate()\n2400\n\nШаг 5. forUpdate вне транзакции — отказ\nотказ, как и задумано: letopis: tx_required: forUpdate() — только внутри me.begin(): вне явной транзакции блокировка снялась бы сразу"
 }

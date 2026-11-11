@@ -19,11 +19,11 @@
       "removed": [],
       "log": [
         {
-          "seq": "35",
-          "id": "b08cb9b8-7baa-54bc-84cc-a4bf8ce43444",
+          "seq": "42",
+          "id": "23278f75-8302-5fde-b87e-c5942dc63021",
           "rev": 1,
           "class": "Tag",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e2f4d0a-6732-5467-8141-879ea426c598",
           "links": {},
           "data": {
             "name": "чай",
@@ -31,18 +31,18 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "6214e507-cfa2-5d8b-b5d0-65e4ddb75975",
+          "author": "5617cf25-85db-5d46-bfba-ff0e0e93ec56",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:39.552525+00",
-          "tx": "3894355"
+          "at": "2026-11-10 20:18:43.246173+00",
+          "tx": "4260369"
         },
         {
-          "seq": "36",
-          "id": "ce07a306-af0f-57f0-a8e2-bf822479ef5e",
+          "seq": "43",
+          "id": "b8df6559-7b9b-59b2-9658-2a06d85718a8",
           "rev": 1,
           "class": "Tag",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e2f4d0a-6732-5467-8141-879ea426c598",
           "links": {},
           "data": {
             "name": "кофе",
@@ -50,18 +50,18 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "6214e507-cfa2-5d8b-b5d0-65e4ddb75975",
+          "author": "5617cf25-85db-5d46-bfba-ff0e0e93ec56",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:39.56009+00",
-          "tx": "3894357"
+          "at": "2026-11-10 20:18:43.259419+00",
+          "tx": "4260371"
         },
         {
-          "seq": "37",
-          "id": "bb9441f4-21ef-5537-aac7-fc7fc1103318",
+          "seq": "44",
+          "id": "9af772d6-7f62-55d7-907d-d9e6c3b79b99",
           "rev": 1,
           "class": "Tag",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e2f4d0a-6732-5467-8141-879ea426c598",
           "links": {},
           "data": {
             "name": "какао",
@@ -69,18 +69,18 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "6214e507-cfa2-5d8b-b5d0-65e4ddb75975",
+          "author": "5617cf25-85db-5d46-bfba-ff0e0e93ec56",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:39.567603+00",
-          "tx": "3894359"
+          "at": "2026-11-10 20:18:43.269291+00",
+          "tx": "4260373"
         },
         {
-          "seq": "38",
-          "id": "8472bcb3-3910-5746-9c25-f0cbadd45e99",
+          "seq": "45",
+          "id": "cbccb286-3736-5ff2-8eb1-da50236d3587",
           "rev": 1,
           "class": "Tag",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e2f4d0a-6732-5467-8141-879ea426c598",
           "links": {},
           "data": {
             "name": "сок",
@@ -88,18 +88,18 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "6214e507-cfa2-5d8b-b5d0-65e4ddb75975",
+          "author": "5617cf25-85db-5d46-bfba-ff0e0e93ec56",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:39.574387+00",
-          "tx": "3894361"
+          "at": "2026-11-10 20:18:43.279239+00",
+          "tx": "4260375"
         },
         {
-          "seq": "39",
-          "id": "34810b1e-95e4-5ac0-8f4b-17e0250306fb",
+          "seq": "46",
+          "id": "36dc31b4-7228-54e3-a700-68d9e12ec815",
           "rev": 1,
           "class": "Tag",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e2f4d0a-6732-5467-8141-879ea426c598",
           "links": {},
           "data": {
             "name": "вода",
@@ -107,205 +107,166 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "6214e507-cfa2-5d8b-b5d0-65e4ddb75975",
+          "author": "5617cf25-85db-5d46-bfba-ff0e0e93ec56",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:39.580966+00",
-          "tx": "3894363"
+          "at": "2026-11-10 20:18:43.28832+00",
+          "tx": "4260377"
         }
       ],
       "secret": [],
       "signals": [
-        "Class",
         "Tag"
       ]
     },
     {
       "result": {
-        "порядок создания": [
-          "чай",
-          "кофе",
-          "какао",
-          "сок",
-          "вода"
-        ],
-        "порядок версий в журнале": [
-          "вода",
-          "сок",
-          "чай",
-          "какао",
-          "кофе"
-        ],
-        "порядок id": [
-          "вода",
-          "сок",
-          "чай",
-          "какао",
-          "кофе"
-        ]
+        "версий в журнале": 5,
+        "журнал — в порядке id": true
       },
       "error": null,
       "entity": [],
       "removed": [],
       "log": [
         {
-          "seq": "35",
-          "id": "b08cb9b8-7baa-54bc-84cc-a4bf8ce43444",
-          "rev": 1,
-          "class": "Tag",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {},
-          "data": {
-            "name": "чай",
-            "active": false
-          },
-          "tags": [],
-          "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "6214e507-cfa2-5d8b-b5d0-65e4ddb75975",
-          "reason": null,
-          "at": "2026-11-04 05:16:39.552525+00",
-          "tx": "3894355"
-        },
-        {
-          "seq": "36",
-          "id": "ce07a306-af0f-57f0-a8e2-bf822479ef5e",
-          "rev": 1,
-          "class": "Tag",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {},
-          "data": {
-            "name": "кофе",
-            "active": false
-          },
-          "tags": [],
-          "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "6214e507-cfa2-5d8b-b5d0-65e4ddb75975",
-          "reason": null,
-          "at": "2026-11-04 05:16:39.56009+00",
-          "tx": "3894357"
-        },
-        {
-          "seq": "37",
-          "id": "bb9441f4-21ef-5537-aac7-fc7fc1103318",
-          "rev": 1,
-          "class": "Tag",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {},
-          "data": {
-            "name": "какао",
-            "active": false
-          },
-          "tags": [],
-          "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "6214e507-cfa2-5d8b-b5d0-65e4ddb75975",
-          "reason": null,
-          "at": "2026-11-04 05:16:39.567603+00",
-          "tx": "3894359"
-        },
-        {
-          "seq": "38",
-          "id": "8472bcb3-3910-5746-9c25-f0cbadd45e99",
-          "rev": 1,
-          "class": "Tag",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {},
-          "data": {
-            "name": "сок",
-            "active": false
-          },
-          "tags": [],
-          "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "6214e507-cfa2-5d8b-b5d0-65e4ddb75975",
-          "reason": null,
-          "at": "2026-11-04 05:16:39.574387+00",
-          "tx": "3894361"
-        },
-        {
-          "seq": "39",
-          "id": "34810b1e-95e4-5ac0-8f4b-17e0250306fb",
-          "rev": 1,
-          "class": "Tag",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {},
-          "data": {
-            "name": "вода",
-            "active": false
-          },
-          "tags": [],
-          "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "6214e507-cfa2-5d8b-b5d0-65e4ddb75975",
-          "reason": null,
-          "at": "2026-11-04 05:16:39.580966+00",
-          "tx": "3894363"
-        },
-        {
-          "seq": "40",
-          "id": "34810b1e-95e4-5ac0-8f4b-17e0250306fb",
-          "rev": 2,
-          "class": "Tag",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {},
-          "data": {
-            "name": "вода",
-            "active": true
-          },
-          "tags": [],
-          "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "6214e507-cfa2-5d8b-b5d0-65e4ddb75975",
-          "reason": "включить все",
-          "at": "2026-11-04 05:16:39.622557+00",
-          "tx": "3894367"
-        },
-        {
-          "seq": "41",
-          "id": "8472bcb3-3910-5746-9c25-f0cbadd45e99",
-          "rev": 2,
-          "class": "Tag",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {},
-          "data": {
-            "name": "сок",
-            "active": true
-          },
-          "tags": [],
-          "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "6214e507-cfa2-5d8b-b5d0-65e4ddb75975",
-          "reason": "включить все",
-          "at": "2026-11-04 05:16:39.621919+00",
-          "tx": "3894367"
-        },
-        {
           "seq": "42",
-          "id": "b08cb9b8-7baa-54bc-84cc-a4bf8ce43444",
-          "rev": 2,
+          "id": "23278f75-8302-5fde-b87e-c5942dc63021",
+          "rev": 1,
           "class": "Tag",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e2f4d0a-6732-5467-8141-879ea426c598",
           "links": {},
           "data": {
             "name": "чай",
-            "active": true
+            "active": false
           },
           "tags": [],
-          "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "6214e507-cfa2-5d8b-b5d0-65e4ddb75975",
-          "reason": "включить все",
-          "at": "2026-11-04 05:16:39.617902+00",
-          "tx": "3894367"
+          "op": "create",
+          "author": "5617cf25-85db-5d46-bfba-ff0e0e93ec56",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:18:43.246173+00",
+          "tx": "4260369"
         },
         {
           "seq": "43",
-          "id": "bb9441f4-21ef-5537-aac7-fc7fc1103318",
+          "id": "b8df6559-7b9b-59b2-9658-2a06d85718a8",
+          "rev": 1,
+          "class": "Tag",
+          "tenant": "9e2f4d0a-6732-5467-8141-879ea426c598",
+          "links": {},
+          "data": {
+            "name": "кофе",
+            "active": false
+          },
+          "tags": [],
+          "op": "create",
+          "author": "5617cf25-85db-5d46-bfba-ff0e0e93ec56",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:18:43.259419+00",
+          "tx": "4260371"
+        },
+        {
+          "seq": "44",
+          "id": "9af772d6-7f62-55d7-907d-d9e6c3b79b99",
+          "rev": 1,
+          "class": "Tag",
+          "tenant": "9e2f4d0a-6732-5467-8141-879ea426c598",
+          "links": {},
+          "data": {
+            "name": "какао",
+            "active": false
+          },
+          "tags": [],
+          "op": "create",
+          "author": "5617cf25-85db-5d46-bfba-ff0e0e93ec56",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:18:43.269291+00",
+          "tx": "4260373"
+        },
+        {
+          "seq": "45",
+          "id": "cbccb286-3736-5ff2-8eb1-da50236d3587",
+          "rev": 1,
+          "class": "Tag",
+          "tenant": "9e2f4d0a-6732-5467-8141-879ea426c598",
+          "links": {},
+          "data": {
+            "name": "сок",
+            "active": false
+          },
+          "tags": [],
+          "op": "create",
+          "author": "5617cf25-85db-5d46-bfba-ff0e0e93ec56",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:18:43.279239+00",
+          "tx": "4260375"
+        },
+        {
+          "seq": "46",
+          "id": "36dc31b4-7228-54e3-a700-68d9e12ec815",
+          "rev": 1,
+          "class": "Tag",
+          "tenant": "9e2f4d0a-6732-5467-8141-879ea426c598",
+          "links": {},
+          "data": {
+            "name": "вода",
+            "active": false
+          },
+          "tags": [],
+          "op": "create",
+          "author": "5617cf25-85db-5d46-bfba-ff0e0e93ec56",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:18:43.28832+00",
+          "tx": "4260377"
+        },
+        {
+          "seq": "47",
+          "id": "23278f75-8302-5fde-b87e-c5942dc63021",
           "rev": 2,
           "class": "Tag",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e2f4d0a-6732-5467-8141-879ea426c598",
+          "links": {},
+          "data": {
+            "name": "чай",
+            "active": true
+          },
+          "tags": [],
+          "op": "update",
+          "author": "5617cf25-85db-5d46-bfba-ff0e0e93ec56",
+          "agent": null,
+          "reason": "включить все",
+          "at": "2026-11-10 20:18:43.320263+00",
+          "tx": "4260381"
+        },
+        {
+          "seq": "48",
+          "id": "36dc31b4-7228-54e3-a700-68d9e12ec815",
+          "rev": 2,
+          "class": "Tag",
+          "tenant": "9e2f4d0a-6732-5467-8141-879ea426c598",
+          "links": {},
+          "data": {
+            "name": "вода",
+            "active": true
+          },
+          "tags": [],
+          "op": "update",
+          "author": "5617cf25-85db-5d46-bfba-ff0e0e93ec56",
+          "agent": null,
+          "reason": "включить все",
+          "at": "2026-11-10 20:18:43.322948+00",
+          "tx": "4260381"
+        },
+        {
+          "seq": "49",
+          "id": "9af772d6-7f62-55d7-907d-d9e6c3b79b99",
+          "rev": 2,
+          "class": "Tag",
+          "tenant": "9e2f4d0a-6732-5467-8141-879ea426c598",
           "links": {},
           "data": {
             "name": "какао",
@@ -313,18 +274,18 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "6214e507-cfa2-5d8b-b5d0-65e4ddb75975",
+          "author": "5617cf25-85db-5d46-bfba-ff0e0e93ec56",
+          "agent": null,
           "reason": "включить все",
-          "at": "2026-11-04 05:16:39.621328+00",
-          "tx": "3894367"
+          "at": "2026-11-10 20:18:43.322051+00",
+          "tx": "4260381"
         },
         {
-          "seq": "44",
-          "id": "ce07a306-af0f-57f0-a8e2-bf822479ef5e",
+          "seq": "50",
+          "id": "b8df6559-7b9b-59b2-9658-2a06d85718a8",
           "rev": 2,
           "class": "Tag",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e2f4d0a-6732-5467-8141-879ea426c598",
           "links": {},
           "data": {
             "name": "кофе",
@@ -332,11 +293,30 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "6214e507-cfa2-5d8b-b5d0-65e4ddb75975",
+          "author": "5617cf25-85db-5d46-bfba-ff0e0e93ec56",
+          "agent": null,
           "reason": "включить все",
-          "at": "2026-11-04 05:16:39.620648+00",
-          "tx": "3894367"
+          "at": "2026-11-10 20:18:43.321602+00",
+          "tx": "4260381"
+        },
+        {
+          "seq": "51",
+          "id": "cbccb286-3736-5ff2-8eb1-da50236d3587",
+          "rev": 2,
+          "class": "Tag",
+          "tenant": "9e2f4d0a-6732-5467-8141-879ea426c598",
+          "links": {},
+          "data": {
+            "name": "сок",
+            "active": true
+          },
+          "tags": [],
+          "op": "update",
+          "author": "5617cf25-85db-5d46-bfba-ff0e0e93ec56",
+          "agent": null,
+          "reason": "включить все",
+          "at": "2026-11-10 20:18:43.322531+00",
+          "tx": "4260381"
         }
       ],
       "secret": [],
@@ -345,6 +325,6 @@
       ]
     }
   ],
-  "output": "Шаг 1. Пять меток — по одной, в порядке названий\n[\n  \"чай\",\n  \"кофе\",\n  \"какао\",\n  \"сок\",\n  \"вода\"\n]\n\nШаг 2. Одна правка всех пяти\n{\n  \"порядок создания\": [\n    \"чай\",\n    \"кофе\",\n    \"какао\",\n    \"сок\",\n    \"вода\"\n  ],\n  \"порядок версий в журнале\": [\n    \"вода\",\n    \"сок\",\n    \"чай\",\n    \"какао\",\n    \"кофе\"\n  ],\n  \"порядок id\": [\n    \"вода\",\n    \"сок\",\n    \"чай\",\n    \"какао\",\n    \"кофе\"\n  ]\n}",
+  "output": "Шаг 1. Пять меток — по одной, в порядке названий\n[\n  \"чай\",\n  \"кофе\",\n  \"какао\",\n  \"сок\",\n  \"вода\"\n]\n\nШаг 2. Одна правка всех пяти\n{\n  \"версий в журнале\": 5,\n  \"журнал — в порядке id\": true\n}",
   "exitCode": 0
 }

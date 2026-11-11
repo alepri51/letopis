@@ -1,9 +1,20 @@
 import type { Row } from 'letopis';
 import { example } from '../_shared/example.ts';
-import { seedShop, type ShopData } from '../_shared/shop.ts';
+import { seedShop, shopModels, type ShopData } from '../_shared/shop.ts';
 
 let d: ShopData;
 let preview: Row[], shown: Row[], gone: Row[];
+
+/**
+ * Для показа: строки одного уровня каскада база отдаёт по id, а id строк с ключом выводятся из id квартиры — в каждой
+ * квартире порядок свой. Классы — в порядке ответа (цель, затем каскад), строки одного класса — по данным.
+ */
+const byData = (rows: Row[]) => {
+  const rank = new Map<string, number>();
+  for (const r of rows) if (!rank.has(r.class)) rank.set(r.class, rank.size);
+  const text = (r: Row) => JSON.stringify(r.data);
+  return [...rows].sort((a, b) => rank.get(a.class)! - rank.get(b.class)! || (text(a) < text(b) ? -1 : text(a) > text(b) ? 1 : 0));
+};
 
 export default example({
   title: 'Удаление: предпросмотр, каскад, запрет, очистка конца',
@@ -11,18 +22,22 @@ export default example({
     'delete() без подтверждения — только предпросмотр: что удалится и как. С { confirm: true, expect: предпросмотр } ' +
     'удаляется ровно показанное, а что ' +
     'делать с концами, ведущими на них, решает действие при удалении у конца: cascade — удалить вместе, ' +
-    'restrict — запретить, unset — очистить конец. Модель магазина и функция seedShop, которая её наполняет, вставлены в начало программы примера.',
+    'restrict — запретить, unset — очистить конец. Модель магазина и функция seedShop, которая наполняет её ' +
+    'данными, вставлены в начало программы примера.',
   tables: ['entity', 'log'],
   covers: ['chain.delete', 'error.delete_restricted', 'error.conflict', 'nuance.cascade-unset-restrict', 'nuance.preview-depth', 'nuance.delete-as-shown', 'nuance.restore-partial'],
+  models: shopModels,
   steps: [
     {
       title: 'Данные магазина',
       text:
-        '`seedShop` (её код — в начале программы примера) записывает модель магазина и заводит магазины, товары, ' +
-        'покупателей и заказы. У заказа здесь есть поле `status` — расширение модели главы 3. Для удаления важны концы: у строки заказа `line` конец `Order: one(Order).onDelete(\'cascade\')`, ' +
-        'у товара конец `Shop` без `onDelete` (по умолчанию `restrict`), у товара конец `Category` с `onDelete: \'unset\'`.',
-      run: async ({ db }) => {
-        d = await seedShop(db);
+        'Модель магазина (`shopModels`) — модель дома: её записал `setup()` при подготовке. `seedShop(me)` (её код — в ' +
+        'начале программы примера) заводит в квартире Анны магазины, товары, покупателей и заказы. У заказа здесь есть ' +
+        'поле `status` — расширение модели главы 3. Для удаления важны концы: у строки заказа `line` конец ' +
+        '`Order: one(Order).onDelete(\'cascade\')`, у товара конец `Shop` без `onDelete` (по умолчанию `restrict`), у ' +
+        'товара конец `Category` с `onDelete: \'unset\'`.',
+      run: async ({ me }) => {
+        d = await seedShop(me);
         return 'готово';
       },
     },
@@ -32,27 +47,32 @@ export default example({
         'Строки заказа ссылаются на заказ с действием при удалении `cascade` — они удалятся вместе с ним. ' +
         'В каждой строке предпросмотра — `$action` (что будет) и `$depth` (уровень каскада). У строк каскада `$action` ' +
         'тоже `delete`: цель от каскада отличает `$depth` — 0 у самой цели, 1 и дальше у строк, которые уйдут вместе с ней. ' +
-        'В базе ничего не изменилось. Ответ сохраняем: подтверждение удаления принимает его в `expect`.',
-      run: async ({ db }) => (preview = await db.Order(d.order1).delete().rows()),
+        'В базе ничего не изменилось. Ответ сохраняем: подтверждение удаления принимает его в `expect`. Строки идут по ' +
+        'уровням каскада, внутри уровня — по id, а id строк с ключом выводятся из id квартиры; поэтому пример показывает ' +
+        'строки одного класса по данным (`byData`) — так вывод одинаков в любом доме.',
+      run: async ({ me }) => {
+        preview = await me.Order(d.order1).delete().rows();
+        return byData(preview);
+      },
     },
     {
       title: 'Удаляем заказ',
       text:
         '`delete({ confirm: true, expect: предпросмотр })` удаляет ровно показанное. Заказ и обе его строки ушли из ' +
         '`entity`; в журнале три надгробия `delete`. История осталась.',
-      run: async ({ db }) => db.Order(d.order1).delete({ confirm: true, expect: preview }).rows(),
+      run: async ({ me }) => byData(await me.Order(d.order1).delete({ confirm: true, expect: preview }).rows()),
     },
     {
       title: 'Магазин с товарами: предпросмотр показывает запрет',
       text:
         'Товары ссылаются на магазин с действием при удалении по умолчанию — `restrict`. ' +
         'Предпросмотр помечает их `$action: restrict`.',
-      run: async ({ db }) => (preview = await db.Shop(d.lutik).delete().rows()).map((r) => ({ id: r.id, action: r.$action })),
+      run: async ({ me }) => (preview = await me.Shop(d.lutik).delete().rows()).map((r) => ({ id: r.id, action: r.$action })),
     },
     {
       title: 'Удалить магазин нельзя, пока есть товары',
       text: 'Отказ `delete_restricted` со списком строк, которые мешают удалению. Ничего не удалено.',
-      run: async ({ db }) => db.Shop(d.lutik).delete({ confirm: true, expect: preview }).rows(),
+      run: async ({ me }) => me.Shop(d.lutik).delete({ confirm: true, expect: preview }).rows(),
       expect: { error: 'delete_restricted' },
     },
     {
@@ -61,9 +81,9 @@ export default example({
         'У товаров конец `Category` с действием при удалении `unset`. Удаляем «Посуду»: категория ушла, ' +
         'а из конца `Category` у Чайника и Кружки она убрана (подсвечено) — это новая версия каждого товара. ' +
         'Предпросмотр показывает их строками `$action: unset`.',
-      run: async ({ db }) => {
-        const p = await db.Category(d.dishes).delete().rows();
-        return db.Category(d.dishes).delete({ confirm: true, expect: p }).rows();
+      run: async ({ me }) => {
+        const p = await me.Category(d.dishes).delete().rows();
+        return me.Category(d.dishes).delete({ confirm: true, expect: p }).rows();
       },
     },
     {
@@ -71,14 +91,14 @@ export default example({
       text:
         'Предпросмотр — снимок на момент вызова, а между показом и подтверждением база может измениться. Поэтому ' +
         'предпросмотр сохраняют и при подтверждении передают в `expect`: удалится ровно показанное или ничего.',
-      run: async ({ db }) => {
-        shown = await db.Order(d.order2).delete().rows();
+      run: async ({ me }) => {
+        shown = await me.Order(d.order2).delete().rows();
         return shown;
       },
     },
     {
       title: 'Пока он смотрел, в заказ добавили строку',
-      run: async ({ db }) => db.Order(d.order2).line().create({ qty: 1, price: 2500 }).Product.set(d.kettle).rows(),
+      run: async ({ me }) => me.Order(d.order2).line().create({ qty: 1, price: 2500 }).Product.set(d.kettle).rows(),
     },
     {
       title: 'Подтверждение по старому предпросмотру — отказ',
@@ -87,14 +107,14 @@ export default example({
         'и сравнивает его с `expect` — строки по `id`, их `rev` и `$action`. Не совпало — отказ `conflict` ' +
         '(`write.preview_changed`): ничего не удалено, а новый предпросмотр — в `err.detail.preview`, его и показывают ' +
         'пользователю.',
-      run: async ({ db }) => {
-        const answer = await db.Order(d.order2).delete({ confirm: true, expect: shown, reason: 'отмена заказа A-2' }).rows()
+      run: async ({ me }) => {
+        const answer = await me.Order(d.order2).delete({ confirm: true, expect: shown, reason: 'отмена заказа A-2' }).rows()
           .then(() => 'удалено', (e) => {
             if (e.code !== 'conflict') throw e;
             shown = e.detail.preview; // новый предпросмотр — показать пользователю
             return `${e.key}: ничего не удалено, покажите новый предпросмотр (${shown.length} строки)`;
           });
-        return { 'ответ': answer, 'строк в заказе': await db.Order(d.order2).line().count() };
+        return { 'ответ': answer, 'строк в заказе': await me.Order(d.order2).line().count() };
       },
     },
     {
@@ -102,9 +122,9 @@ export default example({
       text:
         'Пользователь посмотрел новый предпросмотр и подтвердил: он совпал с базой — удалены заказ и обе строки, ровно ' +
         'как показано.',
-      run: async ({ db }) => {
-        gone = await db.Order(d.order2).delete({ confirm: true, expect: shown, reason: 'отмена заказа A-2' }).rows();
-        return gone;
+      run: async ({ me }) => {
+        gone = await me.Order(d.order2).delete({ confirm: true, expect: shown, reason: 'отмена заказа A-2' }).rows();
+        return byData(gone);
       },
     },
     {
@@ -114,9 +134,9 @@ export default example({
         'возвращают. Заказ возвращает `restore({ expect: ответ })` — id из `expect`, которых нет среди строк шага ' +
         '(строки заказа), он пропускает. Сразу после этого в заказ снова положили чайник: строка с ключом «заказ + ' +
         'товар» получила тот же id, что удалённая, и её история продолжилась версией `create`.',
-      run: async ({ db }) => {
-        const [order] = await db.Order(d.order2).restore({ expect: gone }).rows();
-        await db.Order(d.order2).line().create({ qty: 3, price: 2500 }).Product.set(d.kettle).rows();
+      run: async ({ me }) => {
+        const [order] = await me.Order(d.order2).restore({ expect: gone }).rows();
+        await me.Order(d.order2).line().create({ qty: 3, price: 2500 }).Product.set(d.kettle).rows();
         return order;
       },
     },
@@ -129,7 +149,7 @@ export default example({
         '`reissued` — id занял новый живой объект с тем же ключом (здесь — чайник), `changed` — после удаления строку ' +
         'пересоздавали, правили или удалили снова, `restored` — её уже вернули. Пропуски покажите пользователю: «не ' +
         'вернулась — уже есть новая».',
-      run: async ({ db }) => db.Order(d.order2).line().restore({ expect: gone, partial: true }).rows(),
+      run: async ({ me }) => byData(await me.Order(d.order2).line().restore({ expect: gone, partial: true }).rows()),
     },
   ],
 });

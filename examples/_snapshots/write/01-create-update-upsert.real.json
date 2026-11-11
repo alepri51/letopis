@@ -8,8 +8,8 @@
   "steps": [
     {
       "result": {
-        "at": "2026-11-04T05:16:20.772308+00:00",
-        "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+        "at": "2026-11-10T20:18:21.58165+00:00",
+        "id": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14",
         "op": "create",
         "rev": 1,
         "data": {
@@ -19,19 +19,18 @@
         "tags": [],
         "class": "Shop",
         "links": {},
-        "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-        "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-        "agent": "93715286-16c9-5b5d-82f9-28df72f521c7"
+        "owner": "5728ec86-642d-5f93-b267-81d12af9b57b",
+        "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+        "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b"
       },
       "error": null,
       "entity": [
         {
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "id": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14",
           "class": "Shop",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "owner": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {},
           "data": {
             "city": "Казань",
@@ -39,20 +38,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.772308+00"
+          "at": "2026-11-10 20:18:21.58165+00"
         }
       ],
       "removed": [],
       "log": [
         {
-          "seq": "41",
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "seq": "48",
+          "id": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14",
           "rev": 1,
           "class": "Shop",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {},
           "data": {
             "city": "Казань",
@@ -60,24 +59,23 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.772308+00",
-          "tx": "3893888"
+          "at": "2026-11-10 20:18:21.58165+00",
+          "tx": "4259744"
         }
       ],
       "secret": [],
       "signals": [
-        "Class",
         "Shop"
       ]
     },
     {
       "result": [
         {
-          "at": "2026-11-04T05:16:20.817081+00:00",
-          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
+          "at": "2026-11-10T20:18:21.617884+00:00",
+          "id": "09d6613b-bb62-5bcf-9421-647faa5b22d3",
           "op": "create",
           "rev": 1,
           "data": {
@@ -88,22 +86,21 @@
           "tags": [],
           "class": "Product",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7"
+          "owner": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b"
         }
       ],
       "error": null,
       "entity": [
         {
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "id": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14",
           "class": "Shop",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "owner": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {},
           "data": {
             "city": "Казань",
@@ -111,19 +108,19 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.772308+00"
+          "at": "2026-11-10 20:18:21.58165+00"
         },
         {
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
           "class": "Product",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "owner": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "K-1",
@@ -139,19 +136,19 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.795493+00"
+          "at": "2026-11-10 20:18:21.601172+00"
         },
         {
-          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
+          "id": "09d6613b-bb62-5bcf-9421-647faa5b22d3",
           "class": "Product",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "owner": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "M-1",
@@ -160,20 +157,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.817081+00"
+          "at": "2026-11-10 20:18:21.617884+00"
         }
       ],
       "removed": [],
       "log": [
         {
-          "seq": "41",
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "seq": "48",
+          "id": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14",
           "rev": 1,
           "class": "Shop",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {},
           "data": {
             "city": "Казань",
@@ -181,20 +178,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.772308+00",
-          "tx": "3893888"
+          "at": "2026-11-10 20:18:21.58165+00",
+          "tx": "4259744"
         },
         {
-          "seq": "42",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "49",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "K-1",
@@ -210,20 +207,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.795493+00",
-          "tx": "3893892"
+          "at": "2026-11-10 20:18:21.601172+00",
+          "tx": "4259748"
         },
         {
-          "seq": "43",
-          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
+          "seq": "50",
+          "id": "09d6613b-bb62-5bcf-9421-647faa5b22d3",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "M-1",
@@ -232,11 +229,11 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.817081+00",
-          "tx": "3893894"
+          "at": "2026-11-10 20:18:21.617884+00",
+          "tx": "4259750"
         }
       ],
       "secret": [],
@@ -247,8 +244,8 @@
     {
       "result": [
         {
-          "at": "2026-11-04T05:16:20.848258+00:00",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "at": "2026-11-10T20:18:21.643733+00:00",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
           "op": "update",
           "rev": 2,
           "data": {
@@ -267,22 +264,21 @@
           "tags": [],
           "class": "Product",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7"
+          "owner": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b"
         }
       ],
       "error": null,
       "entity": [
         {
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "id": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14",
           "class": "Shop",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "owner": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {},
           "data": {
             "city": "Казань",
@@ -290,19 +286,19 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.772308+00"
+          "at": "2026-11-10 20:18:21.58165+00"
         },
         {
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
           "class": "Product",
           "rev": 2,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "owner": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "K-1",
@@ -319,19 +315,19 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.848258+00"
+          "at": "2026-11-10 20:18:21.643733+00"
         },
         {
-          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
+          "id": "09d6613b-bb62-5bcf-9421-647faa5b22d3",
           "class": "Product",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "owner": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "M-1",
@@ -340,20 +336,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.817081+00"
+          "at": "2026-11-10 20:18:21.617884+00"
         }
       ],
       "removed": [],
       "log": [
         {
-          "seq": "41",
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "seq": "48",
+          "id": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14",
           "rev": 1,
           "class": "Shop",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {},
           "data": {
             "city": "Казань",
@@ -361,20 +357,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.772308+00",
-          "tx": "3893888"
+          "at": "2026-11-10 20:18:21.58165+00",
+          "tx": "4259744"
         },
         {
-          "seq": "42",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "49",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "K-1",
@@ -390,20 +386,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.795493+00",
-          "tx": "3893892"
+          "at": "2026-11-10 20:18:21.601172+00",
+          "tx": "4259748"
         },
         {
-          "seq": "43",
-          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
+          "seq": "50",
+          "id": "09d6613b-bb62-5bcf-9421-647faa5b22d3",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "M-1",
@@ -412,20 +408,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.817081+00",
-          "tx": "3893894"
+          "at": "2026-11-10 20:18:21.617884+00",
+          "tx": "4259750"
         },
         {
-          "seq": "44",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "51",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
           "rev": 2,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "K-1",
@@ -442,11 +438,11 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.848258+00",
-          "tx": "3893898"
+          "at": "2026-11-10 20:18:21.643733+00",
+          "tx": "4259754"
         }
       ],
       "secret": [],
@@ -457,8 +453,8 @@
     {
       "result": [
         {
-          "at": "2026-11-04T05:16:20.878074+00:00",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "at": "2026-11-10T20:18:21.672535+00:00",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
           "op": "update",
           "rev": 3,
           "data": {
@@ -477,22 +473,21 @@
           "tags": [],
           "class": "Product",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7"
+          "owner": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b"
         }
       ],
       "error": null,
       "entity": [
         {
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "id": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14",
           "class": "Shop",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "owner": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {},
           "data": {
             "city": "Казань",
@@ -500,19 +495,19 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.772308+00"
+          "at": "2026-11-10 20:18:21.58165+00"
         },
         {
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
           "class": "Product",
           "rev": 3,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "owner": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "K-1",
@@ -529,19 +524,19 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.878074+00"
+          "at": "2026-11-10 20:18:21.672535+00"
         },
         {
-          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
+          "id": "09d6613b-bb62-5bcf-9421-647faa5b22d3",
           "class": "Product",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "owner": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "M-1",
@@ -550,20 +545,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.817081+00"
+          "at": "2026-11-10 20:18:21.617884+00"
         }
       ],
       "removed": [],
       "log": [
         {
-          "seq": "41",
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "seq": "48",
+          "id": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14",
           "rev": 1,
           "class": "Shop",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {},
           "data": {
             "city": "Казань",
@@ -571,20 +566,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.772308+00",
-          "tx": "3893888"
+          "at": "2026-11-10 20:18:21.58165+00",
+          "tx": "4259744"
         },
         {
-          "seq": "42",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "49",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "K-1",
@@ -600,20 +595,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.795493+00",
-          "tx": "3893892"
+          "at": "2026-11-10 20:18:21.601172+00",
+          "tx": "4259748"
         },
         {
-          "seq": "43",
-          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
+          "seq": "50",
+          "id": "09d6613b-bb62-5bcf-9421-647faa5b22d3",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "M-1",
@@ -622,20 +617,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.817081+00",
-          "tx": "3893894"
+          "at": "2026-11-10 20:18:21.617884+00",
+          "tx": "4259750"
         },
         {
-          "seq": "44",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "51",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
           "rev": 2,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "K-1",
@@ -652,20 +647,20 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.848258+00",
-          "tx": "3893898"
+          "at": "2026-11-10 20:18:21.643733+00",
+          "tx": "4259754"
         },
         {
-          "seq": "45",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "52",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
           "rev": 3,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "K-1",
@@ -682,11 +677,11 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.878074+00",
-          "tx": "3893902"
+          "at": "2026-11-10 20:18:21.672535+00",
+          "tx": "4259758"
         }
       ],
       "secret": [],
@@ -699,11 +694,11 @@
       "error": null,
       "entity": [
         {
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "id": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14",
           "class": "Shop",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "owner": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {},
           "data": {
             "city": "Казань",
@@ -711,19 +706,19 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.772308+00"
+          "at": "2026-11-10 20:18:21.58165+00"
         },
         {
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
           "class": "Product",
           "rev": 3,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "owner": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "K-1",
@@ -740,19 +735,19 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.878074+00"
+          "at": "2026-11-10 20:18:21.672535+00"
         },
         {
-          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
+          "id": "09d6613b-bb62-5bcf-9421-647faa5b22d3",
           "class": "Product",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "owner": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "M-1",
@@ -761,20 +756,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.817081+00"
+          "at": "2026-11-10 20:18:21.617884+00"
         }
       ],
       "removed": [],
       "log": [
         {
-          "seq": "41",
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "seq": "48",
+          "id": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14",
           "rev": 1,
           "class": "Shop",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {},
           "data": {
             "city": "Казань",
@@ -782,20 +777,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.772308+00",
-          "tx": "3893888"
+          "at": "2026-11-10 20:18:21.58165+00",
+          "tx": "4259744"
         },
         {
-          "seq": "42",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "49",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "K-1",
@@ -811,20 +806,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.795493+00",
-          "tx": "3893892"
+          "at": "2026-11-10 20:18:21.601172+00",
+          "tx": "4259748"
         },
         {
-          "seq": "43",
-          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
+          "seq": "50",
+          "id": "09d6613b-bb62-5bcf-9421-647faa5b22d3",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "M-1",
@@ -833,20 +828,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.817081+00",
-          "tx": "3893894"
+          "at": "2026-11-10 20:18:21.617884+00",
+          "tx": "4259750"
         },
         {
-          "seq": "44",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "51",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
           "rev": 2,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "K-1",
@@ -863,20 +858,20 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.848258+00",
-          "tx": "3893898"
+          "at": "2026-11-10 20:18:21.643733+00",
+          "tx": "4259754"
         },
         {
-          "seq": "45",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "52",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
           "rev": 3,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "K-1",
@@ -893,11 +888,11 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.878074+00",
-          "tx": "3893902"
+          "at": "2026-11-10 20:18:21.672535+00",
+          "tx": "4259758"
         }
       ],
       "secret": [],
@@ -906,8 +901,8 @@
     {
       "result": [
         {
-          "at": "2026-11-04T05:16:20.913033+00:00",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "at": "2026-11-10T20:18:21.703627+00:00",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
           "op": "update",
           "rev": 4,
           "data": {
@@ -925,22 +920,21 @@
           "tags": [],
           "class": "Product",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7"
+          "owner": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b"
         }
       ],
       "error": null,
       "entity": [
         {
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "id": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14",
           "class": "Shop",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "owner": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {},
           "data": {
             "city": "Казань",
@@ -948,19 +942,19 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.772308+00"
+          "at": "2026-11-10 20:18:21.58165+00"
         },
         {
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
           "class": "Product",
           "rev": 4,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "owner": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "K-1",
@@ -976,19 +970,19 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.913033+00"
+          "at": "2026-11-10 20:18:21.703627+00"
         },
         {
-          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
+          "id": "09d6613b-bb62-5bcf-9421-647faa5b22d3",
           "class": "Product",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "owner": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "M-1",
@@ -997,20 +991,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.817081+00"
+          "at": "2026-11-10 20:18:21.617884+00"
         }
       ],
       "removed": [],
       "log": [
         {
-          "seq": "41",
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "seq": "48",
+          "id": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14",
           "rev": 1,
           "class": "Shop",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {},
           "data": {
             "city": "Казань",
@@ -1018,20 +1012,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.772308+00",
-          "tx": "3893888"
+          "at": "2026-11-10 20:18:21.58165+00",
+          "tx": "4259744"
         },
         {
-          "seq": "42",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "49",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "K-1",
@@ -1047,20 +1041,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.795493+00",
-          "tx": "3893892"
+          "at": "2026-11-10 20:18:21.601172+00",
+          "tx": "4259748"
         },
         {
-          "seq": "43",
-          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
+          "seq": "50",
+          "id": "09d6613b-bb62-5bcf-9421-647faa5b22d3",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "M-1",
@@ -1069,20 +1063,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.817081+00",
-          "tx": "3893894"
+          "at": "2026-11-10 20:18:21.617884+00",
+          "tx": "4259750"
         },
         {
-          "seq": "44",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "51",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
           "rev": 2,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "K-1",
@@ -1099,20 +1093,20 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.848258+00",
-          "tx": "3893898"
+          "at": "2026-11-10 20:18:21.643733+00",
+          "tx": "4259754"
         },
         {
-          "seq": "45",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "52",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
           "rev": 3,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "K-1",
@@ -1129,20 +1123,20 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.878074+00",
-          "tx": "3893902"
+          "at": "2026-11-10 20:18:21.672535+00",
+          "tx": "4259758"
         },
         {
-          "seq": "46",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "53",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
           "rev": 4,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "K-1",
@@ -1158,11 +1152,11 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.913033+00",
-          "tx": "3893907"
+          "at": "2026-11-10 20:18:21.703627+00",
+          "tx": "4259763"
         }
       ],
       "secret": [],
@@ -1185,11 +1179,11 @@
       "error": null,
       "entity": [
         {
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "id": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14",
           "class": "Shop",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "owner": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {},
           "data": {
             "city": "Казань",
@@ -1197,19 +1191,19 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.772308+00"
+          "at": "2026-11-10 20:18:21.58165+00"
         },
         {
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
           "class": "Product",
           "rev": 7,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "owner": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "K-1",
@@ -1225,19 +1219,19 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.969479+00"
+          "at": "2026-11-10 20:18:21.756442+00"
         },
         {
-          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
+          "id": "09d6613b-bb62-5bcf-9421-647faa5b22d3",
           "class": "Product",
           "rev": 4,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "owner": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "M-1",
@@ -1249,20 +1243,20 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.967608+00"
+          "at": "2026-11-10 20:18:21.754639+00"
         }
       ],
       "removed": [],
       "log": [
         {
-          "seq": "41",
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "seq": "48",
+          "id": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14",
           "rev": 1,
           "class": "Shop",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {},
           "data": {
             "city": "Казань",
@@ -1270,20 +1264,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.772308+00",
-          "tx": "3893888"
+          "at": "2026-11-10 20:18:21.58165+00",
+          "tx": "4259744"
         },
         {
-          "seq": "42",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "49",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "K-1",
@@ -1299,20 +1293,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.795493+00",
-          "tx": "3893892"
+          "at": "2026-11-10 20:18:21.601172+00",
+          "tx": "4259748"
         },
         {
-          "seq": "43",
-          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
+          "seq": "50",
+          "id": "09d6613b-bb62-5bcf-9421-647faa5b22d3",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "M-1",
@@ -1321,20 +1315,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.817081+00",
-          "tx": "3893894"
+          "at": "2026-11-10 20:18:21.617884+00",
+          "tx": "4259750"
         },
         {
-          "seq": "44",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "51",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
           "rev": 2,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "K-1",
@@ -1351,20 +1345,20 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.848258+00",
-          "tx": "3893898"
+          "at": "2026-11-10 20:18:21.643733+00",
+          "tx": "4259754"
         },
         {
-          "seq": "45",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "52",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
           "rev": 3,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "K-1",
@@ -1381,20 +1375,20 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.878074+00",
-          "tx": "3893902"
+          "at": "2026-11-10 20:18:21.672535+00",
+          "tx": "4259758"
         },
         {
-          "seq": "46",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "53",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
           "rev": 4,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "K-1",
@@ -1410,49 +1404,20 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.913033+00",
-          "tx": "3893907"
+          "at": "2026-11-10 20:18:21.703627+00",
+          "tx": "4259763"
         },
         {
-          "seq": "47",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
-          "rev": 5,
-          "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
-          },
-          "data": {
-            "sku": "K-1",
-            "price": 2500,
-            "specs": {
-              "color": "чёрный",
-              "volume": 1.7
-            },
-            "title": "Чайник стеклянный",
-            "labels": [
-              "по возрастанию"
-            ]
-          },
-          "tags": [],
-          "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
-          "reason": null,
-          "at": "2026-11-04 05:16:20.938028+00",
-          "tx": "3893911"
-        },
-        {
-          "seq": "48",
-          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
+          "seq": "54",
+          "id": "09d6613b-bb62-5bcf-9421-647faa5b22d3",
           "rev": 2,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "M-1",
@@ -1464,20 +1429,20 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.936187+00",
-          "tx": "3893911"
+          "at": "2026-11-10 20:18:21.724824+00",
+          "tx": "4259767"
         },
         {
-          "seq": "49",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
-          "rev": 6,
+          "seq": "55",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
+          "rev": 5,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "K-1",
@@ -1488,25 +1453,25 @@
             },
             "title": "Чайник стеклянный",
             "labels": [
-              "по убыванию"
+              "по возрастанию"
             ]
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.955035+00",
-          "tx": "3893913"
+          "at": "2026-11-10 20:18:21.725913+00",
+          "tx": "4259767"
         },
         {
-          "seq": "50",
-          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
+          "seq": "56",
+          "id": "09d6613b-bb62-5bcf-9421-647faa5b22d3",
           "rev": 3,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "M-1",
@@ -1518,20 +1483,74 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.95294+00",
-          "tx": "3893913"
+          "at": "2026-11-10 20:18:21.739335+00",
+          "tx": "4259769"
         },
         {
-          "seq": "51",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "57",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
+          "rev": 6,
+          "class": "Product",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "links": {
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "по убыванию"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:18:21.741098+00",
+          "tx": "4259769"
+        },
+        {
+          "seq": "58",
+          "id": "09d6613b-bb62-5bcf-9421-647faa5b22d3",
+          "rev": 4,
+          "class": "Product",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "links": {
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "дорогой"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:18:21.754639+00",
+          "tx": "4259771"
+        },
+        {
+          "seq": "59",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
           "rev": 7,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "K-1",
@@ -1547,36 +1566,11 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.969479+00",
-          "tx": "3893915"
-        },
-        {
-          "seq": "52",
-          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
-          "rev": 4,
-          "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
-          },
-          "data": {
-            "sku": "M-1",
-            "price": 400,
-            "title": "Кружка",
-            "labels": [
-              "дорогой"
-            ]
-          },
-          "tags": [],
-          "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
-          "reason": null,
-          "at": "2026-11-04 05:16:20.967608+00",
-          "tx": "3893915"
+          "at": "2026-11-10 20:18:21.756442+00",
+          "tx": "4259771"
         }
       ],
       "secret": [],
@@ -1588,16 +1582,16 @@
       "result": null,
       "error": {
         "code": "invalid_query",
-        "message": "letopis: invalid_query: limit() после update() ни на что не действует: глагол проходит по всем целям шага, а ответ — его строки. Цели сужают limit(), offset() и sort() до глагола: db.Класс(…).limit(n).update(…)",
+        "message": "letopis: invalid_query: limit() после update() ни на что не действует: глагол проходит по всем целям шага, а ответ — его строки. Цели сужают limit(), offset() и sort() до глагола: me.Класс(…).limit(n).update(…)",
         "detail": null
       },
       "entity": [
         {
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "id": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14",
           "class": "Shop",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "owner": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {},
           "data": {
             "city": "Казань",
@@ -1605,19 +1599,19 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.772308+00"
+          "at": "2026-11-10 20:18:21.58165+00"
         },
         {
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
           "class": "Product",
           "rev": 7,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "owner": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "K-1",
@@ -1633,19 +1627,19 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.969479+00"
+          "at": "2026-11-10 20:18:21.756442+00"
         },
         {
-          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
+          "id": "09d6613b-bb62-5bcf-9421-647faa5b22d3",
           "class": "Product",
           "rev": 4,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "owner": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "M-1",
@@ -1657,20 +1651,20 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.967608+00"
+          "at": "2026-11-10 20:18:21.754639+00"
         }
       ],
       "removed": [],
       "log": [
         {
-          "seq": "41",
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "seq": "48",
+          "id": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14",
           "rev": 1,
           "class": "Shop",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {},
           "data": {
             "city": "Казань",
@@ -1678,20 +1672,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.772308+00",
-          "tx": "3893888"
+          "at": "2026-11-10 20:18:21.58165+00",
+          "tx": "4259744"
         },
         {
-          "seq": "42",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "49",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "K-1",
@@ -1707,20 +1701,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.795493+00",
-          "tx": "3893892"
+          "at": "2026-11-10 20:18:21.601172+00",
+          "tx": "4259748"
         },
         {
-          "seq": "43",
-          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
+          "seq": "50",
+          "id": "09d6613b-bb62-5bcf-9421-647faa5b22d3",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "M-1",
@@ -1729,20 +1723,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.817081+00",
-          "tx": "3893894"
+          "at": "2026-11-10 20:18:21.617884+00",
+          "tx": "4259750"
         },
         {
-          "seq": "44",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "51",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
           "rev": 2,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "K-1",
@@ -1759,20 +1753,20 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.848258+00",
-          "tx": "3893898"
+          "at": "2026-11-10 20:18:21.643733+00",
+          "tx": "4259754"
         },
         {
-          "seq": "45",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "52",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
           "rev": 3,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "K-1",
@@ -1789,20 +1783,20 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.878074+00",
-          "tx": "3893902"
+          "at": "2026-11-10 20:18:21.672535+00",
+          "tx": "4259758"
         },
         {
-          "seq": "46",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "53",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
           "rev": 4,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "K-1",
@@ -1818,49 +1812,20 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.913033+00",
-          "tx": "3893907"
+          "at": "2026-11-10 20:18:21.703627+00",
+          "tx": "4259763"
         },
         {
-          "seq": "47",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
-          "rev": 5,
-          "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
-          },
-          "data": {
-            "sku": "K-1",
-            "price": 2500,
-            "specs": {
-              "color": "чёрный",
-              "volume": 1.7
-            },
-            "title": "Чайник стеклянный",
-            "labels": [
-              "по возрастанию"
-            ]
-          },
-          "tags": [],
-          "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
-          "reason": null,
-          "at": "2026-11-04 05:16:20.938028+00",
-          "tx": "3893911"
-        },
-        {
-          "seq": "48",
-          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
+          "seq": "54",
+          "id": "09d6613b-bb62-5bcf-9421-647faa5b22d3",
           "rev": 2,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "M-1",
@@ -1872,20 +1837,20 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.936187+00",
-          "tx": "3893911"
+          "at": "2026-11-10 20:18:21.724824+00",
+          "tx": "4259767"
         },
         {
-          "seq": "49",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
-          "rev": 6,
+          "seq": "55",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
+          "rev": 5,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "K-1",
@@ -1896,25 +1861,25 @@
             },
             "title": "Чайник стеклянный",
             "labels": [
-              "по убыванию"
+              "по возрастанию"
             ]
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.955035+00",
-          "tx": "3893913"
+          "at": "2026-11-10 20:18:21.725913+00",
+          "tx": "4259767"
         },
         {
-          "seq": "50",
-          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
+          "seq": "56",
+          "id": "09d6613b-bb62-5bcf-9421-647faa5b22d3",
           "rev": 3,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "M-1",
@@ -1926,20 +1891,74 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.95294+00",
-          "tx": "3893913"
+          "at": "2026-11-10 20:18:21.739335+00",
+          "tx": "4259769"
         },
         {
-          "seq": "51",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "57",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
+          "rev": 6,
+          "class": "Product",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "links": {
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "по убыванию"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:18:21.741098+00",
+          "tx": "4259769"
+        },
+        {
+          "seq": "58",
+          "id": "09d6613b-bb62-5bcf-9421-647faa5b22d3",
+          "rev": 4,
+          "class": "Product",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "links": {
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "дорогой"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:18:21.754639+00",
+          "tx": "4259771"
+        },
+        {
+          "seq": "59",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
           "rev": 7,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "K-1",
@@ -1955,36 +1974,11 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.969479+00",
-          "tx": "3893915"
-        },
-        {
-          "seq": "52",
-          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
-          "rev": 4,
-          "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
-          },
-          "data": {
-            "sku": "M-1",
-            "price": 400,
-            "title": "Кружка",
-            "labels": [
-              "дорогой"
-            ]
-          },
-          "tags": [],
-          "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
-          "reason": null,
-          "at": "2026-11-04 05:16:20.967608+00",
-          "tx": "3893915"
+          "at": "2026-11-10 20:18:21.756442+00",
+          "tx": "4259771"
         }
       ],
       "secret": [],
@@ -1993,8 +1987,8 @@
     {
       "result": [
         {
-          "at": "2026-11-04T05:16:20.986338+00:00",
-          "id": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+          "at": "2026-11-10T20:18:21.781829+00:00",
+          "id": "216397b7-13da-5bee-9d54-42a987187455",
           "op": "create",
           "rev": 1,
           "data": {
@@ -2004,21 +1998,20 @@
           "tags": [],
           "class": "Shop",
           "links": {},
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "owner": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "$upsert": "created"
         }
       ],
       "error": null,
       "entity": [
         {
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "id": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14",
           "class": "Shop",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "owner": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {},
           "data": {
             "city": "Казань",
@@ -2026,19 +2019,19 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.772308+00"
+          "at": "2026-11-10 20:18:21.58165+00"
         },
         {
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
           "class": "Product",
           "rev": 7,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "owner": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "K-1",
@@ -2054,19 +2047,19 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.969479+00"
+          "at": "2026-11-10 20:18:21.756442+00"
         },
         {
-          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
+          "id": "09d6613b-bb62-5bcf-9421-647faa5b22d3",
           "class": "Product",
           "rev": 4,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "owner": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "M-1",
@@ -2078,17 +2071,17 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.967608+00"
+          "at": "2026-11-10 20:18:21.754639+00"
         },
         {
-          "id": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+          "id": "216397b7-13da-5bee-9d54-42a987187455",
           "class": "Shop",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "owner": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {},
           "data": {
             "city": "Уфа",
@@ -2096,20 +2089,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.986338+00"
+          "at": "2026-11-10 20:18:21.781829+00"
         }
       ],
       "removed": [],
       "log": [
         {
-          "seq": "41",
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "seq": "48",
+          "id": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14",
           "rev": 1,
           "class": "Shop",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {},
           "data": {
             "city": "Казань",
@@ -2117,20 +2110,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.772308+00",
-          "tx": "3893888"
+          "at": "2026-11-10 20:18:21.58165+00",
+          "tx": "4259744"
         },
         {
-          "seq": "42",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "49",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "K-1",
@@ -2146,20 +2139,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.795493+00",
-          "tx": "3893892"
+          "at": "2026-11-10 20:18:21.601172+00",
+          "tx": "4259748"
         },
         {
-          "seq": "43",
-          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
+          "seq": "50",
+          "id": "09d6613b-bb62-5bcf-9421-647faa5b22d3",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "M-1",
@@ -2168,20 +2161,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.817081+00",
-          "tx": "3893894"
+          "at": "2026-11-10 20:18:21.617884+00",
+          "tx": "4259750"
         },
         {
-          "seq": "44",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "51",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
           "rev": 2,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "K-1",
@@ -2198,20 +2191,20 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.848258+00",
-          "tx": "3893898"
+          "at": "2026-11-10 20:18:21.643733+00",
+          "tx": "4259754"
         },
         {
-          "seq": "45",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "52",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
           "rev": 3,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "K-1",
@@ -2228,209 +2221,209 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.878074+00",
-          "tx": "3893902"
-        },
-        {
-          "seq": "46",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
-          "rev": 4,
-          "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
-          },
-          "data": {
-            "sku": "K-1",
-            "price": 2500,
-            "specs": {
-              "color": "чёрный",
-              "volume": 1.7
-            },
-            "title": "Чайник стеклянный",
-            "labels": [
-              "дорогой"
-            ]
-          },
-          "tags": [],
-          "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
-          "reason": null,
-          "at": "2026-11-04 05:16:20.913033+00",
-          "tx": "3893907"
-        },
-        {
-          "seq": "47",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
-          "rev": 5,
-          "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
-          },
-          "data": {
-            "sku": "K-1",
-            "price": 2500,
-            "specs": {
-              "color": "чёрный",
-              "volume": 1.7
-            },
-            "title": "Чайник стеклянный",
-            "labels": [
-              "по возрастанию"
-            ]
-          },
-          "tags": [],
-          "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
-          "reason": null,
-          "at": "2026-11-04 05:16:20.938028+00",
-          "tx": "3893911"
-        },
-        {
-          "seq": "48",
-          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
-          "rev": 2,
-          "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
-          },
-          "data": {
-            "sku": "M-1",
-            "price": 400,
-            "title": "Кружка",
-            "labels": [
-              "по возрастанию"
-            ]
-          },
-          "tags": [],
-          "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
-          "reason": null,
-          "at": "2026-11-04 05:16:20.936187+00",
-          "tx": "3893911"
-        },
-        {
-          "seq": "49",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
-          "rev": 6,
-          "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
-          },
-          "data": {
-            "sku": "K-1",
-            "price": 2500,
-            "specs": {
-              "color": "чёрный",
-              "volume": 1.7
-            },
-            "title": "Чайник стеклянный",
-            "labels": [
-              "по убыванию"
-            ]
-          },
-          "tags": [],
-          "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
-          "reason": null,
-          "at": "2026-11-04 05:16:20.955035+00",
-          "tx": "3893913"
-        },
-        {
-          "seq": "50",
-          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
-          "rev": 3,
-          "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
-          },
-          "data": {
-            "sku": "M-1",
-            "price": 400,
-            "title": "Кружка",
-            "labels": [
-              "по убыванию"
-            ]
-          },
-          "tags": [],
-          "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
-          "reason": null,
-          "at": "2026-11-04 05:16:20.95294+00",
-          "tx": "3893913"
-        },
-        {
-          "seq": "51",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
-          "rev": 7,
-          "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
-          },
-          "data": {
-            "sku": "K-1",
-            "price": 2500,
-            "specs": {
-              "color": "чёрный",
-              "volume": 1.7
-            },
-            "title": "Чайник стеклянный",
-            "labels": [
-              "дорогой"
-            ]
-          },
-          "tags": [],
-          "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
-          "reason": null,
-          "at": "2026-11-04 05:16:20.969479+00",
-          "tx": "3893915"
-        },
-        {
-          "seq": "52",
-          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
-          "rev": 4,
-          "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
-          },
-          "data": {
-            "sku": "M-1",
-            "price": 400,
-            "title": "Кружка",
-            "labels": [
-              "дорогой"
-            ]
-          },
-          "tags": [],
-          "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
-          "reason": null,
-          "at": "2026-11-04 05:16:20.967608+00",
-          "tx": "3893915"
+          "at": "2026-11-10 20:18:21.672535+00",
+          "tx": "4259758"
         },
         {
           "seq": "53",
-          "id": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
+          "rev": 4,
+          "class": "Product",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "links": {
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "дорогой"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:18:21.703627+00",
+          "tx": "4259763"
+        },
+        {
+          "seq": "54",
+          "id": "09d6613b-bb62-5bcf-9421-647faa5b22d3",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "links": {
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "по возрастанию"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:18:21.724824+00",
+          "tx": "4259767"
+        },
+        {
+          "seq": "55",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
+          "rev": 5,
+          "class": "Product",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "links": {
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "по возрастанию"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:18:21.725913+00",
+          "tx": "4259767"
+        },
+        {
+          "seq": "56",
+          "id": "09d6613b-bb62-5bcf-9421-647faa5b22d3",
+          "rev": 3,
+          "class": "Product",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "links": {
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "по убыванию"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:18:21.739335+00",
+          "tx": "4259769"
+        },
+        {
+          "seq": "57",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
+          "rev": 6,
+          "class": "Product",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "links": {
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "по убыванию"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:18:21.741098+00",
+          "tx": "4259769"
+        },
+        {
+          "seq": "58",
+          "id": "09d6613b-bb62-5bcf-9421-647faa5b22d3",
+          "rev": 4,
+          "class": "Product",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "links": {
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "дорогой"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:18:21.754639+00",
+          "tx": "4259771"
+        },
+        {
+          "seq": "59",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
+          "rev": 7,
+          "class": "Product",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "links": {
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "дорогой"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:18:21.756442+00",
+          "tx": "4259771"
+        },
+        {
+          "seq": "60",
+          "id": "216397b7-13da-5bee-9d54-42a987187455",
           "rev": 1,
           "class": "Shop",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {},
           "data": {
             "city": "Уфа",
@@ -2438,11 +2431,11 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.986338+00",
-          "tx": "3893920"
+          "at": "2026-11-10 20:18:21.781829+00",
+          "tx": "4259776"
         }
       ],
       "secret": [],
@@ -2453,8 +2446,8 @@
     {
       "result": [
         {
-          "at": "2026-11-04T05:16:20.986338+00:00",
-          "id": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+          "at": "2026-11-10T20:18:21.781829+00:00",
+          "id": "216397b7-13da-5bee-9d54-42a987187455",
           "op": "create",
           "rev": 1,
           "data": {
@@ -2464,21 +2457,20 @@
           "tags": [],
           "class": "Shop",
           "links": {},
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "owner": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "$upsert": "unchanged"
         }
       ],
       "error": null,
       "entity": [
         {
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "id": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14",
           "class": "Shop",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "owner": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {},
           "data": {
             "city": "Казань",
@@ -2486,19 +2478,19 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.772308+00"
+          "at": "2026-11-10 20:18:21.58165+00"
         },
         {
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
           "class": "Product",
           "rev": 7,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "owner": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "K-1",
@@ -2514,19 +2506,19 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.969479+00"
+          "at": "2026-11-10 20:18:21.756442+00"
         },
         {
-          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
+          "id": "09d6613b-bb62-5bcf-9421-647faa5b22d3",
           "class": "Product",
           "rev": 4,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "owner": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "M-1",
@@ -2538,17 +2530,17 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.967608+00"
+          "at": "2026-11-10 20:18:21.754639+00"
         },
         {
-          "id": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+          "id": "216397b7-13da-5bee-9d54-42a987187455",
           "class": "Shop",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "owner": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {},
           "data": {
             "city": "Уфа",
@@ -2556,20 +2548,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.986338+00"
+          "at": "2026-11-10 20:18:21.781829+00"
         }
       ],
       "removed": [],
       "log": [
         {
-          "seq": "41",
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "seq": "48",
+          "id": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14",
           "rev": 1,
           "class": "Shop",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {},
           "data": {
             "city": "Казань",
@@ -2577,20 +2569,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.772308+00",
-          "tx": "3893888"
+          "at": "2026-11-10 20:18:21.58165+00",
+          "tx": "4259744"
         },
         {
-          "seq": "42",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "49",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "K-1",
@@ -2606,20 +2598,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.795493+00",
-          "tx": "3893892"
+          "at": "2026-11-10 20:18:21.601172+00",
+          "tx": "4259748"
         },
         {
-          "seq": "43",
-          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
+          "seq": "50",
+          "id": "09d6613b-bb62-5bcf-9421-647faa5b22d3",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "M-1",
@@ -2628,20 +2620,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.817081+00",
-          "tx": "3893894"
+          "at": "2026-11-10 20:18:21.617884+00",
+          "tx": "4259750"
         },
         {
-          "seq": "44",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "51",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
           "rev": 2,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "K-1",
@@ -2658,20 +2650,20 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.848258+00",
-          "tx": "3893898"
+          "at": "2026-11-10 20:18:21.643733+00",
+          "tx": "4259754"
         },
         {
-          "seq": "45",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "52",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
           "rev": 3,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "K-1",
@@ -2688,209 +2680,209 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.878074+00",
-          "tx": "3893902"
-        },
-        {
-          "seq": "46",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
-          "rev": 4,
-          "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
-          },
-          "data": {
-            "sku": "K-1",
-            "price": 2500,
-            "specs": {
-              "color": "чёрный",
-              "volume": 1.7
-            },
-            "title": "Чайник стеклянный",
-            "labels": [
-              "дорогой"
-            ]
-          },
-          "tags": [],
-          "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
-          "reason": null,
-          "at": "2026-11-04 05:16:20.913033+00",
-          "tx": "3893907"
-        },
-        {
-          "seq": "47",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
-          "rev": 5,
-          "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
-          },
-          "data": {
-            "sku": "K-1",
-            "price": 2500,
-            "specs": {
-              "color": "чёрный",
-              "volume": 1.7
-            },
-            "title": "Чайник стеклянный",
-            "labels": [
-              "по возрастанию"
-            ]
-          },
-          "tags": [],
-          "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
-          "reason": null,
-          "at": "2026-11-04 05:16:20.938028+00",
-          "tx": "3893911"
-        },
-        {
-          "seq": "48",
-          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
-          "rev": 2,
-          "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
-          },
-          "data": {
-            "sku": "M-1",
-            "price": 400,
-            "title": "Кружка",
-            "labels": [
-              "по возрастанию"
-            ]
-          },
-          "tags": [],
-          "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
-          "reason": null,
-          "at": "2026-11-04 05:16:20.936187+00",
-          "tx": "3893911"
-        },
-        {
-          "seq": "49",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
-          "rev": 6,
-          "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
-          },
-          "data": {
-            "sku": "K-1",
-            "price": 2500,
-            "specs": {
-              "color": "чёрный",
-              "volume": 1.7
-            },
-            "title": "Чайник стеклянный",
-            "labels": [
-              "по убыванию"
-            ]
-          },
-          "tags": [],
-          "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
-          "reason": null,
-          "at": "2026-11-04 05:16:20.955035+00",
-          "tx": "3893913"
-        },
-        {
-          "seq": "50",
-          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
-          "rev": 3,
-          "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
-          },
-          "data": {
-            "sku": "M-1",
-            "price": 400,
-            "title": "Кружка",
-            "labels": [
-              "по убыванию"
-            ]
-          },
-          "tags": [],
-          "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
-          "reason": null,
-          "at": "2026-11-04 05:16:20.95294+00",
-          "tx": "3893913"
-        },
-        {
-          "seq": "51",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
-          "rev": 7,
-          "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
-          },
-          "data": {
-            "sku": "K-1",
-            "price": 2500,
-            "specs": {
-              "color": "чёрный",
-              "volume": 1.7
-            },
-            "title": "Чайник стеклянный",
-            "labels": [
-              "дорогой"
-            ]
-          },
-          "tags": [],
-          "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
-          "reason": null,
-          "at": "2026-11-04 05:16:20.969479+00",
-          "tx": "3893915"
-        },
-        {
-          "seq": "52",
-          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
-          "rev": 4,
-          "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
-          },
-          "data": {
-            "sku": "M-1",
-            "price": 400,
-            "title": "Кружка",
-            "labels": [
-              "дорогой"
-            ]
-          },
-          "tags": [],
-          "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
-          "reason": null,
-          "at": "2026-11-04 05:16:20.967608+00",
-          "tx": "3893915"
+          "at": "2026-11-10 20:18:21.672535+00",
+          "tx": "4259758"
         },
         {
           "seq": "53",
-          "id": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
+          "rev": 4,
+          "class": "Product",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "links": {
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "дорогой"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:18:21.703627+00",
+          "tx": "4259763"
+        },
+        {
+          "seq": "54",
+          "id": "09d6613b-bb62-5bcf-9421-647faa5b22d3",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "links": {
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "по возрастанию"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:18:21.724824+00",
+          "tx": "4259767"
+        },
+        {
+          "seq": "55",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
+          "rev": 5,
+          "class": "Product",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "links": {
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "по возрастанию"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:18:21.725913+00",
+          "tx": "4259767"
+        },
+        {
+          "seq": "56",
+          "id": "09d6613b-bb62-5bcf-9421-647faa5b22d3",
+          "rev": 3,
+          "class": "Product",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "links": {
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "по убыванию"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:18:21.739335+00",
+          "tx": "4259769"
+        },
+        {
+          "seq": "57",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
+          "rev": 6,
+          "class": "Product",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "links": {
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "по убыванию"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:18:21.741098+00",
+          "tx": "4259769"
+        },
+        {
+          "seq": "58",
+          "id": "09d6613b-bb62-5bcf-9421-647faa5b22d3",
+          "rev": 4,
+          "class": "Product",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "links": {
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "дорогой"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:18:21.754639+00",
+          "tx": "4259771"
+        },
+        {
+          "seq": "59",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
+          "rev": 7,
+          "class": "Product",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "links": {
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "дорогой"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:18:21.756442+00",
+          "tx": "4259771"
+        },
+        {
+          "seq": "60",
+          "id": "216397b7-13da-5bee-9d54-42a987187455",
           "rev": 1,
           "class": "Shop",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {},
           "data": {
             "city": "Уфа",
@@ -2898,11 +2890,11 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.986338+00",
-          "tx": "3893920"
+          "at": "2026-11-10 20:18:21.781829+00",
+          "tx": "4259776"
         }
       ],
       "secret": [],
@@ -2911,8 +2903,8 @@
     {
       "result": [
         {
-          "at": "2026-11-04T05:16:21.016331+00:00",
-          "id": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+          "at": "2026-11-10T20:18:21.820009+00:00",
+          "id": "216397b7-13da-5bee-9d54-42a987187455",
           "op": "update",
           "rev": 2,
           "data": {
@@ -2921,21 +2913,20 @@
           "tags": [],
           "class": "Shop",
           "links": {},
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "owner": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "$upsert": "updated"
         }
       ],
       "error": null,
       "entity": [
         {
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "id": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14",
           "class": "Shop",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "owner": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {},
           "data": {
             "city": "Казань",
@@ -2943,19 +2934,19 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.772308+00"
+          "at": "2026-11-10 20:18:21.58165+00"
         },
         {
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
           "class": "Product",
           "rev": 7,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "owner": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "K-1",
@@ -2971,19 +2962,19 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.969479+00"
+          "at": "2026-11-10 20:18:21.756442+00"
         },
         {
-          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
+          "id": "09d6613b-bb62-5bcf-9421-647faa5b22d3",
           "class": "Product",
           "rev": 4,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "owner": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "M-1",
@@ -2995,37 +2986,37 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.967608+00"
+          "at": "2026-11-10 20:18:21.754639+00"
         },
         {
-          "id": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+          "id": "216397b7-13da-5bee-9d54-42a987187455",
           "class": "Shop",
           "rev": 2,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "owner": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {},
           "data": {
             "name": "Лютик"
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:21.016331+00"
+          "at": "2026-11-10 20:18:21.820009+00"
         }
       ],
       "removed": [],
       "log": [
         {
-          "seq": "41",
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "seq": "48",
+          "id": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14",
           "rev": 1,
           "class": "Shop",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {},
           "data": {
             "city": "Казань",
@@ -3033,20 +3024,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.772308+00",
-          "tx": "3893888"
+          "at": "2026-11-10 20:18:21.58165+00",
+          "tx": "4259744"
         },
         {
-          "seq": "42",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "49",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "K-1",
@@ -3062,20 +3053,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.795493+00",
-          "tx": "3893892"
+          "at": "2026-11-10 20:18:21.601172+00",
+          "tx": "4259748"
         },
         {
-          "seq": "43",
-          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
+          "seq": "50",
+          "id": "09d6613b-bb62-5bcf-9421-647faa5b22d3",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "M-1",
@@ -3084,20 +3075,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.817081+00",
-          "tx": "3893894"
+          "at": "2026-11-10 20:18:21.617884+00",
+          "tx": "4259750"
         },
         {
-          "seq": "44",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "51",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
           "rev": 2,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "K-1",
@@ -3114,20 +3105,20 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.848258+00",
-          "tx": "3893898"
+          "at": "2026-11-10 20:18:21.643733+00",
+          "tx": "4259754"
         },
         {
-          "seq": "45",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "52",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
           "rev": 3,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "K-1",
@@ -3144,209 +3135,209 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.878074+00",
-          "tx": "3893902"
-        },
-        {
-          "seq": "46",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
-          "rev": 4,
-          "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
-          },
-          "data": {
-            "sku": "K-1",
-            "price": 2500,
-            "specs": {
-              "color": "чёрный",
-              "volume": 1.7
-            },
-            "title": "Чайник стеклянный",
-            "labels": [
-              "дорогой"
-            ]
-          },
-          "tags": [],
-          "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
-          "reason": null,
-          "at": "2026-11-04 05:16:20.913033+00",
-          "tx": "3893907"
-        },
-        {
-          "seq": "47",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
-          "rev": 5,
-          "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
-          },
-          "data": {
-            "sku": "K-1",
-            "price": 2500,
-            "specs": {
-              "color": "чёрный",
-              "volume": 1.7
-            },
-            "title": "Чайник стеклянный",
-            "labels": [
-              "по возрастанию"
-            ]
-          },
-          "tags": [],
-          "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
-          "reason": null,
-          "at": "2026-11-04 05:16:20.938028+00",
-          "tx": "3893911"
-        },
-        {
-          "seq": "48",
-          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
-          "rev": 2,
-          "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
-          },
-          "data": {
-            "sku": "M-1",
-            "price": 400,
-            "title": "Кружка",
-            "labels": [
-              "по возрастанию"
-            ]
-          },
-          "tags": [],
-          "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
-          "reason": null,
-          "at": "2026-11-04 05:16:20.936187+00",
-          "tx": "3893911"
-        },
-        {
-          "seq": "49",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
-          "rev": 6,
-          "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
-          },
-          "data": {
-            "sku": "K-1",
-            "price": 2500,
-            "specs": {
-              "color": "чёрный",
-              "volume": 1.7
-            },
-            "title": "Чайник стеклянный",
-            "labels": [
-              "по убыванию"
-            ]
-          },
-          "tags": [],
-          "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
-          "reason": null,
-          "at": "2026-11-04 05:16:20.955035+00",
-          "tx": "3893913"
-        },
-        {
-          "seq": "50",
-          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
-          "rev": 3,
-          "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
-          },
-          "data": {
-            "sku": "M-1",
-            "price": 400,
-            "title": "Кружка",
-            "labels": [
-              "по убыванию"
-            ]
-          },
-          "tags": [],
-          "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
-          "reason": null,
-          "at": "2026-11-04 05:16:20.95294+00",
-          "tx": "3893913"
-        },
-        {
-          "seq": "51",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
-          "rev": 7,
-          "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
-          },
-          "data": {
-            "sku": "K-1",
-            "price": 2500,
-            "specs": {
-              "color": "чёрный",
-              "volume": 1.7
-            },
-            "title": "Чайник стеклянный",
-            "labels": [
-              "дорогой"
-            ]
-          },
-          "tags": [],
-          "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
-          "reason": null,
-          "at": "2026-11-04 05:16:20.969479+00",
-          "tx": "3893915"
-        },
-        {
-          "seq": "52",
-          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
-          "rev": 4,
-          "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
-          },
-          "data": {
-            "sku": "M-1",
-            "price": 400,
-            "title": "Кружка",
-            "labels": [
-              "дорогой"
-            ]
-          },
-          "tags": [],
-          "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
-          "reason": null,
-          "at": "2026-11-04 05:16:20.967608+00",
-          "tx": "3893915"
+          "at": "2026-11-10 20:18:21.672535+00",
+          "tx": "4259758"
         },
         {
           "seq": "53",
-          "id": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
+          "rev": 4,
+          "class": "Product",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "links": {
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "дорогой"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:18:21.703627+00",
+          "tx": "4259763"
+        },
+        {
+          "seq": "54",
+          "id": "09d6613b-bb62-5bcf-9421-647faa5b22d3",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "links": {
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "по возрастанию"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:18:21.724824+00",
+          "tx": "4259767"
+        },
+        {
+          "seq": "55",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
+          "rev": 5,
+          "class": "Product",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "links": {
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "по возрастанию"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:18:21.725913+00",
+          "tx": "4259767"
+        },
+        {
+          "seq": "56",
+          "id": "09d6613b-bb62-5bcf-9421-647faa5b22d3",
+          "rev": 3,
+          "class": "Product",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "links": {
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "по убыванию"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:18:21.739335+00",
+          "tx": "4259769"
+        },
+        {
+          "seq": "57",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
+          "rev": 6,
+          "class": "Product",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "links": {
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "по убыванию"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:18:21.741098+00",
+          "tx": "4259769"
+        },
+        {
+          "seq": "58",
+          "id": "09d6613b-bb62-5bcf-9421-647faa5b22d3",
+          "rev": 4,
+          "class": "Product",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "links": {
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "дорогой"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:18:21.754639+00",
+          "tx": "4259771"
+        },
+        {
+          "seq": "59",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
+          "rev": 7,
+          "class": "Product",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "links": {
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "дорогой"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:18:21.756442+00",
+          "tx": "4259771"
+        },
+        {
+          "seq": "60",
+          "id": "216397b7-13da-5bee-9d54-42a987187455",
           "rev": 1,
           "class": "Shop",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {},
           "data": {
             "city": "Уфа",
@@ -3354,29 +3345,29 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.986338+00",
-          "tx": "3893920"
+          "at": "2026-11-10 20:18:21.781829+00",
+          "tx": "4259776"
         },
         {
-          "seq": "54",
-          "id": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+          "seq": "61",
+          "id": "216397b7-13da-5bee-9d54-42a987187455",
           "rev": 2,
           "class": "Shop",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {},
           "data": {
             "name": "Лютик"
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:21.016331+00",
-          "tx": "3893927"
+          "at": "2026-11-10 20:18:21.820009+00",
+          "tx": "4259783"
         }
       ],
       "secret": [],
@@ -3393,11 +3384,11 @@
       },
       "entity": [
         {
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "id": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14",
           "class": "Shop",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "owner": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {},
           "data": {
             "city": "Казань",
@@ -3405,19 +3396,19 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.772308+00"
+          "at": "2026-11-10 20:18:21.58165+00"
         },
         {
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
           "class": "Product",
           "rev": 7,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "owner": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "K-1",
@@ -3433,19 +3424,19 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.969479+00"
+          "at": "2026-11-10 20:18:21.756442+00"
         },
         {
-          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
+          "id": "09d6613b-bb62-5bcf-9421-647faa5b22d3",
           "class": "Product",
           "rev": 4,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "owner": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "M-1",
@@ -3457,37 +3448,37 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.967608+00"
+          "at": "2026-11-10 20:18:21.754639+00"
         },
         {
-          "id": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+          "id": "216397b7-13da-5bee-9d54-42a987187455",
           "class": "Shop",
           "rev": 2,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "owner": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {},
           "data": {
             "name": "Лютик"
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:21.016331+00"
+          "at": "2026-11-10 20:18:21.820009+00"
         }
       ],
       "removed": [],
       "log": [
         {
-          "seq": "41",
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "seq": "48",
+          "id": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14",
           "rev": 1,
           "class": "Shop",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {},
           "data": {
             "city": "Казань",
@@ -3495,20 +3486,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.772308+00",
-          "tx": "3893888"
+          "at": "2026-11-10 20:18:21.58165+00",
+          "tx": "4259744"
         },
         {
-          "seq": "42",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "49",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "K-1",
@@ -3524,20 +3515,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.795493+00",
-          "tx": "3893892"
+          "at": "2026-11-10 20:18:21.601172+00",
+          "tx": "4259748"
         },
         {
-          "seq": "43",
-          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
+          "seq": "50",
+          "id": "09d6613b-bb62-5bcf-9421-647faa5b22d3",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "M-1",
@@ -3546,20 +3537,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.817081+00",
-          "tx": "3893894"
+          "at": "2026-11-10 20:18:21.617884+00",
+          "tx": "4259750"
         },
         {
-          "seq": "44",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "51",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
           "rev": 2,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "K-1",
@@ -3576,20 +3567,20 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.848258+00",
-          "tx": "3893898"
+          "at": "2026-11-10 20:18:21.643733+00",
+          "tx": "4259754"
         },
         {
-          "seq": "45",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "52",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
           "rev": 3,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
           },
           "data": {
             "sku": "K-1",
@@ -3606,209 +3597,209 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.878074+00",
-          "tx": "3893902"
-        },
-        {
-          "seq": "46",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
-          "rev": 4,
-          "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
-          },
-          "data": {
-            "sku": "K-1",
-            "price": 2500,
-            "specs": {
-              "color": "чёрный",
-              "volume": 1.7
-            },
-            "title": "Чайник стеклянный",
-            "labels": [
-              "дорогой"
-            ]
-          },
-          "tags": [],
-          "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
-          "reason": null,
-          "at": "2026-11-04 05:16:20.913033+00",
-          "tx": "3893907"
-        },
-        {
-          "seq": "47",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
-          "rev": 5,
-          "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
-          },
-          "data": {
-            "sku": "K-1",
-            "price": 2500,
-            "specs": {
-              "color": "чёрный",
-              "volume": 1.7
-            },
-            "title": "Чайник стеклянный",
-            "labels": [
-              "по возрастанию"
-            ]
-          },
-          "tags": [],
-          "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
-          "reason": null,
-          "at": "2026-11-04 05:16:20.938028+00",
-          "tx": "3893911"
-        },
-        {
-          "seq": "48",
-          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
-          "rev": 2,
-          "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
-          },
-          "data": {
-            "sku": "M-1",
-            "price": 400,
-            "title": "Кружка",
-            "labels": [
-              "по возрастанию"
-            ]
-          },
-          "tags": [],
-          "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
-          "reason": null,
-          "at": "2026-11-04 05:16:20.936187+00",
-          "tx": "3893911"
-        },
-        {
-          "seq": "49",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
-          "rev": 6,
-          "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
-          },
-          "data": {
-            "sku": "K-1",
-            "price": 2500,
-            "specs": {
-              "color": "чёрный",
-              "volume": 1.7
-            },
-            "title": "Чайник стеклянный",
-            "labels": [
-              "по убыванию"
-            ]
-          },
-          "tags": [],
-          "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
-          "reason": null,
-          "at": "2026-11-04 05:16:20.955035+00",
-          "tx": "3893913"
-        },
-        {
-          "seq": "50",
-          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
-          "rev": 3,
-          "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
-          },
-          "data": {
-            "sku": "M-1",
-            "price": 400,
-            "title": "Кружка",
-            "labels": [
-              "по убыванию"
-            ]
-          },
-          "tags": [],
-          "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
-          "reason": null,
-          "at": "2026-11-04 05:16:20.95294+00",
-          "tx": "3893913"
-        },
-        {
-          "seq": "51",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
-          "rev": 7,
-          "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
-          },
-          "data": {
-            "sku": "K-1",
-            "price": 2500,
-            "specs": {
-              "color": "чёрный",
-              "volume": 1.7
-            },
-            "title": "Чайник стеклянный",
-            "labels": [
-              "дорогой"
-            ]
-          },
-          "tags": [],
-          "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
-          "reason": null,
-          "at": "2026-11-04 05:16:20.969479+00",
-          "tx": "3893915"
-        },
-        {
-          "seq": "52",
-          "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
-          "rev": 4,
-          "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
-          },
-          "data": {
-            "sku": "M-1",
-            "price": 400,
-            "title": "Кружка",
-            "labels": [
-              "дорогой"
-            ]
-          },
-          "tags": [],
-          "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
-          "reason": null,
-          "at": "2026-11-04 05:16:20.967608+00",
-          "tx": "3893915"
+          "at": "2026-11-10 20:18:21.672535+00",
+          "tx": "4259758"
         },
         {
           "seq": "53",
-          "id": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
+          "rev": 4,
+          "class": "Product",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "links": {
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "дорогой"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:18:21.703627+00",
+          "tx": "4259763"
+        },
+        {
+          "seq": "54",
+          "id": "09d6613b-bb62-5bcf-9421-647faa5b22d3",
+          "rev": 2,
+          "class": "Product",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "links": {
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "по возрастанию"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:18:21.724824+00",
+          "tx": "4259767"
+        },
+        {
+          "seq": "55",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
+          "rev": 5,
+          "class": "Product",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "links": {
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "по возрастанию"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:18:21.725913+00",
+          "tx": "4259767"
+        },
+        {
+          "seq": "56",
+          "id": "09d6613b-bb62-5bcf-9421-647faa5b22d3",
+          "rev": 3,
+          "class": "Product",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "links": {
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "по убыванию"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:18:21.739335+00",
+          "tx": "4259769"
+        },
+        {
+          "seq": "57",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
+          "rev": 6,
+          "class": "Product",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "links": {
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "по убыванию"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:18:21.741098+00",
+          "tx": "4259769"
+        },
+        {
+          "seq": "58",
+          "id": "09d6613b-bb62-5bcf-9421-647faa5b22d3",
+          "rev": 4,
+          "class": "Product",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "links": {
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
+          },
+          "data": {
+            "sku": "M-1",
+            "price": 400,
+            "title": "Кружка",
+            "labels": [
+              "дорогой"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:18:21.754639+00",
+          "tx": "4259771"
+        },
+        {
+          "seq": "59",
+          "id": "5ccfaa38-bdbb-51b0-9e67-dbf540711f08",
+          "rev": 7,
+          "class": "Product",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
+          "links": {
+            "Shop": "9ebc6db6-5b4a-57c8-a22d-341290d4ed14"
+          },
+          "data": {
+            "sku": "K-1",
+            "price": 2500,
+            "specs": {
+              "color": "чёрный",
+              "volume": 1.7
+            },
+            "title": "Чайник стеклянный",
+            "labels": [
+              "дорогой"
+            ]
+          },
+          "tags": [],
+          "op": "update",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:18:21.756442+00",
+          "tx": "4259771"
+        },
+        {
+          "seq": "60",
+          "id": "216397b7-13da-5bee-9d54-42a987187455",
           "rev": 1,
           "class": "Shop",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {},
           "data": {
             "city": "Уфа",
@@ -3816,35 +3807,35 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:20.986338+00",
-          "tx": "3893920"
+          "at": "2026-11-10 20:18:21.781829+00",
+          "tx": "4259776"
         },
         {
-          "seq": "54",
-          "id": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+          "seq": "61",
+          "id": "216397b7-13da-5bee-9d54-42a987187455",
           "rev": 2,
           "class": "Shop",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "5728ec86-642d-5f93-b267-81d12af9b57b",
           "links": {},
           "data": {
             "name": "Лютик"
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "93715286-16c9-5b5d-82f9-28df72f521c7",
+          "author": "fb21c0bf-f4b7-5ad6-90a0-0029ad62ace8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:16:21.016331+00",
-          "tx": "3893927"
+          "at": "2026-11-10 20:18:21.820009+00",
+          "tx": "4259783"
         }
       ],
       "secret": [],
       "signals": []
     }
   ],
-  "output": "Шаг 1. Модель магазина и магазин\n{\n  \"at\": \"2026-11-04T05:16:22.531428+00:00\",\n  \"id\": \"820d0964-969f-5ad6-bc38-f38710912f70\",\n  \"op\": \"create\",\n  \"rev\": 1,\n  \"data\": {\n    \"city\": \"Казань\",\n    \"name\": \"Ромашка\"\n  },\n  \"tags\": [],\n  \"class\": \"Shop\",\n  \"links\": {},\n  \"owner\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n  \"author\": \"3defbabb-a94d-5359-8463-dc947de193e1\",\n  \"tenant\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n  \"agent\": \"cec252d6-ae47-559b-96f1-ae7a6a9820ad\"\n}\n\nШаг 2. Два товара\n[\n  {\n    \"at\": \"2026-11-04T05:16:22.556626+00:00\",\n    \"id\": \"c434bf3a-89ba-55b8-a7ce-6f0052cd5c74\",\n    \"op\": \"create\",\n    \"rev\": 1,\n    \"data\": {\n      \"sku\": \"M-1\",\n      \"price\": 400,\n      \"title\": \"Кружка\"\n    },\n    \"tags\": [],\n    \"class\": \"Product\",\n    \"links\": {\n      \"Shop\": \"820d0964-969f-5ad6-bc38-f38710912f70\"\n    },\n    \"owner\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n    \"author\": \"3defbabb-a94d-5359-8463-dc947de193e1\",\n    \"tenant\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n    \"agent\": \"cec252d6-ae47-559b-96f1-ae7a6a9820ad\"\n  }\n]\n\nШаг 3. update меняет только переданные поля\n[\n  {\n    \"at\": \"2026-11-04T05:16:22.578786+00:00\",\n    \"id\": \"099dcd72-c15a-5fe8-a95f-70da339186f0\",\n    \"op\": \"update\",\n    \"rev\": 2,\n    \"data\": {\n      \"sku\": \"K-1\",\n      \"price\": 2500,\n      \"specs\": {\n        \"color\": \"чёрный\",\n        \"volume\": 1.7\n      },\n      \"title\": \"Чайник\",\n      \"labels\": [\n        \"хит\",\n        \"новинка\"\n      ]\n    },\n    \"tags\": [],\n    \"class\": \"Product\",\n    \"links\": {\n      \"Shop\": \"820d0964-969f-5ad6-bc38-f38710912f70\"\n    },\n    \"owner\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n    \"author\": \"3defbabb-a94d-5359-8463-dc947de193e1\",\n    \"tenant\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n    \"agent\": \"cec252d6-ae47-559b-96f1-ae7a6a9820ad\"\n  }\n]\n\nШаг 4. update по фильтру правит все найденные\n[\n  {\n    \"at\": \"2026-11-04T05:16:22.605208+00:00\",\n    \"id\": \"099dcd72-c15a-5fe8-a95f-70da339186f0\",\n    \"op\": \"update\",\n    \"rev\": 3,\n    \"data\": {\n      \"sku\": \"K-1\",\n      \"price\": 2500,\n      \"specs\": {\n        \"color\": \"чёрный\",\n        \"volume\": 1.7\n      },\n      \"title\": \"Чайник стеклянный\",\n      \"labels\": [\n        \"хит\",\n        \"новинка\"\n      ]\n    },\n    \"tags\": [],\n    \"class\": \"Product\",\n    \"links\": {\n      \"Shop\": \"820d0964-969f-5ad6-bc38-f38710912f70\"\n    },\n    \"owner\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n    \"author\": \"3defbabb-a94d-5359-8463-dc947de193e1\",\n    \"tenant\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n    \"agent\": \"cec252d6-ae47-559b-96f1-ae7a6a9820ad\"\n  }\n]\n\nШаг 5. Ничего не нашлось — пустой ответ, не ошибка\n[]\n\nШаг 6. Сузить правку — модификатором до глагола\n[\n  {\n    \"at\": \"2026-11-04T05:16:22.628523+00:00\",\n    \"id\": \"099dcd72-c15a-5fe8-a95f-70da339186f0\",\n    \"op\": \"update\",\n    \"rev\": 4,\n    \"data\": {\n      \"sku\": \"K-1\",\n      \"price\": 2500,\n      \"specs\": {\n        \"color\": \"чёрный\",\n        \"volume\": 1.7\n      },\n      \"title\": \"Чайник стеклянный\",\n      \"labels\": [\n        \"дорогой\"\n      ]\n    },\n    \"tags\": [],\n    \"class\": \"Product\",\n    \"links\": {\n      \"Shop\": \"820d0964-969f-5ad6-bc38-f38710912f70\"\n    },\n    \"owner\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n    \"author\": \"3defbabb-a94d-5359-8463-dc947de193e1\",\n    \"tenant\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n    \"agent\": \"cec252d6-ae47-559b-96f1-ae7a6a9820ad\"\n  }\n]\n\nШаг 7. Ответ правки — в порядке sort() до глагола\n{\n  \"по возрастанию цены\": [\n    \"M-1\",\n    \"K-1\"\n  ],\n  \"по убыванию цены\": [\n    \"K-1\",\n    \"M-1\"\n  ],\n  \"first() после sort по убыванию\": \"K-1\"\n}\n\nШаг 8. limit после глагола — ошибка\nотказ, как и задумано: letopis: invalid_query: limit() после update() ни на что не действует: глагол проходит по всем целям шага, а ответ — его строки. Цели сужают limit(), offset() и sort() до глагола: db.Класс(…).limit(n).update(…)\n\nШаг 9. upsert: такого нет — создать\n[\n  {\n    \"at\": \"2026-11-04T05:16:22.698635+00:00\",\n    \"id\": \"f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6\",\n    \"op\": \"create\",\n    \"rev\": 1,\n    \"data\": {\n      \"city\": \"Уфа\",\n      \"name\": \"Лютик\"\n    },\n    \"tags\": [],\n    \"class\": \"Shop\",\n    \"links\": {},\n    \"owner\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n    \"author\": \"3defbabb-a94d-5359-8463-dc947de193e1\",\n    \"tenant\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n    \"agent\": \"cec252d6-ae47-559b-96f1-ae7a6a9820ad\",\n    \"$upsert\": \"created\"\n  }\n]\n\nШаг 10. upsert: то же самое — без изменений\n[\n  {\n    \"at\": \"2026-11-04T05:16:22.698635+00:00\",\n    \"id\": \"f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6\",\n    \"op\": \"create\",\n    \"rev\": 1,\n    \"data\": {\n      \"city\": \"Уфа\",\n      \"name\": \"Лютик\"\n    },\n    \"tags\": [],\n    \"class\": \"Shop\",\n    \"links\": {},\n    \"owner\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n    \"author\": \"3defbabb-a94d-5359-8463-dc947de193e1\",\n    \"tenant\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n    \"agent\": \"cec252d6-ae47-559b-96f1-ae7a6a9820ad\",\n    \"$upsert\": \"unchanged\"\n  }\n]\n\nШаг 11. upsert заменяет целиком\n[\n  {\n    \"at\": \"2026-11-04T05:16:22.725216+00:00\",\n    \"id\": \"f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6\",\n    \"op\": \"update\",\n    \"rev\": 2,\n    \"data\": {\n      \"name\": \"Лютик\"\n    },\n    \"tags\": [],\n    \"class\": \"Shop\",\n    \"links\": {},\n    \"owner\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n    \"author\": \"3defbabb-a94d-5359-8463-dc947de193e1\",\n    \"tenant\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n    \"agent\": \"cec252d6-ae47-559b-96f1-ae7a6a9820ad\",\n    \"$upsert\": \"updated\"\n  }\n]\n\nШаг 12. upsert без ключа невозможен\nотказ, как и задумано: letopis: no_key: upsert(): у класса Customer нет ключа — сравнивать не с чем, используйте create()",
+  "output": "Шаг 1. Магазин\n{\n  \"at\": \"2026-11-10T20:18:23.515149+00:00\",\n  \"id\": \"742d751d-13b8-5a67-9452-c7e59b061195\",\n  \"op\": \"create\",\n  \"rev\": 1,\n  \"data\": {\n    \"city\": \"Казань\",\n    \"name\": \"Ромашка\"\n  },\n  \"tags\": [],\n  \"class\": \"Shop\",\n  \"links\": {},\n  \"owner\": \"1a8c8c64-ddc7-56cb-abc4-d81dbf0a1185\",\n  \"author\": \"928a0732-53ff-5d4e-967e-5ee1e6f5d08f\",\n  \"tenant\": \"1a8c8c64-ddc7-56cb-abc4-d81dbf0a1185\"\n}\n\nШаг 2. Два товара\n[\n  {\n    \"at\": \"2026-11-10T20:18:23.540963+00:00\",\n    \"id\": \"2e6161e6-338f-5c2c-8b5c-649a67616577\",\n    \"op\": \"create\",\n    \"rev\": 1,\n    \"data\": {\n      \"sku\": \"M-1\",\n      \"price\": 400,\n      \"title\": \"Кружка\"\n    },\n    \"tags\": [],\n    \"class\": \"Product\",\n    \"links\": {\n      \"Shop\": \"742d751d-13b8-5a67-9452-c7e59b061195\"\n    },\n    \"owner\": \"1a8c8c64-ddc7-56cb-abc4-d81dbf0a1185\",\n    \"author\": \"928a0732-53ff-5d4e-967e-5ee1e6f5d08f\",\n    \"tenant\": \"1a8c8c64-ddc7-56cb-abc4-d81dbf0a1185\"\n  }\n]\n\nШаг 3. update меняет только переданные поля\n[\n  {\n    \"at\": \"2026-11-10T20:18:23.56351+00:00\",\n    \"id\": \"eaf30380-cc8d-55b2-a970-f4c0f1845839\",\n    \"op\": \"update\",\n    \"rev\": 2,\n    \"data\": {\n      \"sku\": \"K-1\",\n      \"price\": 2500,\n      \"specs\": {\n        \"color\": \"чёрный\",\n        \"volume\": 1.7\n      },\n      \"title\": \"Чайник\",\n      \"labels\": [\n        \"хит\",\n        \"новинка\"\n      ]\n    },\n    \"tags\": [],\n    \"class\": \"Product\",\n    \"links\": {\n      \"Shop\": \"742d751d-13b8-5a67-9452-c7e59b061195\"\n    },\n    \"owner\": \"1a8c8c64-ddc7-56cb-abc4-d81dbf0a1185\",\n    \"author\": \"928a0732-53ff-5d4e-967e-5ee1e6f5d08f\",\n    \"tenant\": \"1a8c8c64-ddc7-56cb-abc4-d81dbf0a1185\"\n  }\n]\n\nШаг 4. update по фильтру правит все найденные\n[\n  {\n    \"at\": \"2026-11-10T20:18:23.590916+00:00\",\n    \"id\": \"eaf30380-cc8d-55b2-a970-f4c0f1845839\",\n    \"op\": \"update\",\n    \"rev\": 3,\n    \"data\": {\n      \"sku\": \"K-1\",\n      \"price\": 2500,\n      \"specs\": {\n        \"color\": \"чёрный\",\n        \"volume\": 1.7\n      },\n      \"title\": \"Чайник стеклянный\",\n      \"labels\": [\n        \"хит\",\n        \"новинка\"\n      ]\n    },\n    \"tags\": [],\n    \"class\": \"Product\",\n    \"links\": {\n      \"Shop\": \"742d751d-13b8-5a67-9452-c7e59b061195\"\n    },\n    \"owner\": \"1a8c8c64-ddc7-56cb-abc4-d81dbf0a1185\",\n    \"author\": \"928a0732-53ff-5d4e-967e-5ee1e6f5d08f\",\n    \"tenant\": \"1a8c8c64-ddc7-56cb-abc4-d81dbf0a1185\"\n  }\n]\n\nШаг 5. Ничего не нашлось — пустой ответ, не ошибка\n[]\n\nШаг 6. Сузить правку — модификатором до глагола\n[\n  {\n    \"at\": \"2026-11-10T20:18:23.610856+00:00\",\n    \"id\": \"eaf30380-cc8d-55b2-a970-f4c0f1845839\",\n    \"op\": \"update\",\n    \"rev\": 4,\n    \"data\": {\n      \"sku\": \"K-1\",\n      \"price\": 2500,\n      \"specs\": {\n        \"color\": \"чёрный\",\n        \"volume\": 1.7\n      },\n      \"title\": \"Чайник стеклянный\",\n      \"labels\": [\n        \"дорогой\"\n      ]\n    },\n    \"tags\": [],\n    \"class\": \"Product\",\n    \"links\": {\n      \"Shop\": \"742d751d-13b8-5a67-9452-c7e59b061195\"\n    },\n    \"owner\": \"1a8c8c64-ddc7-56cb-abc4-d81dbf0a1185\",\n    \"author\": \"928a0732-53ff-5d4e-967e-5ee1e6f5d08f\",\n    \"tenant\": \"1a8c8c64-ddc7-56cb-abc4-d81dbf0a1185\"\n  }\n]\n\nШаг 7. Ответ правки — в порядке sort() до глагола\n{\n  \"по возрастанию цены\": [\n    \"M-1\",\n    \"K-1\"\n  ],\n  \"по убыванию цены\": [\n    \"K-1\",\n    \"M-1\"\n  ],\n  \"first() после sort по убыванию\": \"K-1\"\n}\n\nШаг 8. limit после глагола — ошибка\nотказ, как и задумано: letopis: invalid_query: limit() после update() ни на что не действует: глагол проходит по всем целям шага, а ответ — его строки. Цели сужают limit(), offset() и sort() до глагола: me.Класс(…).limit(n).update(…)\n\nШаг 9. upsert: такого нет — создать\n[\n  {\n    \"at\": \"2026-11-10T20:18:23.71822+00:00\",\n    \"id\": \"90a1c222-365e-5c9b-b679-c34f495f8e77\",\n    \"op\": \"create\",\n    \"rev\": 1,\n    \"data\": {\n      \"city\": \"Уфа\",\n      \"name\": \"Лютик\"\n    },\n    \"tags\": [],\n    \"class\": \"Shop\",\n    \"links\": {},\n    \"owner\": \"1a8c8c64-ddc7-56cb-abc4-d81dbf0a1185\",\n    \"author\": \"928a0732-53ff-5d4e-967e-5ee1e6f5d08f\",\n    \"tenant\": \"1a8c8c64-ddc7-56cb-abc4-d81dbf0a1185\",\n    \"$upsert\": \"created\"\n  }\n]\n\nШаг 10. upsert: то же самое — без изменений\n[\n  {\n    \"at\": \"2026-11-10T20:18:23.71822+00:00\",\n    \"id\": \"90a1c222-365e-5c9b-b679-c34f495f8e77\",\n    \"op\": \"create\",\n    \"rev\": 1,\n    \"data\": {\n      \"city\": \"Уфа\",\n      \"name\": \"Лютик\"\n    },\n    \"tags\": [],\n    \"class\": \"Shop\",\n    \"links\": {},\n    \"owner\": \"1a8c8c64-ddc7-56cb-abc4-d81dbf0a1185\",\n    \"author\": \"928a0732-53ff-5d4e-967e-5ee1e6f5d08f\",\n    \"tenant\": \"1a8c8c64-ddc7-56cb-abc4-d81dbf0a1185\",\n    \"$upsert\": \"unchanged\"\n  }\n]\n\nШаг 11. upsert заменяет целиком\n[\n  {\n    \"at\": \"2026-11-10T20:18:23.745809+00:00\",\n    \"id\": \"90a1c222-365e-5c9b-b679-c34f495f8e77\",\n    \"op\": \"update\",\n    \"rev\": 2,\n    \"data\": {\n      \"name\": \"Лютик\"\n    },\n    \"tags\": [],\n    \"class\": \"Shop\",\n    \"links\": {},\n    \"owner\": \"1a8c8c64-ddc7-56cb-abc4-d81dbf0a1185\",\n    \"author\": \"928a0732-53ff-5d4e-967e-5ee1e6f5d08f\",\n    \"tenant\": \"1a8c8c64-ddc7-56cb-abc4-d81dbf0a1185\",\n    \"$upsert\": \"updated\"\n  }\n]\n\nШаг 12. upsert без ключа невозможен\nотказ, как и задумано: letopis: no_key: upsert(): у класса Customer нет ключа — сравнивать не с чем, используйте create()",
   "exitCode": 0
 }

@@ -95,7 +95,7 @@
         "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
         "agent": null,
         "reason": null,
-        "at": "2026-11-04 05:13:37.511373+00"
+        "at": "2026-11-10 20:13:57.062511+00"
       },
       {
         "id": "ddf164b8-cc60-5500-a377-c4fd4b7a6817",
@@ -113,6 +113,15 @@
               "name"
             ],
             "properties": {
+              "kind": {
+                "enum": [
+                  "system",
+                  "service",
+                  "tenant",
+                  "person"
+                ],
+                "type": "string"
+              },
               "name": {
                 "type": "string"
               },
@@ -136,7 +145,12 @@
             "kind": "hub",
             "meta": {},
             "name": "Account",
-            "vars": {},
+            "vars": {
+              "v1": "system",
+              "v2": "service",
+              "v3": "tenant",
+              "v4": "person"
+            },
             "cache": null,
             "rules": [
               {
@@ -154,6 +168,29 @@
                 "vars": {},
                 "keyword": "required",
                 "path_expr": "$"
+              },
+              {
+                "cond": "@.type() == \"string\"",
+                "path": [
+                  "kind"
+                ],
+                "vars": {},
+                "keyword": "type",
+                "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"kind\").value"
+              },
+              {
+                "cond": "((@.type() == \"string\" && @ == $v1) || (@.type() == \"string\" && @ == $v2) || (@.type() == \"string\" && @ == $v3) || (@.type() == \"string\" && @ == $v4))",
+                "path": [
+                  "kind"
+                ],
+                "vars": {
+                  "v1": "system",
+                  "v2": "service",
+                  "v3": "tenant",
+                  "v4": "person"
+                },
+                "keyword": "enum",
+                "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"kind\").value"
               },
               {
                 "cond": "@.type() == \"string\"",
@@ -205,7 +242,7 @@
                 "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"categories\").value ? (@.type() == \"array\")[*]"
               },
               {
-                "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"name\" || @.key == \"enabled\" || @.key == \"categories\"))))",
+                "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"kind\" || @.key == \"name\" || @.key == \"enabled\" || @.key == \"categories\"))))",
                 "path": [],
                 "vars": {},
                 "keyword": "additionalProperties",
@@ -218,6 +255,15 @@
                 "name"
               ],
               "properties": {
+                "kind": {
+                  "enum": [
+                    "system",
+                    "service",
+                    "tenant",
+                    "person"
+                  ],
+                  "type": "string"
+                },
                 "name": {
                   "type": "string"
                 },
@@ -248,7 +294,7 @@
         "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
         "agent": null,
         "reason": null,
-        "at": "2026-11-04 05:13:37.522321+00"
+        "at": "2026-11-10 20:13:57.072612+00"
       },
       {
         "id": "4e09c113-fbc8-5cc0-8795-27e521aece0a",
@@ -386,7 +432,7 @@
         "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
         "agent": null,
         "reason": null,
-        "at": "2026-11-04 05:13:37.527181+00"
+        "at": "2026-11-10 20:13:57.077993+00"
       },
       {
         "id": "73bf3192-9d1c-55cd-a85c-ddecce5bedb8",
@@ -414,6 +460,9 @@
               "pattern": {
                 "type": "object",
                 "properties": {
+                  "role": {
+                    "type": "string"
+                  },
                   "class": {
                     "type": "string"
                   },
@@ -434,7 +483,8 @@
                   "API",
                   "READ",
                   "WRITE",
-                  "DELETE"
+                  "DELETE",
+                  "ROLE"
                 ],
                 "type": "string"
               },
@@ -457,7 +507,8 @@
               "v2": "API",
               "v3": "READ",
               "v4": "WRITE",
-              "v5": "DELETE"
+              "v5": "DELETE",
+              "v6": "ROLE"
             },
             "cache": null,
             "rules": [
@@ -522,6 +573,16 @@
                 "cond": "@.type() == \"string\"",
                 "path": [
                   "pattern",
+                  "role"
+                ],
+                "vars": {},
+                "keyword": "type",
+                "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value ? (@.type() == \"object\").keyvalue() ? (@.key == \"role\").value"
+              },
+              {
+                "cond": "@.type() == \"string\"",
+                "path": [
+                  "pattern",
                   "class"
                 ],
                 "vars": {},
@@ -568,7 +629,7 @@
                 "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"category\").value"
               },
               {
-                "cond": "((@.type() == \"string\" && @ == $v1) || (@.type() == \"string\" && @ == $v2) || (@.type() == \"string\" && @ == $v3) || (@.type() == \"string\" && @ == $v4) || (@.type() == \"string\" && @ == $v5))",
+                "cond": "((@.type() == \"string\" && @ == $v1) || (@.type() == \"string\" && @ == $v2) || (@.type() == \"string\" && @ == $v3) || (@.type() == \"string\" && @ == $v4) || (@.type() == \"string\" && @ == $v5) || (@.type() == \"string\" && @ == $v6))",
                 "path": [
                   "category"
                 ],
@@ -577,7 +638,8 @@
                   "v2": "API",
                   "v3": "READ",
                   "v4": "WRITE",
-                  "v5": "DELETE"
+                  "v5": "DELETE",
+                  "v6": "ROLE"
                 },
                 "keyword": "enum",
                 "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"category\").value"
@@ -613,6 +675,9 @@
                 "pattern": {
                   "type": "object",
                   "properties": {
+                    "role": {
+                      "type": "string"
+                    },
                     "class": {
                       "type": "string"
                     },
@@ -633,7 +698,8 @@
                     "API",
                     "READ",
                     "WRITE",
-                    "DELETE"
+                    "DELETE",
+                    "ROLE"
                   ],
                   "type": "string"
                 },
@@ -656,7 +722,7 @@
         "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
         "agent": null,
         "reason": null,
-        "at": "2026-11-04 05:13:37.53105+00"
+        "at": "2026-11-10 20:13:57.083433+00"
       },
       {
         "id": "f8ea2a20-5167-5daa-be31-f27111d0adcb",
@@ -696,12 +762,18 @@
                 "type": "integer",
                 "default": 0
               },
+              "default": {
+                "type": "boolean"
+              },
               "enabled": {
                 "type": "boolean",
                 "default": true
               },
               "message": {
                 "type": "string"
+              },
+              "concierge": {
+                "type": "boolean"
               },
               "permission": {
                 "enum": [
@@ -779,6 +851,15 @@
               {
                 "cond": "@.type() == \"boolean\"",
                 "path": [
+                  "default"
+                ],
+                "vars": {},
+                "keyword": "type",
+                "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"default\").value"
+              },
+              {
+                "cond": "@.type() == \"boolean\"",
+                "path": [
                   "enabled"
                 ],
                 "vars": {},
@@ -793,6 +874,15 @@
                 "vars": {},
                 "keyword": "type",
                 "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"message\").value"
+              },
+              {
+                "cond": "@.type() == \"boolean\"",
+                "path": [
+                  "concierge"
+                ],
+                "vars": {},
+                "keyword": "type",
+                "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"concierge\").value"
               },
               {
                 "cond": "@.type() == \"string\"",
@@ -825,7 +915,7 @@
                 "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"description\").value"
               },
               {
-                "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"code\" || @.key == \"weight\" || @.key == \"enabled\" || @.key == \"message\" || @.key == \"permission\" || @.key == \"description\"))))",
+                "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"code\" || @.key == \"weight\" || @.key == \"default\" || @.key == \"enabled\" || @.key == \"message\" || @.key == \"concierge\" || @.key == \"permission\" || @.key == \"description\"))))",
                 "path": [],
                 "vars": {},
                 "keyword": "additionalProperties",
@@ -845,12 +935,18 @@
                   "type": "integer",
                   "default": 0
                 },
+                "default": {
+                  "type": "boolean"
+                },
                 "enabled": {
                   "type": "boolean",
                   "default": true
                 },
                 "message": {
                   "type": "string"
+                },
+                "concierge": {
+                  "type": "boolean"
                 },
                 "permission": {
                   "enum": [
@@ -878,11 +974,33 @@
         "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
         "agent": null,
         "reason": null,
-        "at": "2026-11-04 05:13:37.534903+00"
+        "at": "2026-11-10 20:13:57.08862+00"
       }
     ],
     "log": [],
-    "secret": []
+    "secret": [
+      {
+        "account": "3dbb0641-de78-5686-8e79-5783f8f50afb",
+        "tenant": "3dbb0641-de78-5686-8e79-5783f8f50afb",
+        "kind": "INVITE",
+        "ident": "email:anna@romashka.ru",
+        "meta": {
+          "roles": [
+            "owner"
+          ],
+          "status": "used",
+          "contact": {
+            "kind": "email",
+            "address": "anna@romashka.ru"
+          },
+          "attempts": 0
+        },
+        "material": "9463339a8087295e572f345918df960b8be5d1f7372880d9929931c0de5861d1",
+        "expires_at": "2026-11-17 20:13:57.376849+00",
+        "created_at": "2026-11-10 20:13:57.378152+00",
+        "deleted_at": "2026-11-10 20:13:57.500541+00"
+      }
+    ]
   },
   "steps": [
     {
@@ -901,11 +1019,11 @@
         },
         {
           "class": "Resource",
-          "rows": 12
+          "rows": 11
         },
         {
           "class": "rule",
-          "rows": 11
+          "rows": 19
         }
       ],
       "error": null,
@@ -1003,7 +1121,7 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:37.511373+00"
+          "at": "2026-11-10 20:13:57.062511+00"
         },
         {
           "id": "ddf164b8-cc60-5500-a377-c4fd4b7a6817",
@@ -1021,6 +1139,15 @@
                 "name"
               ],
               "properties": {
+                "kind": {
+                  "enum": [
+                    "system",
+                    "service",
+                    "tenant",
+                    "person"
+                  ],
+                  "type": "string"
+                },
                 "name": {
                   "type": "string"
                 },
@@ -1044,7 +1171,12 @@
               "kind": "hub",
               "meta": {},
               "name": "Account",
-              "vars": {},
+              "vars": {
+                "v1": "system",
+                "v2": "service",
+                "v3": "tenant",
+                "v4": "person"
+              },
               "cache": null,
               "rules": [
                 {
@@ -1062,6 +1194,29 @@
                   "vars": {},
                   "keyword": "required",
                   "path_expr": "$"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "kind"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"kind\").value"
+                },
+                {
+                  "cond": "((@.type() == \"string\" && @ == $v1) || (@.type() == \"string\" && @ == $v2) || (@.type() == \"string\" && @ == $v3) || (@.type() == \"string\" && @ == $v4))",
+                  "path": [
+                    "kind"
+                  ],
+                  "vars": {
+                    "v1": "system",
+                    "v2": "service",
+                    "v3": "tenant",
+                    "v4": "person"
+                  },
+                  "keyword": "enum",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"kind\").value"
                 },
                 {
                   "cond": "@.type() == \"string\"",
@@ -1113,7 +1268,7 @@
                   "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"categories\").value ? (@.type() == \"array\")[*]"
                 },
                 {
-                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"name\" || @.key == \"enabled\" || @.key == \"categories\"))))",
+                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"kind\" || @.key == \"name\" || @.key == \"enabled\" || @.key == \"categories\"))))",
                   "path": [],
                   "vars": {},
                   "keyword": "additionalProperties",
@@ -1126,6 +1281,15 @@
                   "name"
                 ],
                 "properties": {
+                  "kind": {
+                    "enum": [
+                      "system",
+                      "service",
+                      "tenant",
+                      "person"
+                    ],
+                    "type": "string"
+                  },
                   "name": {
                     "type": "string"
                   },
@@ -1156,7 +1320,7 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:37.522321+00"
+          "at": "2026-11-10 20:13:57.072612+00"
         },
         {
           "id": "4e09c113-fbc8-5cc0-8795-27e521aece0a",
@@ -1294,7 +1458,7 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:37.527181+00"
+          "at": "2026-11-10 20:13:57.077993+00"
         },
         {
           "id": "73bf3192-9d1c-55cd-a85c-ddecce5bedb8",
@@ -1322,6 +1486,9 @@
                 "pattern": {
                   "type": "object",
                   "properties": {
+                    "role": {
+                      "type": "string"
+                    },
                     "class": {
                       "type": "string"
                     },
@@ -1342,7 +1509,8 @@
                     "API",
                     "READ",
                     "WRITE",
-                    "DELETE"
+                    "DELETE",
+                    "ROLE"
                   ],
                   "type": "string"
                 },
@@ -1365,7 +1533,8 @@
                 "v2": "API",
                 "v3": "READ",
                 "v4": "WRITE",
-                "v5": "DELETE"
+                "v5": "DELETE",
+                "v6": "ROLE"
               },
               "cache": null,
               "rules": [
@@ -1430,6 +1599,16 @@
                   "cond": "@.type() == \"string\"",
                   "path": [
                     "pattern",
+                    "role"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value ? (@.type() == \"object\").keyvalue() ? (@.key == \"role\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "pattern",
                     "class"
                   ],
                   "vars": {},
@@ -1476,7 +1655,7 @@
                   "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"category\").value"
                 },
                 {
-                  "cond": "((@.type() == \"string\" && @ == $v1) || (@.type() == \"string\" && @ == $v2) || (@.type() == \"string\" && @ == $v3) || (@.type() == \"string\" && @ == $v4) || (@.type() == \"string\" && @ == $v5))",
+                  "cond": "((@.type() == \"string\" && @ == $v1) || (@.type() == \"string\" && @ == $v2) || (@.type() == \"string\" && @ == $v3) || (@.type() == \"string\" && @ == $v4) || (@.type() == \"string\" && @ == $v5) || (@.type() == \"string\" && @ == $v6))",
                   "path": [
                     "category"
                   ],
@@ -1485,7 +1664,8 @@
                     "v2": "API",
                     "v3": "READ",
                     "v4": "WRITE",
-                    "v5": "DELETE"
+                    "v5": "DELETE",
+                    "v6": "ROLE"
                   },
                   "keyword": "enum",
                   "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"category\").value"
@@ -1521,6 +1701,9 @@
                   "pattern": {
                     "type": "object",
                     "properties": {
+                      "role": {
+                        "type": "string"
+                      },
                       "class": {
                         "type": "string"
                       },
@@ -1541,7 +1724,8 @@
                       "API",
                       "READ",
                       "WRITE",
-                      "DELETE"
+                      "DELETE",
+                      "ROLE"
                     ],
                     "type": "string"
                   },
@@ -1564,7 +1748,7 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:37.53105+00"
+          "at": "2026-11-10 20:13:57.083433+00"
         },
         {
           "id": "f8ea2a20-5167-5daa-be31-f27111d0adcb",
@@ -1604,12 +1788,18 @@
                   "type": "integer",
                   "default": 0
                 },
+                "default": {
+                  "type": "boolean"
+                },
                 "enabled": {
                   "type": "boolean",
                   "default": true
                 },
                 "message": {
                   "type": "string"
+                },
+                "concierge": {
+                  "type": "boolean"
                 },
                 "permission": {
                   "enum": [
@@ -1687,6 +1877,15 @@
                 {
                   "cond": "@.type() == \"boolean\"",
                   "path": [
+                    "default"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"default\").value"
+                },
+                {
+                  "cond": "@.type() == \"boolean\"",
+                  "path": [
                     "enabled"
                   ],
                   "vars": {},
@@ -1701,6 +1900,15 @@
                   "vars": {},
                   "keyword": "type",
                   "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"message\").value"
+                },
+                {
+                  "cond": "@.type() == \"boolean\"",
+                  "path": [
+                    "concierge"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"concierge\").value"
                 },
                 {
                   "cond": "@.type() == \"string\"",
@@ -1733,7 +1941,7 @@
                   "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"description\").value"
                 },
                 {
-                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"code\" || @.key == \"weight\" || @.key == \"enabled\" || @.key == \"message\" || @.key == \"permission\" || @.key == \"description\"))))",
+                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"code\" || @.key == \"weight\" || @.key == \"default\" || @.key == \"enabled\" || @.key == \"message\" || @.key == \"concierge\" || @.key == \"permission\" || @.key == \"description\"))))",
                   "path": [],
                   "vars": {},
                   "keyword": "additionalProperties",
@@ -1753,12 +1961,18 @@
                     "type": "integer",
                     "default": 0
                   },
+                  "default": {
+                    "type": "boolean"
+                  },
                   "enabled": {
                     "type": "boolean",
                     "default": true
                   },
                   "message": {
                     "type": "string"
+                  },
+                  "concierge": {
+                    "type": "boolean"
                   },
                   "permission": {
                     "enum": [
@@ -1786,19 +2000,42 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:37.534903+00"
+          "at": "2026-11-10 20:13:57.08862+00"
         }
       ],
       "removed": [],
       "log": [],
-      "secret": [],
+      "secret": [
+        {
+          "account": "3dbb0641-de78-5686-8e79-5783f8f50afb",
+          "tenant": "3dbb0641-de78-5686-8e79-5783f8f50afb",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "9463339a8087295e572f345918df960b8be5d1f7372880d9929931c0de5861d1",
+          "expires_at": "2026-11-17 20:13:57.376849+00",
+          "created_at": "2026-11-10 20:13:57.378152+00",
+          "deleted_at": "2026-11-10 20:13:57.500541+00"
+        }
+      ],
       "signals": []
     },
     {
       "result": [
         {
           "kind": "SESSION",
-          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "account": "Анна",
+          "tenant": "Ромашка",
           "material": "sha256 токена",
           "expires": true
         }
@@ -1898,7 +2135,7 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:37.511373+00"
+          "at": "2026-11-10 20:13:57.062511+00"
         },
         {
           "id": "ddf164b8-cc60-5500-a377-c4fd4b7a6817",
@@ -1916,6 +2153,15 @@
                 "name"
               ],
               "properties": {
+                "kind": {
+                  "enum": [
+                    "system",
+                    "service",
+                    "tenant",
+                    "person"
+                  ],
+                  "type": "string"
+                },
                 "name": {
                   "type": "string"
                 },
@@ -1939,7 +2185,12 @@
               "kind": "hub",
               "meta": {},
               "name": "Account",
-              "vars": {},
+              "vars": {
+                "v1": "system",
+                "v2": "service",
+                "v3": "tenant",
+                "v4": "person"
+              },
               "cache": null,
               "rules": [
                 {
@@ -1957,6 +2208,29 @@
                   "vars": {},
                   "keyword": "required",
                   "path_expr": "$"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "kind"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"kind\").value"
+                },
+                {
+                  "cond": "((@.type() == \"string\" && @ == $v1) || (@.type() == \"string\" && @ == $v2) || (@.type() == \"string\" && @ == $v3) || (@.type() == \"string\" && @ == $v4))",
+                  "path": [
+                    "kind"
+                  ],
+                  "vars": {
+                    "v1": "system",
+                    "v2": "service",
+                    "v3": "tenant",
+                    "v4": "person"
+                  },
+                  "keyword": "enum",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"kind\").value"
                 },
                 {
                   "cond": "@.type() == \"string\"",
@@ -2008,7 +2282,7 @@
                   "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"categories\").value ? (@.type() == \"array\")[*]"
                 },
                 {
-                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"name\" || @.key == \"enabled\" || @.key == \"categories\"))))",
+                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"kind\" || @.key == \"name\" || @.key == \"enabled\" || @.key == \"categories\"))))",
                   "path": [],
                   "vars": {},
                   "keyword": "additionalProperties",
@@ -2021,6 +2295,15 @@
                   "name"
                 ],
                 "properties": {
+                  "kind": {
+                    "enum": [
+                      "system",
+                      "service",
+                      "tenant",
+                      "person"
+                    ],
+                    "type": "string"
+                  },
                   "name": {
                     "type": "string"
                   },
@@ -2051,7 +2334,7 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:37.522321+00"
+          "at": "2026-11-10 20:13:57.072612+00"
         },
         {
           "id": "4e09c113-fbc8-5cc0-8795-27e521aece0a",
@@ -2189,7 +2472,7 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:37.527181+00"
+          "at": "2026-11-10 20:13:57.077993+00"
         },
         {
           "id": "73bf3192-9d1c-55cd-a85c-ddecce5bedb8",
@@ -2217,6 +2500,9 @@
                 "pattern": {
                   "type": "object",
                   "properties": {
+                    "role": {
+                      "type": "string"
+                    },
                     "class": {
                       "type": "string"
                     },
@@ -2237,7 +2523,8 @@
                     "API",
                     "READ",
                     "WRITE",
-                    "DELETE"
+                    "DELETE",
+                    "ROLE"
                   ],
                   "type": "string"
                 },
@@ -2260,7 +2547,8 @@
                 "v2": "API",
                 "v3": "READ",
                 "v4": "WRITE",
-                "v5": "DELETE"
+                "v5": "DELETE",
+                "v6": "ROLE"
               },
               "cache": null,
               "rules": [
@@ -2325,6 +2613,16 @@
                   "cond": "@.type() == \"string\"",
                   "path": [
                     "pattern",
+                    "role"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value ? (@.type() == \"object\").keyvalue() ? (@.key == \"role\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "pattern",
                     "class"
                   ],
                   "vars": {},
@@ -2371,7 +2669,7 @@
                   "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"category\").value"
                 },
                 {
-                  "cond": "((@.type() == \"string\" && @ == $v1) || (@.type() == \"string\" && @ == $v2) || (@.type() == \"string\" && @ == $v3) || (@.type() == \"string\" && @ == $v4) || (@.type() == \"string\" && @ == $v5))",
+                  "cond": "((@.type() == \"string\" && @ == $v1) || (@.type() == \"string\" && @ == $v2) || (@.type() == \"string\" && @ == $v3) || (@.type() == \"string\" && @ == $v4) || (@.type() == \"string\" && @ == $v5) || (@.type() == \"string\" && @ == $v6))",
                   "path": [
                     "category"
                   ],
@@ -2380,7 +2678,8 @@
                     "v2": "API",
                     "v3": "READ",
                     "v4": "WRITE",
-                    "v5": "DELETE"
+                    "v5": "DELETE",
+                    "v6": "ROLE"
                   },
                   "keyword": "enum",
                   "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"category\").value"
@@ -2416,6 +2715,9 @@
                   "pattern": {
                     "type": "object",
                     "properties": {
+                      "role": {
+                        "type": "string"
+                      },
                       "class": {
                         "type": "string"
                       },
@@ -2436,7 +2738,8 @@
                       "API",
                       "READ",
                       "WRITE",
-                      "DELETE"
+                      "DELETE",
+                      "ROLE"
                     ],
                     "type": "string"
                   },
@@ -2459,7 +2762,7 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:37.53105+00"
+          "at": "2026-11-10 20:13:57.083433+00"
         },
         {
           "id": "f8ea2a20-5167-5daa-be31-f27111d0adcb",
@@ -2499,12 +2802,18 @@
                   "type": "integer",
                   "default": 0
                 },
+                "default": {
+                  "type": "boolean"
+                },
                 "enabled": {
                   "type": "boolean",
                   "default": true
                 },
                 "message": {
                   "type": "string"
+                },
+                "concierge": {
+                  "type": "boolean"
                 },
                 "permission": {
                   "enum": [
@@ -2582,6 +2891,15 @@
                 {
                   "cond": "@.type() == \"boolean\"",
                   "path": [
+                    "default"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"default\").value"
+                },
+                {
+                  "cond": "@.type() == \"boolean\"",
+                  "path": [
                     "enabled"
                   ],
                   "vars": {},
@@ -2596,6 +2914,15 @@
                   "vars": {},
                   "keyword": "type",
                   "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"message\").value"
+                },
+                {
+                  "cond": "@.type() == \"boolean\"",
+                  "path": [
+                    "concierge"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"concierge\").value"
                 },
                 {
                   "cond": "@.type() == \"string\"",
@@ -2628,7 +2955,7 @@
                   "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"description\").value"
                 },
                 {
-                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"code\" || @.key == \"weight\" || @.key == \"enabled\" || @.key == \"message\" || @.key == \"permission\" || @.key == \"description\"))))",
+                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"code\" || @.key == \"weight\" || @.key == \"default\" || @.key == \"enabled\" || @.key == \"message\" || @.key == \"concierge\" || @.key == \"permission\" || @.key == \"description\"))))",
                   "path": [],
                   "vars": {},
                   "keyword": "additionalProperties",
@@ -2648,12 +2975,18 @@
                     "type": "integer",
                     "default": 0
                   },
+                  "default": {
+                    "type": "boolean"
+                  },
                   "enabled": {
                     "type": "boolean",
                     "default": true
                   },
                   "message": {
                     "type": "string"
+                  },
+                  "concierge": {
+                    "type": "boolean"
                   },
                   "permission": {
                     "enum": [
@@ -2681,27 +3014,49 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:37.534903+00"
+          "at": "2026-11-10 20:13:57.08862+00"
         }
       ],
       "removed": [],
       "log": [],
       "secret": [
         {
-          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "account": "3dbb0641-de78-5686-8e79-5783f8f50afb",
+          "tenant": "3dbb0641-de78-5686-8e79-5783f8f50afb",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "9463339a8087295e572f345918df960b8be5d1f7372880d9929931c0de5861d1",
+          "expires_at": "2026-11-17 20:13:57.376849+00",
+          "created_at": "2026-11-10 20:13:57.378152+00",
+          "deleted_at": "2026-11-10 20:13:57.500541+00"
+        },
+        {
+          "account": "301a12e0-34ad-55b5-b643-7565932bf663",
+          "tenant": "3dbb0641-de78-5686-8e79-5783f8f50afb",
           "kind": "SESSION",
           "ident": null,
           "meta": {
             "ttl": "7 days",
+            "cred": "a6fcba67-0536-4fc9-811c-5a2421632d42",
             "methods": [
               "PASSWORD"
             ],
-            "service": "881d9a1c-3ed5-5d07-bb42-653eb1c59a1a",
-            "login_at": "2026-11-04T05:13:38.173392+00:00"
+            "login_at": "2026-11-10T20:13:57.663524+00:00"
           },
-          "material": "3ece01254822d67eab002fb0d3d993b72840d3f1d97540f95585ffd5b3c3285a",
-          "expires_at": "2026-11-11 05:13:38.173407+00",
-          "created_at": "2026-11-04 05:13:38.173409+00",
+          "material": "9fdda5125fd82feb4e8b7cb6dd3dcc0da66cb5d5e049f9e144bdf63114ca43f5",
+          "expires_at": "2026-11-17 20:13:57.66354+00",
+          "created_at": "2026-11-10 20:13:57.663541+00",
           "deleted_at": null
         }
       ],
@@ -2821,7 +3176,7 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:37.511373+00"
+          "at": "2026-11-10 20:13:57.062511+00"
         },
         {
           "id": "ddf164b8-cc60-5500-a377-c4fd4b7a6817",
@@ -2839,6 +3194,15 @@
                 "name"
               ],
               "properties": {
+                "kind": {
+                  "enum": [
+                    "system",
+                    "service",
+                    "tenant",
+                    "person"
+                  ],
+                  "type": "string"
+                },
                 "name": {
                   "type": "string"
                 },
@@ -2862,7 +3226,12 @@
               "kind": "hub",
               "meta": {},
               "name": "Account",
-              "vars": {},
+              "vars": {
+                "v1": "system",
+                "v2": "service",
+                "v3": "tenant",
+                "v4": "person"
+              },
               "cache": null,
               "rules": [
                 {
@@ -2880,6 +3249,29 @@
                   "vars": {},
                   "keyword": "required",
                   "path_expr": "$"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "kind"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"kind\").value"
+                },
+                {
+                  "cond": "((@.type() == \"string\" && @ == $v1) || (@.type() == \"string\" && @ == $v2) || (@.type() == \"string\" && @ == $v3) || (@.type() == \"string\" && @ == $v4))",
+                  "path": [
+                    "kind"
+                  ],
+                  "vars": {
+                    "v1": "system",
+                    "v2": "service",
+                    "v3": "tenant",
+                    "v4": "person"
+                  },
+                  "keyword": "enum",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"kind\").value"
                 },
                 {
                   "cond": "@.type() == \"string\"",
@@ -2931,7 +3323,7 @@
                   "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"categories\").value ? (@.type() == \"array\")[*]"
                 },
                 {
-                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"name\" || @.key == \"enabled\" || @.key == \"categories\"))))",
+                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"kind\" || @.key == \"name\" || @.key == \"enabled\" || @.key == \"categories\"))))",
                   "path": [],
                   "vars": {},
                   "keyword": "additionalProperties",
@@ -2944,6 +3336,15 @@
                   "name"
                 ],
                 "properties": {
+                  "kind": {
+                    "enum": [
+                      "system",
+                      "service",
+                      "tenant",
+                      "person"
+                    ],
+                    "type": "string"
+                  },
                   "name": {
                     "type": "string"
                   },
@@ -2974,7 +3375,7 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:37.522321+00"
+          "at": "2026-11-10 20:13:57.072612+00"
         },
         {
           "id": "4e09c113-fbc8-5cc0-8795-27e521aece0a",
@@ -3112,7 +3513,7 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:37.527181+00"
+          "at": "2026-11-10 20:13:57.077993+00"
         },
         {
           "id": "73bf3192-9d1c-55cd-a85c-ddecce5bedb8",
@@ -3140,6 +3541,9 @@
                 "pattern": {
                   "type": "object",
                   "properties": {
+                    "role": {
+                      "type": "string"
+                    },
                     "class": {
                       "type": "string"
                     },
@@ -3160,7 +3564,8 @@
                     "API",
                     "READ",
                     "WRITE",
-                    "DELETE"
+                    "DELETE",
+                    "ROLE"
                   ],
                   "type": "string"
                 },
@@ -3183,7 +3588,8 @@
                 "v2": "API",
                 "v3": "READ",
                 "v4": "WRITE",
-                "v5": "DELETE"
+                "v5": "DELETE",
+                "v6": "ROLE"
               },
               "cache": null,
               "rules": [
@@ -3248,6 +3654,16 @@
                   "cond": "@.type() == \"string\"",
                   "path": [
                     "pattern",
+                    "role"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value ? (@.type() == \"object\").keyvalue() ? (@.key == \"role\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "pattern",
                     "class"
                   ],
                   "vars": {},
@@ -3294,7 +3710,7 @@
                   "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"category\").value"
                 },
                 {
-                  "cond": "((@.type() == \"string\" && @ == $v1) || (@.type() == \"string\" && @ == $v2) || (@.type() == \"string\" && @ == $v3) || (@.type() == \"string\" && @ == $v4) || (@.type() == \"string\" && @ == $v5))",
+                  "cond": "((@.type() == \"string\" && @ == $v1) || (@.type() == \"string\" && @ == $v2) || (@.type() == \"string\" && @ == $v3) || (@.type() == \"string\" && @ == $v4) || (@.type() == \"string\" && @ == $v5) || (@.type() == \"string\" && @ == $v6))",
                   "path": [
                     "category"
                   ],
@@ -3303,7 +3719,8 @@
                     "v2": "API",
                     "v3": "READ",
                     "v4": "WRITE",
-                    "v5": "DELETE"
+                    "v5": "DELETE",
+                    "v6": "ROLE"
                   },
                   "keyword": "enum",
                   "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"category\").value"
@@ -3339,6 +3756,9 @@
                   "pattern": {
                     "type": "object",
                     "properties": {
+                      "role": {
+                        "type": "string"
+                      },
                       "class": {
                         "type": "string"
                       },
@@ -3359,7 +3779,8 @@
                       "API",
                       "READ",
                       "WRITE",
-                      "DELETE"
+                      "DELETE",
+                      "ROLE"
                     ],
                     "type": "string"
                   },
@@ -3382,7 +3803,7 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:37.53105+00"
+          "at": "2026-11-10 20:13:57.083433+00"
         },
         {
           "id": "f8ea2a20-5167-5daa-be31-f27111d0adcb",
@@ -3422,12 +3843,18 @@
                   "type": "integer",
                   "default": 0
                 },
+                "default": {
+                  "type": "boolean"
+                },
                 "enabled": {
                   "type": "boolean",
                   "default": true
                 },
                 "message": {
                   "type": "string"
+                },
+                "concierge": {
+                  "type": "boolean"
                 },
                 "permission": {
                   "enum": [
@@ -3505,6 +3932,15 @@
                 {
                   "cond": "@.type() == \"boolean\"",
                   "path": [
+                    "default"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"default\").value"
+                },
+                {
+                  "cond": "@.type() == \"boolean\"",
+                  "path": [
                     "enabled"
                   ],
                   "vars": {},
@@ -3519,6 +3955,15 @@
                   "vars": {},
                   "keyword": "type",
                   "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"message\").value"
+                },
+                {
+                  "cond": "@.type() == \"boolean\"",
+                  "path": [
+                    "concierge"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"concierge\").value"
                 },
                 {
                   "cond": "@.type() == \"string\"",
@@ -3551,7 +3996,7 @@
                   "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"description\").value"
                 },
                 {
-                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"code\" || @.key == \"weight\" || @.key == \"enabled\" || @.key == \"message\" || @.key == \"permission\" || @.key == \"description\"))))",
+                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"code\" || @.key == \"weight\" || @.key == \"default\" || @.key == \"enabled\" || @.key == \"message\" || @.key == \"concierge\" || @.key == \"permission\" || @.key == \"description\"))))",
                   "path": [],
                   "vars": {},
                   "keyword": "additionalProperties",
@@ -3571,12 +4016,18 @@
                     "type": "integer",
                     "default": 0
                   },
+                  "default": {
+                    "type": "boolean"
+                  },
                   "enabled": {
                     "type": "boolean",
                     "default": true
                   },
                   "message": {
                     "type": "string"
+                  },
+                  "concierge": {
+                    "type": "boolean"
                   },
                   "permission": {
                     "enum": [
@@ -3604,14 +4055,14 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:37.534903+00"
+          "at": "2026-11-10 20:13:57.08862+00"
         },
         {
-          "id": "9cfbe0d3-3a44-596e-987b-931502c993db",
+          "id": "14dbf851-738d-54f8-a386-634dd2677ea3",
           "class": "Class",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "links": {},
           "data": {
             "kind": "hub",
@@ -3690,20 +4141,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "881d9a1c-3ed5-5d07-bb42-653eb1c59a1a",
+          "author": "85df6801-3969-592d-81ee-81cbc98a3d4b",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:38.228386+00"
+          "at": "2026-11-10 20:13:58.330582+00"
         }
       ],
       "removed": [],
       "log": [
         {
-          "seq": "34",
-          "id": "9cfbe0d3-3a44-596e-987b-931502c993db",
+          "seq": "41",
+          "id": "14dbf851-738d-54f8-a386-634dd2677ea3",
           "rev": 1,
           "class": "Class",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "links": {},
           "data": {
             "kind": "hub",
@@ -3782,29 +4233,69 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "881d9a1c-3ed5-5d07-bb42-653eb1c59a1a",
+          "author": "85df6801-3969-592d-81ee-81cbc98a3d4b",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:38.228386+00",
-          "tx": "3891065"
+          "at": "2026-11-10 20:13:58.330582+00",
+          "tx": "4254004"
         }
       ],
       "secret": [
         {
-          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "account": "3dbb0641-de78-5686-8e79-5783f8f50afb",
+          "tenant": "3dbb0641-de78-5686-8e79-5783f8f50afb",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "9463339a8087295e572f345918df960b8be5d1f7372880d9929931c0de5861d1",
+          "expires_at": "2026-11-17 20:13:57.376849+00",
+          "created_at": "2026-11-10 20:13:57.378152+00",
+          "deleted_at": "2026-11-10 20:13:57.500541+00"
+        },
+        {
+          "account": "301a12e0-34ad-55b5-b643-7565932bf663",
+          "tenant": "3dbb0641-de78-5686-8e79-5783f8f50afb",
           "kind": "SESSION",
           "ident": null,
           "meta": {
             "ttl": "7 days",
+            "cred": "a6fcba67-0536-4fc9-811c-5a2421632d42",
             "methods": [
               "PASSWORD"
             ],
-            "service": "881d9a1c-3ed5-5d07-bb42-653eb1c59a1a",
-            "login_at": "2026-11-04T05:13:38.173392+00:00"
+            "login_at": "2026-11-10T20:13:57.663524+00:00"
           },
-          "material": "3ece01254822d67eab002fb0d3d993b72840d3f1d97540f95585ffd5b3c3285a",
-          "expires_at": "2026-11-11 05:13:38.173407+00",
-          "created_at": "2026-11-04 05:13:38.173409+00",
+          "material": "9fdda5125fd82feb4e8b7cb6dd3dcc0da66cb5d5e049f9e144bdf63114ca43f5",
+          "expires_at": "2026-11-17 20:13:57.66354+00",
+          "created_at": "2026-11-10 20:13:57.663541+00",
+          "deleted_at": null
+        },
+        {
+          "account": "85df6801-3969-592d-81ee-81cbc98a3d4b",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "d90fe884-31b8-4f3c-a3bb-6d194d4cf2a5",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "2026-11-10T20:13:58.285078+00:00"
+          },
+          "material": "e2bd8490ff54f0289b968b876782cd9fb16f5aaccf0e1e57a7c136fe44982764",
+          "expires_at": "2026-11-17 20:13:58.28509+00",
+          "created_at": "2026-11-10 20:13:58.285097+00",
           "deleted_at": null
         }
       ],
@@ -3815,8 +4306,8 @@
     {
       "result": [
         {
-          "at": "2026-11-04T05:13:38.273949+00:00",
-          "id": "8743b9c7-1feb-594a-8c1e-68c114ad07e9",
+          "at": "2026-11-10T20:13:58.402747+00:00",
+          "id": "37a98ec0-327f-5d36-b6f4-84b135234706",
           "op": "create",
           "rev": 1,
           "data": {
@@ -3825,10 +4316,9 @@
           "tags": [],
           "class": "Note",
           "links": {},
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "agent": "881d9a1c-3ed5-5d07-bb42-653eb1c59a1a"
+          "owner": "3dbb0641-de78-5686-8e79-5783f8f50afb",
+          "author": "301a12e0-34ad-55b5-b643-7565932bf663",
+          "tenant": "3dbb0641-de78-5686-8e79-5783f8f50afb"
         }
       ],
       "error": null,
@@ -3926,7 +4416,7 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:37.511373+00"
+          "at": "2026-11-10 20:13:57.062511+00"
         },
         {
           "id": "ddf164b8-cc60-5500-a377-c4fd4b7a6817",
@@ -3944,6 +4434,15 @@
                 "name"
               ],
               "properties": {
+                "kind": {
+                  "enum": [
+                    "system",
+                    "service",
+                    "tenant",
+                    "person"
+                  ],
+                  "type": "string"
+                },
                 "name": {
                   "type": "string"
                 },
@@ -3967,7 +4466,12 @@
               "kind": "hub",
               "meta": {},
               "name": "Account",
-              "vars": {},
+              "vars": {
+                "v1": "system",
+                "v2": "service",
+                "v3": "tenant",
+                "v4": "person"
+              },
               "cache": null,
               "rules": [
                 {
@@ -3985,6 +4489,29 @@
                   "vars": {},
                   "keyword": "required",
                   "path_expr": "$"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "kind"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"kind\").value"
+                },
+                {
+                  "cond": "((@.type() == \"string\" && @ == $v1) || (@.type() == \"string\" && @ == $v2) || (@.type() == \"string\" && @ == $v3) || (@.type() == \"string\" && @ == $v4))",
+                  "path": [
+                    "kind"
+                  ],
+                  "vars": {
+                    "v1": "system",
+                    "v2": "service",
+                    "v3": "tenant",
+                    "v4": "person"
+                  },
+                  "keyword": "enum",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"kind\").value"
                 },
                 {
                   "cond": "@.type() == \"string\"",
@@ -4036,7 +4563,7 @@
                   "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"categories\").value ? (@.type() == \"array\")[*]"
                 },
                 {
-                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"name\" || @.key == \"enabled\" || @.key == \"categories\"))))",
+                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"kind\" || @.key == \"name\" || @.key == \"enabled\" || @.key == \"categories\"))))",
                   "path": [],
                   "vars": {},
                   "keyword": "additionalProperties",
@@ -4049,6 +4576,15 @@
                   "name"
                 ],
                 "properties": {
+                  "kind": {
+                    "enum": [
+                      "system",
+                      "service",
+                      "tenant",
+                      "person"
+                    ],
+                    "type": "string"
+                  },
                   "name": {
                     "type": "string"
                   },
@@ -4079,7 +4615,7 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:37.522321+00"
+          "at": "2026-11-10 20:13:57.072612+00"
         },
         {
           "id": "4e09c113-fbc8-5cc0-8795-27e521aece0a",
@@ -4217,7 +4753,7 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:37.527181+00"
+          "at": "2026-11-10 20:13:57.077993+00"
         },
         {
           "id": "73bf3192-9d1c-55cd-a85c-ddecce5bedb8",
@@ -4245,6 +4781,9 @@
                 "pattern": {
                   "type": "object",
                   "properties": {
+                    "role": {
+                      "type": "string"
+                    },
                     "class": {
                       "type": "string"
                     },
@@ -4265,7 +4804,8 @@
                     "API",
                     "READ",
                     "WRITE",
-                    "DELETE"
+                    "DELETE",
+                    "ROLE"
                   ],
                   "type": "string"
                 },
@@ -4288,7 +4828,8 @@
                 "v2": "API",
                 "v3": "READ",
                 "v4": "WRITE",
-                "v5": "DELETE"
+                "v5": "DELETE",
+                "v6": "ROLE"
               },
               "cache": null,
               "rules": [
@@ -4353,6 +4894,16 @@
                   "cond": "@.type() == \"string\"",
                   "path": [
                     "pattern",
+                    "role"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value ? (@.type() == \"object\").keyvalue() ? (@.key == \"role\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "pattern",
                     "class"
                   ],
                   "vars": {},
@@ -4399,7 +4950,7 @@
                   "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"category\").value"
                 },
                 {
-                  "cond": "((@.type() == \"string\" && @ == $v1) || (@.type() == \"string\" && @ == $v2) || (@.type() == \"string\" && @ == $v3) || (@.type() == \"string\" && @ == $v4) || (@.type() == \"string\" && @ == $v5))",
+                  "cond": "((@.type() == \"string\" && @ == $v1) || (@.type() == \"string\" && @ == $v2) || (@.type() == \"string\" && @ == $v3) || (@.type() == \"string\" && @ == $v4) || (@.type() == \"string\" && @ == $v5) || (@.type() == \"string\" && @ == $v6))",
                   "path": [
                     "category"
                   ],
@@ -4408,7 +4959,8 @@
                     "v2": "API",
                     "v3": "READ",
                     "v4": "WRITE",
-                    "v5": "DELETE"
+                    "v5": "DELETE",
+                    "v6": "ROLE"
                   },
                   "keyword": "enum",
                   "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"category\").value"
@@ -4444,6 +4996,9 @@
                   "pattern": {
                     "type": "object",
                     "properties": {
+                      "role": {
+                        "type": "string"
+                      },
                       "class": {
                         "type": "string"
                       },
@@ -4464,7 +5019,8 @@
                       "API",
                       "READ",
                       "WRITE",
-                      "DELETE"
+                      "DELETE",
+                      "ROLE"
                     ],
                     "type": "string"
                   },
@@ -4487,7 +5043,7 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:37.53105+00"
+          "at": "2026-11-10 20:13:57.083433+00"
         },
         {
           "id": "f8ea2a20-5167-5daa-be31-f27111d0adcb",
@@ -4527,12 +5083,18 @@
                   "type": "integer",
                   "default": 0
                 },
+                "default": {
+                  "type": "boolean"
+                },
                 "enabled": {
                   "type": "boolean",
                   "default": true
                 },
                 "message": {
                   "type": "string"
+                },
+                "concierge": {
+                  "type": "boolean"
                 },
                 "permission": {
                   "enum": [
@@ -4610,6 +5172,15 @@
                 {
                   "cond": "@.type() == \"boolean\"",
                   "path": [
+                    "default"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"default\").value"
+                },
+                {
+                  "cond": "@.type() == \"boolean\"",
+                  "path": [
                     "enabled"
                   ],
                   "vars": {},
@@ -4624,6 +5195,15 @@
                   "vars": {},
                   "keyword": "type",
                   "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"message\").value"
+                },
+                {
+                  "cond": "@.type() == \"boolean\"",
+                  "path": [
+                    "concierge"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"concierge\").value"
                 },
                 {
                   "cond": "@.type() == \"string\"",
@@ -4656,7 +5236,7 @@
                   "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"description\").value"
                 },
                 {
-                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"code\" || @.key == \"weight\" || @.key == \"enabled\" || @.key == \"message\" || @.key == \"permission\" || @.key == \"description\"))))",
+                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"code\" || @.key == \"weight\" || @.key == \"default\" || @.key == \"enabled\" || @.key == \"message\" || @.key == \"concierge\" || @.key == \"permission\" || @.key == \"description\"))))",
                   "path": [],
                   "vars": {},
                   "keyword": "additionalProperties",
@@ -4676,12 +5256,18 @@
                     "type": "integer",
                     "default": 0
                   },
+                  "default": {
+                    "type": "boolean"
+                  },
                   "enabled": {
                     "type": "boolean",
                     "default": true
                   },
                   "message": {
                     "type": "string"
+                  },
+                  "concierge": {
+                    "type": "boolean"
                   },
                   "permission": {
                     "enum": [
@@ -4709,14 +5295,14 @@
           "author": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:37.534903+00"
+          "at": "2026-11-10 20:13:57.08862+00"
         },
         {
-          "id": "9cfbe0d3-3a44-596e-987b-931502c993db",
+          "id": "14dbf851-738d-54f8-a386-634dd2677ea3",
           "class": "Class",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "owner": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "links": {},
           "data": {
             "kind": "hub",
@@ -4795,37 +5381,37 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "881d9a1c-3ed5-5d07-bb42-653eb1c59a1a",
+          "author": "85df6801-3969-592d-81ee-81cbc98a3d4b",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:38.228386+00"
+          "at": "2026-11-10 20:13:58.330582+00"
         },
         {
-          "id": "8743b9c7-1feb-594a-8c1e-68c114ad07e9",
+          "id": "37a98ec0-327f-5d36-b6f4-84b135234706",
           "class": "Note",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3dbb0641-de78-5686-8e79-5783f8f50afb",
+          "owner": "3dbb0641-de78-5686-8e79-5783f8f50afb",
           "links": {},
           "data": {
             "text": "Позвонить поставщику"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "881d9a1c-3ed5-5d07-bb42-653eb1c59a1a",
+          "author": "301a12e0-34ad-55b5-b643-7565932bf663",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:38.273949+00"
+          "at": "2026-11-10 20:13:58.402747+00"
         }
       ],
       "removed": [],
       "log": [
         {
-          "seq": "34",
-          "id": "9cfbe0d3-3a44-596e-987b-931502c993db",
+          "seq": "41",
+          "id": "14dbf851-738d-54f8-a386-634dd2677ea3",
           "rev": 1,
           "class": "Class",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
           "links": {},
           "data": {
             "kind": "hub",
@@ -4904,47 +5490,87 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "881d9a1c-3ed5-5d07-bb42-653eb1c59a1a",
+          "author": "85df6801-3969-592d-81ee-81cbc98a3d4b",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:38.228386+00",
-          "tx": "3891065"
+          "at": "2026-11-10 20:13:58.330582+00",
+          "tx": "4254004"
         },
         {
-          "seq": "35",
-          "id": "8743b9c7-1feb-594a-8c1e-68c114ad07e9",
+          "seq": "42",
+          "id": "37a98ec0-327f-5d36-b6f4-84b135234706",
           "rev": 1,
           "class": "Note",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3dbb0641-de78-5686-8e79-5783f8f50afb",
           "links": {},
           "data": {
             "text": "Позвонить поставщику"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "881d9a1c-3ed5-5d07-bb42-653eb1c59a1a",
+          "author": "301a12e0-34ad-55b5-b643-7565932bf663",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:38.273949+00",
-          "tx": "3891069"
+          "at": "2026-11-10 20:13:58.402747+00",
+          "tx": "4254008"
         }
       ],
       "secret": [
         {
-          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "account": "3dbb0641-de78-5686-8e79-5783f8f50afb",
+          "tenant": "3dbb0641-de78-5686-8e79-5783f8f50afb",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "9463339a8087295e572f345918df960b8be5d1f7372880d9929931c0de5861d1",
+          "expires_at": "2026-11-17 20:13:57.376849+00",
+          "created_at": "2026-11-10 20:13:57.378152+00",
+          "deleted_at": "2026-11-10 20:13:57.500541+00"
+        },
+        {
+          "account": "301a12e0-34ad-55b5-b643-7565932bf663",
+          "tenant": "3dbb0641-de78-5686-8e79-5783f8f50afb",
           "kind": "SESSION",
           "ident": null,
           "meta": {
             "ttl": "7 days",
+            "cred": "a6fcba67-0536-4fc9-811c-5a2421632d42",
             "methods": [
               "PASSWORD"
             ],
-            "service": "881d9a1c-3ed5-5d07-bb42-653eb1c59a1a",
-            "login_at": "2026-11-04T05:13:38.173392+00:00"
+            "login_at": "2026-11-10T20:13:57.663524+00:00"
           },
-          "material": "3ece01254822d67eab002fb0d3d993b72840d3f1d97540f95585ffd5b3c3285a",
-          "expires_at": "2026-11-11 05:13:38.173407+00",
-          "created_at": "2026-11-04 05:13:38.173409+00",
+          "material": "9fdda5125fd82feb4e8b7cb6dd3dcc0da66cb5d5e049f9e144bdf63114ca43f5",
+          "expires_at": "2026-11-17 20:13:57.66354+00",
+          "created_at": "2026-11-10 20:13:57.663541+00",
+          "deleted_at": null
+        },
+        {
+          "account": "85df6801-3969-592d-81ee-81cbc98a3d4b",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "d90fe884-31b8-4f3c-a3bb-6d194d4cf2a5",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "2026-11-10T20:13:58.285078+00:00"
+          },
+          "material": "e2bd8490ff54f0289b968b876782cd9fb16f5aaccf0e1e57a7c136fe44982764",
+          "expires_at": "2026-11-17 20:13:58.28509+00",
+          "created_at": "2026-11-10 20:13:58.285097+00",
           "deleted_at": null
         }
       ],
@@ -4953,6 +5579,6 @@
       ]
     }
   ],
-  "output": "Шаг 1. Что лежит в базе сразу после установки\n[\n  {\n    \"class\": \"Account\",\n    \"rows\": 4\n  },\n  {\n    \"class\": \"Class\",\n    \"rows\": 5\n  },\n  {\n    \"class\": \"member\",\n    \"rows\": 1\n  },\n  {\n    \"class\": \"Resource\",\n    \"rows\": 12\n  },\n  {\n    \"class\": \"rule\",\n    \"rows\": 11\n  }\n]\n\nШаг 2. Вход по паролю — новая строка в secret\n[\n  {\n    \"kind\": \"SESSION\",\n    \"account\": \"3defbabb-a94d-5359-8463-dc947de193e1\",\n    \"material\": \"sha256 токена\",\n    \"expires\": true\n  }\n]\n\nШаг 3. Описание класса — тоже объект\n[\n  {\n    \"class\": \"Class\",\n    \"rev\": 1,\n    \"name\": \"Note\",\n    \"fields\": {\n      \"required\": [\n        \"text\"\n      ],\n      \"properties\": {\n        \"text\": {\n          \"type\": \"string\"\n        }\n      }\n    },\n    \"versions\": 1\n  }\n]\n\nШаг 4. Первая заметка\n[\n  {\n    \"at\": \"2026-11-04T05:13:39.796104+00:00\",\n    \"id\": \"e7710a3a-f655-518f-803c-72c70e101052\",\n    \"op\": \"create\",\n    \"rev\": 1,\n    \"data\": {\n      \"text\": \"Позвонить поставщику\"\n    },\n    \"tags\": [],\n    \"class\": \"Note\",\n    \"links\": {},\n    \"owner\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n    \"author\": \"3defbabb-a94d-5359-8463-dc947de193e1\",\n    \"tenant\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n    \"agent\": \"de199fdb-d037-5b11-9fc2-743d89ea18b1\"\n  }\n]",
+  "output": "Шаг 1. Что лежит в базе сразу после подготовки\n[\n  {\n    \"class\": \"Account\",\n    \"rows\": 4\n  },\n  {\n    \"class\": \"Class\",\n    \"rows\": 5\n  },\n  {\n    \"class\": \"member\",\n    \"rows\": 1\n  },\n  {\n    \"class\": \"Resource\",\n    \"rows\": 11\n  },\n  {\n    \"class\": \"rule\",\n    \"rows\": 19\n  }\n]\n\nШаг 2. Вход по ключу — новая строка в secret\n[\n  {\n    \"kind\": \"SESSION\",\n    \"account\": \"Анна\",\n    \"tenant\": \"Ромашка\",\n    \"material\": \"sha256 токена\",\n    \"expires\": true\n  }\n]\n\nШаг 3. Описание класса — тоже объект\n[\n  {\n    \"class\": \"Class\",\n    \"rev\": 1,\n    \"name\": \"Note\",\n    \"fields\": {\n      \"required\": [\n        \"text\"\n      ],\n      \"properties\": {\n        \"text\": {\n          \"type\": \"string\"\n        }\n      }\n    },\n    \"versions\": 1\n  }\n]\n\nШаг 4. Первая заметка\n[\n  {\n    \"at\": \"2026-11-10T20:14:00.762143+00:00\",\n    \"id\": \"cadd540a-34b8-57dd-b8a9-23c6559026e3\",\n    \"op\": \"create\",\n    \"rev\": 1,\n    \"data\": {\n      \"text\": \"Позвонить поставщику\"\n    },\n    \"tags\": [],\n    \"class\": \"Note\",\n    \"links\": {},\n    \"owner\": \"578fae59-ce20-5fe0-96aa-5ca621da5ae6\",\n    \"author\": \"b8a9aaf0-fcc5-57a8-8b4a-6cd0cd3bdae2\",\n    \"tenant\": \"578fae59-ce20-5fe0-96aa-5ca621da5ae6\"\n  }\n]",
   "exitCode": 0
 }

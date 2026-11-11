@@ -14,26 +14,10 @@
   },
   "steps": [
     {
-      "title": "Описываем класс «Клиент»",
-      "text": "Прежде чем хранить клиентов, базе нужно описание класса: какие у него поля. `syncModels` записывает описание в базу. Данных клиентов пока нет — таблицы пусты.",
-      "code": "await syncModels(db, [Client], { apply: true });",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> syncModels</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, [Client], { apply: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span></code></pre>",
-      "result": null,
-      "error": null,
-      "entity": [],
-      "removed": [],
-      "log": [],
-      "secret": [],
-      "counts": null,
-      "signals": [
-        "Class"
-      ]
-    },
-    {
       "title": "Создаём клиента Анну",
-      "text": "В `entity` появилась строка: это Анна сейчас, версия `rev = 1`. В журнале `log` — запись `create` с теми же данными, автором и временем.",
-      "code": "[anna] = await db.Client().create({ name: 'Анна', phone: '+7 900 111-22-33' }).rows();\nreturn anna;",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">[anna] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Client</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Анна'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, phone: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'+7 900 111-22-33'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> anna;</span></span></code></pre>",
+      "text": "Прежде чем хранить клиентов, базе нужно описание класса: какие у него поля. Описание — в начале кода, класс `Client`; его записал в дом `setup(ADMIN_DSN, name, { models: [Client] })` ещё при подготовке. `me` — корень квартиры «Ромашка», открытый ключом Анны: все цепочки идут от него. В `entity` появилась строка: это клиентка Анна сейчас, версия `rev = 1`. В журнале `log` — запись `create` с теми же данными, автором и временем.",
+      "code": "[anna] = await me.Client().create({ name: 'Анна', phone: '+7 900 111-22-33' }).rows();\nreturn anna;",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">[anna] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Client</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Анна'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, phone: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'+7 900 111-22-33'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> anna;</span></span></code></pre>",
       "result": {
         "at": "t1",
         "id": "Client «Анна»",
@@ -48,8 +32,7 @@
         "links": {},
         "owner": "Ромашка",
         "author": "Анна",
-        "tenant": "Ромашка",
-        "agent": "service"
+        "tenant": "Ромашка"
       },
       "error": null,
       "entity": [
@@ -67,7 +50,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$changed": [
@@ -78,7 +61,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "35",
+          "seq": "42",
           "id": "Client «Анна»",
           "rev": 1,
           "class": "Client",
@@ -91,7 +74,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": true
@@ -106,8 +89,8 @@
     {
       "title": "Меняем телефон",
       "text": "Строка в `entity` та же, но теперь `rev = 2` и новый телефон (подсвечен). В журнал добавилась вторая запись — `update`. Первая версия никуда не делась.",
-      "code": "db.Client(anna).update({ phone: '+7 900 444-55-66' }).rows()",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Client</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(anna).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ phone: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'+7 900 444-55-66'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
+      "code": "me.Client(anna).update({ phone: '+7 900 444-55-66' }).rows()",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Client</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(anna).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ phone: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'+7 900 444-55-66'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
       "result": [
         {
           "at": "t2",
@@ -123,8 +106,7 @@
           "links": {},
           "owner": "Ромашка",
           "author": "Анна",
-          "tenant": "Ромашка",
-          "agent": "service"
+          "tenant": "Ромашка"
         }
       ],
       "error": null,
@@ -143,7 +125,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t2",
           "$changed": [
@@ -157,7 +139,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "35",
+          "seq": "42",
           "id": "Client «Анна»",
           "rev": 1,
           "class": "Client",
@@ -170,13 +152,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": false
         },
         {
-          "seq": "36",
+          "seq": "43",
           "id": "Client «Анна»",
           "rev": 2,
           "class": "Client",
@@ -189,7 +171,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t2",
           "$new": true
@@ -204,8 +186,8 @@
     {
       "title": "Смотрим историю",
       "text": "`versions()` читает журнал: обе версии Анны по порядку. Таблицы не меняются — это только чтение.",
-      "code": "db.Client(anna).versions()",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Client</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(anna).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">versions</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
+      "code": "me.Client(anna).versions()",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Client</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(anna).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">versions</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
       "result": [
         {
           "at": "t1",
@@ -221,8 +203,7 @@
           "links": {},
           "owner": "Ромашка",
           "author": "Анна",
-          "tenant": "Ромашка",
-          "agent": "service"
+          "tenant": "Ромашка"
         },
         {
           "at": "t2",
@@ -238,8 +219,7 @@
           "links": {},
           "owner": "Ромашка",
           "author": "Анна",
-          "tenant": "Ромашка",
-          "agent": "service"
+          "tenant": "Ромашка"
         }
       ],
       "error": null,
@@ -258,7 +238,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t2",
           "$changed": []
@@ -267,7 +247,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "35",
+          "seq": "42",
           "id": "Client «Анна»",
           "rev": 1,
           "class": "Client",
@@ -280,13 +260,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": false
         },
         {
-          "seq": "36",
+          "seq": "43",
           "id": "Client «Анна»",
           "rev": 2,
           "class": "Client",
@@ -299,7 +279,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t2",
           "$new": false
@@ -312,8 +292,8 @@
     {
       "title": "Удаление, шаг 1: предпросмотр",
       "text": "`delete()` без подтверждения ничего не удаляет. Он показывает, что удалится: саму Анну (`$action: delete`) и всё, что удалилось бы вместе с ней. Этот ответ показывают пользователю и сохраняют — он нужен для подтверждения.",
-      "code": "(shown = await db.Client(anna).delete().rows())",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shown </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Client</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(anna).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">delete</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">())</span></span></code></pre>",
+      "code": "(shown = await me.Client(anna).delete().rows())",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shown </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Client</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(anna).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">delete</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">())</span></span></code></pre>",
       "result": [
         {
           "at": "t2",
@@ -330,7 +310,6 @@
           "owner": "Ромашка",
           "author": "Анна",
           "tenant": "Ромашка",
-          "agent": "service",
           "$action": "delete",
           "$depth": 0
         }
@@ -351,7 +330,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t2",
           "$changed": []
@@ -360,7 +339,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "35",
+          "seq": "42",
           "id": "Client «Анна»",
           "rev": 1,
           "class": "Client",
@@ -373,13 +352,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": false
         },
         {
-          "seq": "36",
+          "seq": "43",
           "id": "Client «Анна»",
           "rev": 2,
           "class": "Client",
@@ -392,7 +371,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t2",
           "$new": false
@@ -405,8 +384,8 @@
     {
       "title": "Удаление, шаг 2: по-настоящему",
       "text": "`delete({ confirm: true, expect })` удаляет ровно то, что показал предпросмотр (`expect` — его ответ); если с тех пор что-то изменилось — отказ `conflict`, ничего не удалено. Без `expect` подтверждение не принимается. Строка уходит из `entity`, а в журнале появляется надгробие — запись `delete`. История Анны осталась целиком.",
-      "code": "(gone = await db.Client(anna).delete({ confirm: true, expect: shown }).rows())",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(gone </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Client</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(anna).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">delete</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ confirm: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, expect: shown }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">())</span></span></code></pre>",
+      "code": "(gone = await me.Client(anna).delete({ confirm: true, expect: shown }).rows())",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(gone </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Client</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(anna).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">delete</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ confirm: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, expect: shown }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">())</span></span></code></pre>",
       "result": [
         {
           "at": "t3",
@@ -423,7 +402,6 @@
           "owner": "Ромашка",
           "author": "Анна",
           "tenant": "Ромашка",
-          "agent": "service",
           "$deleted": true
         }
       ],
@@ -444,14 +422,14 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t2"
         }
       ],
       "log": [
         {
-          "seq": "35",
+          "seq": "42",
           "id": "Client «Анна»",
           "rev": 1,
           "class": "Client",
@@ -464,13 +442,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": false
         },
         {
-          "seq": "36",
+          "seq": "43",
           "id": "Client «Анна»",
           "rev": 2,
           "class": "Client",
@@ -483,13 +461,13 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t2",
           "$new": false
         },
         {
-          "seq": "37",
+          "seq": "44",
           "id": "Client «Анна»",
           "rev": 3,
           "class": "Client",
@@ -502,7 +480,7 @@
           "tags": [],
           "op": "delete",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$new": true
@@ -517,8 +495,8 @@
     {
       "title": "Возвращаем Анну",
       "text": "`restore({ expect })` возвращает данные, какими они были до удаления, новой версией: `rev = 4`, id прежний. `expect` — надгробия из ответа удаления: вернётся только то, что ушло этим удалением. В журнале теперь четыре записи — вся жизнь объекта.",
-      "code": "db.Client(anna).restore({ expect: gone }).rows()",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Client</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(anna).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">restore</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ expect: gone }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
+      "code": "me.Client(anna).restore({ expect: gone }).rows()",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Client</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(anna).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">restore</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ expect: gone }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
       "result": [
         {
           "at": "t4",
@@ -534,8 +512,7 @@
           "links": {},
           "owner": "Ромашка",
           "author": "Анна",
-          "tenant": "Ромашка",
-          "agent": "service"
+          "tenant": "Ромашка"
         }
       ],
       "error": null,
@@ -554,7 +531,7 @@
           "tags": [],
           "op": "restore",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t4",
           "$changed": [
@@ -565,7 +542,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "35",
+          "seq": "42",
           "id": "Client «Анна»",
           "rev": 1,
           "class": "Client",
@@ -578,13 +555,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": false
         },
         {
-          "seq": "36",
+          "seq": "43",
           "id": "Client «Анна»",
           "rev": 2,
           "class": "Client",
@@ -597,13 +574,13 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t2",
           "$new": false
         },
         {
-          "seq": "37",
+          "seq": "44",
           "id": "Client «Анна»",
           "rev": 3,
           "class": "Client",
@@ -616,13 +593,13 @@
           "tags": [],
           "op": "delete",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$new": false
         },
         {
-          "seq": "38",
+          "seq": "45",
           "id": "Client «Анна»",
           "rev": 4,
           "class": "Client",
@@ -635,7 +612,7 @@
           "tags": [],
           "op": "restore",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t4",
           "$new": true
@@ -648,5 +625,5 @@
       ]
     }
   ],
-  "output": "Шаг 1. Описываем класс «Клиент»\n\n\nШаг 2. Создаём клиента Анну\n{\n  \"at\": \"‹время›\",\n  \"id\": \"‹id 1›\",\n  \"op\": \"create\",\n  \"rev\": 1,\n  \"data\": {\n    \"name\": \"Анна\",\n    \"phone\": \"+7 900 111-22-33\"\n  },\n  \"tags\": [],\n  \"class\": \"Client\",\n  \"links\": {},\n  \"owner\": \"‹id 2›\",\n  \"author\": \"‹id 3›\",\n  \"tenant\": \"‹id 2›\",\n  \"agent\": \"‹id 4›\"\n}\n\nШаг 3. Меняем телефон\n[\n  {\n    \"at\": \"‹время›\",\n    \"id\": \"‹id 1›\",\n    \"op\": \"update\",\n    \"rev\": 2,\n    \"data\": {\n      \"name\": \"Анна\",\n      \"phone\": \"+7 900 444-55-66\"\n    },\n    \"tags\": [],\n    \"class\": \"Client\",\n    \"links\": {},\n    \"owner\": \"‹id 2›\",\n    \"author\": \"‹id 3›\",\n    \"tenant\": \"‹id 2›\",\n    \"agent\": \"‹id 4›\"\n  }\n]\n\nШаг 4. Смотрим историю\n[\n  {\n    \"at\": \"‹время›\",\n    \"id\": \"‹id 1›\",\n    \"op\": \"create\",\n    \"rev\": 1,\n    \"data\": {\n      \"name\": \"Анна\",\n      \"phone\": \"+7 900 111-22-33\"\n    },\n    \"tags\": [],\n    \"class\": \"Client\",\n    \"links\": {},\n    \"owner\": \"‹id 2›\",\n    \"author\": \"‹id 3›\",\n    \"tenant\": \"‹id 2›\",\n    \"agent\": \"‹id 4›\"\n  },\n  {\n    \"at\": \"‹время›\",\n    \"id\": \"‹id 1›\",\n    \"op\": \"update\",\n    \"rev\": 2,\n    \"data\": {\n      \"name\": \"Анна\",\n      \"phone\": \"+7 900 444-55-66\"\n    },\n    \"tags\": [],\n    \"class\": \"Client\",\n    \"links\": {},\n    \"owner\": \"‹id 2›\",\n    \"author\": \"‹id 3›\",\n    \"tenant\": \"‹id 2›\",\n    \"agent\": \"‹id 4›\"\n  }\n]\n\nШаг 5. Удаление, шаг 1: предпросмотр\n[\n  {\n    \"at\": \"‹время›\",\n    \"id\": \"‹id 1›\",\n    \"op\": \"update\",\n    \"rev\": 2,\n    \"data\": {\n      \"name\": \"Анна\",\n      \"phone\": \"+7 900 444-55-66\"\n    },\n    \"tags\": [],\n    \"class\": \"Client\",\n    \"links\": {},\n    \"owner\": \"‹id 2›\",\n    \"author\": \"‹id 3›\",\n    \"tenant\": \"‹id 2›\",\n    \"agent\": \"‹id 4›\",\n    \"$action\": \"delete\",\n    \"$depth\": 0\n  }\n]\n\nШаг 6. Удаление, шаг 2: по-настоящему\n[\n  {\n    \"at\": \"‹время›\",\n    \"id\": \"‹id 1›\",\n    \"op\": \"delete\",\n    \"rev\": 3,\n    \"data\": {\n      \"name\": \"Анна\",\n      \"phone\": \"+7 900 444-55-66\"\n    },\n    \"tags\": [],\n    \"class\": \"Client\",\n    \"links\": {},\n    \"owner\": \"‹id 2›\",\n    \"author\": \"‹id 3›\",\n    \"tenant\": \"‹id 2›\",\n    \"agent\": \"‹id 4›\",\n    \"$deleted\": true\n  }\n]\n\nШаг 7. Возвращаем Анну\n[\n  {\n    \"at\": \"‹время›\",\n    \"id\": \"‹id 1›\",\n    \"op\": \"restore\",\n    \"rev\": 4,\n    \"data\": {\n      \"name\": \"Анна\",\n      \"phone\": \"+7 900 444-55-66\"\n    },\n    \"tags\": [],\n    \"class\": \"Client\",\n    \"links\": {},\n    \"owner\": \"‹id 2›\",\n    \"author\": \"‹id 3›\",\n    \"tenant\": \"‹id 2›\",\n    \"agent\": \"‹id 4›\"\n  }\n]"
+  "output": "Шаг 1. Создаём клиента Анну\n{\n  \"at\": \"‹время›\",\n  \"id\": \"‹id 1›\",\n  \"op\": \"create\",\n  \"rev\": 1,\n  \"data\": {\n    \"name\": \"Анна\",\n    \"phone\": \"+7 900 111-22-33\"\n  },\n  \"tags\": [],\n  \"class\": \"Client\",\n  \"links\": {},\n  \"owner\": \"‹id 2›\",\n  \"author\": \"‹id 3›\",\n  \"tenant\": \"‹id 2›\"\n}\n\nШаг 2. Меняем телефон\n[\n  {\n    \"at\": \"‹время›\",\n    \"id\": \"‹id 1›\",\n    \"op\": \"update\",\n    \"rev\": 2,\n    \"data\": {\n      \"name\": \"Анна\",\n      \"phone\": \"+7 900 444-55-66\"\n    },\n    \"tags\": [],\n    \"class\": \"Client\",\n    \"links\": {},\n    \"owner\": \"‹id 2›\",\n    \"author\": \"‹id 3›\",\n    \"tenant\": \"‹id 2›\"\n  }\n]\n\nШаг 3. Смотрим историю\n[\n  {\n    \"at\": \"‹время›\",\n    \"id\": \"‹id 1›\",\n    \"op\": \"create\",\n    \"rev\": 1,\n    \"data\": {\n      \"name\": \"Анна\",\n      \"phone\": \"+7 900 111-22-33\"\n    },\n    \"tags\": [],\n    \"class\": \"Client\",\n    \"links\": {},\n    \"owner\": \"‹id 2›\",\n    \"author\": \"‹id 3›\",\n    \"tenant\": \"‹id 2›\"\n  },\n  {\n    \"at\": \"‹время›\",\n    \"id\": \"‹id 1›\",\n    \"op\": \"update\",\n    \"rev\": 2,\n    \"data\": {\n      \"name\": \"Анна\",\n      \"phone\": \"+7 900 444-55-66\"\n    },\n    \"tags\": [],\n    \"class\": \"Client\",\n    \"links\": {},\n    \"owner\": \"‹id 2›\",\n    \"author\": \"‹id 3›\",\n    \"tenant\": \"‹id 2›\"\n  }\n]\n\nШаг 4. Удаление, шаг 1: предпросмотр\n[\n  {\n    \"at\": \"‹время›\",\n    \"id\": \"‹id 1›\",\n    \"op\": \"update\",\n    \"rev\": 2,\n    \"data\": {\n      \"name\": \"Анна\",\n      \"phone\": \"+7 900 444-55-66\"\n    },\n    \"tags\": [],\n    \"class\": \"Client\",\n    \"links\": {},\n    \"owner\": \"‹id 2›\",\n    \"author\": \"‹id 3›\",\n    \"tenant\": \"‹id 2›\",\n    \"$action\": \"delete\",\n    \"$depth\": 0\n  }\n]\n\nШаг 5. Удаление, шаг 2: по-настоящему\n[\n  {\n    \"at\": \"‹время›\",\n    \"id\": \"‹id 1›\",\n    \"op\": \"delete\",\n    \"rev\": 3,\n    \"data\": {\n      \"name\": \"Анна\",\n      \"phone\": \"+7 900 444-55-66\"\n    },\n    \"tags\": [],\n    \"class\": \"Client\",\n    \"links\": {},\n    \"owner\": \"‹id 2›\",\n    \"author\": \"‹id 3›\",\n    \"tenant\": \"‹id 2›\",\n    \"$deleted\": true\n  }\n]\n\nШаг 6. Возвращаем Анну\n[\n  {\n    \"at\": \"‹время›\",\n    \"id\": \"‹id 1›\",\n    \"op\": \"restore\",\n    \"rev\": 4,\n    \"data\": {\n      \"name\": \"Анна\",\n      \"phone\": \"+7 900 444-55-66\"\n    },\n    \"tags\": [],\n    \"class\": \"Client\",\n    \"links\": {},\n    \"owner\": \"‹id 2›\",\n    \"author\": \"‹id 3›\",\n    \"tenant\": \"‹id 2›\"\n  }\n]"
 }

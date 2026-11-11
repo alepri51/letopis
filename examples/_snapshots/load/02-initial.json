@@ -1,7 +1,7 @@
 {
   "id": "load/02-initial",
-  "title": "Первая заливка: db.load(…, { initial: true })",
-  "summary": "Для переезда с другой системы: пустая схема, одна транзакция, COPY без построчных триггеров и индексов — их база включает в конце и тогда же проверяет всё разом. Быстрее обычной загрузки в разы.",
+  "title": "Первая заливка: letopis load --initial",
+  "summary": "Для переезда с другой системы: пустой дом, одна транзакция, COPY без построчных триггеров и индексов — их база включает в конце и тогда же проверяет всё разом. Быстрее обычной загрузки в разы.",
   "tables": [
     "counts"
   ],
@@ -10,18 +10,37 @@
     "log": [],
     "secret": [],
     "counts": {
-      "entity": {},
-      "log": {},
-      "secret": {}
+      "entity": {
+        "Account": 4,
+        "Class": 12,
+        "member": 1,
+        "Resource": 11,
+        "rule": 19
+      },
+      "log": {
+        "create": 47
+      },
+      "secret": {
+        "APIKEY": 1,
+        "CONCIERGE": 1,
+        "IDENT": 1,
+        "KEY": 1,
+        "PASSWORD": 1,
+        "SESSION": 3
+      }
     }
   },
   "steps": [
     {
-      "title": "Свежая установка и модель",
-      "text": null,
-      "code": "const r = await up({ dsn: dsn.admin, schema, fresh: true, quiet: true, tenant: { name: 'Ромашка', user: { name: 'Анна', login: 'anna@romashka.ru', password: 'Ромашка-2026!' } } });\nadm = await connect({ dsn: dsn.admin, schema: r.schema, token: r.tenant!.token!, allowBypassRls: true });\nawait syncShop(adm);\nawait adm.refresh();\nreturn 'классы записаны — данных нет';",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> r</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> up</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ dsn: dsn.admin, schema, fresh: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, quiet: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, tenant: { name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, user: { name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Анна'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, login: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'anna@romashka.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, password: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка-2026!'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> } } });</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">adm </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> connect</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ dsn: dsn.admin, schema: r.schema, token: r.tenant</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.token</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, allowBypassRls: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> syncShop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(adm);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> adm.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">refresh</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'классы записаны — данных нет'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span></code></pre>",
-      "result": "классы записаны — данных нет",
+      "title": "Дом с моделью — данных ещё нет",
+      "text": "Дом построен с моделью магазина, в нём квартира «Ромашка» и её жилец Анна — всё это строки системных классов (`Class`, `Account`, `member`, `Resource`, `rule`): первой заливке они не мешают. Данных нет. Файл заливки — магазин и 300 товаров, объект JSON на строку.",
+      "code": "dir = await mkdtemp(join(tmpdir(), 'letopis-initial-'));\nfile = join(dir, 'shop.ndjson');\nconst rows = [\n  { $class: 'Shop', name: 'Ромашка', city: 'Казань' },\n  ...Array.from({ length: 300 }, (_, i) => ({ $class: 'Product', sku: `P-${i + 1}`, title: `Товар ${i + 1}`, price: 100 + i, Shop: { $key: ['Ромашка'] } })),\n];\nawait writeFile(file, rows.map((r) => JSON.stringify(r)).join('\\n'));\nreturn { 'магазинов': await me.Shop().count(), 'товаров': await me.Product().count(), 'строк в файле': rows.length };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">dir </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> mkdtemp</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">join</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">tmpdir</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(), </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'letopis-initial-'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">));</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">file </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> join</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(dir, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'shop.ndjson'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> rows</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> [</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  { $class: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Shop'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, city: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Казань'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> },</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">  ...</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">Array.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">from</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ length: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">300</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, (</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">_</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">i</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ $class: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Product'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, sku: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">`P-${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">i</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> 1</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">}`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">`Товар ${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">i</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> 1</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">}`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">100</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> i, Shop: { $key: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] } })),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">];</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> writeFile</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(file, rows.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">r</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> JSON</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">stringify</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(r)).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">join</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">\\n</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">));</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'магазинов'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">count</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(), </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'товаров'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">count</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(), </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'строк в файле'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: rows.</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">length</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> };</span></span></code></pre>",
+      "result": {
+        "магазинов": 0,
+        "товаров": 0,
+        "строк в файле": 301
+      },
       "error": null,
       "entity": [],
       "removed": [],
@@ -32,41 +51,45 @@
           "Account": 4,
           "Class": 12,
           "member": 1,
-          "Resource": 12,
-          "rule": 11
+          "Resource": 11,
+          "rule": 19
         },
         "log": {
-          "create": 40
+          "create": 47
         },
         "secret": {
           "APIKEY": 1,
+          "CONCIERGE": 1,
+          "IDENT": 1,
           "KEY": 1,
           "PASSWORD": 1,
-          "SESSION": 1
+          "SESSION": 3
         }
       },
-      "signals": [
-        "Class"
-      ]
+      "signals": []
     },
     {
       "title": "Залить магазин и 300 товаров",
-      "text": null,
-      "code": "adm.load({\n        Shop: [{ name: 'Ромашка' }],\n        Product: Array.from({ length: 300 }, (_, i) => ({ sku: `P-${i + 1}`, title: `Товар ${i + 1}`, price: 100 + i, Shop: { $key: ['Ромашка'] } })),\n      }, { initial: true })",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">adm.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">load</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">        Shop: [{ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }],</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">        Product: Array.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">from</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ length: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">300</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, (</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">_</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">i</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ sku: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">`P-${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">i</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> 1</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">}`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">`Товар ${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">i</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> 1</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">}`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">100</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> +</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> i, Shop: { $key: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] } })),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      }, { initial: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> })</span></span></code></pre>",
+      "text": "`--initial` — одна транзакция под исключительной блокировкой таблиц: на время заливки дом закрыт и для чтения. Индексы и триггеры сняты, строки идут через `COPY … FREEZE`; в конце база возвращает индексы и триггеры, разом проверяет ограничения и собирает статистику. Любая ошибка откатывает всё. Анна сразу видит товары.",
+      "code": "const r = await cli(['load', file, '--dsn', ADMIN_DSN, '--schema', name, '--tenant', 'Ромашка', '--initial']);\nreturn { 'код выхода': r.code, 'отчёт': JSON.parse(r.out), 'товаров у Анны': await me.Product().count() };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> r</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> cli</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">([</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'load'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, file, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'--dsn'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">ADMIN_DSN</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'--schema'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, name, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'--tenant'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'--initial'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">]);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'код выхода'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: r.code, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'отчёт'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">JSON</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">parse</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(r.out), </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'товаров у Анны'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">count</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">() };</span></span></code></pre>",
       "result": {
-        "rows": 301,
-        "loaded": 301,
-        "updated": 0,
-        "skipped": 0,
-        "duplicates": 0,
-        "byClass": {
-          "Shop": 1,
-          "Product": 300
+        "код выхода": 0,
+        "отчёт": {
+          "rows": 301,
+          "loaded": 301,
+          "updated": 0,
+          "skipped": 0,
+          "duplicates": 0,
+          "byClass": {
+            "Shop": 1,
+            "Product": 300
+          },
+          "external": 0,
+          "portions": 1,
+          "ms": "‹мс›"
         },
-        "external": 0,
-        "portions": 1,
-        "ms": "‹мс›"
+        "товаров у Анны": 300
       },
       "error": null,
       "entity": [],
@@ -79,18 +102,20 @@
           "Class": 12,
           "member": 1,
           "Product": 300,
-          "Resource": 12,
-          "rule": 11,
+          "Resource": 11,
+          "rule": 19,
           "Shop": 1
         },
         "log": {
-          "create": 341
+          "create": 348
         },
         "secret": {
           "APIKEY": 1,
+          "CONCIERGE": 1,
+          "IDENT": 1,
           "KEY": 1,
           "PASSWORD": 1,
-          "SESSION": 1
+          "SESSION": 3
         }
       },
       "signals": [
@@ -99,17 +124,15 @@
       ]
     },
     {
-      "title": "Вторая первая заливка — нельзя",
-      "text": "Схема должна быть пустой: допустимы только классы, аккаунты, членства и права.",
-      "code": "adm.load({ Shop: [{ name: 'Лютик' }] }, { initial: true })",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">adm.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">load</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ Shop: [{ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Лютик'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }] }, { initial: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> })</span></span></code></pre>",
-      "result": null,
-      "error": {
-        "code": "not_empty",
-        "message": "letopis: not_empty: первая заливка — только в пустую схему: в entity и log, кроме строк системных классов (Class, Account, member, Resource, rule), ничего быть не должно",
-        "detail": null,
-        "expected": true
+      "title": "Вторая первая заливка — not_empty",
+      "text": "Дом должен быть пустым: кроме строк системных классов — ничего. Теперь в нём магазин и товары, поэтому `--initial` отказывает `not_empty`, и ничего не меняется. Дописывать в непустой дом — обычной загрузкой, без `--initial`.",
+      "code": "const r = await cli(['load', file, '--dsn', ADMIN_DSN, '--schema', name, '--tenant', 'Ромашка', '--initial']);\nawait rm(dir, { recursive: true, force: true });\nreturn { 'код выхода': r.code, 'ошибка': r.err.split('\\n').find((l) => /^letopis: [a-z_]+: /.test(l)) ?? r.err };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> r</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> cli</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">([</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'load'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, file, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'--dsn'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">ADMIN_DSN</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'--schema'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, name, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'--tenant'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'--initial'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">]);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> rm</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(dir, { recursive: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, force: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'код выхода'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: r.code, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'ошибка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: r.err.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">split</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">\\n</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">find</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">l</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> /</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">^</span><span style=\"color:#032F62;--shiki-dark:#DBEDFF\">letopis: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">[a-z_]</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">+</span><span style=\"color:#032F62;--shiki-dark:#DBEDFF\">: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">/</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">test</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(l)) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">??</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> r.err };</span></span></code></pre>",
+      "result": {
+        "код выхода": 1,
+        "ошибка": "letopis: not_empty: первая заливка — только в пустую схему: в entity и log, кроме строк системных классов (Class, Account, member, Resource, rule), ничего быть не должно"
       },
+      "error": null,
       "entity": [],
       "removed": [],
       "log": [],
@@ -120,22 +143,24 @@
           "Class": 12,
           "member": 1,
           "Product": 300,
-          "Resource": 12,
-          "rule": 11,
+          "Resource": 11,
+          "rule": 19,
           "Shop": 1
         },
         "log": {
-          "create": 341
+          "create": 348
         },
         "secret": {
           "APIKEY": 1,
+          "CONCIERGE": 1,
+          "IDENT": 1,
           "KEY": 1,
           "PASSWORD": 1,
-          "SESSION": 1
+          "SESSION": 3
         }
       },
       "signals": []
     }
   ],
-  "output": "Шаг 1. Свежая установка и модель\nletopis: администраторское подключение — RLS не действует, данные всех арендаторов видны\n\"классы записаны — данных нет\"\n\nШаг 2. Залить магазин и 300 товаров\n{\n  \"rows\": 301,\n  \"loaded\": 301,\n  \"updated\": 0,\n  \"skipped\": 0,\n  \"duplicates\": 0,\n  \"byClass\": {\n    \"Shop\": 1,\n    \"Product\": 300\n  },\n  \"external\": 0,\n  \"portions\": 1,\n  \"ms\": ‹мс›\n}\n\nШаг 3. Вторая первая заливка — нельзя\nотказ, как и задумано: letopis: not_empty: первая заливка — только в пустую схему: в entity и log, кроме строк системных классов (Class, Account, member, Resource, rule), ничего быть не должно"
+  "output": "Шаг 1. Дом с моделью — данных ещё нет\n{\n  \"магазинов\": 0,\n  \"товаров\": 0,\n  \"строк в файле\": 301\n}\n\nШаг 2. Залить магазин и 300 товаров\n{\n  \"код выхода\": 0,\n  \"отчёт\": {\n    \"rows\": 301,\n    \"loaded\": 301,\n    \"updated\": 0,\n    \"skipped\": 0,\n    \"duplicates\": 0,\n    \"byClass\": {\n      \"Shop\": 1,\n      \"Product\": 300\n    },\n    \"external\": 0,\n    \"portions\": 1,\n    \"ms\": ‹мс›\n  },\n  \"товаров у Анны\": 300\n}\n\nШаг 3. Вторая первая заливка — not_empty\n{\n  \"код выхода\": 1,\n  \"ошибка\": \"letopis: not_empty: первая заливка — только в пустую схему: в entity и log, кроме строк системных классов (Class, Account, member, Resource, rule), ничего быть не должно\"\n}"
 }

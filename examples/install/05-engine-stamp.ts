@@ -1,76 +1,79 @@
-import { up, DDL_REVISION } from 'letopis';
+import { setup, DDL_REVISION } from 'letopis';
 import { example } from '../_shared/example.ts';
 
 export default example({
-  title: 'Штамп движка: connect() замечает, что схему не обновили',
+  title: 'Штамп движка: connect() замечает, что дом не обновили',
   summary:
-    'up() пишет в комментарий схемы ревизию, версию пакета и хэш его SQL-файлов. Если после обновления пакета ' +
-    'забыть вызвать up(), функции в базе останутся старыми — connect() это заметит и предупредит.',
+    'setup() пишет в комментарий схемы дома ревизию движка, версию пакета и хэш его SQL-файлов. Если после обновления ' +
+    'пакета забыть вызвать setup(), функции в базе останутся старыми — connect() это заметит и предупредит. Дом старой ' +
+    'ревизии пакет не обновляет: его сносят и строят заново.',
   tables: [],
-  covers: ['nuance.engine-stamp'],
+  covers: ['export.DDL_REVISION', 'nuance.engine-stamp', 'nuance.demolish-drops-data'],
   steps: [
     {
       title: 'Что записано в комментарии схемы',
       text:
-        'Ревизия схемы (`ddl_revision`), версия пакета (`engine`) и 16 знаков хэша SQL-файлов (`sql`). ' +
-        'В документации версия и хэш заменены метками — они меняются от выпуска к выпуску.',
+        'Ревизия движка (`ddl_revision`, она же экспорт `DDL_REVISION` и поле `revision` в ответе `setup()`), версия ' +
+        'пакета (`engine`) и 16 знаков хэша SQL-файлов (`sql`). В документации версия и хэш заменены метками — они ' +
+        'меняются от выпуска к выпуску.',
       run: async ({ admin, schema }) => {
         const [row] = await admin`select obj_description(oid, 'pg_namespace') as comment from pg_namespace where nspname = ${schema}`;
-        return row.comment;
+        return { comment: row.comment, DDL_REVISION };
       },
     },
     {
-      title: 'Схему поставила неизвестная версия',
+      title: 'Функции дома поставила неизвестная версия',
       text:
-        'Изображаем схему без штампа движка: в комментарии только ревизия. Ревизия та же, поэтому ' +
-        '`connect()` подключается, но предупреждает и называет команду, которая всё исправит.',
-      run: async ({ admin, connect, warnings, dsn, schema, up }) => {
+        'Изображаем дом без штампа движка: в комментарии только ревизия. Ревизия та же, поэтому `connect()` ' +
+        'подключается, но предупреждает и называет, что делать: вызвать `setup()` с именем дома.',
+      run: async ({ admin, connect, warnings, pass, schema }) => {
         await admin.unsafe(`comment on schema "${schema}" is 'letopis ddl_revision=${DDL_REVISION}'`);
-        const { warnings: printed } = await warnings(() => connect({ dsn: dsn.app, schema, token: up.tenant!.token! }));
+        const { warnings: printed } = await warnings(() => connect(pass));
         return printed;
       },
     },
     {
-      title: 'Повторный up() — предупреждения нет',
-      text: 'Повторный `up()` заново ставит функции схемы и пишет свежий штамп. Теперь `connect()` ничего не печатает.',
-      run: async ({ connect, warnings, dsn, schema, up: installed }) => {
-        await up({ dsn: dsn.admin, schema, quiet: true });
-        const { warnings: printed } = await warnings(() => connect({ dsn: dsn.app, schema, token: installed.tenant!.token! }));
-        return printed;
-      },
-    },
-    {
-      title: 'Схему уже обновил более новый пакет',
+      title: 'Повторный setup() — предупреждения нет',
       text:
-        'Изображаем схему, которую обновила следующая версия пакета: ревизия в комментарии на единицу больше. ' +
-        '`connect()` подключается — во время раскатки новой версии старые экземпляры сервиса продолжают работать, — но ' +
-        'предупреждает: этот пакет может не знать функций и колонок новой ревизии. `up()` такую схему не трогает и отказывает.',
-      run: async ({ admin, connect, warnings, dsn, schema, up: installed }) => {
+        'Повторный `setup()` заново ставит функции движка и пишет свежий штамп, данные и пропуск не трогает ' +
+        '(`created: false`). Теперь `connect()` ничего не печатает.',
+      run: async ({ ADMIN_DSN, name, connect, warnings, pass }) => {
+        const again = await setup(ADMIN_DSN, name, { quiet: true });
+        const { warnings: printed } = await warnings(() => connect(pass));
+        return { created: again.created, 'тот же пропуск': again.pass === pass, 'connect() предупредил': printed };
+      },
+    },
+    {
+      title: 'Дом уже обновил более новый пакет',
+      text:
+        'Изображаем дом, который обновила следующая версия пакета: ревизия в комментарии на единицу больше. `connect()` ' +
+        'подключается — во время раскатки новой версии старые экземпляры сервиса продолжают работать, — но предупреждает: ' +
+        'этот пакет может не знать функций и колонок новой ревизии. `setup()` такой дом не трогает и отказывает.',
+      run: async ({ ADMIN_DSN, name, admin, connect, warnings, pass, schema }) => {
         const [row] = await admin`select obj_description(oid, 'pg_namespace') as comment from pg_namespace where nspname = ${schema}`;
         const comment = String(row.comment);
         await admin.unsafe(`comment on schema "${schema}" is '${comment.replace(/ddl_revision=\d+/, `ddl_revision=${DDL_REVISION + 1}`)}'`);
-        const { warnings: printed } = await warnings(() => connect({ dsn: dsn.app, schema, token: installed.tenant!.token! }));
-        const again = await up({ dsn: dsn.admin, schema, quiet: true }).then(() => 'поставлено', (e: Error) => e.message);
+        const { warnings: printed } = await warnings(() => connect(pass));
+        const again = await setup(ADMIN_DSN, name, { quiet: true }).then(() => 'построено', (e: Error) => e.message);
         await admin.unsafe(`comment on schema "${schema}" is '${comment}'`); // скрыть
-        return { 'connect() предупредил': printed, 'up() отказал': again };
+        return { 'connect() предупредил': printed, 'setup() отказал': again };
       },
     },
     {
-      title: 'Схема ревизии 7 — только заново',
+      title: 'Дом старой ревизии — только снести и построить заново',
       text:
-        'Изображаем схему ревизии 7 — схему letopis 1.x. Ревизия 8 появилась в letopis 2.0, и пакет умеет обновлять ' +
-        'только схемы от неё и новее — поэтому в тексте отказа «2.0». Такую схему пакет не обновляет: ' +
-        '`connect()` и `up()` отказывают с `invalid_data` ещё до любых изменений и подсказывают ' +
-        '`up({ schema, fresh: true })` — схема пересоздаётся, данные не переносятся.',
-      run: async ({ admin, connect, dsn, schema, up: installed }) => {
+        'Изображаем дом ревизии на единицу меньше. Такой дом пакет не обновляет: `connect()` и `setup()` отказывают с ' +
+        '`invalid_data` (ключ `boot.schema_old`) ещё до любых изменений и подсказывают выход — снести дом `demolish()` и ' +
+        'построить заново `setup()`; данные не переносятся.',
+      run: async ({ ADMIN_DSN, name, admin, connect, pass, schema }) => {
         const [row] = await admin`select obj_description(oid, 'pg_namespace') as comment from pg_namespace where nspname = ${schema}`;
         const comment = String(row.comment);
-        await admin.unsafe(`comment on schema "${schema}" is 'letopis ddl_revision=7'`);
-        const why = (e: Error) => e.message;
-        const conn = await connect({ dsn: dsn.app, schema, token: installed.tenant!.token! }).then(() => 'подключено', why);
-        const again = await up({ dsn: dsn.admin, schema, quiet: true }).then(() => 'поставлено', why);
+        await admin.unsafe(`comment on schema "${schema}" is 'letopis ddl_revision=${DDL_REVISION - 1}'`);
+        const why = (e: { code?: string; key?: string; message: string }) => ({ code: e.code, key: e.key, message: e.message });
+        const conn = await connect(pass).then(() => 'подключено', why);
+        const again = await setup(ADMIN_DSN, name, { quiet: true }).then(() => 'построено', why);
         await admin.unsafe(`comment on schema "${schema}" is '${comment}'`); // скрыть
-        return { 'connect()': conn, 'up()': again };
+        return { 'connect()': conn, 'setup()': again };
       },
     },
   ],

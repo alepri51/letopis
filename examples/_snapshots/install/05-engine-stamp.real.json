@@ -7,7 +7,10 @@
   },
   "steps": [
     {
-      "result": "letopis ddl_revision=11 engine=3.0.1 sql=ad7261a8ad8f33d3",
+      "result": {
+        "comment": "letopis ddl_revision=12 engine=4.0.0 sql=7e6275ba343af146",
+        "DDL_REVISION": 12
+      },
       "error": null,
       "entity": [],
       "removed": [],
@@ -17,7 +20,7 @@
     },
     {
       "result": [
-        "letopis: функции схемы v2.g_install_05_engine_stamp поставила неизвестная версия letopis (в штампе нет версии движка), библиотека — 3.0.1: обновите схему — вызовите up({ schema: 'v2.g_install_05_engine_stamp' })"
+        "letopis: функции схемы v2.g_install_05_engine_stamp поставила неизвестная версия letopis (в штампе нет версии движка), библиотека — 4.0.0: обновите дом — вызовите setup() с его именем"
       ],
       "error": null,
       "entity": [],
@@ -27,7 +30,11 @@
       "signals": []
     },
     {
-      "result": [],
+      "result": {
+        "created": false,
+        "тот же пропуск": true,
+        "connect() предупредил": []
+      },
       "error": null,
       "entity": [],
       "removed": [],
@@ -38,9 +45,9 @@
     {
       "result": {
         "connect() предупредил": [
-          "letopis: движок схемы v2.g_install_05_engine_stamp ревизии 12 новее библиотеки (она знает 11) — обновите пакет letopis"
+          "letopis: движок схемы v2.g_install_05_engine_stamp ревизии 13 новее библиотеки (она знает 12) — обновите пакет letopis"
         ],
-        "up() отказал": "letopis.up: схема v2.g_install_05_engine_stamp ревизии 12, а библиотека знает только 11 — обновите пакет"
+        "setup() отказал": "letopis.setup: дом v2.g_install_05_engine_stamp ревизии 13, а библиотека знает только 12 — обновите пакет"
       },
       "error": null,
       "entity": [],
@@ -51,8 +58,16 @@
     },
     {
       "result": {
-        "connect()": "letopis: invalid_data: схема v2.g_install_05_engine_stamp ревизии 7, а 2.0 — с ревизии 8: это схема letopis 1.x (или схема без штампа ревизии), 2.0 ставится только заново — up({ schema: 'v2.g_install_05_engine_stamp', fresh: true }) пересоздаст схему, данные 1.x не переносятся",
-        "up()": "letopis: invalid_data: схема v2.g_install_05_engine_stamp ревизии 7, а 2.0 — с ревизии 8: это схема letopis 1.x (или схема без штампа ревизии), 2.0 ставится только заново — up({ schema: 'v2.g_install_05_engine_stamp', fresh: true }) пересоздаст схему, данные 1.x не переносятся"
+        "connect()": {
+          "code": "invalid_data",
+          "key": "boot.schema_old",
+          "message": "letopis: invalid_data: дом v2.g_install_05_engine_stamp ревизии 11, а пакет работает с ревизией 12: такой дом не обновляется — снесите его demolish() и постройте заново setup(), данные не переносятся"
+        },
+        "setup()": {
+          "code": "invalid_data",
+          "key": "boot.schema_old",
+          "message": "letopis: invalid_data: дом v2.g_install_05_engine_stamp ревизии 11, а пакет работает с ревизией 12: такой дом не обновляется — снесите его demolish() и постройте заново setup(), данные не переносятся"
+        }
       },
       "error": null,
       "entity": [],
@@ -62,6 +77,6 @@
       "signals": []
     }
   ],
-  "output": "Шаг 1. Что записано в комментарии схемы\n\"letopis ddl_revision=11 engine=3.0.1 sql=ad7261a8ad8f33d3\"\n\nШаг 2. Схему поставила неизвестная версия\n[\n  \"letopis: функции схемы v2.example_install_05_engine_stamp поставила неизвестная версия letopis (в штампе нет версии движка), библиотека — 3.0.1: обновите схему — вызовите up({ schema: 'v2.example_install_05_engine_stamp' })\"\n]\n\nШаг 3. Повторный up() — предупреждения нет\n[]\n\nШаг 4. Схему уже обновил более новый пакет\n{\n  \"connect() предупредил\": [\n    \"letopis: движок схемы v2.example_install_05_engine_stamp ревизии 12 новее библиотеки (она знает 11) — обновите пакет letopis\"\n  ],\n  \"up() отказал\": \"letopis.up: схема v2.example_install_05_engine_stamp ревизии 12, а библиотека знает только 11 — обновите пакет\"\n}\n\nШаг 5. Схема ревизии 7 — только заново\n{\n  \"connect()\": \"letopis: invalid_data: схема v2.example_install_05_engine_stamp ревизии 7, а 2.0 — с ревизии 8: это схема letopis 1.x (или схема без штампа ревизии), 2.0 ставится только заново — up({ schema: 'v2.example_install_05_engine_stamp', fresh: true }) пересоздаст схему, данные 1.x не переносятся\",\n  \"up()\": \"letopis: invalid_data: схема v2.example_install_05_engine_stamp ревизии 7, а 2.0 — с ревизии 8: это схема letopis 1.x (или схема без штампа ревизии), 2.0 ставится только заново — up({ schema: 'v2.example_install_05_engine_stamp', fresh: true }) пересоздаст схему, данные 1.x не переносятся\"\n}",
+  "output": "Шаг 1. Что записано в комментарии схемы\n{\n  \"comment\": \"letopis ddl_revision=12 engine=4.0.0 sql=7e6275ba343af146\",\n  \"DDL_REVISION\": 12\n}\n\nШаг 2. Функции дома поставила неизвестная версия\n[\n  \"letopis: функции схемы v2.example_install_05_engine_stamp поставила неизвестная версия letopis (в штампе нет версии движка), библиотека — 4.0.0: обновите дом — вызовите setup() с его именем\"\n]\n\nШаг 3. Повторный setup() — предупреждения нет\n{\n  \"created\": false,\n  \"тот же пропуск\": true,\n  \"connect() предупредил\": []\n}\n\nШаг 4. Дом уже обновил более новый пакет\n{\n  \"connect() предупредил\": [\n    \"letopis: движок схемы v2.example_install_05_engine_stamp ревизии 13 новее библиотеки (она знает 12) — обновите пакет letopis\"\n  ],\n  \"setup() отказал\": \"letopis.setup: дом v2.example_install_05_engine_stamp ревизии 13, а библиотека знает только 12 — обновите пакет\"\n}\n\nШаг 5. Дом старой ревизии — только снести и построить заново\n{\n  \"connect()\": {\n    \"code\": \"invalid_data\",\n    \"key\": \"boot.schema_old\",\n    \"message\": \"letopis: invalid_data: дом v2.example_install_05_engine_stamp ревизии 11, а пакет работает с ревизией 12: такой дом не обновляется — снесите его demolish() и постройте заново setup(), данные не переносятся\"\n  },\n  \"setup()\": {\n    \"code\": \"invalid_data\",\n    \"key\": \"boot.schema_old\",\n    \"message\": \"letopis: invalid_data: дом v2.example_install_05_engine_stamp ревизии 11, а пакет работает с ревизией 12: такой дом не обновляется — снесите его demolish() и постройте заново setup(), данные не переносятся\"\n  }\n}",
   "exitCode": 0
 }

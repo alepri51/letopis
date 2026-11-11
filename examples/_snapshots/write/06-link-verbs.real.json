@@ -9,8 +9,8 @@
     {
       "result": [
         {
-          "at": "2026-11-04T06:34:03.593574+00:00",
-          "id": "5e7e56ac-d1e8-5064-9bdb-c099c4b6c7c7",
+          "at": "2026-11-10T20:18:39.800525+00:00",
+          "id": "23d68ea5-0567-510a-b20d-1770554a5a90",
           "op": "update",
           "rev": 3,
           "data": {
@@ -24,27 +24,26 @@
           "tags": [],
           "class": "Product",
           "links": {
-            "Shop": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+            "Shop": "f5c1c198-a988-5ed3-a0cf-09f85224aa34",
             "Category": [
-              "1f88c837-a39c-5c94-802f-df6ce272198c",
-              "fe5cdf89-ba6f-5806-9ce1-c59e102020ac",
-              "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5"
+              "14cf26a8-784a-5150-92e9-80f9263db3aa",
+              "1f5d278a-b287-5453-a897-4c3d362066b9",
+              "7b50c720-29e7-574b-ab35-9c34fafae80a"
             ]
           },
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d"
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37"
         }
       ],
       "error": null,
       "entity": [
         {
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "id": "da8c6633-3950-5a49-829b-a5bb96dd2304",
           "class": "Shop",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {},
           "data": {
             "city": "Казань",
@@ -52,17 +51,17 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.39767+00"
+          "at": "2026-11-10 20:18:39.582487+00"
         },
         {
-          "id": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+          "id": "f5c1c198-a988-5ed3-a0cf-09f85224aa34",
           "class": "Shop",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {},
           "data": {
             "city": "Уфа",
@@ -70,74 +69,74 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.406503+00"
+          "at": "2026-11-10 20:18:39.594165+00"
         },
         {
-          "id": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac",
+          "id": "1f5d278a-b287-5453-a897-4c3d362066b9",
           "class": "Category",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {},
           "data": {
             "name": "Чай"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.413061+00"
+          "at": "2026-11-10 20:18:39.604365+00"
         },
         {
-          "id": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+          "id": "7b50c720-29e7-574b-ab35-9c34fafae80a",
           "class": "Category",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {
-            "Parent": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+            "Parent": "1f5d278a-b287-5453-a897-4c3d362066b9"
           },
           "data": {
             "name": "Зелёный чай"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.420715+00"
+          "at": "2026-11-10 20:18:39.614152+00"
         },
         {
-          "id": "1f88c837-a39c-5c94-802f-df6ce272198c",
+          "id": "14cf26a8-784a-5150-92e9-80f9263db3aa",
           "class": "Category",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {},
           "data": {
             "name": "Посуда"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.431989+00"
+          "at": "2026-11-10 20:18:39.631198+00"
         },
         {
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "id": "6390de4f-51b0-5963-b256-f01b01cf007c",
           "class": "Product",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Shop": "da8c6633-3950-5a49-829b-a5bb96dd2304",
             "Category": [
-              "1f88c837-a39c-5c94-802f-df6ce272198c"
+              "14cf26a8-784a-5150-92e9-80f9263db3aa"
             ]
           },
           "data": {
@@ -155,21 +154,21 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.44201+00"
+          "at": "2026-11-10 20:18:39.641861+00"
         },
         {
-          "id": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0",
+          "id": "39f9aaba-f361-5796-ae74-76ef243e43cf",
           "class": "Product",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Shop": "da8c6633-3950-5a49-829b-a5bb96dd2304",
             "Category": [
-              "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5"
+              "7b50c720-29e7-574b-ab35-9c34fafae80a"
             ]
           },
           "data": {
@@ -182,21 +181,21 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.453358+00"
+          "at": "2026-11-10 20:18:39.655745+00"
         },
         {
-          "id": "f131b655-37ba-56ed-9572-de867c43ba2a",
+          "id": "96a4d562-a012-5395-b8d8-7d321f026dc0",
           "class": "Product",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Shop": "da8c6633-3950-5a49-829b-a5bb96dd2304",
             "Category": [
-              "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+              "1f5d278a-b287-5453-a897-4c3d362066b9"
             ]
           },
           "data": {
@@ -206,23 +205,23 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.468763+00"
+          "at": "2026-11-10 20:18:39.666794+00"
         },
         {
-          "id": "5e7e56ac-d1e8-5064-9bdb-c099c4b6c7c7",
+          "id": "23d68ea5-0567-510a-b20d-1770554a5a90",
           "class": "Product",
           "rev": 3,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {
-            "Shop": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+            "Shop": "f5c1c198-a988-5ed3-a0cf-09f85224aa34",
             "Category": [
-              "1f88c837-a39c-5c94-802f-df6ce272198c",
-              "fe5cdf89-ba6f-5806-9ce1-c59e102020ac",
-              "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5"
+              "14cf26a8-784a-5150-92e9-80f9263db3aa",
+              "1f5d278a-b287-5453-a897-4c3d362066b9",
+              "7b50c720-29e7-574b-ab35-9c34fafae80a"
             ]
           },
           "data": {
@@ -235,17 +234,17 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.593574+00"
+          "at": "2026-11-10 20:18:39.800525+00"
         },
         {
-          "id": "e8acc93c-21f8-5995-9af6-0d6bb6f3abd2",
+          "id": "3f3a07a5-10d7-5793-9c4f-4388bb1e597d",
           "class": "Customer",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {},
           "data": {
             "name": "Ольга",
@@ -253,17 +252,17 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.492838+00"
+          "at": "2026-11-10 20:18:39.687769+00"
         },
         {
-          "id": "1ae30a19-480f-5c7f-98e3-12fee56b55f2",
+          "id": "1a966ac2-03a0-588f-9b81-a3da5a4c6673",
           "class": "Vip",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {},
           "data": {
             "name": "Иван",
@@ -272,20 +271,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.502278+00"
+          "at": "2026-11-10 20:18:39.697154+00"
         },
         {
-          "id": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
+          "id": "cba040d9-6647-59f4-8024-4dbc61ccb394",
           "class": "Order",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
-            "Customer": "e8acc93c-21f8-5995-9af6-0d6bb6f3abd2"
+            "Shop": "da8c6633-3950-5a49-829b-a5bb96dd2304",
+            "Customer": "3f3a07a5-10d7-5793-9c4f-4388bb1e597d"
           },
           "data": {
             "number": "A-1",
@@ -293,20 +292,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.51105+00"
+          "at": "2026-11-10 20:18:39.725184+00"
         },
         {
-          "id": "3dcabc48-7dc6-59da-a051-7bc9cdb97d99",
+          "id": "a9eaec6b-9839-5fe6-bc07-7e290c9e1745",
           "class": "line",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {
-            "Order": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
-            "Product": "099dcd72-c15a-5fe8-a95f-70da339186f0"
+            "Order": "cba040d9-6647-59f4-8024-4dbc61ccb394",
+            "Product": "6390de4f-51b0-5963-b256-f01b01cf007c"
           },
           "data": {
             "qty": 1,
@@ -314,20 +313,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.517737+00"
+          "at": "2026-11-10 20:18:39.738592+00"
         },
         {
-          "id": "fd3a3416-55d6-5445-bfbf-d33631bab515",
+          "id": "8336cc12-fe7c-50e2-b577-ce085f5abf0d",
           "class": "line",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {
-            "Order": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
-            "Product": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0"
+            "Order": "cba040d9-6647-59f4-8024-4dbc61ccb394",
+            "Product": "39f9aaba-f361-5796-ae74-76ef243e43cf"
           },
           "data": {
             "qty": 2,
@@ -335,20 +334,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.532516+00"
+          "at": "2026-11-10 20:18:39.749129+00"
         },
         {
-          "id": "78dbb446-b5b9-5308-a154-7af69a653b79",
+          "id": "401b3a80-88f3-5fa3-b890-133fb773dac6",
           "class": "Order",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
-            "Customer": "1ae30a19-480f-5c7f-98e3-12fee56b55f2"
+            "Shop": "da8c6633-3950-5a49-829b-a5bb96dd2304",
+            "Customer": "1a966ac2-03a0-588f-9b81-a3da5a4c6673"
           },
           "data": {
             "number": "A-2",
@@ -356,20 +355,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.548015+00"
+          "at": "2026-11-10 20:18:39.760393+00"
         },
         {
-          "id": "c2318e76-1d3d-59e7-a678-5be39e5e9aad",
+          "id": "7354c6dd-046c-5467-81b2-fe057be4d973",
           "class": "line",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {
-            "Order": "78dbb446-b5b9-5308-a154-7af69a653b79",
-            "Product": "f131b655-37ba-56ed-9572-de867c43ba2a"
+            "Order": "401b3a80-88f3-5fa3-b890-133fb773dac6",
+            "Product": "96a4d562-a012-5395-b8d8-7d321f026dc0"
           },
           "data": {
             "qty": 1,
@@ -377,10 +376,10 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.552265+00"
+          "at": "2026-11-10 20:18:39.765818+00"
         }
       ],
       "removed": [],
@@ -388,7 +387,6 @@
       "secret": [],
       "signals": [
         "Category",
-        "Class",
         "Customer",
         "Order",
         "Product",
@@ -400,8 +398,8 @@
     {
       "result": [
         {
-          "at": "2026-11-04T06:34:03.61864+00:00",
-          "id": "5e7e56ac-d1e8-5064-9bdb-c099c4b6c7c7",
+          "at": "2026-11-10T20:18:39.829913+00:00",
+          "id": "23d68ea5-0567-510a-b20d-1770554a5a90",
           "op": "update",
           "rev": 4,
           "data": {
@@ -415,26 +413,25 @@
           "tags": [],
           "class": "Product",
           "links": {
-            "Shop": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+            "Shop": "f5c1c198-a988-5ed3-a0cf-09f85224aa34",
             "Category": [
-              "1f88c837-a39c-5c94-802f-df6ce272198c",
-              "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5"
+              "14cf26a8-784a-5150-92e9-80f9263db3aa",
+              "7b50c720-29e7-574b-ab35-9c34fafae80a"
             ]
           },
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d"
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37"
         }
       ],
       "error": null,
       "entity": [
         {
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "id": "da8c6633-3950-5a49-829b-a5bb96dd2304",
           "class": "Shop",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {},
           "data": {
             "city": "Казань",
@@ -442,17 +439,17 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.39767+00"
+          "at": "2026-11-10 20:18:39.582487+00"
         },
         {
-          "id": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+          "id": "f5c1c198-a988-5ed3-a0cf-09f85224aa34",
           "class": "Shop",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {},
           "data": {
             "city": "Уфа",
@@ -460,74 +457,74 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.406503+00"
+          "at": "2026-11-10 20:18:39.594165+00"
         },
         {
-          "id": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac",
+          "id": "1f5d278a-b287-5453-a897-4c3d362066b9",
           "class": "Category",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {},
           "data": {
             "name": "Чай"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.413061+00"
+          "at": "2026-11-10 20:18:39.604365+00"
         },
         {
-          "id": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+          "id": "7b50c720-29e7-574b-ab35-9c34fafae80a",
           "class": "Category",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {
-            "Parent": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+            "Parent": "1f5d278a-b287-5453-a897-4c3d362066b9"
           },
           "data": {
             "name": "Зелёный чай"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.420715+00"
+          "at": "2026-11-10 20:18:39.614152+00"
         },
         {
-          "id": "1f88c837-a39c-5c94-802f-df6ce272198c",
+          "id": "14cf26a8-784a-5150-92e9-80f9263db3aa",
           "class": "Category",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {},
           "data": {
             "name": "Посуда"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.431989+00"
+          "at": "2026-11-10 20:18:39.631198+00"
         },
         {
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "id": "6390de4f-51b0-5963-b256-f01b01cf007c",
           "class": "Product",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Shop": "da8c6633-3950-5a49-829b-a5bb96dd2304",
             "Category": [
-              "1f88c837-a39c-5c94-802f-df6ce272198c"
+              "14cf26a8-784a-5150-92e9-80f9263db3aa"
             ]
           },
           "data": {
@@ -545,21 +542,21 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.44201+00"
+          "at": "2026-11-10 20:18:39.641861+00"
         },
         {
-          "id": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0",
+          "id": "39f9aaba-f361-5796-ae74-76ef243e43cf",
           "class": "Product",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Shop": "da8c6633-3950-5a49-829b-a5bb96dd2304",
             "Category": [
-              "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5"
+              "7b50c720-29e7-574b-ab35-9c34fafae80a"
             ]
           },
           "data": {
@@ -572,21 +569,21 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.453358+00"
+          "at": "2026-11-10 20:18:39.655745+00"
         },
         {
-          "id": "f131b655-37ba-56ed-9572-de867c43ba2a",
+          "id": "96a4d562-a012-5395-b8d8-7d321f026dc0",
           "class": "Product",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Shop": "da8c6633-3950-5a49-829b-a5bb96dd2304",
             "Category": [
-              "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+              "1f5d278a-b287-5453-a897-4c3d362066b9"
             ]
           },
           "data": {
@@ -596,22 +593,22 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.468763+00"
+          "at": "2026-11-10 20:18:39.666794+00"
         },
         {
-          "id": "5e7e56ac-d1e8-5064-9bdb-c099c4b6c7c7",
+          "id": "23d68ea5-0567-510a-b20d-1770554a5a90",
           "class": "Product",
           "rev": 4,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {
-            "Shop": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+            "Shop": "f5c1c198-a988-5ed3-a0cf-09f85224aa34",
             "Category": [
-              "1f88c837-a39c-5c94-802f-df6ce272198c",
-              "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5"
+              "14cf26a8-784a-5150-92e9-80f9263db3aa",
+              "7b50c720-29e7-574b-ab35-9c34fafae80a"
             ]
           },
           "data": {
@@ -624,17 +621,17 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.61864+00"
+          "at": "2026-11-10 20:18:39.829913+00"
         },
         {
-          "id": "e8acc93c-21f8-5995-9af6-0d6bb6f3abd2",
+          "id": "3f3a07a5-10d7-5793-9c4f-4388bb1e597d",
           "class": "Customer",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {},
           "data": {
             "name": "Ольга",
@@ -642,17 +639,17 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.492838+00"
+          "at": "2026-11-10 20:18:39.687769+00"
         },
         {
-          "id": "1ae30a19-480f-5c7f-98e3-12fee56b55f2",
+          "id": "1a966ac2-03a0-588f-9b81-a3da5a4c6673",
           "class": "Vip",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {},
           "data": {
             "name": "Иван",
@@ -661,20 +658,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.502278+00"
+          "at": "2026-11-10 20:18:39.697154+00"
         },
         {
-          "id": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
+          "id": "cba040d9-6647-59f4-8024-4dbc61ccb394",
           "class": "Order",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
-            "Customer": "e8acc93c-21f8-5995-9af6-0d6bb6f3abd2"
+            "Shop": "da8c6633-3950-5a49-829b-a5bb96dd2304",
+            "Customer": "3f3a07a5-10d7-5793-9c4f-4388bb1e597d"
           },
           "data": {
             "number": "A-1",
@@ -682,20 +679,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.51105+00"
+          "at": "2026-11-10 20:18:39.725184+00"
         },
         {
-          "id": "3dcabc48-7dc6-59da-a051-7bc9cdb97d99",
+          "id": "a9eaec6b-9839-5fe6-bc07-7e290c9e1745",
           "class": "line",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {
-            "Order": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
-            "Product": "099dcd72-c15a-5fe8-a95f-70da339186f0"
+            "Order": "cba040d9-6647-59f4-8024-4dbc61ccb394",
+            "Product": "6390de4f-51b0-5963-b256-f01b01cf007c"
           },
           "data": {
             "qty": 1,
@@ -703,20 +700,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.517737+00"
+          "at": "2026-11-10 20:18:39.738592+00"
         },
         {
-          "id": "fd3a3416-55d6-5445-bfbf-d33631bab515",
+          "id": "8336cc12-fe7c-50e2-b577-ce085f5abf0d",
           "class": "line",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {
-            "Order": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
-            "Product": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0"
+            "Order": "cba040d9-6647-59f4-8024-4dbc61ccb394",
+            "Product": "39f9aaba-f361-5796-ae74-76ef243e43cf"
           },
           "data": {
             "qty": 2,
@@ -724,20 +721,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.532516+00"
+          "at": "2026-11-10 20:18:39.749129+00"
         },
         {
-          "id": "78dbb446-b5b9-5308-a154-7af69a653b79",
+          "id": "401b3a80-88f3-5fa3-b890-133fb773dac6",
           "class": "Order",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
-            "Customer": "1ae30a19-480f-5c7f-98e3-12fee56b55f2"
+            "Shop": "da8c6633-3950-5a49-829b-a5bb96dd2304",
+            "Customer": "1a966ac2-03a0-588f-9b81-a3da5a4c6673"
           },
           "data": {
             "number": "A-2",
@@ -745,20 +742,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.548015+00"
+          "at": "2026-11-10 20:18:39.760393+00"
         },
         {
-          "id": "c2318e76-1d3d-59e7-a678-5be39e5e9aad",
+          "id": "7354c6dd-046c-5467-81b2-fe057be4d973",
           "class": "line",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {
-            "Order": "78dbb446-b5b9-5308-a154-7af69a653b79",
-            "Product": "f131b655-37ba-56ed-9572-de867c43ba2a"
+            "Order": "401b3a80-88f3-5fa3-b890-133fb773dac6",
+            "Product": "96a4d562-a012-5395-b8d8-7d321f026dc0"
           },
           "data": {
             "qty": 1,
@@ -766,10 +763,10 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.552265+00"
+          "at": "2026-11-10 20:18:39.765818+00"
         }
       ],
       "removed": [],
@@ -782,8 +779,8 @@
     {
       "result": [
         {
-          "at": "2026-11-04T06:34:03.65185+00:00",
-          "id": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+          "at": "2026-11-10T20:18:39.866088+00:00",
+          "id": "7b50c720-29e7-574b-ab35-9c34fafae80a",
           "op": "update",
           "rev": 2,
           "data": {
@@ -792,20 +789,19 @@
           "tags": [],
           "class": "Category",
           "links": {},
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d"
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37"
         }
       ],
       "error": null,
       "entity": [
         {
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "id": "da8c6633-3950-5a49-829b-a5bb96dd2304",
           "class": "Shop",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {},
           "data": {
             "city": "Казань",
@@ -813,17 +809,17 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.39767+00"
+          "at": "2026-11-10 20:18:39.582487+00"
         },
         {
-          "id": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+          "id": "f5c1c198-a988-5ed3-a0cf-09f85224aa34",
           "class": "Shop",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {},
           "data": {
             "city": "Уфа",
@@ -831,72 +827,72 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.406503+00"
+          "at": "2026-11-10 20:18:39.594165+00"
         },
         {
-          "id": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac",
+          "id": "1f5d278a-b287-5453-a897-4c3d362066b9",
           "class": "Category",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {},
           "data": {
             "name": "Чай"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.413061+00"
+          "at": "2026-11-10 20:18:39.604365+00"
         },
         {
-          "id": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+          "id": "7b50c720-29e7-574b-ab35-9c34fafae80a",
           "class": "Category",
           "rev": 2,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {},
           "data": {
             "name": "Зелёный чай"
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.65185+00"
+          "at": "2026-11-10 20:18:39.866088+00"
         },
         {
-          "id": "1f88c837-a39c-5c94-802f-df6ce272198c",
+          "id": "14cf26a8-784a-5150-92e9-80f9263db3aa",
           "class": "Category",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {},
           "data": {
             "name": "Посуда"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.431989+00"
+          "at": "2026-11-10 20:18:39.631198+00"
         },
         {
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "id": "6390de4f-51b0-5963-b256-f01b01cf007c",
           "class": "Product",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Shop": "da8c6633-3950-5a49-829b-a5bb96dd2304",
             "Category": [
-              "1f88c837-a39c-5c94-802f-df6ce272198c"
+              "14cf26a8-784a-5150-92e9-80f9263db3aa"
             ]
           },
           "data": {
@@ -914,21 +910,21 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.44201+00"
+          "at": "2026-11-10 20:18:39.641861+00"
         },
         {
-          "id": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0",
+          "id": "39f9aaba-f361-5796-ae74-76ef243e43cf",
           "class": "Product",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Shop": "da8c6633-3950-5a49-829b-a5bb96dd2304",
             "Category": [
-              "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5"
+              "7b50c720-29e7-574b-ab35-9c34fafae80a"
             ]
           },
           "data": {
@@ -941,21 +937,21 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.453358+00"
+          "at": "2026-11-10 20:18:39.655745+00"
         },
         {
-          "id": "f131b655-37ba-56ed-9572-de867c43ba2a",
+          "id": "96a4d562-a012-5395-b8d8-7d321f026dc0",
           "class": "Product",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Shop": "da8c6633-3950-5a49-829b-a5bb96dd2304",
             "Category": [
-              "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+              "1f5d278a-b287-5453-a897-4c3d362066b9"
             ]
           },
           "data": {
@@ -965,22 +961,22 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.468763+00"
+          "at": "2026-11-10 20:18:39.666794+00"
         },
         {
-          "id": "5e7e56ac-d1e8-5064-9bdb-c099c4b6c7c7",
+          "id": "23d68ea5-0567-510a-b20d-1770554a5a90",
           "class": "Product",
           "rev": 4,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {
-            "Shop": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+            "Shop": "f5c1c198-a988-5ed3-a0cf-09f85224aa34",
             "Category": [
-              "1f88c837-a39c-5c94-802f-df6ce272198c",
-              "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5"
+              "14cf26a8-784a-5150-92e9-80f9263db3aa",
+              "7b50c720-29e7-574b-ab35-9c34fafae80a"
             ]
           },
           "data": {
@@ -993,17 +989,17 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.61864+00"
+          "at": "2026-11-10 20:18:39.829913+00"
         },
         {
-          "id": "e8acc93c-21f8-5995-9af6-0d6bb6f3abd2",
+          "id": "3f3a07a5-10d7-5793-9c4f-4388bb1e597d",
           "class": "Customer",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {},
           "data": {
             "name": "Ольга",
@@ -1011,17 +1007,17 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.492838+00"
+          "at": "2026-11-10 20:18:39.687769+00"
         },
         {
-          "id": "1ae30a19-480f-5c7f-98e3-12fee56b55f2",
+          "id": "1a966ac2-03a0-588f-9b81-a3da5a4c6673",
           "class": "Vip",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {},
           "data": {
             "name": "Иван",
@@ -1030,20 +1026,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.502278+00"
+          "at": "2026-11-10 20:18:39.697154+00"
         },
         {
-          "id": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
+          "id": "cba040d9-6647-59f4-8024-4dbc61ccb394",
           "class": "Order",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
-            "Customer": "e8acc93c-21f8-5995-9af6-0d6bb6f3abd2"
+            "Shop": "da8c6633-3950-5a49-829b-a5bb96dd2304",
+            "Customer": "3f3a07a5-10d7-5793-9c4f-4388bb1e597d"
           },
           "data": {
             "number": "A-1",
@@ -1051,20 +1047,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.51105+00"
+          "at": "2026-11-10 20:18:39.725184+00"
         },
         {
-          "id": "3dcabc48-7dc6-59da-a051-7bc9cdb97d99",
+          "id": "a9eaec6b-9839-5fe6-bc07-7e290c9e1745",
           "class": "line",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {
-            "Order": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
-            "Product": "099dcd72-c15a-5fe8-a95f-70da339186f0"
+            "Order": "cba040d9-6647-59f4-8024-4dbc61ccb394",
+            "Product": "6390de4f-51b0-5963-b256-f01b01cf007c"
           },
           "data": {
             "qty": 1,
@@ -1072,20 +1068,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.517737+00"
+          "at": "2026-11-10 20:18:39.738592+00"
         },
         {
-          "id": "fd3a3416-55d6-5445-bfbf-d33631bab515",
+          "id": "8336cc12-fe7c-50e2-b577-ce085f5abf0d",
           "class": "line",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {
-            "Order": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
-            "Product": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0"
+            "Order": "cba040d9-6647-59f4-8024-4dbc61ccb394",
+            "Product": "39f9aaba-f361-5796-ae74-76ef243e43cf"
           },
           "data": {
             "qty": 2,
@@ -1093,20 +1089,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.532516+00"
+          "at": "2026-11-10 20:18:39.749129+00"
         },
         {
-          "id": "78dbb446-b5b9-5308-a154-7af69a653b79",
+          "id": "401b3a80-88f3-5fa3-b890-133fb773dac6",
           "class": "Order",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
-            "Customer": "1ae30a19-480f-5c7f-98e3-12fee56b55f2"
+            "Shop": "da8c6633-3950-5a49-829b-a5bb96dd2304",
+            "Customer": "1a966ac2-03a0-588f-9b81-a3da5a4c6673"
           },
           "data": {
             "number": "A-2",
@@ -1114,20 +1110,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.548015+00"
+          "at": "2026-11-10 20:18:39.760393+00"
         },
         {
-          "id": "c2318e76-1d3d-59e7-a678-5be39e5e9aad",
+          "id": "7354c6dd-046c-5467-81b2-fe057be4d973",
           "class": "line",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {
-            "Order": "78dbb446-b5b9-5308-a154-7af69a653b79",
-            "Product": "f131b655-37ba-56ed-9572-de867c43ba2a"
+            "Order": "401b3a80-88f3-5fa3-b890-133fb773dac6",
+            "Product": "96a4d562-a012-5395-b8d8-7d321f026dc0"
           },
           "data": {
             "qty": 1,
@@ -1135,10 +1131,10 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.552265+00"
+          "at": "2026-11-10 20:18:39.765818+00"
         }
       ],
       "removed": [],
@@ -1152,18 +1148,18 @@
       "result": {
         "await дал строки?": false,
         "категории через entity()": [
-          "Посуда",
-          "Зелёный чай"
+          "Зелёный чай",
+          "Посуда"
         ]
       },
       "error": null,
       "entity": [
         {
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "id": "da8c6633-3950-5a49-829b-a5bb96dd2304",
           "class": "Shop",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {},
           "data": {
             "city": "Казань",
@@ -1171,17 +1167,17 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.39767+00"
+          "at": "2026-11-10 20:18:39.582487+00"
         },
         {
-          "id": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+          "id": "f5c1c198-a988-5ed3-a0cf-09f85224aa34",
           "class": "Shop",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {},
           "data": {
             "city": "Уфа",
@@ -1189,72 +1185,72 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.406503+00"
+          "at": "2026-11-10 20:18:39.594165+00"
         },
         {
-          "id": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac",
+          "id": "1f5d278a-b287-5453-a897-4c3d362066b9",
           "class": "Category",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {},
           "data": {
             "name": "Чай"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.413061+00"
+          "at": "2026-11-10 20:18:39.604365+00"
         },
         {
-          "id": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+          "id": "7b50c720-29e7-574b-ab35-9c34fafae80a",
           "class": "Category",
           "rev": 2,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {},
           "data": {
             "name": "Зелёный чай"
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.65185+00"
+          "at": "2026-11-10 20:18:39.866088+00"
         },
         {
-          "id": "1f88c837-a39c-5c94-802f-df6ce272198c",
+          "id": "14cf26a8-784a-5150-92e9-80f9263db3aa",
           "class": "Category",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {},
           "data": {
             "name": "Посуда"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.431989+00"
+          "at": "2026-11-10 20:18:39.631198+00"
         },
         {
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "id": "6390de4f-51b0-5963-b256-f01b01cf007c",
           "class": "Product",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Shop": "da8c6633-3950-5a49-829b-a5bb96dd2304",
             "Category": [
-              "1f88c837-a39c-5c94-802f-df6ce272198c"
+              "14cf26a8-784a-5150-92e9-80f9263db3aa"
             ]
           },
           "data": {
@@ -1272,21 +1268,21 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.44201+00"
+          "at": "2026-11-10 20:18:39.641861+00"
         },
         {
-          "id": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0",
+          "id": "39f9aaba-f361-5796-ae74-76ef243e43cf",
           "class": "Product",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Shop": "da8c6633-3950-5a49-829b-a5bb96dd2304",
             "Category": [
-              "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5"
+              "7b50c720-29e7-574b-ab35-9c34fafae80a"
             ]
           },
           "data": {
@@ -1299,21 +1295,21 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.453358+00"
+          "at": "2026-11-10 20:18:39.655745+00"
         },
         {
-          "id": "f131b655-37ba-56ed-9572-de867c43ba2a",
+          "id": "96a4d562-a012-5395-b8d8-7d321f026dc0",
           "class": "Product",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Shop": "da8c6633-3950-5a49-829b-a5bb96dd2304",
             "Category": [
-              "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+              "1f5d278a-b287-5453-a897-4c3d362066b9"
             ]
           },
           "data": {
@@ -1323,22 +1319,22 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.468763+00"
+          "at": "2026-11-10 20:18:39.666794+00"
         },
         {
-          "id": "5e7e56ac-d1e8-5064-9bdb-c099c4b6c7c7",
+          "id": "23d68ea5-0567-510a-b20d-1770554a5a90",
           "class": "Product",
           "rev": 4,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {
-            "Shop": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+            "Shop": "f5c1c198-a988-5ed3-a0cf-09f85224aa34",
             "Category": [
-              "1f88c837-a39c-5c94-802f-df6ce272198c",
-              "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5"
+              "14cf26a8-784a-5150-92e9-80f9263db3aa",
+              "7b50c720-29e7-574b-ab35-9c34fafae80a"
             ]
           },
           "data": {
@@ -1351,17 +1347,17 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.61864+00"
+          "at": "2026-11-10 20:18:39.829913+00"
         },
         {
-          "id": "e8acc93c-21f8-5995-9af6-0d6bb6f3abd2",
+          "id": "3f3a07a5-10d7-5793-9c4f-4388bb1e597d",
           "class": "Customer",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {},
           "data": {
             "name": "Ольга",
@@ -1369,17 +1365,17 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.492838+00"
+          "at": "2026-11-10 20:18:39.687769+00"
         },
         {
-          "id": "1ae30a19-480f-5c7f-98e3-12fee56b55f2",
+          "id": "1a966ac2-03a0-588f-9b81-a3da5a4c6673",
           "class": "Vip",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {},
           "data": {
             "name": "Иван",
@@ -1388,20 +1384,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.502278+00"
+          "at": "2026-11-10 20:18:39.697154+00"
         },
         {
-          "id": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
+          "id": "cba040d9-6647-59f4-8024-4dbc61ccb394",
           "class": "Order",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
-            "Customer": "e8acc93c-21f8-5995-9af6-0d6bb6f3abd2"
+            "Shop": "da8c6633-3950-5a49-829b-a5bb96dd2304",
+            "Customer": "3f3a07a5-10d7-5793-9c4f-4388bb1e597d"
           },
           "data": {
             "number": "A-1",
@@ -1409,20 +1405,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.51105+00"
+          "at": "2026-11-10 20:18:39.725184+00"
         },
         {
-          "id": "3dcabc48-7dc6-59da-a051-7bc9cdb97d99",
+          "id": "a9eaec6b-9839-5fe6-bc07-7e290c9e1745",
           "class": "line",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {
-            "Order": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
-            "Product": "099dcd72-c15a-5fe8-a95f-70da339186f0"
+            "Order": "cba040d9-6647-59f4-8024-4dbc61ccb394",
+            "Product": "6390de4f-51b0-5963-b256-f01b01cf007c"
           },
           "data": {
             "qty": 1,
@@ -1430,20 +1426,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.517737+00"
+          "at": "2026-11-10 20:18:39.738592+00"
         },
         {
-          "id": "fd3a3416-55d6-5445-bfbf-d33631bab515",
+          "id": "8336cc12-fe7c-50e2-b577-ce085f5abf0d",
           "class": "line",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {
-            "Order": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
-            "Product": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0"
+            "Order": "cba040d9-6647-59f4-8024-4dbc61ccb394",
+            "Product": "39f9aaba-f361-5796-ae74-76ef243e43cf"
           },
           "data": {
             "qty": 2,
@@ -1451,20 +1447,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.532516+00"
+          "at": "2026-11-10 20:18:39.749129+00"
         },
         {
-          "id": "78dbb446-b5b9-5308-a154-7af69a653b79",
+          "id": "401b3a80-88f3-5fa3-b890-133fb773dac6",
           "class": "Order",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
-            "Customer": "1ae30a19-480f-5c7f-98e3-12fee56b55f2"
+            "Shop": "da8c6633-3950-5a49-829b-a5bb96dd2304",
+            "Customer": "1a966ac2-03a0-588f-9b81-a3da5a4c6673"
           },
           "data": {
             "number": "A-2",
@@ -1472,20 +1468,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.548015+00"
+          "at": "2026-11-10 20:18:39.760393+00"
         },
         {
-          "id": "c2318e76-1d3d-59e7-a678-5be39e5e9aad",
+          "id": "7354c6dd-046c-5467-81b2-fe057be4d973",
           "class": "line",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {
-            "Order": "78dbb446-b5b9-5308-a154-7af69a653b79",
-            "Product": "f131b655-37ba-56ed-9572-de867c43ba2a"
+            "Order": "401b3a80-88f3-5fa3-b890-133fb773dac6",
+            "Product": "96a4d562-a012-5395-b8d8-7d321f026dc0"
           },
           "data": {
             "qty": 1,
@@ -1493,10 +1489,10 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.552265+00"
+          "at": "2026-11-10 20:18:39.765818+00"
         }
       ],
       "removed": [],
@@ -1518,11 +1514,11 @@
       "error": null,
       "entity": [
         {
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "id": "da8c6633-3950-5a49-829b-a5bb96dd2304",
           "class": "Shop",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {},
           "data": {
             "city": "Казань",
@@ -1530,17 +1526,17 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.39767+00"
+          "at": "2026-11-10 20:18:39.582487+00"
         },
         {
-          "id": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+          "id": "f5c1c198-a988-5ed3-a0cf-09f85224aa34",
           "class": "Shop",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {},
           "data": {
             "city": "Уфа",
@@ -1548,72 +1544,72 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.406503+00"
+          "at": "2026-11-10 20:18:39.594165+00"
         },
         {
-          "id": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac",
+          "id": "1f5d278a-b287-5453-a897-4c3d362066b9",
           "class": "Category",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {},
           "data": {
             "name": "Чай"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.413061+00"
+          "at": "2026-11-10 20:18:39.604365+00"
         },
         {
-          "id": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+          "id": "7b50c720-29e7-574b-ab35-9c34fafae80a",
           "class": "Category",
           "rev": 2,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {},
           "data": {
             "name": "Зелёный чай"
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.65185+00"
+          "at": "2026-11-10 20:18:39.866088+00"
         },
         {
-          "id": "1f88c837-a39c-5c94-802f-df6ce272198c",
+          "id": "14cf26a8-784a-5150-92e9-80f9263db3aa",
           "class": "Category",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {},
           "data": {
             "name": "Посуда"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.431989+00"
+          "at": "2026-11-10 20:18:39.631198+00"
         },
         {
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "id": "6390de4f-51b0-5963-b256-f01b01cf007c",
           "class": "Product",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Shop": "da8c6633-3950-5a49-829b-a5bb96dd2304",
             "Category": [
-              "1f88c837-a39c-5c94-802f-df6ce272198c"
+              "14cf26a8-784a-5150-92e9-80f9263db3aa"
             ]
           },
           "data": {
@@ -1631,21 +1627,21 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.44201+00"
+          "at": "2026-11-10 20:18:39.641861+00"
         },
         {
-          "id": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0",
+          "id": "39f9aaba-f361-5796-ae74-76ef243e43cf",
           "class": "Product",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Shop": "da8c6633-3950-5a49-829b-a5bb96dd2304",
             "Category": [
-              "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5"
+              "7b50c720-29e7-574b-ab35-9c34fafae80a"
             ]
           },
           "data": {
@@ -1658,21 +1654,21 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.453358+00"
+          "at": "2026-11-10 20:18:39.655745+00"
         },
         {
-          "id": "f131b655-37ba-56ed-9572-de867c43ba2a",
+          "id": "96a4d562-a012-5395-b8d8-7d321f026dc0",
           "class": "Product",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Shop": "da8c6633-3950-5a49-829b-a5bb96dd2304",
             "Category": [
-              "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+              "1f5d278a-b287-5453-a897-4c3d362066b9"
             ]
           },
           "data": {
@@ -1682,22 +1678,22 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.468763+00"
+          "at": "2026-11-10 20:18:39.666794+00"
         },
         {
-          "id": "5e7e56ac-d1e8-5064-9bdb-c099c4b6c7c7",
+          "id": "23d68ea5-0567-510a-b20d-1770554a5a90",
           "class": "Product",
           "rev": 4,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {
-            "Shop": "f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6",
+            "Shop": "f5c1c198-a988-5ed3-a0cf-09f85224aa34",
             "Category": [
-              "1f88c837-a39c-5c94-802f-df6ce272198c",
-              "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5"
+              "14cf26a8-784a-5150-92e9-80f9263db3aa",
+              "7b50c720-29e7-574b-ab35-9c34fafae80a"
             ]
           },
           "data": {
@@ -1710,17 +1706,17 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.61864+00"
+          "at": "2026-11-10 20:18:39.829913+00"
         },
         {
-          "id": "e8acc93c-21f8-5995-9af6-0d6bb6f3abd2",
+          "id": "3f3a07a5-10d7-5793-9c4f-4388bb1e597d",
           "class": "Customer",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {},
           "data": {
             "name": "Ольга",
@@ -1728,17 +1724,17 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.492838+00"
+          "at": "2026-11-10 20:18:39.687769+00"
         },
         {
-          "id": "1ae30a19-480f-5c7f-98e3-12fee56b55f2",
+          "id": "1a966ac2-03a0-588f-9b81-a3da5a4c6673",
           "class": "Vip",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {},
           "data": {
             "name": "Иван",
@@ -1747,20 +1743,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.502278+00"
+          "at": "2026-11-10 20:18:39.697154+00"
         },
         {
-          "id": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
+          "id": "cba040d9-6647-59f4-8024-4dbc61ccb394",
           "class": "Order",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
-            "Customer": "e8acc93c-21f8-5995-9af6-0d6bb6f3abd2"
+            "Shop": "da8c6633-3950-5a49-829b-a5bb96dd2304",
+            "Customer": "3f3a07a5-10d7-5793-9c4f-4388bb1e597d"
           },
           "data": {
             "number": "A-1",
@@ -1768,20 +1764,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.51105+00"
+          "at": "2026-11-10 20:18:39.725184+00"
         },
         {
-          "id": "3dcabc48-7dc6-59da-a051-7bc9cdb97d99",
+          "id": "a9eaec6b-9839-5fe6-bc07-7e290c9e1745",
           "class": "line",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {
-            "Order": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
-            "Product": "099dcd72-c15a-5fe8-a95f-70da339186f0"
+            "Order": "cba040d9-6647-59f4-8024-4dbc61ccb394",
+            "Product": "6390de4f-51b0-5963-b256-f01b01cf007c"
           },
           "data": {
             "qty": 1,
@@ -1789,20 +1785,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.517737+00"
+          "at": "2026-11-10 20:18:39.738592+00"
         },
         {
-          "id": "fd3a3416-55d6-5445-bfbf-d33631bab515",
+          "id": "8336cc12-fe7c-50e2-b577-ce085f5abf0d",
           "class": "line",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {
-            "Order": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
-            "Product": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0"
+            "Order": "cba040d9-6647-59f4-8024-4dbc61ccb394",
+            "Product": "39f9aaba-f361-5796-ae74-76ef243e43cf"
           },
           "data": {
             "qty": 2,
@@ -1810,20 +1806,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.532516+00"
+          "at": "2026-11-10 20:18:39.749129+00"
         },
         {
-          "id": "78dbb446-b5b9-5308-a154-7af69a653b79",
+          "id": "401b3a80-88f3-5fa3-b890-133fb773dac6",
           "class": "Order",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
-            "Customer": "1ae30a19-480f-5c7f-98e3-12fee56b55f2"
+            "Shop": "da8c6633-3950-5a49-829b-a5bb96dd2304",
+            "Customer": "1a966ac2-03a0-588f-9b81-a3da5a4c6673"
           },
           "data": {
             "number": "A-2",
@@ -1831,20 +1827,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.548015+00"
+          "at": "2026-11-10 20:18:39.760393+00"
         },
         {
-          "id": "c2318e76-1d3d-59e7-a678-5be39e5e9aad",
+          "id": "7354c6dd-046c-5467-81b2-fe057be4d973",
           "class": "line",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "665a1fab-4238-5002-848d-83a9b895ea37",
+          "owner": "665a1fab-4238-5002-848d-83a9b895ea37",
           "links": {
-            "Order": "78dbb446-b5b9-5308-a154-7af69a653b79",
-            "Product": "f131b655-37ba-56ed-9572-de867c43ba2a"
+            "Order": "401b3a80-88f3-5fa3-b890-133fb773dac6",
+            "Product": "96a4d562-a012-5395-b8d8-7d321f026dc0"
           },
           "data": {
             "qty": 1,
@@ -1852,10 +1848,10 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "3b6ef5e3-c4ee-5e50-8c46-83e28778e20d",
+          "author": "637370ab-d09c-533d-85a6-4a055d84f1d1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 06:34:03.552265+00"
+          "at": "2026-11-10 20:18:39.765818+00"
         }
       ],
       "removed": [],
@@ -1864,6 +1860,6 @@
       "signals": []
     }
   ],
-  "output": "Шаг 1. Кружке — две категории (множественный конец)\n[\n  {\n    \"at\": \"2026-11-04T06:34:05.799726+00:00\",\n    \"id\": \"5e7e56ac-d1e8-5064-9bdb-c099c4b6c7c7\",\n    \"op\": \"update\",\n    \"rev\": 3,\n    \"data\": {\n      \"sku\": \"M-1\",\n      \"price\": 400,\n      \"title\": \"Кружка\",\n      \"labels\": [\n        \"стекло\"\n      ]\n    },\n    \"tags\": [],\n    \"class\": \"Product\",\n    \"links\": {\n      \"Shop\": \"f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6\",\n      \"Category\": [\n        \"1f88c837-a39c-5c94-802f-df6ce272198c\",\n        \"fe5cdf89-ba6f-5806-9ce1-c59e102020ac\",\n        \"e8d0eb60-d5ca-530b-aa99-0d4fba4313e5\"\n      ]\n    },\n    \"owner\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n    \"author\": \"3defbabb-a94d-5359-8463-dc947de193e1\",\n    \"tenant\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n    \"agent\": \"85d9ee38-e6d2-5154-90d7-d7e39a1db5ab\"\n  }\n]\n\nШаг 2. Убрать одну категорию\n[\n  {\n    \"at\": \"2026-11-04T06:34:05.816018+00:00\",\n    \"id\": \"5e7e56ac-d1e8-5064-9bdb-c099c4b6c7c7\",\n    \"op\": \"update\",\n    \"rev\": 4,\n    \"data\": {\n      \"sku\": \"M-1\",\n      \"price\": 400,\n      \"title\": \"Кружка\",\n      \"labels\": [\n        \"стекло\"\n      ]\n    },\n    \"tags\": [],\n    \"class\": \"Product\",\n    \"links\": {\n      \"Shop\": \"f8e8aa5b-cf25-5398-8d41-4d38ccfb45c6\",\n      \"Category\": [\n        \"1f88c837-a39c-5c94-802f-df6ce272198c\",\n        \"e8d0eb60-d5ca-530b-aa99-0d4fba4313e5\"\n      ]\n    },\n    \"owner\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n    \"author\": \"3defbabb-a94d-5359-8463-dc947de193e1\",\n    \"tenant\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n    \"agent\": \"85d9ee38-e6d2-5154-90d7-d7e39a1db5ab\"\n  }\n]\n\nШаг 3. Одиночный конец: set и unset\n[\n  {\n    \"at\": \"2026-11-04T06:34:05.840292+00:00\",\n    \"id\": \"e8d0eb60-d5ca-530b-aa99-0d4fba4313e5\",\n    \"op\": \"update\",\n    \"rev\": 2,\n    \"data\": {\n      \"name\": \"Зелёный чай\"\n    },\n    \"tags\": [],\n    \"class\": \"Category\",\n    \"links\": {},\n    \"owner\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n    \"author\": \"3defbabb-a94d-5359-8463-dc947de193e1\",\n    \"tenant\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n    \"agent\": \"85d9ee38-e6d2-5154-90d7-d7e39a1db5ab\"\n  }\n]\n\nШаг 4. await цепочки — не запрос; продолжение с готовой строки\n{\n  \"await дал строки?\": false,\n  \"категории через entity()\": [\n    \"Посуда\",\n    \"Зелёный чай\"\n  ]\n}\n\nШаг 5. Кэш результатов и описание класса\n{\n  \"повтор из кэша\": \"да\",\n  \"поля Product\": [\n    \"sku\",\n    \"price\",\n    \"specs\",\n    \"title\"\n  ],\n  \"cache\": null\n}",
+  "output": "Шаг 1. Кружке — две категории (множественный конец)\n[\n  {\n    \"at\": \"2026-11-10T20:18:41.962642+00:00\",\n    \"id\": \"2d1f5d6f-bd1f-5941-a895-b7504d3baf93\",\n    \"op\": \"update\",\n    \"rev\": 3,\n    \"data\": {\n      \"sku\": \"M-1\",\n      \"price\": 400,\n      \"title\": \"Кружка\",\n      \"labels\": [\n        \"стекло\"\n      ]\n    },\n    \"tags\": [],\n    \"class\": \"Product\",\n    \"links\": {\n      \"Shop\": \"d3fb4740-df45-5602-8e49-3bd2b232b150\",\n      \"Category\": [\n        \"7128712e-2575-517b-855c-08963f43d7d3\",\n        \"11b8d19a-59ab-5a13-9eef-e17532c5e759\",\n        \"433104b0-e9ff-53c7-8a38-32ec9b8fdc38\"\n      ]\n    },\n    \"owner\": \"5aae4daa-eb2b-53e2-bcf7-3848698e6eed\",\n    \"author\": \"2892d1c8-520e-5b9b-90ab-ca98a5fbcd79\",\n    \"tenant\": \"5aae4daa-eb2b-53e2-bcf7-3848698e6eed\"\n  }\n]\n\nШаг 2. Убрать одну категорию\n[\n  {\n    \"at\": \"2026-11-10T20:18:41.979934+00:00\",\n    \"id\": \"2d1f5d6f-bd1f-5941-a895-b7504d3baf93\",\n    \"op\": \"update\",\n    \"rev\": 4,\n    \"data\": {\n      \"sku\": \"M-1\",\n      \"price\": 400,\n      \"title\": \"Кружка\",\n      \"labels\": [\n        \"стекло\"\n      ]\n    },\n    \"tags\": [],\n    \"class\": \"Product\",\n    \"links\": {\n      \"Shop\": \"d3fb4740-df45-5602-8e49-3bd2b232b150\",\n      \"Category\": [\n        \"7128712e-2575-517b-855c-08963f43d7d3\",\n        \"433104b0-e9ff-53c7-8a38-32ec9b8fdc38\"\n      ]\n    },\n    \"owner\": \"5aae4daa-eb2b-53e2-bcf7-3848698e6eed\",\n    \"author\": \"2892d1c8-520e-5b9b-90ab-ca98a5fbcd79\",\n    \"tenant\": \"5aae4daa-eb2b-53e2-bcf7-3848698e6eed\"\n  }\n]\n\nШаг 3. Одиночный конец: set и unset\n[\n  {\n    \"at\": \"2026-11-10T20:18:42.034642+00:00\",\n    \"id\": \"433104b0-e9ff-53c7-8a38-32ec9b8fdc38\",\n    \"op\": \"update\",\n    \"rev\": 2,\n    \"data\": {\n      \"name\": \"Зелёный чай\"\n    },\n    \"tags\": [],\n    \"class\": \"Category\",\n    \"links\": {},\n    \"owner\": \"5aae4daa-eb2b-53e2-bcf7-3848698e6eed\",\n    \"author\": \"2892d1c8-520e-5b9b-90ab-ca98a5fbcd79\",\n    \"tenant\": \"5aae4daa-eb2b-53e2-bcf7-3848698e6eed\"\n  }\n]\n\nШаг 4. await цепочки — не запрос; продолжение с готовой строки\n{\n  \"await дал строки?\": false,\n  \"категории через entity()\": [\n    \"Зелёный чай\",\n    \"Посуда\"\n  ]\n}\n\nШаг 5. Кэш результатов и описание класса\n{\n  \"повтор из кэша\": \"да\",\n  \"поля Product\": [\n    \"sku\",\n    \"price\",\n    \"specs\",\n    \"title\"\n  ],\n  \"cache\": null\n}",
   "exitCode": 0
 }

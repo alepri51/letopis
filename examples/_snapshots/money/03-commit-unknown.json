@@ -13,12 +13,12 @@
   },
   "steps": [
     {
-      "title": "Кошелёк на 1000 и подключение через прокси",
-      "text": "Прокси пропускает трафик к базе, пока его не «взведут». Пул через прокси — с `prepare: false`, чтобы прокси узнал COMMIT по тексту запроса.",
-      "code": "await syncModels(db, [Wallet, Movement], { apply: true });\n[wallet] = await db.Wallet().create({ number: 'W-1', balance: 1000 }).rows();\nconst url = new URL(dsn.app);\nproxy = await commitProxy(Number(url.port || 5432), url.hostname === 'localhost' ? '127.0.0.1' : url.hostname);\nurl.hostname = '127.0.0.1';\nurl.port = String(proxy.port);\npool = postgres(url.toString(), { max: 1, prepare: false, onnotice: () => {} });\ncut = await connect({ sql: pool as never, schema, token: up.tenant!.token!, listen: false, refreshSession: false });\nreturn { 'баланс': (await cut.Wallet(wallet).first())!.data.balance };",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> syncModels</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, [Wallet, Movement], { apply: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">[wallet] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Wallet</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ number: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'W-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, balance: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1000</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> url</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> new</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> URL</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(dsn.app);</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">proxy </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> commitProxy</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Number</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(url.port </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">||</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> 5432</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">), url.hostname </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">===</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'localhost'</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> ?</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> '127.0.0.1'</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> :</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> url.hostname);</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">url.hostname </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> '127.0.0.1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">url.port </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> String</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(proxy.port);</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">pool </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> postgres</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(url.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">toString</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(), { max: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, prepare: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">false</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">onnotice</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: () </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {} });</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">cut </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> connect</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ sql: pool </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">as</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> never</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, schema, token: up.tenant</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.token</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, listen: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">false</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, refreshSession: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">false</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'баланс'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> cut.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Wallet</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(wallet).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">first</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">())</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.data.balance };</span></span></code></pre>",
+      "title": "Кошелёк на 1000 и второй консьерж через прокси",
+      "text": "Прокси пропускает трафик к базе, пока его не «взведут». Пропуск — строка подключения: в его копии хост и порт базы заменены портом прокси, и `connect()` с ней — второй консьерж, все запросы которого идут через прокси (`max: 1` — одно соединение, `listen: false` — без канала сигналов). Анна входит через него по своему ключу: `cut` — её корень квартиры за прокси. COMMIT letopis шлёт простым текстовым запросом, поэтому прокси узнаёт его по тексту.",
+      "code": "[wallet] = await me.Wallet().create({ number: 'W-1', balance: 1000 }).rows();\nconst url = new URL(pass);\nproxy = await commitProxy(Number(url.port || 5432), url.hostname === 'localhost' ? '127.0.0.1' : url.hostname);\nurl.hostname = '127.0.0.1';\nurl.port = String(proxy.port); // тот же пропуск — через прокси\nhouse = await connect(url.toString(), { max: 1, listen: false });\ncut = await house.open(annaKey);\nreturn { 'баланс через прокси': (await cut.Wallet(wallet).first())!.data.balance };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">[wallet] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Wallet</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ number: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'W-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, balance: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1000</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> url</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> new</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> URL</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(pass);</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">proxy </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> commitProxy</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Number</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(url.port </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">||</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> 5432</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">), url.hostname </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">===</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'localhost'</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> ?</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> '127.0.0.1'</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> :</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> url.hostname);</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">url.hostname </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> '127.0.0.1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">url.port </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> String</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(proxy.port); </span><span style=\"color:#6A737D;--shiki-dark:#6A737D\">// тот же пропуск — через прокси</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">house </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> connect</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(url.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">toString</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(), { max: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, listen: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">false</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">cut </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> house.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">open</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(annaKey);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'баланс через прокси'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> cut.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Wallet</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(wallet).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">first</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">())</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.data.balance };</span></span></code></pre>",
       "result": {
-        "баланс": 1000
+        "баланс через прокси": 1000
       },
       "error": null,
       "entity": [
@@ -36,9 +36,9 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
-          "at": "t1",
+          "at": "шаг 1",
           "$changed": [
             "*"
           ]
@@ -49,7 +49,6 @@
       "secret": [],
       "counts": null,
       "signals": [
-        "Class",
         "Wallet"
       ]
     },
@@ -80,9 +79,9 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
-          "at": "t1",
+          "at": "шаг 1",
           "$changed": []
         }
       ],
@@ -94,9 +93,9 @@
     },
     {
       "title": "Повтор той же операции: «проведено» — значит, в первый раз не записалось",
-      "text": null,
-      "code": "const before = await state(db, 'op-2');\nreturn { 'до повтора': before, 'повтор': await apply(db, 'op-2', 300), 'после повтора': await state(db, 'op-2') };",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> before</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> state</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'op-2'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'до повтора'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: before, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'повтор'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> apply</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'op-2'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">300</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">), </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'после повтора'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> state</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'op-2'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) };</span></span></code></pre>",
+      "text": "Повтор идёт напрямую, через `me`. Повторяют ту же операцию с тем же ключом `op-2` — запись `Movement` и приращение одной транзакцией: ключ не даст записать её второй раз.",
+      "code": "const before = await state(me, 'op-2');\nreturn { 'до повтора': before, 'повтор': await apply(me, 'op-2', 300), 'после повтора': await state(me, 'op-2') };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> before</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> state</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(me, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'op-2'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'до повтора'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: before, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'повтор'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> apply</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(me, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'op-2'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">300</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">), </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'после повтора'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> state</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(me, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'op-2'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) };</span></span></code></pre>",
       "result": {
         "до повтора": {
           "операция op-2 в базе": false,
@@ -124,9 +123,9 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "debit op-2",
-          "at": "t3",
+          "at": "шаг 3",
           "$changed": [
             "rev",
             "data.balance",
@@ -152,9 +151,9 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "debit op-2",
-          "at": "t2",
+          "at": "шаг 3",
           "$changed": [
             "*"
           ]
@@ -198,11 +197,10 @@
           "author": "Анна",
           "agent": null,
           "reason": "debit op-3",
-          "at": "t5",
+          "at": "шаг 4",
           "$changed": [
             "rev",
             "data.balance",
-            "agent",
             "reason",
             "at"
           ]
@@ -224,9 +222,9 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "debit op-2",
-          "at": "t2",
+          "at": "шаг 3",
           "$changed": []
         },
         {
@@ -248,7 +246,7 @@
           "author": "Анна",
           "agent": null,
           "reason": "debit op-3",
-          "at": "t4",
+          "at": "шаг 4",
           "$changed": [
             "*"
           ]
@@ -262,9 +260,9 @@
     },
     {
       "title": "Повтор той же операции: «уже было» — значит, записалось",
-      "text": "Повтор `op-3` база отклоняет как `exists`: операция уже есть, и деньги не спишутся второй раз.",
-      "code": "const before = await state(db, 'op-3');\nconst again = await apply(db, 'op-3', 200);\nreturn { 'до повтора': before, 'повтор': again, 'после повтора': await state(db, 'op-3') };",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> before</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> state</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'op-3'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> again</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> apply</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'op-3'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">200</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'до повтора'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: before, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'повтор'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: again, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'после повтора'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> state</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'op-3'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) };</span></span></code></pre>",
+      "text": "Повтор `op-3` база отклоняет как `exists`: операция уже есть, и деньги не спишутся второй раз. Голый `inc(-200)` без ключа операции повторять нельзя: он списал бы ещё 200.",
+      "code": "const before = await state(me, 'op-3');\nconst again = await apply(me, 'op-3', 200);\nreturn { 'до повтора': before, 'повтор': again, 'после повтора': await state(me, 'op-3') };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> before</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> state</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(me, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'op-3'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> again</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> apply</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(me, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'op-3'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">200</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'до повтора'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: before, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'повтор'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: again, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'после повтора'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> state</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(me, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'op-3'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) };</span></span></code></pre>",
       "result": {
         "до повтора": {
           "операция op-3 в базе": true,
@@ -294,7 +292,7 @@
           "author": "Анна",
           "agent": null,
           "reason": "debit op-3",
-          "at": "t5",
+          "at": "шаг 4",
           "$changed": []
         },
         {
@@ -314,9 +312,9 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "debit op-2",
-          "at": "t2",
+          "at": "шаг 3",
           "$changed": []
         },
         {
@@ -338,7 +336,7 @@
           "author": "Анна",
           "agent": null,
           "reason": "debit op-3",
-          "at": "t4",
+          "at": "шаг 4",
           "$changed": []
         }
       ],
@@ -349,5 +347,5 @@
       "signals": []
     }
   ],
-  "output": "Шаг 1. Кошелёк на 1000 и подключение через прокси\n{\n  \"баланс\": 1000\n}\n\nШаг 2. Связь оборвалась до COMMIT\nотказ, как и задумано: letopis: commit_unknown: связь оборвалась во время commit: транзакция могла зафиксироваться — проверьте исход повтором той же операции с тем же ключом\n\nШаг 3. Повтор той же операции: «проведено» — значит, в первый раз не записалось\n{\n  \"до повтора\": {\n    \"операция op-2 в базе\": false,\n    \"баланс\": 1000\n  },\n  \"повтор\": \"проведено\",\n  \"после повтора\": {\n    \"операция op-2 в базе\": true,\n    \"баланс\": 700\n  }\n}\n\nШаг 4. Связь оборвалась после COMMIT\nотказ, как и задумано: letopis: commit_unknown: связь оборвалась во время commit: транзакция могла зафиксироваться — проверьте исход повтором той же операции с тем же ключом\n\nШаг 5. Повтор той же операции: «уже было» — значит, записалось\n{\n  \"до повтора\": {\n    \"операция op-3 в базе\": true,\n    \"баланс\": 500\n  },\n  \"повтор\": \"уже было\",\n  \"после повтора\": {\n    \"операция op-3 в базе\": true,\n    \"баланс\": 500\n  }\n}"
+  "output": "Шаг 1. Кошелёк на 1000 и второй консьерж через прокси\n{\n  \"баланс через прокси\": 1000\n}\n\nШаг 2. Связь оборвалась до COMMIT\nотказ, как и задумано: letopis: commit_unknown: связь оборвалась во время commit: транзакция могла зафиксироваться — проверьте исход повтором той же операции с тем же ключом\n\nШаг 3. Повтор той же операции: «проведено» — значит, в первый раз не записалось\n{\n  \"до повтора\": {\n    \"операция op-2 в базе\": false,\n    \"баланс\": 1000\n  },\n  \"повтор\": \"проведено\",\n  \"после повтора\": {\n    \"операция op-2 в базе\": true,\n    \"баланс\": 700\n  }\n}\n\nШаг 4. Связь оборвалась после COMMIT\nотказ, как и задумано: letopis: commit_unknown: связь оборвалась во время commit: транзакция могла зафиксироваться — проверьте исход повтором той же операции с тем же ключом\n\nШаг 5. Повтор той же операции: «уже было» — значит, записалось\n{\n  \"до повтора\": {\n    \"операция op-3 в базе\": true,\n    \"баланс\": 500\n  },\n  \"повтор\": \"уже было\",\n  \"после повтора\": {\n    \"операция op-3 в базе\": true,\n    \"баланс\": 500\n  }\n}"
 }

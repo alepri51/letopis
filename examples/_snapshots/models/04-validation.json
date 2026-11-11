@@ -1,7 +1,7 @@
 {
   "id": "models/04-validation",
   "title": "Проверка данных: база не примет неправильное",
-  "summary": "Модель превращается в JSON Schema, и каждую запись проверяет сама база — даже запись прямым SQL-запросом. Значения по умолчанию подставляет база. Новое обязательное поле ужесточает модель: база проверит, подходят ли под неё старые строки.",
+  "summary": "Модель превращается в JSON Schema, и каждую запись проверяет сама база — даже запись прямым SQL-запросом. Значения по умолчанию подставляет база. Новое обязательное поле ужесточает модель: база проверит, подходят ли под неё старые строки всех квартир дома.",
   "tables": [
     "entity",
     "log"
@@ -14,28 +14,10 @@
   },
   "steps": [
     {
-      "title": "Класс «Товар»",
-      "text": null,
-      "code": "(await syncModels(db, [Product], { apply: true })).created",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> syncModels</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, [Product], { apply: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> })).created</span></span></code></pre>",
-      "result": [
-        "Product"
-      ],
-      "error": null,
-      "entity": [],
-      "removed": [],
-      "log": [],
-      "secret": [],
-      "counts": null,
-      "signals": [
-        "Class"
-      ]
-    },
-    {
       "title": "Значение по умолчанию подставляет база",
       "text": "Поле `status` не передали — база подставила `draft` из `.default()` модели.",
-      "code": "db.Product().create({ title: 'Чайник', price: 2500 }).rows()",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Чайник'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">2500</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
+      "code": "me.Product().create({ title: 'Чайник', price: 2500 }).rows()",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Чайник'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">2500</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
       "result": [
         {
           "at": "t1",
@@ -52,8 +34,7 @@
           "links": {},
           "owner": "Ромашка",
           "author": "Анна",
-          "tenant": "Ромашка",
-          "agent": "service"
+          "tenant": "Ромашка"
         }
       ],
       "error": null,
@@ -73,7 +54,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$changed": [
@@ -84,7 +65,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "35",
+          "seq": "42",
           "id": "Product «Чайник»",
           "rev": 1,
           "class": "Product",
@@ -98,7 +79,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": true
@@ -113,8 +94,8 @@
     {
       "title": "Отрицательная цена — отказ",
       "text": "Цена по модели — целое число не меньше 0. Строка с `-1` в базу не попадёт: `invalid_data`, данные не изменились.",
-      "code": "db.Product().create({ title: 'Кружка', price: -1 }).rows()",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Кружка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">-</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
+      "code": "me.Product().create({ title: 'Кружка', price: -1 }).rows()",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Кружка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">-</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()</span></span></code></pre>",
       "result": null,
       "error": {
         "code": "invalid_data",
@@ -146,7 +127,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$changed": []
@@ -155,7 +136,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "35",
+          "seq": "42",
           "id": "Product «Чайник»",
           "rev": 1,
           "class": "Product",
@@ -169,7 +150,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": false
@@ -181,22 +162,16 @@
     },
     {
       "title": "Новое обязательное поле — ужесточение",
-      "text": "У «Чайника» нет поля `sku`, а модель теперь требует его. Такое изменение — ужесточение: старые данные могут под него не подойти. База проверяет все строки класса и отвечает `tightening_conflict` со списком строк, которые не подходят. Описание класса не изменилось.",
-      "code": "syncModels(db, [ProductV2], { apply: true })",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">syncModels</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, [ProductV2], { apply: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> })</span></span></code></pre>",
+      "text": "Модель дома правит тот же `setup(ADMIN_DSN, name, { models })`. У «Чайника» нет поля `sku`, а модель теперь требует его. Такое изменение — ужесточение: старые данные могут под него не подойти. База проверяет все строки класса во всех квартирах и отвечает `tightening_conflict` со списком строк, которые не подходят. Описание класса не изменилось.",
+      "code": "setup(ADMIN_DSN, name, { models: [ProductV2], quiet: true })",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">setup</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">ADMIN_DSN</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, name, { models: [ProductV2], quiet: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> })</span></span></code></pre>",
       "result": null,
       "error": {
         "code": "tightening_conflict",
         "message": "letopis: tightening_conflict: новому описанию класса Product не соответствуют строки",
         "detail": {
-          "rows": [
-            {
-              "id": "Product «Чайник»",
-              "class": "Product",
-              "problem": "данные: [{\"path\": [\"sku\"], \"keyword\": \"required\", \"message\": \"нарушено правило required\"}]"
-            }
-          ],
-          "others": 0
+          "rows": [],
+          "others": 1
         },
         "expected": true
       },
@@ -216,7 +191,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$changed": []
@@ -225,7 +200,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "35",
+          "seq": "42",
           "id": "Product «Чайник»",
           "rev": 1,
           "class": "Product",
@@ -239,7 +214,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": false
@@ -252,8 +227,8 @@
     {
       "title": "Необязательное поле — безопасно",
       "text": "Новое необязательное поле старым строкам не мешает — изменение применяется сразу (`updated`).",
-      "code": "const r = await syncModels(db, [ProductV3], { apply: true });\nreturn { updated: r.updated };",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> r</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> syncModels</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, [ProductV3], { apply: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { updated: r.updated };</span></span></code></pre>",
+      "code": "const r = await setup(ADMIN_DSN, name, { models: [ProductV3], quiet: true });\nreturn { updated: r.models!.updated };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> r</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> setup</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">ADMIN_DSN</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, name, { models: [ProductV3], quiet: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { updated: r.models</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.updated };</span></span></code></pre>",
       "result": {
         "updated": [
           "Product"
@@ -276,7 +251,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$changed": []
@@ -285,7 +260,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "35",
+          "seq": "42",
           "id": "Product «Чайник»",
           "rev": 1,
           "class": "Product",
@@ -299,7 +274,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": false
@@ -313,9 +288,9 @@
     },
     {
       "title": "Проверки refine база не выполняет",
-      "text": "`refine` и `superRefine` в JSON Schema не выражаются. `syncModels` не теряет их молча: возвращает в `lost`. Такие проверки выполняйте в приложении.",
-      "code": "const r = await syncModels(db, [Coupon], { apply: true });\nreturn { created: r.created, lost: r.lost };",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> r</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> syncModels</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, [Coupon], { apply: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { created: r.created, lost: r.lost };</span></span></code></pre>",
+      "text": "`refine` и `superRefine` в JSON Schema не выражаются. `setup` (как и `syncModels`) не теряет их молча: возвращает в `r.models.lost`. Такие проверки выполняйте в приложении.",
+      "code": "const r = await setup(ADMIN_DSN, name, { models: [Coupon], quiet: true });\nreturn { created: r.models!.created, lost: r.models!.lost };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> r</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> setup</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">ADMIN_DSN</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, name, { models: [Coupon], quiet: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { created: r.models</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.created, lost: r.models</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.lost };</span></span></code></pre>",
       "result": {
         "created": [
           "Coupon"
@@ -344,7 +319,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$changed": []
@@ -353,7 +328,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "35",
+          "seq": "42",
           "id": "Product «Чайник»",
           "rev": 1,
           "class": "Product",
@@ -367,7 +342,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": false
@@ -380,10 +355,10 @@
       ]
     },
     {
-      "title": "Преобразования Zod — отказ при syncModels",
-      "text": "`.trim()`, `.toLowerCase()`, `.transform()`, `z.preprocess()`, `.pipe()` меняют значение, а при записи их не исполняет ни база, ни валидатор letopis: имя из пробелов записалось бы как есть. Поэтому `syncModels` отклоняет такую модель до записи — `invalid_class` (ключ `model.transform_unsupported`, в `err.detail.rules` — путь и вид). Приводите значение в коде сервиса (`name.trim()`), а в модели оставьте проверку.",
-      "code": "syncModels(db, [Guest], { apply: true })",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">syncModels</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, [Guest], { apply: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> })</span></span></code></pre>",
+      "title": "Преобразования Zod — отказ при записи модели",
+      "text": "`.trim()`, `.toLowerCase()`, `.transform()`, `z.preprocess()`, `.pipe()` меняют значение, а при записи их не исполняет ни база, ни валидатор letopis: имя из пробелов записалось бы как есть. Поэтому `setup` (и `syncModels`) отклоняет такую модель до записи — `invalid_class` (ключ `model.transform_unsupported`, в `err.detail.rules` — путь и вид). Приводите значение в коде приложения (`name.trim()`), а в модели оставьте проверку.",
+      "code": "setup(ADMIN_DSN, name, { models: [Guest], quiet: true })",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">setup</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">ADMIN_DSN</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, name, { models: [Guest], quiet: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> })</span></span></code></pre>",
       "result": null,
       "error": {
         "code": "invalid_class",
@@ -414,7 +389,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$changed": []
@@ -423,7 +398,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "35",
+          "seq": "42",
           "id": "Product «Чайник»",
           "rev": 1,
           "class": "Product",
@@ -437,7 +412,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": false
@@ -448,5 +423,5 @@
       "signals": []
     }
   ],
-  "output": "Шаг 1. Класс «Товар»\n[\n  \"Product\"\n]\n\nШаг 2. Значение по умолчанию подставляет база\n[\n  {\n    \"at\": \"‹время›\",\n    \"id\": \"‹id 1›\",\n    \"op\": \"create\",\n    \"rev\": 1,\n    \"data\": {\n      \"price\": 2500,\n      \"title\": \"Чайник\",\n      \"status\": \"draft\"\n    },\n    \"tags\": [],\n    \"class\": \"Product\",\n    \"links\": {},\n    \"owner\": \"‹id 2›\",\n    \"author\": \"‹id 3›\",\n    \"tenant\": \"‹id 2›\",\n    \"agent\": \"‹id 4›\"\n  }\n]\n\nШаг 3. Отрицательная цена — отказ\nотказ, как и задумано: letopis: invalid_data: данные не проходят описание класса Product: price — нарушено правило minimum\n\nШаг 4. Новое обязательное поле — ужесточение\nотказ, как и задумано: letopis: tightening_conflict: новому описанию класса Product не соответствуют строки\n\nШаг 5. Необязательное поле — безопасно\n{\n  \"updated\": [\n    \"Product\"\n  ]\n}\n\nШаг 6. Проверки refine база не выполняет\n{\n  \"created\": [\n    \"Coupon\"\n  ],\n  \"lost\": [\n    {\n      \"path\": \"Coupon.code\",\n      \"kind\": \"refine\"\n    }\n  ]\n}\n\nШаг 7. Преобразования Zod — отказ при syncModels\nотказ, как и задумано: letopis: invalid_class: в модели есть преобразования Zod, а при записи их никто не исполняет — значение записалось бы как есть; поля с преобразованием: Guest.name (overwrite)"
+  "output": "Шаг 1. Значение по умолчанию подставляет база\n[\n  {\n    \"at\": \"‹время›\",\n    \"id\": \"‹id 1›\",\n    \"op\": \"create\",\n    \"rev\": 1,\n    \"data\": {\n      \"price\": 2500,\n      \"title\": \"Чайник\",\n      \"status\": \"draft\"\n    },\n    \"tags\": [],\n    \"class\": \"Product\",\n    \"links\": {},\n    \"owner\": \"‹id 2›\",\n    \"author\": \"‹id 3›\",\n    \"tenant\": \"‹id 2›\"\n  }\n]\n\nШаг 2. Отрицательная цена — отказ\nотказ, как и задумано: letopis: invalid_data: данные не проходят описание класса Product: price — нарушено правило minimum\n\nШаг 3. Новое обязательное поле — ужесточение\nотказ, как и задумано: letopis: tightening_conflict: новому описанию класса Product не соответствуют строки\n\nШаг 4. Необязательное поле — безопасно\n{\n  \"updated\": [\n    \"Product\"\n  ]\n}\n\nШаг 5. Проверки refine база не выполняет\n{\n  \"created\": [\n    \"Coupon\"\n  ],\n  \"lost\": [\n    {\n      \"path\": \"Coupon.code\",\n      \"kind\": \"refine\"\n    }\n  ]\n}\n\nШаг 6. Преобразования Zod — отказ при записи модели\nотказ, как и задумано: letopis: invalid_class: в модели есть преобразования Zod, а при записи их никто не исполняет — значение записалось бы как есть; поля с преобразованием: Guest.name (overwrite)"
 }

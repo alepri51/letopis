@@ -9,8 +9,8 @@
     {
       "result": [
         {
-          "at": "2026-11-04T05:14:04.534895+00:00",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "at": "2026-11-10T20:14:36.626941+00:00",
+          "id": "568ec82e-b335-5d15-b9f8-257d9d42d0d8",
           "op": "update",
           "rev": 4,
           "data": {
@@ -21,12 +21,11 @@
           "tags": [],
           "class": "Product",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "5a6b035a-14d4-555b-aee4-f96bf8652615"
           },
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "agent": "a96ce1bd-3304-548e-8d60-f98b46a9220e",
+          "owner": "de667ae9-7090-548a-8407-08cef7d83a24",
+          "author": "d8d131b7-d593-590b-b795-6e0f3f6735c1",
+          "tenant": "de667ae9-7090-548a-8407-08cef7d83a24",
           "reason": "скидка кончилась"
         }
       ],
@@ -35,31 +34,31 @@
       "removed": [],
       "log": [
         {
-          "seq": "41",
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "seq": "48",
+          "id": "5a6b035a-14d4-555b-aee4-f96bf8652615",
           "rev": 1,
           "class": "Shop",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "de667ae9-7090-548a-8407-08cef7d83a24",
           "links": {},
           "data": {
             "name": "Ромашка"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "a96ce1bd-3304-548e-8d60-f98b46a9220e",
+          "author": "d8d131b7-d593-590b-b795-6e0f3f6735c1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:04.467736+00",
-          "tx": "3891765"
+          "at": "2026-11-10 20:14:36.553965+00",
+          "tx": "4255357"
         },
         {
-          "seq": "42",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "49",
+          "id": "568ec82e-b335-5d15-b9f8-257d9d42d0d8",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "de667ae9-7090-548a-8407-08cef7d83a24",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "5a6b035a-14d4-555b-aee4-f96bf8652615"
           },
           "data": {
             "sku": "K-1",
@@ -68,20 +67,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "a96ce1bd-3304-548e-8d60-f98b46a9220e",
+          "author": "d8d131b7-d593-590b-b795-6e0f3f6735c1",
+          "agent": null,
           "reason": "новый товар",
-          "at": "2026-11-04 05:14:04.477884+00",
-          "tx": "3891767"
+          "at": "2026-11-10 20:14:36.569328+00",
+          "tx": "4255359"
         },
         {
-          "seq": "43",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "50",
+          "id": "568ec82e-b335-5d15-b9f8-257d9d42d0d8",
           "rev": 2,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "de667ae9-7090-548a-8407-08cef7d83a24",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "5a6b035a-14d4-555b-aee4-f96bf8652615"
           },
           "data": {
             "sku": "K-1",
@@ -90,20 +89,20 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "a96ce1bd-3304-548e-8d60-f98b46a9220e",
+          "author": "d8d131b7-d593-590b-b795-6e0f3f6735c1",
+          "agent": null,
           "reason": "осенняя скидка",
-          "at": "2026-11-04 05:14:04.501523+00",
-          "tx": "3891769"
+          "at": "2026-11-10 20:14:36.596264+00",
+          "tx": "4255361"
         },
         {
-          "seq": "44",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "51",
+          "id": "568ec82e-b335-5d15-b9f8-257d9d42d0d8",
           "rev": 3,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "de667ae9-7090-548a-8407-08cef7d83a24",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "5a6b035a-14d4-555b-aee4-f96bf8652615"
           },
           "data": {
             "sku": "K-1",
@@ -112,20 +111,20 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "a96ce1bd-3304-548e-8d60-f98b46a9220e",
+          "author": "d8d131b7-d593-590b-b795-6e0f3f6735c1",
+          "agent": null,
           "reason": "уточнили название",
-          "at": "2026-11-04 05:14:04.518363+00",
-          "tx": "3891771"
+          "at": "2026-11-10 20:14:36.610637+00",
+          "tx": "4255363"
         },
         {
-          "seq": "45",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "52",
+          "id": "568ec82e-b335-5d15-b9f8-257d9d42d0d8",
           "rev": 4,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "de667ae9-7090-548a-8407-08cef7d83a24",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "5a6b035a-14d4-555b-aee4-f96bf8652615"
           },
           "data": {
             "sku": "K-1",
@@ -134,16 +133,15 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "a96ce1bd-3304-548e-8d60-f98b46a9220e",
+          "author": "d8d131b7-d593-590b-b795-6e0f3f6735c1",
+          "agent": null,
           "reason": "скидка кончилась",
-          "at": "2026-11-04 05:14:04.534895+00",
-          "tx": "3891773"
+          "at": "2026-11-10 20:14:36.626941+00",
+          "tx": "4255365"
         }
       ],
       "secret": [],
       "signals": [
-        "Class",
         "Product",
         "Shop"
       ]
@@ -184,31 +182,31 @@
       "removed": [],
       "log": [
         {
-          "seq": "41",
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "seq": "48",
+          "id": "5a6b035a-14d4-555b-aee4-f96bf8652615",
           "rev": 1,
           "class": "Shop",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "de667ae9-7090-548a-8407-08cef7d83a24",
           "links": {},
           "data": {
             "name": "Ромашка"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "a96ce1bd-3304-548e-8d60-f98b46a9220e",
+          "author": "d8d131b7-d593-590b-b795-6e0f3f6735c1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:04.467736+00",
-          "tx": "3891765"
+          "at": "2026-11-10 20:14:36.553965+00",
+          "tx": "4255357"
         },
         {
-          "seq": "42",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "49",
+          "id": "568ec82e-b335-5d15-b9f8-257d9d42d0d8",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "de667ae9-7090-548a-8407-08cef7d83a24",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "5a6b035a-14d4-555b-aee4-f96bf8652615"
           },
           "data": {
             "sku": "K-1",
@@ -217,20 +215,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "a96ce1bd-3304-548e-8d60-f98b46a9220e",
+          "author": "d8d131b7-d593-590b-b795-6e0f3f6735c1",
+          "agent": null,
           "reason": "новый товар",
-          "at": "2026-11-04 05:14:04.477884+00",
-          "tx": "3891767"
+          "at": "2026-11-10 20:14:36.569328+00",
+          "tx": "4255359"
         },
         {
-          "seq": "43",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "50",
+          "id": "568ec82e-b335-5d15-b9f8-257d9d42d0d8",
           "rev": 2,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "de667ae9-7090-548a-8407-08cef7d83a24",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "5a6b035a-14d4-555b-aee4-f96bf8652615"
           },
           "data": {
             "sku": "K-1",
@@ -239,20 +237,20 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "a96ce1bd-3304-548e-8d60-f98b46a9220e",
+          "author": "d8d131b7-d593-590b-b795-6e0f3f6735c1",
+          "agent": null,
           "reason": "осенняя скидка",
-          "at": "2026-11-04 05:14:04.501523+00",
-          "tx": "3891769"
+          "at": "2026-11-10 20:14:36.596264+00",
+          "tx": "4255361"
         },
         {
-          "seq": "44",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "51",
+          "id": "568ec82e-b335-5d15-b9f8-257d9d42d0d8",
           "rev": 3,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "de667ae9-7090-548a-8407-08cef7d83a24",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "5a6b035a-14d4-555b-aee4-f96bf8652615"
           },
           "data": {
             "sku": "K-1",
@@ -261,20 +259,20 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "a96ce1bd-3304-548e-8d60-f98b46a9220e",
+          "author": "d8d131b7-d593-590b-b795-6e0f3f6735c1",
+          "agent": null,
           "reason": "уточнили название",
-          "at": "2026-11-04 05:14:04.518363+00",
-          "tx": "3891771"
+          "at": "2026-11-10 20:14:36.610637+00",
+          "tx": "4255363"
         },
         {
-          "seq": "45",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "52",
+          "id": "568ec82e-b335-5d15-b9f8-257d9d42d0d8",
           "rev": 4,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "de667ae9-7090-548a-8407-08cef7d83a24",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "5a6b035a-14d4-555b-aee4-f96bf8652615"
           },
           "data": {
             "sku": "K-1",
@@ -283,11 +281,11 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "a96ce1bd-3304-548e-8d60-f98b46a9220e",
+          "author": "d8d131b7-d593-590b-b795-6e0f3f6735c1",
+          "agent": null,
           "reason": "скидка кончилась",
-          "at": "2026-11-04 05:14:04.534895+00",
-          "tx": "3891773"
+          "at": "2026-11-10 20:14:36.626941+00",
+          "tx": "4255365"
         }
       ],
       "secret": [],
@@ -304,31 +302,31 @@
       "removed": [],
       "log": [
         {
-          "seq": "41",
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "seq": "48",
+          "id": "5a6b035a-14d4-555b-aee4-f96bf8652615",
           "rev": 1,
           "class": "Shop",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "de667ae9-7090-548a-8407-08cef7d83a24",
           "links": {},
           "data": {
             "name": "Ромашка"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "a96ce1bd-3304-548e-8d60-f98b46a9220e",
+          "author": "d8d131b7-d593-590b-b795-6e0f3f6735c1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:04.467736+00",
-          "tx": "3891765"
+          "at": "2026-11-10 20:14:36.553965+00",
+          "tx": "4255357"
         },
         {
-          "seq": "42",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "49",
+          "id": "568ec82e-b335-5d15-b9f8-257d9d42d0d8",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "de667ae9-7090-548a-8407-08cef7d83a24",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "5a6b035a-14d4-555b-aee4-f96bf8652615"
           },
           "data": {
             "sku": "K-1",
@@ -337,20 +335,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "a96ce1bd-3304-548e-8d60-f98b46a9220e",
+          "author": "d8d131b7-d593-590b-b795-6e0f3f6735c1",
+          "agent": null,
           "reason": "новый товар",
-          "at": "2026-11-04 05:14:04.477884+00",
-          "tx": "3891767"
+          "at": "2026-11-10 20:14:36.569328+00",
+          "tx": "4255359"
         },
         {
-          "seq": "43",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "50",
+          "id": "568ec82e-b335-5d15-b9f8-257d9d42d0d8",
           "rev": 2,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "de667ae9-7090-548a-8407-08cef7d83a24",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "5a6b035a-14d4-555b-aee4-f96bf8652615"
           },
           "data": {
             "sku": "K-1",
@@ -359,20 +357,20 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "a96ce1bd-3304-548e-8d60-f98b46a9220e",
+          "author": "d8d131b7-d593-590b-b795-6e0f3f6735c1",
+          "agent": null,
           "reason": "осенняя скидка",
-          "at": "2026-11-04 05:14:04.501523+00",
-          "tx": "3891769"
+          "at": "2026-11-10 20:14:36.596264+00",
+          "tx": "4255361"
         },
         {
-          "seq": "44",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "51",
+          "id": "568ec82e-b335-5d15-b9f8-257d9d42d0d8",
           "rev": 3,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "de667ae9-7090-548a-8407-08cef7d83a24",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "5a6b035a-14d4-555b-aee4-f96bf8652615"
           },
           "data": {
             "sku": "K-1",
@@ -381,20 +379,20 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "a96ce1bd-3304-548e-8d60-f98b46a9220e",
+          "author": "d8d131b7-d593-590b-b795-6e0f3f6735c1",
+          "agent": null,
           "reason": "уточнили название",
-          "at": "2026-11-04 05:14:04.518363+00",
-          "tx": "3891771"
+          "at": "2026-11-10 20:14:36.610637+00",
+          "tx": "4255363"
         },
         {
-          "seq": "45",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "52",
+          "id": "568ec82e-b335-5d15-b9f8-257d9d42d0d8",
           "rev": 4,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "de667ae9-7090-548a-8407-08cef7d83a24",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "5a6b035a-14d4-555b-aee4-f96bf8652615"
           },
           "data": {
             "sku": "K-1",
@@ -403,11 +401,11 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "a96ce1bd-3304-548e-8d60-f98b46a9220e",
+          "author": "d8d131b7-d593-590b-b795-6e0f3f6735c1",
+          "agent": null,
           "reason": "скидка кончилась",
-          "at": "2026-11-04 05:14:04.534895+00",
-          "tx": "3891773"
+          "at": "2026-11-10 20:14:36.626941+00",
+          "tx": "4255365"
         }
       ],
       "secret": [],
@@ -431,31 +429,31 @@
       "removed": [],
       "log": [
         {
-          "seq": "41",
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "seq": "48",
+          "id": "5a6b035a-14d4-555b-aee4-f96bf8652615",
           "rev": 1,
           "class": "Shop",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "de667ae9-7090-548a-8407-08cef7d83a24",
           "links": {},
           "data": {
             "name": "Ромашка"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "a96ce1bd-3304-548e-8d60-f98b46a9220e",
+          "author": "d8d131b7-d593-590b-b795-6e0f3f6735c1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:04.467736+00",
-          "tx": "3891765"
+          "at": "2026-11-10 20:14:36.553965+00",
+          "tx": "4255357"
         },
         {
-          "seq": "42",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "49",
+          "id": "568ec82e-b335-5d15-b9f8-257d9d42d0d8",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "de667ae9-7090-548a-8407-08cef7d83a24",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "5a6b035a-14d4-555b-aee4-f96bf8652615"
           },
           "data": {
             "sku": "K-1",
@@ -464,20 +462,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "a96ce1bd-3304-548e-8d60-f98b46a9220e",
+          "author": "d8d131b7-d593-590b-b795-6e0f3f6735c1",
+          "agent": null,
           "reason": "новый товар",
-          "at": "2026-11-04 05:14:04.477884+00",
-          "tx": "3891767"
+          "at": "2026-11-10 20:14:36.569328+00",
+          "tx": "4255359"
         },
         {
-          "seq": "43",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "50",
+          "id": "568ec82e-b335-5d15-b9f8-257d9d42d0d8",
           "rev": 2,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "de667ae9-7090-548a-8407-08cef7d83a24",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "5a6b035a-14d4-555b-aee4-f96bf8652615"
           },
           "data": {
             "sku": "K-1",
@@ -486,20 +484,20 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "a96ce1bd-3304-548e-8d60-f98b46a9220e",
+          "author": "d8d131b7-d593-590b-b795-6e0f3f6735c1",
+          "agent": null,
           "reason": "осенняя скидка",
-          "at": "2026-11-04 05:14:04.501523+00",
-          "tx": "3891769"
+          "at": "2026-11-10 20:14:36.596264+00",
+          "tx": "4255361"
         },
         {
-          "seq": "44",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "51",
+          "id": "568ec82e-b335-5d15-b9f8-257d9d42d0d8",
           "rev": 3,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "de667ae9-7090-548a-8407-08cef7d83a24",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "5a6b035a-14d4-555b-aee4-f96bf8652615"
           },
           "data": {
             "sku": "K-1",
@@ -508,20 +506,20 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "a96ce1bd-3304-548e-8d60-f98b46a9220e",
+          "author": "d8d131b7-d593-590b-b795-6e0f3f6735c1",
+          "agent": null,
           "reason": "уточнили название",
-          "at": "2026-11-04 05:14:04.518363+00",
-          "tx": "3891771"
+          "at": "2026-11-10 20:14:36.610637+00",
+          "tx": "4255363"
         },
         {
-          "seq": "45",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "52",
+          "id": "568ec82e-b335-5d15-b9f8-257d9d42d0d8",
           "rev": 4,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "de667ae9-7090-548a-8407-08cef7d83a24",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "5a6b035a-14d4-555b-aee4-f96bf8652615"
           },
           "data": {
             "sku": "K-1",
@@ -530,11 +528,11 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "a96ce1bd-3304-548e-8d60-f98b46a9220e",
+          "author": "d8d131b7-d593-590b-b795-6e0f3f6735c1",
+          "agent": null,
           "reason": "скидка кончилась",
-          "at": "2026-11-04 05:14:04.534895+00",
-          "tx": "3891773"
+          "at": "2026-11-10 20:14:36.626941+00",
+          "tx": "4255365"
         }
       ],
       "secret": [],
@@ -545,38 +543,39 @@
         "строк сейчас": 1,
         "строк в срезе asOf": 1,
         "count() в срезе": 1,
-        "путей в срезе": 2
+        "путей в срезе": 2,
+        "count({ paths: true }) в срезе": 2
       },
       "error": null,
       "entity": [],
       "removed": [],
       "log": [
         {
-          "seq": "41",
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "seq": "48",
+          "id": "5a6b035a-14d4-555b-aee4-f96bf8652615",
           "rev": 1,
           "class": "Shop",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "de667ae9-7090-548a-8407-08cef7d83a24",
           "links": {},
           "data": {
             "name": "Ромашка"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "a96ce1bd-3304-548e-8d60-f98b46a9220e",
+          "author": "d8d131b7-d593-590b-b795-6e0f3f6735c1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:04.467736+00",
-          "tx": "3891765"
+          "at": "2026-11-10 20:14:36.553965+00",
+          "tx": "4255357"
         },
         {
-          "seq": "42",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "49",
+          "id": "568ec82e-b335-5d15-b9f8-257d9d42d0d8",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "de667ae9-7090-548a-8407-08cef7d83a24",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "5a6b035a-14d4-555b-aee4-f96bf8652615"
           },
           "data": {
             "sku": "K-1",
@@ -585,20 +584,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "a96ce1bd-3304-548e-8d60-f98b46a9220e",
+          "author": "d8d131b7-d593-590b-b795-6e0f3f6735c1",
+          "agent": null,
           "reason": "новый товар",
-          "at": "2026-11-04 05:14:04.477884+00",
-          "tx": "3891767"
+          "at": "2026-11-10 20:14:36.569328+00",
+          "tx": "4255359"
         },
         {
-          "seq": "43",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "50",
+          "id": "568ec82e-b335-5d15-b9f8-257d9d42d0d8",
           "rev": 2,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "de667ae9-7090-548a-8407-08cef7d83a24",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "5a6b035a-14d4-555b-aee4-f96bf8652615"
           },
           "data": {
             "sku": "K-1",
@@ -607,20 +606,20 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "a96ce1bd-3304-548e-8d60-f98b46a9220e",
+          "author": "d8d131b7-d593-590b-b795-6e0f3f6735c1",
+          "agent": null,
           "reason": "осенняя скидка",
-          "at": "2026-11-04 05:14:04.501523+00",
-          "tx": "3891769"
+          "at": "2026-11-10 20:14:36.596264+00",
+          "tx": "4255361"
         },
         {
-          "seq": "44",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "51",
+          "id": "568ec82e-b335-5d15-b9f8-257d9d42d0d8",
           "rev": 3,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "de667ae9-7090-548a-8407-08cef7d83a24",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "5a6b035a-14d4-555b-aee4-f96bf8652615"
           },
           "data": {
             "sku": "K-1",
@@ -629,20 +628,20 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "a96ce1bd-3304-548e-8d60-f98b46a9220e",
+          "author": "d8d131b7-d593-590b-b795-6e0f3f6735c1",
+          "agent": null,
           "reason": "уточнили название",
-          "at": "2026-11-04 05:14:04.518363+00",
-          "tx": "3891771"
+          "at": "2026-11-10 20:14:36.610637+00",
+          "tx": "4255363"
         },
         {
-          "seq": "45",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "52",
+          "id": "568ec82e-b335-5d15-b9f8-257d9d42d0d8",
           "rev": 4,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "de667ae9-7090-548a-8407-08cef7d83a24",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
+            "Shop": "5a6b035a-14d4-555b-aee4-f96bf8652615"
           },
           "data": {
             "sku": "K-1",
@@ -651,59 +650,59 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "a96ce1bd-3304-548e-8d60-f98b46a9220e",
+          "author": "d8d131b7-d593-590b-b795-6e0f3f6735c1",
+          "agent": null,
           "reason": "скидка кончилась",
-          "at": "2026-11-04 05:14:04.534895+00",
-          "tx": "3891773"
+          "at": "2026-11-10 20:14:36.626941+00",
+          "tx": "4255365"
         },
         {
-          "seq": "46",
-          "id": "28f32bfe-6434-566d-9bfb-5dffd33d7c4e",
+          "seq": "53",
+          "id": "70120498-c4db-5f2c-8bff-1d7d2375e8e7",
           "rev": 1,
           "class": "Category",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "de667ae9-7090-548a-8407-08cef7d83a24",
           "links": {},
           "data": {
             "name": "Чай и кофе"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "a96ce1bd-3304-548e-8d60-f98b46a9220e",
+          "author": "d8d131b7-d593-590b-b795-6e0f3f6735c1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:04.609852+00",
-          "tx": "3891780"
+          "at": "2026-11-10 20:14:36.697046+00",
+          "tx": "4255374"
         },
         {
-          "seq": "47",
-          "id": "1f88c837-a39c-5c94-802f-df6ce272198c",
+          "seq": "54",
+          "id": "36202a64-1ca2-5c90-b819-819a0b345589",
           "rev": 1,
           "class": "Category",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "de667ae9-7090-548a-8407-08cef7d83a24",
           "links": {},
           "data": {
             "name": "Посуда"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "a96ce1bd-3304-548e-8d60-f98b46a9220e",
+          "author": "d8d131b7-d593-590b-b795-6e0f3f6735c1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:04.619387+00",
-          "tx": "3891782"
+          "at": "2026-11-10 20:14:36.705579+00",
+          "tx": "4255376"
         },
         {
-          "seq": "48",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
+          "seq": "55",
+          "id": "568ec82e-b335-5d15-b9f8-257d9d42d0d8",
           "rev": 5,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "de667ae9-7090-548a-8407-08cef7d83a24",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Shop": "5a6b035a-14d4-555b-aee4-f96bf8652615",
             "Category": [
-              "28f32bfe-6434-566d-9bfb-5dffd33d7c4e",
-              "1f88c837-a39c-5c94-802f-df6ce272198c"
+              "70120498-c4db-5f2c-8bff-1d7d2375e8e7",
+              "36202a64-1ca2-5c90-b819-819a0b345589"
             ]
           },
           "data": {
@@ -713,11 +712,11 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "a96ce1bd-3304-548e-8d60-f98b46a9220e",
+          "author": "d8d131b7-d593-590b-b795-6e0f3f6735c1",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:04.633847+00",
-          "tx": "3891784"
+          "at": "2026-11-10 20:14:36.720313+00",
+          "tx": "4255378"
         }
       ],
       "secret": [],
@@ -727,6 +726,6 @@
       ]
     }
   ],
-  "output": "Шаг 1. Товар и три правки — с причинами\n[\n  {\n    \"at\": \"2026-11-04T05:14:06.285516+00:00\",\n    \"id\": \"099dcd72-c15a-5fe8-a95f-70da339186f0\",\n    \"op\": \"update\",\n    \"rev\": 4,\n    \"data\": {\n      \"sku\": \"K-1\",\n      \"price\": 2400,\n      \"title\": \"Чайник стеклянный\"\n    },\n    \"tags\": [],\n    \"class\": \"Product\",\n    \"links\": {\n      \"Shop\": \"820d0964-969f-5ad6-bc38-f38710912f70\"\n    },\n    \"owner\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n    \"author\": \"3defbabb-a94d-5359-8463-dc947de193e1\",\n    \"tenant\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n    \"agent\": \"1b66af59-f0cd-56c7-8096-5041d1aabb4d\",\n    \"reason\": \"скидка кончилась\"\n  }\n]\n\nШаг 2. Все версии\n[\n  {\n    \"rev\": 1,\n    \"op\": \"create\",\n    \"title\": \"Чайник\",\n    \"price\": 2500,\n    \"reason\": \"новый товар\"\n  },\n  {\n    \"rev\": 2,\n    \"op\": \"update\",\n    \"title\": \"Чайник\",\n    \"price\": 2200,\n    \"reason\": \"осенняя скидка\"\n  },\n  {\n    \"rev\": 3,\n    \"op\": \"update\",\n    \"title\": \"Чайник стеклянный\",\n    \"price\": 2200,\n    \"reason\": \"уточнили название\"\n  },\n  {\n    \"rev\": 4,\n    \"op\": \"update\",\n    \"title\": \"Чайник стеклянный\",\n    \"price\": 2400,\n    \"reason\": \"скидка кончилась\"\n  }\n]\n\nШаг 3. Товар на момент создания\n{\n  \"title\": \"Чайник\",\n  \"price\": 2500,\n  \"rev\": 1\n}\n\nШаг 4. Последние версии — новые первыми\n[\n  {\n    \"rev\": 4,\n    \"price\": 2400,\n    \"reason\": \"скидка кончилась\"\n  },\n  {\n    \"rev\": 3,\n    \"price\": 2200,\n    \"reason\": \"уточнили название\"\n  }\n]\n\nШаг 5. Срез по обратному переходу: товар в двух категориях — один раз\n{\n  \"строк сейчас\": 1,\n  \"строк в срезе asOf\": 1,\n  \"count() в срезе\": 1,\n  \"путей в срезе\": 2\n}",
+  "output": "Шаг 1. Товар и три правки — с причинами\n[\n  {\n    \"at\": \"2026-11-10T20:14:38.724837+00:00\",\n    \"id\": \"0faf4ca1-6908-56b1-9043-e291d687f3aa\",\n    \"op\": \"update\",\n    \"rev\": 4,\n    \"data\": {\n      \"sku\": \"K-1\",\n      \"price\": 2400,\n      \"title\": \"Чайник стеклянный\"\n    },\n    \"tags\": [],\n    \"class\": \"Product\",\n    \"links\": {\n      \"Shop\": \"b75e3f1b-9880-5128-bf48-6e1c5fb7bf07\"\n    },\n    \"owner\": \"c80a6ef8-c389-50aa-8fe6-84c674d8fdbb\",\n    \"author\": \"fc640f5a-5ecb-5e69-8d86-f489fc469076\",\n    \"tenant\": \"c80a6ef8-c389-50aa-8fe6-84c674d8fdbb\",\n    \"reason\": \"скидка кончилась\"\n  }\n]\n\nШаг 2. Все версии\n[\n  {\n    \"rev\": 1,\n    \"op\": \"create\",\n    \"title\": \"Чайник\",\n    \"price\": 2500,\n    \"reason\": \"новый товар\"\n  },\n  {\n    \"rev\": 2,\n    \"op\": \"update\",\n    \"title\": \"Чайник\",\n    \"price\": 2200,\n    \"reason\": \"осенняя скидка\"\n  },\n  {\n    \"rev\": 3,\n    \"op\": \"update\",\n    \"title\": \"Чайник стеклянный\",\n    \"price\": 2200,\n    \"reason\": \"уточнили название\"\n  },\n  {\n    \"rev\": 4,\n    \"op\": \"update\",\n    \"title\": \"Чайник стеклянный\",\n    \"price\": 2400,\n    \"reason\": \"скидка кончилась\"\n  }\n]\n\nШаг 3. Товар на момент создания\n{\n  \"title\": \"Чайник\",\n  \"price\": 2500,\n  \"rev\": 1\n}\n\nШаг 4. Последние версии — новые первыми\n[\n  {\n    \"rev\": 4,\n    \"price\": 2400,\n    \"reason\": \"скидка кончилась\"\n  },\n  {\n    \"rev\": 3,\n    \"price\": 2200,\n    \"reason\": \"уточнили название\"\n  }\n]\n\nШаг 5. Срез по обратному переходу: товар в двух категориях — один раз\n{\n  \"строк сейчас\": 1,\n  \"строк в срезе asOf\": 1,\n  \"count() в срезе\": 1,\n  \"путей в срезе\": 2,\n  \"count({ paths: true }) в срезе\": 2\n}",
   "exitCode": 0
 }

@@ -9,8 +9,8 @@
     {
       "result": [
         {
-          "at": "2026-11-04T05:16:05.679761+00:00",
-          "id": "7174b492-be79-5307-bb74-060c11cc6dd5",
+          "at": "2026-11-10T20:17:46.329118+00:00",
+          "id": "c64dfe07-68e2-5fa0-92ef-319267856729",
           "op": "create",
           "rev": 1,
           "data": {
@@ -19,12 +19,11 @@
           "tags": [],
           "class": "Category",
           "links": {
-            "Parent": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5"
+            "Parent": "58c89d81-1345-5750-805c-a6b0b479a31f"
           },
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "agent": "6a3e91b5-ab22-5b0f-b479-3a91639c6ce8"
+          "owner": "f8a952ff-6fec-55af-b1ca-f5bd540575ed",
+          "author": "a88156fe-ec24-5708-8d63-05803dd1cf65",
+          "tenant": "f8a952ff-6fec-55af-b1ca-f5bd540575ed"
         }
       ],
       "error": null,
@@ -34,7 +33,6 @@
       "secret": [],
       "signals": [
         "Category",
-        "Class",
         "Customer",
         "Order",
         "Product",
@@ -110,6 +108,6 @@
       "signals": []
     }
   ],
-  "output": "Шаг 1. Данные и ещё один уровень дерева\n[\n  {\n    \"at\": \"2026-11-04T05:16:07.513879+00:00\",\n    \"id\": \"7174b492-be79-5307-bb74-060c11cc6dd5\",\n    \"op\": \"create\",\n    \"rev\": 1,\n    \"data\": {\n      \"name\": \"Улун\"\n    },\n    \"tags\": [],\n    \"class\": \"Category\",\n    \"links\": {\n      \"Parent\": \"e8d0eb60-d5ca-530b-aa99-0d4fba4313e5\"\n    },\n    \"owner\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n    \"author\": \"3defbabb-a94d-5359-8463-dc947de193e1\",\n    \"tenant\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n    \"agent\": \"138972a1-39fa-5ed5-a90e-b1c6fbe24889\"\n  }\n]\n\nШаг 2. Поддерево любой глубины\n[\n  {\n    \"name\": \"Зелёный чай\",\n    \"depth\": 1\n  },\n  {\n    \"name\": \"Улун\",\n    \"depth\": 2\n  }\n]\n\nШаг 3. Пути: заказ → строка → товар\n[\n  {\n    \"qty\": 2,\n    \"product\": \"Сенча\"\n  },\n  {\n    \"qty\": 1,\n    \"product\": \"Чайник\"\n  }\n]\n\nШаг 4. Свои имена узлов: alias\n[\n  {\n    \"qty\": 2,\n    \"product\": \"Сенча\"\n  },\n  {\n    \"qty\": 1,\n    \"product\": \"Чайник\"\n  }\n]\n\nШаг 5. count() и count({ paths: true })\n{\n  \"магазинов у заказов\": 1,\n  \"путей до них\": 2\n}",
+  "output": "Шаг 1. Данные и ещё один уровень дерева\n[\n  {\n    \"at\": \"2026-11-10T20:17:48.413281+00:00\",\n    \"id\": \"6a7c7ace-3382-5a5f-8c9b-033957fa0285\",\n    \"op\": \"create\",\n    \"rev\": 1,\n    \"data\": {\n      \"name\": \"Улун\"\n    },\n    \"tags\": [],\n    \"class\": \"Category\",\n    \"links\": {\n      \"Parent\": \"dd23a442-dc3a-5d1d-9a12-7b7d2794609f\"\n    },\n    \"owner\": \"d250b9cc-34be-5e92-ba3a-2cf29ff5a54e\",\n    \"author\": \"1844bd71-9cbe-5205-9c61-ce21f47a952b\",\n    \"tenant\": \"d250b9cc-34be-5e92-ba3a-2cf29ff5a54e\"\n  }\n]\n\nШаг 2. Поддерево любой глубины\n[\n  {\n    \"name\": \"Зелёный чай\",\n    \"depth\": 1\n  },\n  {\n    \"name\": \"Улун\",\n    \"depth\": 2\n  }\n]\n\nШаг 3. Пути: заказ → строка → товар\n[\n  {\n    \"qty\": 2,\n    \"product\": \"Сенча\"\n  },\n  {\n    \"qty\": 1,\n    \"product\": \"Чайник\"\n  }\n]\n\nШаг 4. Свои имена узлов: alias\n[\n  {\n    \"qty\": 2,\n    \"product\": \"Сенча\"\n  },\n  {\n    \"qty\": 1,\n    \"product\": \"Чайник\"\n  }\n]\n\nШаг 5. count() и count({ paths: true })\n{\n  \"магазинов у заказов\": 1,\n  \"путей до них\": 2\n}",
   "exitCode": 0
 }

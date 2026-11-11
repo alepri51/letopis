@@ -1,4 +1,4 @@
-import { syncModels } from 'letopis';
+import { setup, syncModels } from 'letopis';
 import { hub, link, one, many } from 'letopis/model';
 import { z } from 'zod';
 import { example } from '../_shared/example.ts';
@@ -28,39 +28,46 @@ export default example({
   title: 'Модель магазина: классы, концы, ключи',
   summary:
     'Класс описывают моделью на Zod: поля, концы (они ведут на другие объекты) и ключ. hub — обычный объект, link — ' +
-    'связка объектов со своими данными (строка заказа). syncModels записывает описания в базу, а данные потом ' +
-    'проверяет сама база.',
+    'связка объектов со своими данными (строка заказа). Модель дома записывает setup() мастер-ключом — её классы ' +
+    'общие для всех квартир, — а данные потом проверяет сама база.',
   covers: [
     'model.hub', 'model.link', 'model.one', 'model.many', 'class.key', 'class.ends', 'class.meta', 'class.onDelete',
-    'db.idOf', 'chain.create', 'error.exists', 'nuance.sync-dry-run',
+    'export.syncModels', 'setup.models', 'db.refresh', 'db.idOf', 'chain.create', 'error.exists', 'nuance.sync-dry-run',
+    'nuance.registry-refresh',
   ],
   steps: [
     {
       title: 'Сухой прогон: что будет создано',
-      text: '`syncModels` без `apply` ничего не пишет — только отвечает, какие классы будут созданы или изменены.',
-      run: async ({ db }) => {
-        const plan = await syncModels(db, models);
+      text:
+        '`syncModels(корень, модели)` без `apply` ничего не пишет — только сверяет модели с классами, которые видит ' +
+        'корень квартиры Анны (`me`), и отвечает, какие классы будут созданы или изменены.',
+      run: async ({ me }) => {
+        const plan = await syncModels(me, models);
         return { applied: plan.applied, created: plan.created };
       },
     },
     {
-      title: 'Записываем модель',
+      title: 'Записываем модель в дом',
       text:
-        'С `{ apply: true }` описания классов записаны в базу. В `lost` — ограничения модели, которые база выразить не может ' +
-        '(здесь их нет). Строк данных пока нет.',
-      run: async ({ db }) => {
-        const applied = await syncModels(db, models, { apply: true });
-        return { applied: applied.applied, created: applied.created, lost: applied.lost };
+        'Модель — часть дома: `setup(ADMIN_DSN, name, { models })` мастер-ключом записывает описания классов, и они ' +
+        'общие для всех квартир дома. Повторный `setup` ничего прежнего не трогает — только дописывает и правит классы. ' +
+        'Ответ `r.models` — тот же отчёт, что у `syncModels`: в `lost` — ограничения модели, которые база выразить не ' +
+        'может (здесь их нет). Корень Анны открыт раньше, чем появились классы: он перечитывает их по сигналу базы, а ' +
+        'сразу — `me.refresh()`. Строк данных пока нет.',
+      run: async ({ ADMIN_DSN, name, me }) => {
+        const r = await setup(ADMIN_DSN, name, { models, quiet: true });
+        await me.refresh();
+        return { applied: r.models!.applied, created: r.models!.created, lost: r.models!.lost };
       },
     },
     {
       title: 'Что записано в базе: ключи и концы',
       text:
-        'Подключение прочло описания классов из базы (`db.registry.all()`): у каждого класса — ключ и концы. Подпись ' +
+        'Корень квартиры прочёл описания классов из базы (`me.registry.all()`): у каждого класса — ключ и концы. Подпись ' +
         'конца — роль, класс цели и что будет при удалении цели (`restrict`, если не задано). Схема этой модели — под ' +
         'примером.',
-      run: async ({ db }) =>
-        db.registry.all()
+      run: async ({ me }) =>
+        me.registry.all()
           .filter((c) => models.some((m) => m.name === c.name))
           .map((c) => ({
             класс: c.name,
@@ -90,11 +97,11 @@ export default example({
     {
       title: 'Магазин: id вычисляется из ключа',
       text:
-        'У магазина ключ — `name`. Поэтому id не случайный: он вычисляется из арендатора, класса и названия. ' +
-        '`db.idOf` даёт тот же id заранее, без записи.',
-      run: async ({ db }) => {
-        [shop] = await db.Shop().create({ name: 'Ромашка', city: 'Казань' }).rows();
-        return { sameId: (await db.idOf('Shop', { name: 'Ромашка' })) === shop.id };
+        'У магазина ключ — `name`. Поэтому id не случайный: он вычисляется из квартиры, класса и названия. ' +
+        '`me.idOf` даёт тот же id заранее, без записи.',
+      run: async ({ me }) => {
+        [shop] = await me.Shop().create({ name: 'Ромашка', city: 'Казань' }).rows();
+        return { sameId: (await me.idOf('Shop', { name: 'Ромашка' })) === shop.id };
       },
     },
     {
@@ -102,19 +109,19 @@ export default example({
       text:
         'Конец `Parent` ведёт на класс самой категории. Вызов `.Parent.set(tea)` после глагола задаёт конец — он ' +
         'виден в колонке «концы».',
-      run: async ({ db }) => {
-        [tea] = await db.Category().create({ name: 'Чай' }).rows();
-        [green] = await db.Category().create({ name: 'Зелёный чай' }).Parent.set(tea).rows();
+      run: async ({ me }) => {
+        [tea] = await me.Category().create({ name: 'Чай' }).rows();
+        [green] = await me.Category().create({ name: 'Зелёный чай' }).Parent.set(tea).rows();
         return green;
       },
     },
     {
       title: 'Товар: магазин — из пути, категория — вызовом .Category.add()',
       text:
-        '`db.Shop(shop).Product().create(…)` сам задаёт конец `Shop`: магазин берётся из пути цепочки. Категорий у ' +
+        '`me.Shop(shop).Product().create(…)` сам задаёт конец `Shop`: магазин берётся из пути цепочки. Категорий у ' +
         'товара может быть несколько (`many`, не больше 5) — `.Category.add(green)` добавляет одну.',
-      run: async ({ db }) => {
-        [sencha] = await db.Shop(shop).Product().create({ sku: 'T-7', title: 'Сенча', price: 900 }).Category.add(green).rows();
+      run: async ({ me }) => {
+        [sencha] = await me.Shop(shop).Product().create({ sku: 'T-7', title: 'Сенча', price: 900 }).Category.add(green).rows();
         return sencha;
       },
     },
@@ -123,9 +130,9 @@ export default example({
       text:
         'Цепочка создаёт заказ (покупатель — из пути, магазин — вызовом `.Shop.set()`) и сразу строку заказа (заказ — из пути). ' +
         'Весь план — одна транзакция: ошибка любого звена откатила бы всё.',
-      run: async ({ db }) => {
-        [olga] = await db.Customer().create({ name: 'Ольга', email: 'olga@mail.ru' }).rows();
-        return db.Customer(olga).Order().create({ number: 'A-1' }).Shop.set(shop)
+      run: async ({ me }) => {
+        [olga] = await me.Customer().create({ name: 'Ольга', email: 'olga@mail.ru' }).rows();
+        return me.Customer(olga).Order().create({ number: 'A-1' }).Shop.set(shop)
           .line().create({ qty: 2, price: 900 }).Product.set(sencha)
           .rows();
       },
@@ -135,7 +142,7 @@ export default example({
       text:
         'Ключ гарантирует единственность: магазин «Ромашка» уже есть, поэтому `create` отвечает `exists`. Это же ' +
         'защищает от дубликатов, если запрос повторили после сбоя сети.',
-      run: async ({ db }) => db.Shop().create({ name: 'Ромашка' }).rows(),
+      run: async ({ me }) => me.Shop().create({ name: 'Ромашка' }).rows(),
       expect: { error: 'exists' },
     },
   ],

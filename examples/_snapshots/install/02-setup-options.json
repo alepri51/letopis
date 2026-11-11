@@ -1,0 +1,311 @@
+{
+  "id": "install/02-setup-options",
+  "title": "Опции setup(): сиды, модели, режим сигналов, правило по умолчанию, журнал",
+  "summary": "setup() не только строит дом, но и достраивает его: сиды, модели, режим сигналов, правило по умолчанию. Режим сигналов и правило по умолчанию хранятся в самом доме — повторный setup() без опции их не меняет.",
+  "tables": [
+    "counts"
+  ],
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": [],
+    "counts": {
+      "entity": {},
+      "log": {},
+      "secret": {}
+    }
+  },
+  "steps": [
+    {
+      "title": "Дом с готовой моделью салона и режимом сигналов",
+      "text": "`seeds: ['booking']` добавляет готовые классы салона (мастера, услуги, брони) — в сводке классов стало больше. `signals` — режим сигналов, которыми база будит подписки и сбрасывает кэш в процессах приложения (глава «Подписка, кэш, сигналы»). `waitTimeoutMs` — сколько ждать, пока база начнёт принимать подключения. Режим хранится в доме: его показывает запрос мастер-ключом.",
+      "code": "r = await setup(ADMIN_DSN, name, { seeds: ['booking'], signals: 'tenant', waitTimeoutMs: 10_000, quiet: true });\nconst [{ mode }] = await admin.unsafe(`select \"${schema}\".signal_mode() as mode`);\nreturn { created: r.created, 'режим сигналов': mode };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">r </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> setup</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">ADMIN_DSN</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, name, { seeds: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'booking'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">], signals: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'tenant'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, waitTimeoutMs: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">10_000</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, quiet: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> [{ </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">mode</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> admin.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">unsafe</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">`select \"${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">schema</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">}\".signal_mode() as mode`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { created: r.created, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'режим сигналов'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: mode };</span></span></code></pre>",
+      "result": {
+        "created": true,
+        "режим сигналов": "tenant"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": {
+        "entity": {
+          "Account": 2,
+          "Class": 23,
+          "Resource": 10,
+          "rule": 9
+        },
+        "log": {
+          "create": 44
+        },
+        "secret": {
+          "APIKEY": 1,
+          "CONCIERGE": 1,
+          "KEY": 1
+        }
+      },
+      "signals": []
+    },
+    {
+      "title": "Режим сигналов хранится в доме",
+      "text": "Повторный `setup()` без опции `signals` режим не трогает — он остался `tenant`.",
+      "code": "await setup(ADMIN_DSN, name, { quiet: true });\nconst [{ mode }] = await admin.unsafe(`select \"${schema}\".signal_mode() as mode`);\nreturn { 'режим сигналов': mode };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> setup</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">ADMIN_DSN</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, name, { quiet: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> [{ </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">mode</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> admin.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">unsafe</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">`select \"${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">schema</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">}\".signal_mode() as mode`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'режим сигналов'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: mode };</span></span></code></pre>",
+      "result": {
+        "режим сигналов": "tenant"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": {
+        "entity": {
+          "Account": 2,
+          "Class": 23,
+          "Resource": 10,
+          "rule": 9
+        },
+        "log": {
+          "create": 44
+        },
+        "secret": {
+          "APIKEY": 1,
+          "CONCIERGE": 1,
+          "KEY": 1
+        }
+      },
+      "signals": []
+    },
+    {
+      "title": "Сменить режим — только явно",
+      "text": "`opaque` скрывает из сигналов имена классов и квартир, `none` выключает сигналы совсем — для пула в режиме транзакций (PgBouncer), где база не может их доставить: подписки тогда опрашивают журнал, а кэш работает только по сроку. После смены режима процессы приложения перезапускают: режим читается при подключении.",
+      "code": "const mode = async () => (await admin.unsafe(`select \"${schema}\".signal_mode() as mode`))[0].mode;\nawait setup(ADMIN_DSN, name, { signals: 'opaque', quiet: true });\nconst opaque = await mode();\nawait setup(ADMIN_DSN, name, { signals: 'none', quiet: true });\nreturn { opaque, none: await mode() };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> mode</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> () </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> admin.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">unsafe</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">`select \"${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">schema</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">}\".signal_mode() as mode`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">))[</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">0</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">].mode;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> setup</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">ADMIN_DSN</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, name, { signals: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'opaque'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, quiet: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> opaque</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> mode</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> setup</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">ADMIN_DSN</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, name, { signals: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'none'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, quiet: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { opaque, none: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> mode</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">() };</span></span></code></pre>",
+      "result": {
+        "opaque": "opaque",
+        "none": "none"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": {
+        "entity": {
+          "Account": 2,
+          "Class": 23,
+          "Resource": 10,
+          "rule": 9
+        },
+        "log": {
+          "create": 44
+        },
+        "secret": {
+          "APIKEY": 1,
+          "CONCIERGE": 1,
+          "KEY": 1
+        }
+      },
+      "signals": []
+    },
+    {
+      "title": "Правило по умолчанию: defaultRule",
+      "text": "Правило по умолчанию решает, когда ни одно правило матрицы не подошло: на свежем доме — запрет. Гость «Ромашки» прописан с ролью `guest`, правил для неё нет, поэтому действие `reports.daily` ему запрещено. `setup({ defaultRule: 'allow' })` разрешает всё, что не решили другие правила, `'deny'` возвращает запрет. Правилом матрицы правило по умолчанию не изменить и не удалить — только мастер-ключом.",
+      "code": "const db = await connect(r.pass, { postman });\nawait db.createTenant('Ромашка');\nconst guest = await inviteAndAccept(db, await db.in('Ромашка'), { email: 'guest@romashka.ru' }, ['guest'], { name: 'Гость' });\nconst decide = async () => (await guest.acl.check('reports.daily')).allow;\nconst fresh = await decide();\nawait setup(ADMIN_DSN, name, { defaultRule: 'allow', quiet: true });\nconst opened = await decide();\nawait setup(ADMIN_DSN, name, { defaultRule: 'deny', quiet: true });\nreturn { 'свежий дом': fresh, \"defaultRule: 'allow'\": opened, \"defaultRule: 'deny'\": await decide() };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> db</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> connect</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(r.pass, { postman });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">createTenant</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> guest</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> inviteAndAccept</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">in</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">), { email: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'guest@romashka.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'guest'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">], { name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Гость'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> decide</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> async</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> () </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> guest.acl.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">check</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'reports.daily'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">)).allow;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> fresh</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> decide</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> setup</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">ADMIN_DSN</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, name, { defaultRule: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'allow'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, quiet: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> opened</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> decide</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> setup</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">ADMIN_DSN</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, name, { defaultRule: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'deny'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, quiet: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'свежий дом'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: fresh, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">\"defaultRule: 'allow'\"</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: opened, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">\"defaultRule: 'deny'\"</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> decide</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">() };</span></span></code></pre>",
+      "result": {
+        "свежий дом": false,
+        "defaultRule: 'allow'": true,
+        "defaultRule: 'deny'": false
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": {
+        "entity": {
+          "Account": 4,
+          "Class": 23,
+          "member": 1,
+          "Resource": 11,
+          "rule": 19
+        },
+        "log": {
+          "create": 58,
+          "update": 8
+        },
+        "secret": {
+          "APIKEY": 1,
+          "CONCIERGE": 1,
+          "IDENT": 1,
+          "KEY": 1,
+          "SESSION": 2
+        }
+      },
+      "signals": []
+    },
+    {
+      "title": "Модели дома: models",
+      "text": "`models` — модели `letopis/model`: `setup()` записывает их классами дома, общими для всех квартир, и возвращает итог в `r.models` (что создано, изменено, осталось как было). Повтор с той же моделью ничего не меняет.",
+      "code": "const first = await setup(ADMIN_DSN, name, { models: [Shop], quiet: true });\nconst again = await setup(ADMIN_DSN, name, { models: [Shop], quiet: true });\nreturn { 'первый раз': first.models!.created, 'повтор': again.models!.unchanged };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> first</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> setup</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">ADMIN_DSN</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, name, { models: [Shop], quiet: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> again</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> setup</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">ADMIN_DSN</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, name, { models: [Shop], quiet: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'первый раз'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: first.models</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.created, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'повтор'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: again.models</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.unchanged };</span></span></code></pre>",
+      "result": {
+        "первый раз": [
+          "Shop"
+        ],
+        "повтор": [
+          "Shop"
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": {
+        "entity": {
+          "Account": 4,
+          "Class": 24,
+          "member": 1,
+          "Resource": 11,
+          "rule": 19
+        },
+        "log": {
+          "create": 59,
+          "update": 8
+        },
+        "secret": {
+          "APIKEY": 1,
+          "CONCIERGE": 1,
+          "IDENT": 1,
+          "KEY": 1,
+          "SESSION": 4
+        }
+      },
+      "signals": []
+    },
+    {
+      "title": "Помощники letopis/model",
+      "text": "`one(…)` и `many(…)` — концы (`End`); `normalizeSchema` приводит JSON Schema к виду, который понимает база; `translatePattern` переводит регулярное выражение в синтаксис jsonpath.",
+      "code": "({\n        'one(Shop) — End': one(Shop) instanceof End,\n        'normalizeSchema': normalizeSchema({ type: 'object', properties: { n: { type: 'integer', minimum: 1 } } }),\n        'translatePattern': translatePattern('^\\\\d{3}$'),\n      })",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'one(Shop) — End'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">one</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(Shop) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">instanceof</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> End</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'normalizeSchema'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">normalizeSchema</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ type: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'object'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, properties: { n: { type: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'integer'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, minimum: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">1</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> } } }),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'translatePattern'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">translatePattern</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'^</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">\\\\</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">d{3}$'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      })</span></span></code></pre>",
+      "result": {
+        "one(Shop) — End": true,
+        "normalizeSchema": {
+          "type": "object",
+          "properties": {
+            "n": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "translatePattern": "^[0-9]{3}$"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": {
+        "entity": {
+          "Account": 4,
+          "Class": 24,
+          "member": 1,
+          "Resource": 11,
+          "rule": 19
+        },
+        "log": {
+          "create": 59,
+          "update": 8
+        },
+        "secret": {
+          "APIKEY": 1,
+          "CONCIERGE": 1,
+          "IDENT": 1,
+          "KEY": 1,
+          "SESSION": 4
+        }
+      },
+      "signals": []
+    },
+    {
+      "title": "Журнал setup(): log",
+      "text": "`log` — логгер (функция, pino или `console`): `setup()` отдаёт ему событие `setup` с итогом, а ход работы — событиями `setup.step` вместо печати в консоль. `logLevel` — порог, `redact` — свои поля для маскировки (глава «Логирование»).",
+      "code": "const events: string[] = [];\nawait setup(ADMIN_DSN, name, { log: (e) => void events.push(`${e.event}${e.msg ? `: ${e.msg}` : ''}`) });\nreturn events;",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> events</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> string</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">[] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> [];</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> setup</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">ADMIN_DSN</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, name, { </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">log</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">e</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> void</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> events.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">push</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">`${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">e</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">event</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">}${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">e</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">msg</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> ?</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> `: ${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">e</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">msg</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">}`</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> :</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> ''}`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> events;</span></span></code></pre>",
+      "result": [
+        "setup.step: повторный накат: v2.g_install_02_setup_options, ревизия 12",
+        "setup"
+      ],
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": {
+        "entity": {
+          "Account": 4,
+          "Class": 24,
+          "member": 1,
+          "Resource": 11,
+          "rule": 19
+        },
+        "log": {
+          "create": 59,
+          "update": 8
+        },
+        "secret": {
+          "APIKEY": 1,
+          "CONCIERGE": 1,
+          "IDENT": 1,
+          "KEY": 1,
+          "SESSION": 4
+        }
+      },
+      "signals": []
+    },
+    {
+      "title": "Опечатка в опции и неверное имя дома",
+      "text": "Неизвестную опцию `setup()` отклоняет до подключения к базе — `invalid_data` с похожими именами. Имя дома — латинские строчные буквы, цифры и подчёркивание, до 41 знака: из него получаются схема `v2.<имя>` и роль консьержа. Правило по умолчанию — только `deny` или `allow`.",
+      "code": "const why = (e: Error) => e.message;\nreturn {\n  'seed вместо seeds': await setup(ADMIN_DSN, name, { seed: ['booking'] } as never).then(() => 'построен', why),\n  'имя «Мой дом»': await setup(ADMIN_DSN, 'Мой дом').then(() => 'построен', why),\n  \"defaultRule: 'maybe'\": await setup(ADMIN_DSN, name, { defaultRule: 'maybe' } as never).then(() => 'построен', why),\n};",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> why</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">e</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> Error</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> e.message;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'seed вместо seeds'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> setup</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">ADMIN_DSN</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, name, { seed: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'booking'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] } </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">as</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> never</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">then</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(() </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'построен'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, why),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'имя «Мой дом»'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> setup</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">ADMIN_DSN</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Мой дом'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">then</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(() </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'построен'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, why),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  \"defaultRule: 'maybe'\"</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> setup</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">ADMIN_DSN</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, name, { defaultRule: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'maybe'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> } </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">as</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> never</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">then</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(() </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'построен'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, why),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">};</span></span></code></pre>",
+      "result": {
+        "seed вместо seeds": "letopis: invalid_data: неизвестная опция setup({ seed }) — похожие: seeds",
+        "имя «Мой дом»": "letopis: invalid_data: имя дома \"Мой дом\": латинские строчные буквы, цифры и подчёркивание, с буквы или подчёркивания, до 41 знака",
+        "defaultRule: 'maybe'": "letopis: invalid_data: defaultRule \"maybe\": нужно deny или allow"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": {
+        "entity": {
+          "Account": 4,
+          "Class": 24,
+          "member": 1,
+          "Resource": 11,
+          "rule": 19
+        },
+        "log": {
+          "create": 59,
+          "update": 8
+        },
+        "secret": {
+          "APIKEY": 1,
+          "CONCIERGE": 1,
+          "IDENT": 1,
+          "KEY": 1,
+          "SESSION": 4
+        }
+      },
+      "signals": []
+    }
+  ],
+  "output": "Шаг 1. Дом с готовой моделью салона и режимом сигналов\n{\n  \"created\": true,\n  \"режим сигналов\": \"tenant\"\n}\n\nШаг 2. Режим сигналов хранится в доме\n{\n  \"режим сигналов\": \"tenant\"\n}\n\nШаг 3. Сменить режим — только явно\n{\n  \"opaque\": \"opaque\",\n  \"none\": \"none\"\n}\n\nШаг 4. Правило по умолчанию: defaultRule\n{\n  \"свежий дом\": false,\n  \"defaultRule: 'allow'\": true,\n  \"defaultRule: 'deny'\": false\n}\n\nШаг 5. Модели дома: models\n{\n  \"первый раз\": [\n    \"Shop\"\n  ],\n  \"повтор\": [\n    \"Shop\"\n  ]\n}\n\nШаг 6. Помощники letopis/model\n{\n  \"one(Shop) — End\": true,\n  \"normalizeSchema\": {\n    \"type\": \"object\",\n    \"properties\": {\n      \"n\": {\n        \"type\": \"integer\",\n        \"minimum\": 1\n      }\n    }\n  },\n  \"translatePattern\": \"^[0-9]{3}$\"\n}\n\nШаг 7. Журнал setup(): log\n[\n  \"setup.step: повторный накат: v2.example_install_02_setup_options, ревизия 12\",\n  \"setup\"\n]\n\nШаг 8. Опечатка в опции и неверное имя дома\n{\n  \"seed вместо seeds\": \"letopis: invalid_data: неизвестная опция setup({ seed }) — похожие: seeds\",\n  \"имя «Мой дом»\": \"letopis: invalid_data: имя дома \\\"Мой дом\\\": латинские строчные буквы, цифры и подчёркивание, с буквы или подчёркивания, до 41 знака\",\n  \"defaultRule: 'maybe'\": \"letopis: invalid_data: defaultRule \\\"maybe\\\": нужно deny или allow\"\n}"
+}

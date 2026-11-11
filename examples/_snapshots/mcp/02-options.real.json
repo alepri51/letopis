@@ -19,7 +19,6 @@
       "secret": [],
       "signals": [
         "Category",
-        "Class",
         "Customer",
         "Order",
         "Product",
@@ -30,7 +29,7 @@
     },
     {
       "result": {
-        "строк": 1,
+        "строк": 2,
         "more": true
       },
       "error": null,
@@ -43,9 +42,9 @@
     {
       "result": {
         "без опции": {
-          "ошибка": "acl_denied"
+          "отказ": "acl_denied"
         },
-        "с allowAclWrite": "создан"
+        "с allowAclWrite": "ресурс создан"
       },
       "error": null,
       "entity": [],
@@ -57,7 +56,12 @@
       ]
     },
     {
-      "result": "сервер открыт",
+      "result": {
+        "корень Анны": "сервер открыт",
+        "консьерж в квартире (in)": "user_session_required",
+        "консьерж от имени Анны (as)": "user_session_required",
+        "транзакция begin()": "invalid_query"
+      },
       "error": null,
       "entity": [],
       "removed": [],
@@ -66,6 +70,6 @@
       "signals": []
     }
   ],
-  "output": "Шаг 1. maxRows: не больше двух строк за ответ\n{\n  \"строк\": 2,\n  \"more\": true,\n  \"курсор есть\": true\n}\n\nШаг 2. maxBytes: ответ не больше 1000 байт\n{\n  \"строк\": 1,\n  \"more\": true\n}\n\nШаг 3. Запись в классы прав — только с allowAclWrite\n{\n  \"без опции\": {\n    \"ошибка\": \"acl_denied\"\n  },\n  \"с allowAclWrite\": \"создан\"\n}\n\nШаг 4. allowSystemAdmin\n\"сервер открыт\"",
+  "output": "Шаг 1. maxRows: не больше двух строк за ответ\n{\n  \"строк\": 2,\n  \"more\": true,\n  \"курсор есть\": true\n}\n\nШаг 2. maxBytes: ответ не больше 1000 байт\n{\n  \"строк\": 2,\n  \"more\": true\n}\n\nШаг 3. Запись в классы прав — только с allowAclWrite\n{\n  \"без опции\": {\n    \"отказ\": \"acl_denied\"\n  },\n  \"с allowAclWrite\": \"ресурс создан\"\n}\n\nШаг 4. Агент — только жилец\n{\n  \"корень Анны\": \"сервер открыт\",\n  \"консьерж в квартире (in)\": \"user_session_required\",\n  \"консьерж от имени Анны (as)\": \"user_session_required\",\n  \"транзакция begin()\": \"invalid_query\"\n}",
   "exitCode": 0
 }

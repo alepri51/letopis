@@ -7,14 +7,18 @@
   },
   "steps": [
     {
-      "result": null,
+      "result": [
+        {
+          "price": 2500,
+          "title": "Чайник"
+        }
+      ],
       "error": null,
       "entity": [],
       "removed": [],
       "log": [],
       "secret": [],
       "signals": [
-        "Class",
         "Product"
       ]
     },
@@ -75,8 +79,9 @@
     },
     {
       "result": {
-        "tenant": "77303783-5532-59b3-a128-a40aa1c19528",
-        "schema": "v2.g_install_03_connect_options"
+        "maxx вместо max": "letopis: invalid_data: неизвестная опция connect({ maxx }) — похожие: max",
+        "строка без дома и ключа": "letopis: invalid_data: это не пропуск консьержа: нужна строка, которую вернул setup() (в ней letopis_schema и letopis_key)",
+        "пропуск с ролью администратора": "bypass_rls"
       },
       "error": null,
       "entity": [],
@@ -87,32 +92,22 @@
     },
     {
       "result": {
-        "0": "invalid_data",
-        "-5": "invalid_data",
-        "NaN": "invalid_data",
-        "'30d'": "invalid_data",
-        "'1d'": "подключено"
+        "title": "Кружка",
+        "price": 400
       },
       "error": null,
       "entity": [],
       "removed": [],
       "log": [],
       "secret": [],
-      "signals": []
+      "signals": [
+        "Product"
+      ]
     },
     {
       "result": {
-        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a"
+        "запрос после close()": "invalid_query"
       },
-      "error": null,
-      "entity": [],
-      "removed": [],
-      "log": [],
-      "secret": [],
-      "signals": []
-    },
-    {
-      "result": "закрыто",
       "error": null,
       "entity": [],
       "removed": [],
@@ -121,6 +116,6 @@
       "signals": []
     }
   ],
-  "output": "Шаг 1. Класс для опытов\n\n\nШаг 2. onQuery: что выполнила каждая цепочка\n[\n  {\n    \"mode\": \"rows\",\n    \"classes\": [\n      \"Product\"\n    ],\n    \"rows\": 1,\n    \"slow\": true,\n    \"ms\": \"≥ 0\"\n  },\n  {\n    \"mode\": \"count\",\n    \"classes\": [\n      \"Product\"\n    ],\n    \"rows\": 1,\n    \"slow\": true,\n    \"ms\": \"≥ 0\"\n  }\n]\n\nШаг 3. Пул, сигналы, продление сессии\n[\n  {\n    \"price\": 2500,\n    \"title\": \"Чайник\"\n  }\n]\n\nШаг 4. Кэш результатов\n{\n  \"hits\": 1,\n  \"misses\": 1,\n  \"stores\": 1\n}\n\nШаг 5. Модели — для типов, service — то же, что apiKey\n{\n  \"tenant\": \"ab7de4b4-5885-51e5-88fc-7a769f736d7d\",\n  \"schema\": \"v2.example_install_03_connect_options\"\n}\n\nШаг 6. Интервал обслуживания проверяется сразу\n{\n  \"0\": \"invalid_data\",\n  \"-5\": \"invalid_data\",\n  \"NaN\": \"invalid_data\",\n  \"'30d'\": \"invalid_data\",\n  \"'1d'\": \"подключено\"\n}\n\nШаг 7. owner — имя роли-владельца для администраторского подключения\n{\n  \"tenant\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\"\n}\n\nШаг 8. Закрыть подключение\n\"закрыто\"",
+  "output": "Шаг 1. Товар для опытов\n[\n  {\n    \"price\": 2500,\n    \"title\": \"Чайник\"\n  }\n]\n\nШаг 2. onQuery: что выполнила каждая цепочка\n[\n  {\n    \"mode\": \"rows\",\n    \"classes\": [\n      \"Product\"\n    ],\n    \"rows\": 1,\n    \"slow\": true,\n    \"ms\": \"≥ 0\"\n  },\n  {\n    \"mode\": \"count\",\n    \"classes\": [\n      \"Product\"\n    ],\n    \"rows\": 1,\n    \"slow\": true,\n    \"ms\": \"≥ 0\"\n  }\n]\n\nШаг 3. Пул и сигналы\n[\n  {\n    \"price\": 2500,\n    \"title\": \"Чайник\"\n  }\n]\n\nШаг 4. Кэш результатов\n{\n  \"hits\": 1,\n  \"misses\": 1,\n  \"stores\": 1\n}\n\nШаг 5. Опечатка в опции и чужая строка вместо пропуска\n{\n  \"maxx вместо max\": \"letopis: invalid_data: неизвестная опция connect({ maxx }) — похожие: max\",\n  \"строка без дома и ключа\": \"letopis: invalid_data: это не пропуск консьержа: нужна строка, которую вернул setup() (в ней letopis_schema и letopis_key)\",\n  \"пропуск с ролью администратора\": \"bypass_rls\"\n}\n\nШаг 6. Модели для типов цепочек: models\n{\n  \"title\": \"Кружка\",\n  \"price\": 400\n}\n\nШаг 7. Закрыть консьержа: close()\n{\n  \"запрос после close()\": \"invalid_query\"\n}",
   "exitCode": 0
 }

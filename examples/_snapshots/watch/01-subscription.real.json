@@ -7,14 +7,16 @@
   },
   "steps": [
     {
-      "result": "готово",
+      "result": [
+        "K-1 Чайник",
+        "M-1 Кружка"
+      ],
       "error": null,
       "entity": [],
       "removed": [],
       "log": [],
       "secret": [],
       "signals": [
-        "Class",
         "Product",
         "Shop"
       ]
@@ -42,24 +44,9 @@
     {
       "result": [
         {
-          "at": "2026-11-04T05:16:14.959225+00:00",
-          "id": "099dcd72-c15a-5fe8-a95f-70da339186f0",
-          "op": "update",
-          "rev": 2,
-          "data": {
-            "sku": "K-1",
-            "price": 1990,
-            "title": "Чайник"
-          },
-          "tags": [],
-          "class": "Product",
-          "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70"
-          },
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "agent": "ebe0f141-b656-5eac-a462-84812a8b8756"
+          "title": "Чайник",
+          "price": 1990,
+          "rev": 2
         }
       ],
       "error": null,
@@ -101,8 +88,24 @@
       "log": [],
       "secret": [],
       "signals": []
+    },
+    {
+      "result": {
+        "квартира": "Лютик",
+        "первое событие Бориса": "create Сито"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": [
+        "Product",
+        "Shop",
+        "member"
+      ]
     }
   ],
-  "output": "Шаг 1. Магазин и два товара\n\"готово\"\n\nШаг 2. Подписка с начала журнала\n[\n  {\n    \"op\": \"create\",\n    \"title\": \"Чайник\",\n    \"rev\": 1\n  },\n  {\n    \"op\": \"create\",\n    \"title\": \"Кружка\",\n    \"rev\": 1\n  }\n]\n\nШаг 3. Пока подписки нет — изменение\n[\n  {\n    \"at\": \"2026-11-04T05:16:16.537982+00:00\",\n    \"id\": \"099dcd72-c15a-5fe8-a95f-70da339186f0\",\n    \"op\": \"update\",\n    \"rev\": 2,\n    \"data\": {\n      \"sku\": \"K-1\",\n      \"price\": 1990,\n      \"title\": \"Чайник\"\n    },\n    \"tags\": [],\n    \"class\": \"Product\",\n    \"links\": {\n      \"Shop\": \"820d0964-969f-5ad6-bc38-f38710912f70\"\n    },\n    \"owner\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n    \"author\": \"3defbabb-a94d-5359-8463-dc947de193e1\",\n    \"tenant\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n    \"agent\": \"95687ed1-6de2-5069-8596-9d5eb9863c28\"\n  }\n]\n\nШаг 4. Продолжить с курсора\n{\n  \"op\": \"update\",\n  \"title\": \"Чайник\",\n  \"price\": 1990,\n  \"rev\": 2\n}\n\nШаг 5. Цикл for await, отставание и выход из цикла\n{\n  \"события\": [\n    \"create Чайник\",\n    \"create Кружка\",\n    \"update Чайник\"\n  ],\n  \"ждать нечего (lag = 0)\": true,\n  \"после break: done\": true\n}",
+  "output": "Шаг 1. Магазин и два товара\n[\n  \"K-1 Чайник\",\n  \"M-1 Кружка\"\n]\n\nШаг 2. Подписка с начала журнала\n[\n  {\n    \"op\": \"create\",\n    \"title\": \"Чайник\",\n    \"rev\": 1\n  },\n  {\n    \"op\": \"create\",\n    \"title\": \"Кружка\",\n    \"rev\": 1\n  }\n]\n\nШаг 3. Пока подписки нет — изменение\n[\n  {\n    \"title\": \"Чайник\",\n    \"price\": 1990,\n    \"rev\": 2\n  }\n]\n\nШаг 4. Продолжить с курсора\n{\n  \"op\": \"update\",\n  \"title\": \"Чайник\",\n  \"price\": 1990,\n  \"rev\": 2\n}\n\nШаг 5. Цикл for await, отставание и выход из цикла\n{\n  \"события\": [\n    \"create Чайник\",\n    \"create Кружка\",\n    \"update Чайник\"\n  ],\n  \"ждать нечего (lag = 0)\": true,\n  \"после break: done\": true\n}\n\nШаг 6. Чужая квартира: только свои события\n{\n  \"квартира\": \"Лютик\",\n  \"первое событие Бориса\": \"create Сито\"\n}",
   "exitCode": 0
 }

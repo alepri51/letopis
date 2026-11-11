@@ -1,5 +1,5 @@
-import { syncModels, inc, LetopisError } from 'letopis';
-import type { Db } from 'letopis';
+import { inc, LetopisError } from 'letopis';
+import type { Room } from 'letopis';
 import { hub, link } from 'letopis/model';
 import { z } from 'zod';
 import { example } from '../_shared/example.ts';
@@ -12,8 +12,8 @@ const Movement = link('Movement', { opId: z.string(), kind: z.enum(['topup', 'de
 let wallet: { id: string };
 
 /** Провести операцию: запись операции и приращение баланса — одной транзакцией. Повтор с тем же opId — без эффекта. */
-async function apply(db: Db, opId: string, kind: 'topup' | 'debit', amount: number): Promise<'проведено' | 'уже было'> {
-  const tr = await db.begin({ reason: `${kind} ${opId}` });
+async function apply(me: Room, opId: string, kind: 'topup' | 'debit', amount: number): Promise<'проведено' | 'уже было'> {
+  const tr = await me.begin({ reason: `${kind} ${opId}` });
   try {
     await tr.Wallet(wallet).Movement().create({ opId, kind, amount }).rows();
     await tr.Wallet(wallet).update({ balance: inc(kind === 'topup' ? amount : -amount) }).rows();
@@ -33,41 +33,45 @@ export default example({
     'Повтор операции после сбоя сети (тот же opId) база отклоняет как exists, и деньги не спишутся дважды.',
   tables: ['entity', 'log'],
   covers: ['nuance.opid-idempotency', 'nuance.commit-unknown-retry', 'export.LetopisError'],
+  models: [Wallet, Movement],
   steps: [
     {
       title: 'Кошелёк',
-      run: async ({ db }) => {
-        await syncModels(db, [Wallet, Movement], { apply: true });
-        [wallet] = await db.Wallet().create({ number: 'W-1' }).rows();
+      text:
+        'Классы `Wallet` и `Movement` — модели дома: их записал `setup()` при подготовке. `apply(me, …)` — функция ' +
+        'приложения в начале программы: запись операции `Movement` и приращение баланса в одной транзакции `me.begin()`.',
+      run: async ({ me }) => {
+        [wallet] = await me.Wallet().create({ number: 'W-1' }).rows();
         return wallet;
       },
     },
     {
       title: 'Пополнение на 1000',
       text: 'Операция `op-1` и баланс 0 → 1000 — в одной транзакции.',
-      run: async ({ db }) => apply(db, 'op-1', 'topup', 1000),
+      run: async ({ me }) => apply(me, 'op-1', 'topup', 1000),
     },
     {
       title: 'Ответ потерялся — повтор той же операции',
       text:
         'Клиент не получил ответ и прислал `op-1` снова. Операция с таким ключом уже есть — база отвечает `exists`, ' +
         'транзакция откатывается, баланс остался 1000. Так же выясняют исход после `commit_unknown` (связь оборвалась ' +
-        'во время COMMIT): повтор той же операции — `exists` значит «уже записано».',
-      run: async ({ db }) => apply(db, 'op-1', 'topup', 1000),
+        'во время COMMIT): повтор той же операции — `exists` значит «уже записано». Повторять можно только операцию с ' +
+        'ключом: голый `update({ balance: inc(-300) })` без записи `Movement` при повторе списал бы второй раз.',
+      run: async ({ me }) => apply(me, 'op-1', 'topup', 1000),
     },
     {
       title: 'Списание 300',
-      run: async ({ db }) => apply(db, 'op-2', 'debit', 300),
+      run: async ({ me }) => apply(me, 'op-2', 'debit', 300),
     },
     {
       title: 'Списать больше, чем есть, — нельзя',
       text: 'Баланс 700, списываем 5000: ограничение `min(0)` проверяется для получившегося значения — `invalid_data`, ничего не записано.',
-      run: async ({ db }) => apply(db, 'op-3', 'debit', 5000),
+      run: async ({ me }) => apply(me, 'op-3', 'debit', 5000),
       expect: { error: 'invalid_data' },
     },
     {
       title: 'Итог',
-      run: async ({ db }) => ({ баланс: (await db.Wallet(wallet).first())?.data.balance, операций: await db.Wallet(wallet).Movement().count() }),
+      run: async ({ me }) => ({ баланс: (await me.Wallet(wallet).first())?.data.balance, операций: await me.Wallet(wallet).Movement().count() }),
     },
   ],
 });

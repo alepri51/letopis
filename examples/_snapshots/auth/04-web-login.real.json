@@ -3,57 +3,226 @@
   "initial": {
     "entity": [],
     "log": [],
-    "secret": []
+    "secret": [
+      {
+        "account": "ed1ead8d-aca7-557a-b632-3ae7a6c4659a",
+        "tenant": "ed1ead8d-aca7-557a-b632-3ae7a6c4659a",
+        "kind": "INVITE",
+        "ident": "email:anna@romashka.ru",
+        "meta": {
+          "roles": [
+            "owner"
+          ],
+          "status": "used",
+          "contact": {
+            "kind": "email",
+            "address": "anna@romashka.ru"
+          },
+          "attempts": 0
+        },
+        "material": "5b49cd655f59063e4d01478cb60e0208a63f25aa636da7a683b67b4e8b169670",
+        "expires_at": "2026-11-17 20:13:43.720979+00",
+        "created_at": "2026-11-10 20:13:43.72356+00",
+        "deleted_at": "2026-11-10 20:13:43.866752+00"
+      }
+    ]
   },
   "steps": [
     {
       "result": {
-        "компания": "Ромашка",
-        "серверная сессия": {
-          "account": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a"
+        "неверный пароль": {
+          "status": 401,
+          "body": {
+            "error": "неверное имя или пароль"
+          }
         },
-        "чужая компания по имени": "вы не состоите в этой компании"
+        "вход": {
+          "status": 200,
+          "body": {
+            "квартира": "Ромашка"
+          }
+        },
+        "Set-Cookie": "sid=‹токен›; HttpOnly; SameSite=Lax; Path=/; Max-Age=28800"
       },
       "error": null,
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": [],
+      "secret": [
+        {
+          "account": "ed1ead8d-aca7-557a-b632-3ae7a6c4659a",
+          "tenant": "ed1ead8d-aca7-557a-b632-3ae7a6c4659a",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "5b49cd655f59063e4d01478cb60e0208a63f25aa636da7a683b67b4e8b169670",
+          "expires_at": "2026-11-17 20:13:43.720979+00",
+          "created_at": "2026-11-10 20:13:43.72356+00",
+          "deleted_at": "2026-11-10 20:13:43.866752+00"
+        },
+        {
+          "account": "851b276c-02c0-5e7b-9fc4-f8a86f4b902b",
+          "tenant": "ed1ead8d-aca7-557a-b632-3ae7a6c4659a",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "08:00:00",
+            "cred": "8f3ce4e3-708d-4804-b6d4-1a97043b8af3",
+            "methods": [
+              "PASSWORD"
+            ],
+            "login_at": "2026-11-10T20:13:44.230089+00:00"
+          },
+          "material": "6e43a6695744657cd4ed73a6760cb15bd23920484eff757b979674ab50d6ebb6",
+          "expires_at": "2026-11-11 04:13:44.230104+00",
+          "created_at": "2026-11-10 20:13:44.230105+00",
+          "deleted_at": null
+        }
+      ],
       "signals": [
-        "Class",
-        "Item",
-        "session:0419e317c76a41b4"
+        "Order"
       ]
     },
     {
       "result": {
-        "вещей в компании": 1,
-        "сейчас": "компания из серверной сессии"
+        "с cookie": {
+          "status": 200,
+          "body": [
+            "A-1: 1200",
+            "A-2: 5400"
+          ]
+        },
+        "без cookie": {
+          "status": 401,
+          "body": {
+            "error": "войдите"
+          }
+        }
       },
       "error": null,
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": [],
+      "secret": [
+        {
+          "account": "ed1ead8d-aca7-557a-b632-3ae7a6c4659a",
+          "tenant": "ed1ead8d-aca7-557a-b632-3ae7a6c4659a",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "5b49cd655f59063e4d01478cb60e0208a63f25aa636da7a683b67b4e8b169670",
+          "expires_at": "2026-11-17 20:13:43.720979+00",
+          "created_at": "2026-11-10 20:13:43.72356+00",
+          "deleted_at": "2026-11-10 20:13:43.866752+00"
+        },
+        {
+          "account": "851b276c-02c0-5e7b-9fc4-f8a86f4b902b",
+          "tenant": "ed1ead8d-aca7-557a-b632-3ae7a6c4659a",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "08:00:00",
+            "cred": "8f3ce4e3-708d-4804-b6d4-1a97043b8af3",
+            "methods": [
+              "PASSWORD"
+            ],
+            "login_at": "2026-11-10T20:13:44.230089+00:00"
+          },
+          "material": "6e43a6695744657cd4ed73a6760cb15bd23920484eff757b979674ab50d6ebb6",
+          "expires_at": "2026-11-11 04:13:44.230104+00",
+          "created_at": "2026-11-10 20:13:44.230105+00",
+          "deleted_at": null
+        }
+      ],
       "signals": []
     },
     {
       "result": {
-        "revoke(token)": true,
-        "запрос с этим cookie": "войдите заново",
-        "connect({ token })": "no_session (api.token_not_active)"
+        "выход": {
+          "status": 200,
+          "body": {
+            "вышли": true
+          },
+          "Set-Cookie": "sid=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0"
+        },
+        "тот же cookie после выхода": {
+          "status": 401,
+          "body": {
+            "error": "войдите заново"
+          }
+        },
+        "db.resume(токен)": "auth_failed"
       },
       "error": null,
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": [],
+      "secret": [
+        {
+          "account": "ed1ead8d-aca7-557a-b632-3ae7a6c4659a",
+          "tenant": "ed1ead8d-aca7-557a-b632-3ae7a6c4659a",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "5b49cd655f59063e4d01478cb60e0208a63f25aa636da7a683b67b4e8b169670",
+          "expires_at": "2026-11-17 20:13:43.720979+00",
+          "created_at": "2026-11-10 20:13:43.72356+00",
+          "deleted_at": "2026-11-10 20:13:43.866752+00"
+        },
+        {
+          "account": "851b276c-02c0-5e7b-9fc4-f8a86f4b902b",
+          "tenant": "ed1ead8d-aca7-557a-b632-3ae7a6c4659a",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "08:00:00",
+            "cred": "8f3ce4e3-708d-4804-b6d4-1a97043b8af3",
+            "methods": [
+              "PASSWORD"
+            ],
+            "login_at": "2026-11-10T20:13:44.230089+00:00"
+          },
+          "material": "6e43a6695744657cd4ed73a6760cb15bd23920484eff757b979674ab50d6ebb6",
+          "expires_at": "2026-11-11 04:13:44.230104+00",
+          "created_at": "2026-11-10 20:13:44.230105+00",
+          "deleted_at": "2026-11-10 20:13:44.3001+00"
+        }
+      ],
       "signals": [
-        "session:f6e5f6d7722d22f1"
+        "session:6e43a6695744657c"
       ]
     }
   ],
-  "output": "Шаг 1. Войти в компанию — одна функция\n{\n  \"компания\": \"Ромашка\",\n  \"серверная сессия\": {\n    \"account\": \"3defbabb-a94d-5359-8463-dc947de193e1\",\n    \"tenant\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\"\n  },\n  \"чужая компания по имени\": \"вы не состоите в этой компании\"\n}\n\nШаг 2. Каждый запрос — svc.as(аккаунт, { tenant })\n{\n  \"вещей в компании\": 1,\n  \"сейчас\": \"компания из серверной сессии\"\n}\n\nШаг 3. Выход: токен погашен — запрос и connect() получают отказ\n{\n  \"revoke(token)\": true,\n  \"запрос с этим cookie\": \"войдите заново\",\n  \"connect({ token })\": \"no_session (api.token_not_active)\"\n}",
+  "output": "Шаг 1. Вход формой: db.open, токен — в cookie\n{\n  \"неверный пароль\": {\n    \"status\": 401,\n    \"body\": {\n      \"error\": \"неверное имя или пароль\"\n    }\n  },\n  \"вход\": {\n    \"status\": 200,\n    \"body\": {\n      \"квартира\": \"Ромашка\"\n    }\n  },\n  \"Set-Cookie\": \"sid=‹токен›; HttpOnly; SameSite=Lax; Path=/; Max-Age=28800\"\n}\n\nШаг 2. Каждый запрос — db.resume(токен из cookie)\n{\n  \"с cookie\": {\n    \"status\": 200,\n    \"body\": [\n      \"A-1: 1200\",\n      \"A-2: 5400\"\n    ]\n  },\n  \"без cookie\": {\n    \"status\": 401,\n    \"body\": {\n      \"error\": \"войдите\"\n    }\n  }\n}\n\nШаг 3. Выход: close(); погашенный токен — 401\n{\n  \"выход\": {\n    \"status\": 200,\n    \"body\": {\n      \"вышли\": true\n    },\n    \"Set-Cookie\": \"sid=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0\"\n  },\n  \"тот же cookie после выхода\": {\n    \"status\": 401,\n    \"body\": {\n      \"error\": \"войдите заново\"\n    }\n  },\n  \"db.resume(токен)\": \"auth_failed\"\n}",
   "exitCode": 0
 }

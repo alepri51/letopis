@@ -8,16 +8,16 @@
   "steps": [
     {
       "result": {
-        "баланс": 1000
+        "баланс через прокси": 1000
       },
       "error": null,
       "entity": [
         {
-          "id": "5d02cf6f-5837-551f-9418-ef32303f6dbb",
+          "id": "9a1ee535-c827-55af-a2c3-b16b5759dcb9",
           "class": "Wallet",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "906d4be9-f73a-554c-8990-3478e0ffec62",
+          "owner": "906d4be9-f73a-554c-8990-3478e0ffec62",
           "links": {},
           "data": {
             "number": "W-1",
@@ -25,17 +25,16 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "8cfed367-1f3a-5fad-a3f3-4f2ea855358a",
+          "author": "e57e11c0-aaca-5b5e-a1e8-de3997227ec2",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:25.55947+00"
+          "at": "2026-11-10 20:16:41.772984+00"
         }
       ],
       "removed": [],
       "log": [],
       "secret": [],
       "signals": [
-        "Class",
         "Wallet"
       ]
     },
@@ -48,11 +47,11 @@
       },
       "entity": [
         {
-          "id": "5d02cf6f-5837-551f-9418-ef32303f6dbb",
+          "id": "9a1ee535-c827-55af-a2c3-b16b5759dcb9",
           "class": "Wallet",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "906d4be9-f73a-554c-8990-3478e0ffec62",
+          "owner": "906d4be9-f73a-554c-8990-3478e0ffec62",
           "links": {},
           "data": {
             "number": "W-1",
@@ -60,10 +59,10 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "8cfed367-1f3a-5fad-a3f3-4f2ea855358a",
+          "author": "e57e11c0-aaca-5b5e-a1e8-de3997227ec2",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:25.55947+00"
+          "at": "2026-11-10 20:16:41.772984+00"
         }
       ],
       "removed": [],
@@ -86,11 +85,11 @@
       "error": null,
       "entity": [
         {
-          "id": "5d02cf6f-5837-551f-9418-ef32303f6dbb",
+          "id": "9a1ee535-c827-55af-a2c3-b16b5759dcb9",
           "class": "Wallet",
           "rev": 2,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "906d4be9-f73a-554c-8990-3478e0ffec62",
+          "owner": "906d4be9-f73a-554c-8990-3478e0ffec62",
           "links": {},
           "data": {
             "number": "W-1",
@@ -98,19 +97,19 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "8cfed367-1f3a-5fad-a3f3-4f2ea855358a",
+          "author": "e57e11c0-aaca-5b5e-a1e8-de3997227ec2",
+          "agent": null,
           "reason": "debit op-2",
-          "at": "2026-11-04 05:15:25.690788+00"
+          "at": "2026-11-10 20:16:42.098565+00"
         },
         {
-          "id": "ac2302d5-fd59-5902-9ad9-cb6bf0469925",
+          "id": "d2a49e7e-8a46-57d0-8fad-67c99a174798",
           "class": "Movement",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "906d4be9-f73a-554c-8990-3478e0ffec62",
+          "owner": "906d4be9-f73a-554c-8990-3478e0ffec62",
           "links": {
-            "Wallet": "5d02cf6f-5837-551f-9418-ef32303f6dbb"
+            "Wallet": "9a1ee535-c827-55af-a2c3-b16b5759dcb9"
           },
           "data": {
             "kind": "debit",
@@ -119,10 +118,10 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "8cfed367-1f3a-5fad-a3f3-4f2ea855358a",
+          "author": "e57e11c0-aaca-5b5e-a1e8-de3997227ec2",
+          "agent": null,
           "reason": "debit op-2",
-          "at": "2026-11-04 05:15:25.680204+00"
+          "at": "2026-11-10 20:16:42.081085+00"
         }
       ],
       "removed": [],
@@ -142,11 +141,11 @@
       },
       "entity": [
         {
-          "id": "5d02cf6f-5837-551f-9418-ef32303f6dbb",
+          "id": "9a1ee535-c827-55af-a2c3-b16b5759dcb9",
           "class": "Wallet",
           "rev": 3,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "906d4be9-f73a-554c-8990-3478e0ffec62",
+          "owner": "906d4be9-f73a-554c-8990-3478e0ffec62",
           "links": {},
           "data": {
             "number": "W-1",
@@ -154,19 +153,19 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "author": "e57e11c0-aaca-5b5e-a1e8-de3997227ec2",
           "agent": null,
           "reason": "debit op-3",
-          "at": "2026-11-04 05:15:25.772891+00"
+          "at": "2026-11-10 20:16:42.202072+00"
         },
         {
-          "id": "ac2302d5-fd59-5902-9ad9-cb6bf0469925",
+          "id": "d2a49e7e-8a46-57d0-8fad-67c99a174798",
           "class": "Movement",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "906d4be9-f73a-554c-8990-3478e0ffec62",
+          "owner": "906d4be9-f73a-554c-8990-3478e0ffec62",
           "links": {
-            "Wallet": "5d02cf6f-5837-551f-9418-ef32303f6dbb"
+            "Wallet": "9a1ee535-c827-55af-a2c3-b16b5759dcb9"
           },
           "data": {
             "kind": "debit",
@@ -175,19 +174,19 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "8cfed367-1f3a-5fad-a3f3-4f2ea855358a",
+          "author": "e57e11c0-aaca-5b5e-a1e8-de3997227ec2",
+          "agent": null,
           "reason": "debit op-2",
-          "at": "2026-11-04 05:15:25.680204+00"
+          "at": "2026-11-10 20:16:42.081085+00"
         },
         {
-          "id": "94f2bba0-5025-5e78-b0eb-3f85375bc289",
+          "id": "cd1c6cbd-8b1d-5fc7-a2a4-6f01fbb70457",
           "class": "Movement",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "906d4be9-f73a-554c-8990-3478e0ffec62",
+          "owner": "906d4be9-f73a-554c-8990-3478e0ffec62",
           "links": {
-            "Wallet": "5d02cf6f-5837-551f-9418-ef32303f6dbb"
+            "Wallet": "9a1ee535-c827-55af-a2c3-b16b5759dcb9"
           },
           "data": {
             "kind": "debit",
@@ -196,10 +195,10 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "author": "e57e11c0-aaca-5b5e-a1e8-de3997227ec2",
           "agent": null,
           "reason": "debit op-3",
-          "at": "2026-11-04 05:15:25.753354+00"
+          "at": "2026-11-10 20:16:42.178331+00"
         }
       ],
       "removed": [],
@@ -222,11 +221,11 @@
       "error": null,
       "entity": [
         {
-          "id": "5d02cf6f-5837-551f-9418-ef32303f6dbb",
+          "id": "9a1ee535-c827-55af-a2c3-b16b5759dcb9",
           "class": "Wallet",
           "rev": 3,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "906d4be9-f73a-554c-8990-3478e0ffec62",
+          "owner": "906d4be9-f73a-554c-8990-3478e0ffec62",
           "links": {},
           "data": {
             "number": "W-1",
@@ -234,19 +233,19 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "author": "e57e11c0-aaca-5b5e-a1e8-de3997227ec2",
           "agent": null,
           "reason": "debit op-3",
-          "at": "2026-11-04 05:15:25.772891+00"
+          "at": "2026-11-10 20:16:42.202072+00"
         },
         {
-          "id": "ac2302d5-fd59-5902-9ad9-cb6bf0469925",
+          "id": "d2a49e7e-8a46-57d0-8fad-67c99a174798",
           "class": "Movement",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "906d4be9-f73a-554c-8990-3478e0ffec62",
+          "owner": "906d4be9-f73a-554c-8990-3478e0ffec62",
           "links": {
-            "Wallet": "5d02cf6f-5837-551f-9418-ef32303f6dbb"
+            "Wallet": "9a1ee535-c827-55af-a2c3-b16b5759dcb9"
           },
           "data": {
             "kind": "debit",
@@ -255,19 +254,19 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "8cfed367-1f3a-5fad-a3f3-4f2ea855358a",
+          "author": "e57e11c0-aaca-5b5e-a1e8-de3997227ec2",
+          "agent": null,
           "reason": "debit op-2",
-          "at": "2026-11-04 05:15:25.680204+00"
+          "at": "2026-11-10 20:16:42.081085+00"
         },
         {
-          "id": "94f2bba0-5025-5e78-b0eb-3f85375bc289",
+          "id": "cd1c6cbd-8b1d-5fc7-a2a4-6f01fbb70457",
           "class": "Movement",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "906d4be9-f73a-554c-8990-3478e0ffec62",
+          "owner": "906d4be9-f73a-554c-8990-3478e0ffec62",
           "links": {
-            "Wallet": "5d02cf6f-5837-551f-9418-ef32303f6dbb"
+            "Wallet": "9a1ee535-c827-55af-a2c3-b16b5759dcb9"
           },
           "data": {
             "kind": "debit",
@@ -276,10 +275,10 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "author": "e57e11c0-aaca-5b5e-a1e8-de3997227ec2",
           "agent": null,
           "reason": "debit op-3",
-          "at": "2026-11-04 05:15:25.753354+00"
+          "at": "2026-11-10 20:16:42.178331+00"
         }
       ],
       "removed": [],
@@ -288,6 +287,6 @@
       "signals": []
     }
   ],
-  "output": "Шаг 1. Кошелёк на 1000 и подключение через прокси\n{\n  \"баланс\": 1000\n}\n\nШаг 2. Связь оборвалась до COMMIT\nотказ, как и задумано: letopis: commit_unknown: связь оборвалась во время commit: транзакция могла зафиксироваться — проверьте исход повтором той же операции с тем же ключом\n\nШаг 3. Повтор той же операции: «проведено» — значит, в первый раз не записалось\n{\n  \"до повтора\": {\n    \"операция op-2 в базе\": false,\n    \"баланс\": 1000\n  },\n  \"повтор\": \"проведено\",\n  \"после повтора\": {\n    \"операция op-2 в базе\": true,\n    \"баланс\": 700\n  }\n}\n\nШаг 4. Связь оборвалась после COMMIT\nотказ, как и задумано: letopis: commit_unknown: связь оборвалась во время commit: транзакция могла зафиксироваться — проверьте исход повтором той же операции с тем же ключом\n\nШаг 5. Повтор той же операции: «уже было» — значит, записалось\n{\n  \"до повтора\": {\n    \"операция op-3 в базе\": true,\n    \"баланс\": 500\n  },\n  \"повтор\": \"уже было\",\n  \"после повтора\": {\n    \"операция op-3 в базе\": true,\n    \"баланс\": 500\n  }\n}",
+  "output": "Шаг 1. Кошелёк на 1000 и второй консьерж через прокси\n{\n  \"баланс через прокси\": 1000\n}\n\nШаг 2. Связь оборвалась до COMMIT\nотказ, как и задумано: letopis: commit_unknown: связь оборвалась во время commit: транзакция могла зафиксироваться — проверьте исход повтором той же операции с тем же ключом\n\nШаг 3. Повтор той же операции: «проведено» — значит, в первый раз не записалось\n{\n  \"до повтора\": {\n    \"операция op-2 в базе\": false,\n    \"баланс\": 1000\n  },\n  \"повтор\": \"проведено\",\n  \"после повтора\": {\n    \"операция op-2 в базе\": true,\n    \"баланс\": 700\n  }\n}\n\nШаг 4. Связь оборвалась после COMMIT\nотказ, как и задумано: letopis: commit_unknown: связь оборвалась во время commit: транзакция могла зафиксироваться — проверьте исход повтором той же операции с тем же ключом\n\nШаг 5. Повтор той же операции: «уже было» — значит, записалось\n{\n  \"до повтора\": {\n    \"операция op-3 в базе\": true,\n    \"баланс\": 500\n  },\n  \"повтор\": \"уже было\",\n  \"после повтора\": {\n    \"операция op-3 в базе\": true,\n    \"баланс\": 500\n  }\n}",
   "exitCode": 0
 }

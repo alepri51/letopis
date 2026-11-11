@@ -1,0 +1,466 @@
+{
+  "id": "auth/02-sessions",
+  "title": "Сессии: токен и resume, срок, выход, смена пароля, выход везде",
+  "summary": "Каждый вход — сессия: токен у клиента (me.token), в базе — его хэш. db.resume(токен) открывает ту же квартиру снова; срок задаёт ttl при входе, refreshSession его продлевает, но не дальше выданного. close() — выход, closeAll() — выход на всех устройствах, смена пароля гасит остальные сессии. Погашенный токен — auth_failed, корень с погашенной сессией на любой вызов отвечает no_session.",
+  "tables": [
+    "secret"
+  ],
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": [
+      {
+        "account": "Ромашка",
+        "tenant": "Ромашка",
+        "kind": "INVITE",
+        "ident": "email:anna@romashka.ru",
+        "meta": {
+          "roles": [
+            "owner"
+          ],
+          "status": "used",
+          "contact": {
+            "kind": "email",
+            "address": "anna@romashka.ru"
+          },
+          "attempts": 0
+        },
+        "material": "‹хэш›",
+        "expires_at": "через 7 дн",
+        "created_at": "установка",
+        "deleted_at": "установка"
+      }
+    ],
+    "counts": null
+  },
+  "steps": [
+    {
+      "title": "Токен сессии и возврат по нему: resume",
+      "text": "Вход (`open`, `accept`) заводит сессию — строку `SESSION` в `secret` с хэшем токена; сам токен — `me.token`, 64 шестнадцатеричных знака. Его хранят у клиента (cookie, файл) и по нему возвращаются: `db.resume(токен)` — корень той же квартиры от имени того же аккаунта, без пароля. Неверный токен — `auth_failed`.",
+      "code": "const again = await db.resume(me.token!);\nreturn {\n  'квартира': again.tenantName,\n  'тот же аккаунт': again.account === me.account,\n  'тот же токен': again.token === me.token,\n  'чужой токен': await db.resume('0'.repeat(64)).then(() => 'вошла', (e) => e.code),\n};",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> again</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">resume</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(me.token</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'квартира'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: again.tenantName,</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'тот же аккаунт'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: again.account </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">===</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.account,</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'тот же токен'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: again.token </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">===</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.token,</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'чужой токен'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">resume</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'0'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">repeat</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">64</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">)).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">then</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(() </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'вошла'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, (</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">e</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> e.code),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">};</span></span></code></pre>",
+      "result": {
+        "квартира": "Ромашка",
+        "тот же аккаунт": true,
+        "тот же токен": true,
+        "чужой токен": "auth_failed"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "установка",
+          "deleted_at": "установка",
+          "$new": false
+        }
+      ],
+      "counts": null,
+      "signals": []
+    },
+    {
+      "title": "Срок: ttl при входе и refreshSession",
+      "text": "У сессии два срока: длина, выданная при входе (`ttl`, по умолчанию 7 дней), и текущий конец. Телефон Анны входит на 2 часа — `ttl: '2h'` (число — секунды, строка — `'15m'`, `'2h'`, `'7 days'`). `refreshSession({ ttl })` сдвигает конец на «сейчас + ttl», но не дальше длины, выданной при входе, и никогда не укорачивает: семь дней телефону не продлить. Ответ — новый срок строкой ISO; здесь он пересчитан в часы. Непонятный `ttl` — `invalid_data`.",
+      "code": "phone = await db.open({ ...annaKey, ttl: '2h' });\nreturn {\n  'телефон: refreshSession 7 дней, часов': hoursLeft(await phone.refreshSession({ ttl: '7 days' })),\n  'Анна: refreshSession(), часов': hoursLeft(await me.refreshSession()),\n  'Анна: refreshSession 1 час, часов': hoursLeft(await me.refreshSession({ ttl: '1h' })),\n  \"ttl: 'вечно'\": await db.open({ ...annaKey, ttl: 'вечно' }).then(() => 'вошла', (e) => e.code),\n};",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">phone </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">open</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">...</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">annaKey, ttl: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'2h'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'телефон: refreshSession 7 дней, часов'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">hoursLeft</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> phone.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">refreshSession</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ ttl: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'7 days'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> })),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'Анна: refreshSession(), часов'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">hoursLeft</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">refreshSession</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'Анна: refreshSession 1 час, часов'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">hoursLeft</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">refreshSession</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ ttl: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'1h'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> })),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  \"ttl: 'вечно'\"</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">open</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">...</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">annaKey, ttl: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'вечно'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">then</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(() </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'вошла'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, (</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">e</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> e.code),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">};</span></span></code></pre>",
+      "result": {
+        "телефон: refreshSession 7 дней, часов": 2,
+        "Анна: refreshSession(), часов": 168,
+        "Анна: refreshSession 1 час, часов": 168,
+        "ttl: 'вечно'": "invalid_data"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "установка",
+          "deleted_at": "установка",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "02:00:00",
+            "cred": "секрет PASSWORD·1",
+            "methods": [
+              "PASSWORD"
+            ],
+            "login_at": "шаг 2"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 2 ч",
+          "created_at": "шаг 2",
+          "deleted_at": null,
+          "$new": true
+        }
+      ],
+      "counts": null,
+      "signals": []
+    },
+    {
+      "title": "Выход: close()",
+      "text": "`close()` у корня жильца — выход: его сессия гаснет (в `secret` у неё заполнен `deleted_at`). Дальше `db.resume` с этим токеном — `auth_failed`. Сам корень после выхода на любой вызов — чтение, запись, продление — сразу отвечает `no_session`. Поэтому веб-приложение проверяет токен в начале каждого запроса (`db.resume`), а корень после запроса не закрывает: `close()` — это выход, а не освобождение ресурсов.",
+      "code": "await phone.close();\nreturn {\n  'resume после выхода': await db.resume(phone.token!).then(() => 'вошла', (e) => e.code),\n  'чтение по погашенной сессии': await phone.member().rows().then((r) => r.length, (e) => e.code),\n  'обновить срок': await phone.refreshSession().then(() => 'обновлён', (e) => e.code),\n};",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> phone.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">close</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'resume после выхода'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">resume</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(phone.token</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">then</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(() </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'вошла'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, (</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">e</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> e.code),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'чтение по погашенной сессии'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> phone.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">member</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">then</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">r</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> r.</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">length</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, (</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">e</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> e.code),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'обновить срок'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> phone.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">refreshSession</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">then</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(() </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'обновлён'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, (</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">e</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> e.code),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">};</span></span></code></pre>",
+      "result": {
+        "resume после выхода": "auth_failed",
+        "чтение по погашенной сессии": "no_session",
+        "обновить срок": "no_session"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "установка",
+          "deleted_at": "установка",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "02:00:00",
+            "cred": "секрет PASSWORD·1",
+            "methods": [
+              "PASSWORD"
+            ],
+            "login_at": "шаг 2"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 2 ч",
+          "created_at": "шаг 2",
+          "deleted_at": "шаг 3",
+          "$new": true
+        }
+      ],
+      "counts": null,
+      "signals": [
+        "session:‹токен 1›"
+      ]
+    },
+    {
+      "title": "Смена пароля гасит остальные сессии",
+      "text": "Планшет Анны вошёл паролем. `keys.setPassword` меняет пароль: остальные сессии Анны в «Ромашке» гаснут, текущая остаётся (`keepCurrent: true` по умолчанию, `false` — погасить и её). Старый пароль больше не подходит. Имя для входа — контакт Анны, он сравнивается без учёта регистра: `ANNA@ROMASHKA.RU` — тот же ключ.",
+      "code": "const tablet = await db.open(annaKey);\nawait me.keys.setPassword({ password: newPassword });\nreturn {\n  'планшет': await db.resume(tablet.token!).then(() => 'жив', (e) => e.code),\n  'эта сессия': await db.resume(me.token!).then(() => 'жива', (e) => e.code),\n  'старый пароль': await db.open(annaKey).then(() => 'вошла', (e) => e.code),\n  'новый пароль, ЗАГЛАВНЫМИ': (await db.open({ email: annaKey.email.toUpperCase(), password: newPassword })).tenantName,\n};",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> tablet</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">open</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(annaKey);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.keys.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">setPassword</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ password: newPassword });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'планшет'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">resume</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(tablet.token</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">then</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(() </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'жив'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, (</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">e</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> e.code),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'эта сессия'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">resume</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(me.token</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">then</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(() </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'жива'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, (</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">e</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> e.code),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'старый пароль'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">open</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(annaKey).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">then</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(() </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'вошла'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, (</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">e</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> e.code),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'новый пароль, ЗАГЛАВНЫМИ'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">open</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ email: annaKey.email.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">toUpperCase</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(), password: newPassword })).tenantName,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">};</span></span></code></pre>",
+      "result": {
+        "планшет": "auth_failed",
+        "эта сессия": "жива",
+        "старый пароль": "auth_failed",
+        "новый пароль, ЗАГЛАВНЫМИ": "Ромашка"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "установка",
+          "deleted_at": "установка",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "02:00:00",
+            "cred": "секрет PASSWORD·1",
+            "methods": [
+              "PASSWORD"
+            ],
+            "login_at": "шаг 2"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 2 ч",
+          "created_at": "шаг 2",
+          "deleted_at": "шаг 3",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет PASSWORD·1",
+            "methods": [
+              "PASSWORD"
+            ],
+            "login_at": "шаг 4"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 4",
+          "deleted_at": "шаг 4",
+          "$new": true
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет PASSWORD·1",
+            "methods": [
+              "PASSWORD"
+            ],
+            "login_at": "шаг 4"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 4",
+          "deleted_at": null,
+          "$new": true
+        }
+      ],
+      "counts": null,
+      "signals": [
+        "session:‹токен 2›"
+      ]
+    },
+    {
+      "title": "Выйти на всех устройствах: closeAll()",
+      "text": "`closeAll()` гасит все сессии жильца в этой квартире, и текущую тоже, — ответ: сколько погашено. После этого `me` остаётся без сессии: на чтение — `no_session`, `resume` — `auth_failed`. Войти снова — ключом.",
+      "code": "await db.open({ email: annaKey.email, password: newPassword });\nconst n = await me.closeAll();\nreturn {\n  'погашено сессий': n,\n  'resume': await db.resume(me.token!).then(() => 'вошла', (e) => e.code),\n  'чтение без сессии': await me.member().rows().then((r) => r.length, (e) => e.code),\n  'вход снова': (await db.open({ email: annaKey.email, password: newPassword })).tenantName,\n};",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">open</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ email: annaKey.email, password: newPassword });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> n</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">closeAll</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'погашено сессий'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: n,</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'resume'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">resume</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(me.token</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">then</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(() </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'вошла'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, (</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">e</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> e.code),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'чтение без сессии'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">member</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">then</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">r</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> r.</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">length</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, (</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">e</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> e.code),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'вход снова'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">open</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ email: annaKey.email, password: newPassword })).tenantName,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">};</span></span></code></pre>",
+      "result": {
+        "погашено сессий": 3,
+        "resume": "auth_failed",
+        "чтение без сессии": "no_session",
+        "вход снова": "Ромашка"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "установка",
+          "deleted_at": "установка",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет PASSWORD·1",
+            "methods": [
+              "INVITE",
+              "FIRST"
+            ],
+            "login_at": "установка"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "установка",
+          "deleted_at": "шаг 5",
+          "$new": true
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "02:00:00",
+            "cred": "секрет PASSWORD·1",
+            "methods": [
+              "PASSWORD"
+            ],
+            "login_at": "шаг 2"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 2 ч",
+          "created_at": "шаг 2",
+          "deleted_at": "шаг 3",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет PASSWORD·1",
+            "methods": [
+              "PASSWORD"
+            ],
+            "login_at": "шаг 4"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 4",
+          "deleted_at": "шаг 4",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет PASSWORD·1",
+            "methods": [
+              "PASSWORD"
+            ],
+            "login_at": "шаг 4"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 4",
+          "deleted_at": "шаг 5",
+          "$new": true
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет PASSWORD·1",
+            "methods": [
+              "PASSWORD"
+            ],
+            "login_at": "шаг 5"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 5",
+          "deleted_at": "шаг 5",
+          "$new": true
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет PASSWORD·1",
+            "methods": [
+              "PASSWORD"
+            ],
+            "login_at": "шаг 5"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 5",
+          "deleted_at": null,
+          "$new": true
+        }
+      ],
+      "counts": null,
+      "signals": [
+        "session:‹токен 3›",
+        "session:‹токен 4›",
+        "session:‹токен 5›"
+      ]
+    }
+  ],
+  "output": "Шаг 1. Токен сессии и возврат по нему: resume\n{\n  \"квартира\": \"Ромашка\",\n  \"тот же аккаунт\": true,\n  \"тот же токен\": true,\n  \"чужой токен\": \"auth_failed\"\n}\n\nШаг 2. Срок: ttl при входе и refreshSession\n{\n  \"телефон: refreshSession 7 дней, часов\": 2,\n  \"Анна: refreshSession(), часов\": 168,\n  \"Анна: refreshSession 1 час, часов\": 168,\n  \"ttl: 'вечно'\": \"invalid_data\"\n}\n\nШаг 3. Выход: close()\n{\n  \"resume после выхода\": \"auth_failed\",\n  \"чтение по погашенной сессии\": \"no_session\",\n  \"обновить срок\": \"no_session\"\n}\n\nШаг 4. Смена пароля гасит остальные сессии\n{\n  \"планшет\": \"auth_failed\",\n  \"эта сессия\": \"жива\",\n  \"старый пароль\": \"auth_failed\",\n  \"новый пароль, ЗАГЛАВНЫМИ\": \"Ромашка\"\n}\n\nШаг 5. Выйти на всех устройствах: closeAll()\n{\n  \"погашено сессий\": 3,\n  \"resume\": \"auth_failed\",\n  \"чтение без сессии\": \"no_session\",\n  \"вход снова\": \"Ромашка\"\n}"
+}

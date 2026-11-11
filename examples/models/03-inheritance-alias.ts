@@ -1,4 +1,4 @@
-import { syncModels } from 'letopis';
+import { setup } from 'letopis';
 import { hub } from 'letopis/model';
 import { z } from 'zod';
 import { example } from '../_shared/example.ts';
@@ -16,37 +16,41 @@ export default example({
   steps: [
     {
       title: 'Описываем: человек → клиент → VIP',
-      run: async ({ db }) => {
-        const r = await syncModels(db, [Person, Customer, Vip], { apply: true });
-        return r.created;
+      text:
+        'Модель дома дописывает `setup(ADMIN_DSN, name, { models })`; корень Анны, открытый раньше, перечитывает ' +
+        'классы `me.refresh()`.',
+      run: async ({ ADMIN_DSN, name, me }) => {
+        const r = await setup(ADMIN_DSN, name, { models: [Person, Customer, Vip], quiet: true });
+        await me.refresh();
+        return r.models!.created;
       },
     },
     {
       title: 'Клиент и VIP-клиент',
       text: 'У VIP есть все поля клиента (`name`, `email`) и своё поле `discount`.',
-      run: async ({ db }) => {
-        await db.Customer().create({ name: 'Ольга', email: 'olga@mail.ru' }).rows();
-        return db.Vip().create({ name: 'Иван', email: 'ivan@mail.ru', discount: 10 }).rows();
+      run: async ({ me }) => {
+        await me.Customer().create({ name: 'Ольга', email: 'olga@mail.ru' }).rows();
+        return me.Vip().create({ name: 'Иван', email: 'ivan@mail.ru', discount: 10 }).rows();
       },
     },
     {
       title: 'Шаг по классу находит и потомков',
-      text: '`db.Customer()` отдаёт и Ольгу (Customer), и Ивана (Vip): VIP — тоже клиент.',
-      run: async ({ db }) => (await db.Customer().sort('data.name').rows()).map((r) => ({ name: r.data.name, class: r.class })),
+      text: '`me.Customer()` отдаёт и Ольгу (Customer), и Ивана (Vip): VIP — тоже клиент.',
+      run: async ({ me }) => (await me.Customer().sort('data.name').rows()).map((r) => ({ name: r.data.name, class: r.class })),
     },
     {
       title: '.exact() — только сам класс',
-      run: async ({ db }) => (await db.Customer().exact().rows()).map((r) => ({ name: r.data.name, class: r.class })),
+      run: async ({ me }) => (await me.Customer().exact().rows()).map((r) => ({ name: r.data.name, class: r.class })),
     },
     {
       title: 'Алиас — второе имя для шага',
-      text: 'У класса `Customer` алиас `Клиент`: шаг `db.Клиент()` — то же самое.',
-      run: async ({ db }) => db.Клиент().count(),
+      text: 'У класса `Customer` алиас `Клиент`: шаг `me.Клиент()` — то же самое.',
+      run: async ({ me }) => me.Клиент().count(),
     },
     {
       title: 'У абстрактного класса нет своих строк',
       text: '`Person` — абстрактный: создать «просто человека» нельзя, только клиента или VIP.',
-      run: async ({ db }) => db.Person().create({ name: 'Никто' }).rows(),
+      run: async ({ me }) => me.Person().create({ name: 'Никто' }).rows(),
       expect: { error: 'invalid_class' },
     },
   ],

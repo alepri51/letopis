@@ -1,7 +1,7 @@
 {
   "id": "logging/01-log",
   "title": "Логирование: что делает letopis",
-  "summary": "connect({ log, logLevel }) пишет события: запись, удаление, восстановление, ошибки, вход. log — console, pino или своя функция; logLevel — порог (по умолчанию info). Пароли, токены и ключи в событиях всегда замаскированы.",
+  "summary": "connect(pass, { log, logLevel }) и setup(…, { log }) пишут события: подключение, вход, запись, удаление, возврат, приглашения, выписка, ошибки. log — console, pino или своя функция; logLevel — порог (по умолчанию info). Пароли, токены, ключи и коды в события не попадают никогда; redact маскирует и ваши поля.",
   "tables": [
     "entity",
     "log"
@@ -15,14 +15,19 @@
   "steps": [
     {
       "title": "Логгер — console",
-      "text": "`log: console` — события идут в `console.info`, `console.warn`, `console.error` по уровню: первым аргументом объект события, вторым — его имя. Здесь два события уровня info: `connect` (подключение готово) и `write` (записана заметка). Чтобы показать их и в ответе шага, `console.info` на время шага ещё и запоминает, что получил; в своей программе это не нужно — события просто печатаются. Таблицы меняет только запись заметки.",
-      "code": "await syncModels(db, [Note], { apply: true });\nconst printed: { вызов: string; event: string; op?: string }[] = [];\nconst info = console.info;\nconsole.info = (e: LogEvent, name: string) => {\n  printed.push({ вызов: 'console.info', event: name, op: e.op });\n  info(e, name); // console печатает событие как обычно\n};\ntry {\n  const app = await connect({ dsn: dsn.app, schema, token: up.tenant!.token!, log: console, logLevel: 'info' });\n  await app.Note().create({ text: 'первая заметка' }).rows();\n} finally {\n  console.info = info;\n}\nreturn printed;",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> syncModels</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, [Note], { apply: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> printed</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">вызов</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> string</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">; </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">event</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> string</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">; </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">op</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">?:</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> string</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }[] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> [];</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> info</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> console.info;</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">console.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">info</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">e</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> LogEvent</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">name</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> string</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  printed.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">push</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ вызов: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'console.info'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, event: name, op: e.op });</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">  info</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(e, name); </span><span style=\"color:#6A737D;--shiki-dark:#6A737D\">// console печатает событие как обычно</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">};</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">try</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">  const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> app</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> connect</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ dsn: dsn.app, schema, token: up.tenant</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.token</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, log: console, logLevel: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'info'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">  await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> app.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Note</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ text: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'первая заметка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">} </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">finally</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  console.info </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> info;</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">}</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> printed;</span></span></code></pre>",
+      "text": "`log: console` — события идут в `console.info`, `console.warn`, `console.error` по уровню: первым аргументом объект события, вторым — его имя. Логгер — у консьержа, корни квартир, которые он открывает, пишут тем же логгером. Здесь три события уровня info: `connect` (консьерж готов), `auth.login` (Анна вошла ключом) и `write` (записана заметка). Чтобы показать их и в ответе шага, `console.info` на время шага ещё и запоминает, что получил; в своей программе это не нужно — события просто печатаются.",
+      "code": "const printed: { 'вызов': string; event: string; op?: string }[] = [];\nconst info = console.info;\nconsole.info = (e: LogEvent, name: string) => {\n  printed.push({ 'вызов': 'console.info', event: name, op: e.op });\n  info(e, name); // console печатает событие как обычно\n};\ntry {\n  const db = await connect(pass, { log: console, logLevel: 'info' });\n  const anna = await db.open(annaKey);\n  await anna.Note().create({ text: 'первая заметка' }).rows();\n} finally {\n  console.info = info;\n}\nreturn printed;",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> printed</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'вызов'</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> string</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">; </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">event</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> string</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">; </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">op</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">?:</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> string</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }[] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> [];</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> info</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> console.info;</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">console.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">info</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">e</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> LogEvent</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">name</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> string</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  printed.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">push</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'вызов'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'console.info'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, event: name, op: e.op });</span></span>\n<span class=\"line\"><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">  info</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(e, name); </span><span style=\"color:#6A737D;--shiki-dark:#6A737D\">// console печатает событие как обычно</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">};</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">try</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">  const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> db</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> connect</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(pass, { log: console, logLevel: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'info'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">  const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> anna</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">open</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(annaKey);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">  await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> anna.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Note</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ text: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'первая заметка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">} </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">finally</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  console.info </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> info;</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">}</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> printed;</span></span></code></pre>",
       "result": [
         {
           "вызов": "console.info",
           "event": "connect",
           "op": "connect"
+        },
+        {
+          "вызов": "console.info",
+          "event": "auth.login",
+          "op": "open"
         },
         {
           "вызов": "console.info",
@@ -56,7 +61,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "35",
+          "seq": "42",
           "id": "Note·1",
           "rev": 1,
           "class": "Note",
@@ -77,47 +82,50 @@
       "secret": [],
       "counts": null,
       "signals": [
-        "Class",
         "Note"
       ]
     },
     {
-      "title": "Свой логгер: события write, delete, restore, error",
-      "text": "Функция в `log` получает каждое событие уровня `info` и выше. Предпросмотр удаления (`delete.preview`) и чтение (`read`) — уровень `debug`, ниже порога: их не видно. Повторный `restore` уже возвращённой заметки — отказ `not_deleted`, и событие `error` несёт его код и ключ. В ответе — главное из каждого события; кроме этого в нём время `ts`, длительность `ms`, арендатор, аккаунт и цепочка `chain`.",
-      "code": "const events: Record<string, unknown>[] = [];\nconst app = await connect({ dsn: dsn.app, schema, token: up.tenant!.token!, log: (e) => void events.push({ ...e }), logLevel: 'info' });\nconst [note] = await app.Note().create({ text: 'черновик' }).rows();\nconst preview = await app.Note(note).delete().rows();\nconst gone = await app.Note(note).delete({ confirm: true, expect: preview }).rows();\nawait app.Note(note).restore({ expect: gone }).rows();\nawait app.Note(note).restore({ expect: gone }).rows().catch(() => null); // уже вернули — отказ\n// поля без значения в событие не попадают — и в ответ тоже\nreturn events.map(({ level, event, op, rows, code, key }) =>\n  Object.fromEntries(Object.entries({ level, event, op, rows, code, key }).filter(([, v]) => v !== undefined)));",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> events</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> Record</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">&#x3C;</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">string</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">unknown</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">>[] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> [];</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> app</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> connect</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ dsn: dsn.app, schema, token: up.tenant</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.token</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">log</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">e</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> void</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> events.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">push</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">...</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">e }), logLevel: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'info'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> [</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">note</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> app.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Note</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ text: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'черновик'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> preview</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> app.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Note</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(note).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">delete</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> gone</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> app.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Note</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(note).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">delete</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ confirm: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, expect: preview }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> app.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Note</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(note).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">restore</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ expect: gone }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> app.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Note</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(note).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">restore</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ expect: gone }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">catch</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(() </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> null</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">); </span><span style=\"color:#6A737D;--shiki-dark:#6A737D\">// уже вернули — отказ</span></span>\n<span class=\"line\"><span style=\"color:#6A737D;--shiki-dark:#6A737D\">// поля без значения в событие не попадают — и в ответ тоже</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> events.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">level</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">event</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">op</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">code</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">key</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  Object.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">fromEntries</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(Object.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">entries</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ level, event, op, rows, code, key }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">filter</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(([, </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">v</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">]) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> v </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!==</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> undefined</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">)));</span></span></code></pre>",
-      "result": [
-        {
-          "level": "info",
-          "event": "connect",
-          "op": "connect"
-        },
-        {
-          "level": "info",
-          "event": "write",
-          "op": "create",
-          "rows": 1
-        },
-        {
-          "level": "info",
-          "event": "delete",
-          "op": "delete",
-          "rows": 1
-        },
-        {
-          "level": "info",
-          "event": "restore",
-          "op": "restore",
-          "rows": 1
-        },
-        {
-          "level": "warn",
-          "event": "error",
-          "op": "rows",
-          "code": "not_deleted",
-          "key": "write.restore_already"
-        }
-      ],
+      "title": "Свой логгер: запись, удаление, возврат, ошибка",
+      "text": "Функция в `log` получает каждое событие уровня `info` и выше. Предпросмотр удаления (`delete.preview`) и чтение (`read`) — уровень `debug`, ниже порога: их не видно. Повторный `restore` уже возвращённой заметки — отказ `not_deleted`, и событие `error` несёт его код и ключ каталога (уровень `warn`: штатный отказ). `redact: ['text']` прячет значения поля `text` везде в событии — и в цепочке правки по фильтру. Кроме показанного, в событии есть время `ts`, длительность `ms`, квартира, аккаунт и подробности `detail`.",
+      "code": "const events: LogEvent[] = [];\nconst db = await connect(pass, { log: (e) => void events.push(e), logLevel: 'info', redact: ['text'] });\nconst anna = await db.open(annaKey);\nconst [note] = await anna.Note().create({ text: 'черновик' }).rows();\nconst preview = await anna.Note(note).delete().rows();\nconst gone = await anna.Note(note).delete({ confirm: true, expect: preview }).rows();\nawait anna.Note(note).restore({ expect: gone }).rows();\nawait anna.Note(note).restore({ expect: gone }).rows().catch(() => null); // уже вернули — отказ\nawait anna.Note({ text: 'черновик' }).update({ text: 'итог' }).rows();\nconst update = events.find((e) => e.event === 'write' && e.op === 'update');\nreturn { 'события': events.filter((e) => e.event !== 'connect' && e.event !== 'auth.login').map(brief), 'цепочка правки': update?.chain };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> events</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> LogEvent</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">[] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> [];</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> db</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> connect</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(pass, { </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">log</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">e</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> void</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> events.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">push</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(e), logLevel: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'info'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, redact: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'text'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> anna</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">open</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(annaKey);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> [</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">note</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> anna.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Note</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ text: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'черновик'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> preview</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> anna.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Note</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(note).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">delete</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> gone</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> anna.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Note</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(note).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">delete</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ confirm: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, expect: preview }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> anna.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Note</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(note).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">restore</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ expect: gone }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> anna.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Note</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(note).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">restore</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ expect: gone }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">catch</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(() </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> null</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">); </span><span style=\"color:#6A737D;--shiki-dark:#6A737D\">// уже вернули — отказ</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> anna.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Note</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ text: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'черновик'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ text: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'итог'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> update</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> events.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">find</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">e</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> e.event </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">===</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'write'</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> &#x26;&#x26;</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> e.op </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">===</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'update'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'события'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: events.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">filter</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">e</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> e.event </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!==</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'connect'</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> &#x26;&#x26;</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> e.event </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!==</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'auth.login'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(brief), </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'цепочка правки'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: update?.chain };</span></span></code></pre>",
+      "result": {
+        "события": [
+          {
+            "level": "info",
+            "event": "write",
+            "op": "create",
+            "rows": 1
+          },
+          {
+            "level": "info",
+            "event": "delete",
+            "op": "delete",
+            "rows": 1
+          },
+          {
+            "level": "info",
+            "event": "restore",
+            "op": "restore",
+            "rows": 1
+          },
+          {
+            "level": "warn",
+            "event": "error",
+            "op": "rows",
+            "code": "not_deleted",
+            "key": "write.restore_already"
+          },
+          {
+            "level": "info",
+            "event": "write",
+            "op": "update",
+            "rows": 1
+          }
+        ],
+        "цепочка правки": "Note({\"text\":\"***\"}).update({text}).rows()"
+      },
       "error": null,
       "entity": [
         {
@@ -141,19 +149,19 @@
         {
           "id": "Note·2",
           "class": "Note",
-          "rev": 3,
+          "rev": 4,
           "tenant": "Ромашка",
           "owner": "Ромашка",
           "links": {},
           "data": {
-            "text": "черновик"
+            "text": "итог"
           },
           "tags": [],
-          "op": "restore",
+          "op": "update",
           "author": "Анна",
           "agent": null,
           "reason": null,
-          "at": "t4",
+          "at": "t5",
           "$changed": [
             "*"
           ]
@@ -162,7 +170,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "35",
+          "seq": "42",
           "id": "Note·1",
           "rev": 1,
           "class": "Note",
@@ -180,7 +188,7 @@
           "$new": false
         },
         {
-          "seq": "36",
+          "seq": "43",
           "id": "Note·2",
           "rev": 1,
           "class": "Note",
@@ -198,7 +206,7 @@
           "$new": true
         },
         {
-          "seq": "37",
+          "seq": "44",
           "id": "Note·2",
           "rev": 2,
           "class": "Note",
@@ -216,7 +224,7 @@
           "$new": true
         },
         {
-          "seq": "38",
+          "seq": "45",
           "id": "Note·2",
           "rev": 3,
           "class": "Note",
@@ -232,6 +240,24 @@
           "reason": null,
           "at": "t4",
           "$new": true
+        },
+        {
+          "seq": "46",
+          "id": "Note·2",
+          "rev": 4,
+          "class": "Note",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "text": "итог"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": null,
+          "reason": null,
+          "at": "t5",
+          "$new": true
         }
       ],
       "secret": [],
@@ -241,16 +267,21 @@
       ]
     },
     {
-      "title": "Журнал установки и свои секретные поля: up({ log }), redact",
-      "text": "Те же опции есть у `up()`: установка пишет события `up` и `migrate`. `redact` — имена полей, которые журнал маскирует везде в `detail` вдобавок к паролям, токенам и ключам (их он маскирует всегда). Здесь `up()` ставит вторую, учебную схему — только чтобы показать его события. Полный список событий с уровнями — `LOG_EVENTS`.",
-      "code": "const events: Record<string, unknown>[] = [];\nconst log = (e: LogEvent) => void events.push({ ...e });\nawait install({ dsn: dsn.admin, schema: `${schema}_up`, quiet: true, log, logLevel: 'info', redact: ['passport'] });\nconst app = await connect({ dsn: dsn.app, schema, token: up.tenant!.token!, log, logLevel: 'info', redact: ['passport'] });\nawait app.Note().create({ text: 'с маскировкой' }).rows();\nconst catalog = Object.entries(LOG_EVENTS).slice(0, 4).map(([name, e]) => ({ name, level: e.level, ru: e.ru }));\nreturn { events: events.map(({ level, event, op }) => ({ level, event, op })), catalog };",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> events</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> Record</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">&#x3C;</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">string</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">unknown</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">>[] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> [];</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> log</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">e</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> LogEvent</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> void</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> events.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">push</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">...</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">e });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> install</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ dsn: dsn.admin, schema: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">`${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">schema</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">}_up`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, quiet: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, log, logLevel: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'info'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, redact: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'passport'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> app</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> connect</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ dsn: dsn.app, schema, token: up.tenant</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.token</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, log, logLevel: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'info'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, redact: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'passport'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> app.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Note</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ text: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'с маскировкой'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> catalog</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> Object.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">entries</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">LOG_EVENTS</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">slice</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">0</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">4</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(([</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">name</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">e</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">]) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ name, level: e.level, ru: e.ru }));</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { events: events.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(({ </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">level</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">event</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">op</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ level, event, op })), catalog };</span></span></code></pre>",
+      "title": "Дом и квартиры: setup, приглашение, вход, выписка",
+      "text": "Повторный `setup()` с логгером пишет `setup.step` (то, что без логгера печатается в консоль) и итоговое `setup`. Консьерж заводит квартиру «Лютик» (`tenant.create`) и зовёт Бориса (`auth.invite`), Борис принимает приглашение (`auth.login`), неверный пароль — `auth.fail` и `error` уровня `warn`. Борис зовёт Глеба, Глеб выписывается (`member.leave`), Борис выпускает ключ API (`auth.credential`) и удаляет квартиру (`tenant.delete`); Анна входит и выходит (`auth.logout`). Каждая такая операция — ещё и транзакция с событием `tx.commit`: здесь они не показаны. Полный список событий с уровнями — `LOG_EVENTS`.",
+      "code": "const events: LogEvent[] = [];\nconst log = (e: LogEvent) => void events.push(e);\nawait setup(ADMIN_DSN, name, { log, logLevel: 'info', redact: ['passport'] });\nconst db = await connect(pass, { log, logLevel: 'info', redact: ['passport'], postman });\nawait db.createTenant('Лютик');\nconst boris = await inviteAndAccept(db, await db.in('Лютик'), { email: 'boris@lutik.ru' }, ['owner'], { password: 'Лютик-2026!', name: 'Борис' });\nawait db.open({ email: 'boris@lutik.ru', password: 'не тот' }).catch(() => null);\nconst gleb = await inviteAndAccept(db, boris, { email: 'gleb@lutik.ru' }, ['staff'], { password: 'Глеб-2026!', name: 'Глеб' });\nawait gleb.leave();\nawait boris.keys.issueApiKey({ name: 'склад' });\nawait boris.deleteTenant();\nconst anna = await db.open(annaKey);\nawait anna.close();\nreturn {\n  'события': events.filter((e) => !e.event.startsWith('tx.')).map(brief),\n  'каталог LOG_EVENTS': ['setup', 'auth.invite', 'member.leave', 'tenant.delete'].map((n) => ({ n, ...LOG_EVENTS[n as keyof typeof LOG_EVENTS] })),\n};",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> events</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> LogEvent</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">[] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> [];</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> log</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">e</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> LogEvent</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> void</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> events.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">push</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(e);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> setup</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">ADMIN_DSN</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, name, { log, logLevel: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'info'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, redact: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'passport'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> db</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> connect</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(pass, { log, logLevel: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'info'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, redact: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'passport'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">], postman });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">createTenant</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Лютик'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> boris</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> inviteAndAccept</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">in</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Лютик'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">), { email: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'boris@lutik.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'owner'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">], { password: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Лютик-2026!'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Борис'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">open</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ email: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'boris@lutik.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, password: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'не тот'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">catch</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(() </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> null</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> gleb</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> inviteAndAccept</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, boris, { email: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'gleb@lutik.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'staff'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">], { password: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Глеб-2026!'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Глеб'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> gleb.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">leave</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> boris.keys.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">issueApiKey</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'склад'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> boris.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">deleteTenant</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> anna</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">open</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(annaKey);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> anna.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">close</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'события'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: events.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">filter</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">e</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> !</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">e.event.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">startsWith</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'tx.'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">)).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(brief),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'каталог LOG_EVENTS'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'setup'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'auth.invite'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'member.leave'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'tenant.delete'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">].</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">n</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ n, </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">...</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">LOG_EVENTS</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">[n </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">as</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> keyof</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> typeof</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> LOG_EVENTS</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] })),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">};</span></span></code></pre>",
       "result": {
-        "events": [
+        "события": [
           {
             "level": "info",
-            "event": "up",
-            "op": "up"
+            "event": "setup.step",
+            "op": "setup"
+          },
+          {
+            "level": "info",
+            "event": "setup",
+            "op": "setup"
           },
           {
             "level": "info",
@@ -259,30 +290,88 @@
           },
           {
             "level": "info",
-            "event": "write",
-            "op": "create"
+            "event": "tenant.create",
+            "op": "createTenant"
+          },
+          {
+            "level": "info",
+            "event": "auth.invite",
+            "op": "invite"
+          },
+          {
+            "level": "info",
+            "event": "auth.login",
+            "op": "accept"
+          },
+          {
+            "level": "warn",
+            "event": "auth.fail",
+            "op": "open"
+          },
+          {
+            "level": "warn",
+            "event": "error",
+            "op": "open",
+            "code": "auth_failed",
+            "key": "api.auth_failed"
+          },
+          {
+            "level": "info",
+            "event": "auth.invite",
+            "op": "invite"
+          },
+          {
+            "level": "info",
+            "event": "auth.login",
+            "op": "accept"
+          },
+          {
+            "level": "info",
+            "event": "member.leave",
+            "op": "leave"
+          },
+          {
+            "level": "info",
+            "event": "auth.credential",
+            "op": "keys.issueApiKey"
+          },
+          {
+            "level": "info",
+            "event": "tenant.delete",
+            "op": "deleteTenant",
+            "rows": 12
+          },
+          {
+            "level": "info",
+            "event": "auth.login",
+            "op": "open"
+          },
+          {
+            "level": "info",
+            "event": "auth.logout",
+            "op": "close"
           }
         ],
-        "catalog": [
+        "каталог LOG_EVENTS": [
           {
-            "name": "connect",
+            "n": "setup",
             "level": "info",
-            "ru": "connect() готов: схема, режим сигналов, кэш, способ входа"
+            "ru": "setup() завершён: дом построен или накатан повторно"
           },
           {
-            "name": "close",
+            "n": "auth.invite",
             "level": "info",
-            "ru": "db.close(): пул, подписки и таймеры закрыты"
+            "ru": "выдано приглашение в квартиру"
           },
           {
-            "name": "registry.refresh",
-            "level": "debug",
-            "ru": "реестр классов перечитан"
+            "n": "member.leave",
+            "level": "info",
+            "ru": "жилец выписался из квартиры (leave)"
           },
           {
-            "name": "session.renew",
+            "n": "tenant.delete",
             "level": "info",
-            "ru": "сессия по ключу сервиса истекла — ключ обменян на новую"
+            "ru": "квартира удалена (deleteTenant)"
           }
         ]
       },
@@ -309,46 +398,26 @@
         {
           "id": "Note·2",
           "class": "Note",
-          "rev": 3,
+          "rev": 4,
           "tenant": "Ромашка",
           "owner": "Ромашка",
           "links": {},
           "data": {
-            "text": "черновик"
+            "text": "итог"
           },
           "tags": [],
-          "op": "restore",
-          "author": "Анна",
-          "agent": null,
-          "reason": null,
-          "at": "t4",
-          "$changed": []
-        },
-        {
-          "id": "Note·3",
-          "class": "Note",
-          "rev": 1,
-          "tenant": "Ромашка",
-          "owner": "Ромашка",
-          "links": {},
-          "data": {
-            "text": "с маскировкой"
-          },
-          "tags": [],
-          "op": "create",
+          "op": "update",
           "author": "Анна",
           "agent": null,
           "reason": null,
           "at": "t5",
-          "$changed": [
-            "*"
-          ]
+          "$changed": []
         }
       ],
       "removed": [],
       "log": [
         {
-          "seq": "35",
+          "seq": "42",
           "id": "Note·1",
           "rev": 1,
           "class": "Note",
@@ -366,7 +435,7 @@
           "$new": false
         },
         {
-          "seq": "36",
+          "seq": "43",
           "id": "Note·2",
           "rev": 1,
           "class": "Note",
@@ -384,7 +453,7 @@
           "$new": false
         },
         {
-          "seq": "37",
+          "seq": "44",
           "id": "Note·2",
           "rev": 2,
           "class": "Note",
@@ -402,7 +471,7 @@
           "$new": false
         },
         {
-          "seq": "38",
+          "seq": "45",
           "id": "Note·2",
           "rev": 3,
           "class": "Note",
@@ -420,30 +489,36 @@
           "$new": false
         },
         {
-          "seq": "39",
-          "id": "Note·3",
-          "rev": 1,
+          "seq": "46",
+          "id": "Note·2",
+          "rev": 4,
           "class": "Note",
           "tenant": "Ромашка",
           "links": {},
           "data": {
-            "text": "с маскировкой"
+            "text": "итог"
           },
           "tags": [],
-          "op": "create",
+          "op": "update",
           "author": "Анна",
           "agent": null,
           "reason": null,
           "at": "t5",
-          "$new": true
+          "$new": false
         }
       ],
       "secret": [],
       "counts": null,
       "signals": [
-        "Note"
+        "Account",
+        "Resource",
+        "member",
+        "rule",
+        "session:‹токен 1›",
+        "session:‹токен 2›",
+        "session:‹токен 3›"
       ]
     }
   ],
-  "output": "Шаг 1. Логгер — console\n{\n  ts: '‹время›',\n  level: 'info',\n  event: 'connect',\n  op: 'connect',\n  ms: ‹мс›,\n  tenant: '‹id 1›',\n  account: '‹id 2›',\n  detail: {\n    schema: 'v2.example_logging_01_log',\n    dsn: 'postgres://127.0.0.1:15440/letopis',\n    pool: 'own',\n    max: 10,\n    bypass: false,\n    revision: 11,\n    signals: 'class',\n    listen: true,\n    cache: true,\n    session: 'token',\n    account: '‹id 2›'\n  }\n} connect\n{\n  ts: '‹время›',\n  level: 'info',\n  event: 'write',\n  op: 'create',\n  ms: ‹мс›,\n  tenant: '‹id 1›',\n  account: '‹id 2›',\n  chain: 'Note().create({text}).rows()',\n  rows: 1,\n  detail: {\n    classes: { Note: 1 },\n    ids: [ '‹id 3›' ]\n  }\n} write\n[\n  {\n    \"вызов\": \"console.info\",\n    \"event\": \"connect\",\n    \"op\": \"connect\"\n  },\n  {\n    \"вызов\": \"console.info\",\n    \"event\": \"write\",\n    \"op\": \"create\"\n  }\n]\n\nШаг 2. Свой логгер: события write, delete, restore, error\n[\n  {\n    \"level\": \"info\",\n    \"event\": \"connect\",\n    \"op\": \"connect\"\n  },\n  {\n    \"level\": \"info\",\n    \"event\": \"write\",\n    \"op\": \"create\",\n    \"rows\": 1\n  },\n  {\n    \"level\": \"info\",\n    \"event\": \"delete\",\n    \"op\": \"delete\",\n    \"rows\": 1\n  },\n  {\n    \"level\": \"info\",\n    \"event\": \"restore\",\n    \"op\": \"restore\",\n    \"rows\": 1\n  },\n  {\n    \"level\": \"warn\",\n    \"event\": \"error\",\n    \"op\": \"rows\",\n    \"code\": \"not_deleted\",\n    \"key\": \"write.restore_already\"\n  }\n]\n\nШаг 3. Журнал установки и свои секретные поля: up({ log }), redact\n{\n  \"events\": [\n    {\n      \"level\": \"info\",\n      \"event\": \"up\",\n      \"op\": \"up\"\n    },\n    {\n      \"level\": \"info\",\n      \"event\": \"connect\",\n      \"op\": \"connect\"\n    },\n    {\n      \"level\": \"info\",\n      \"event\": \"write\",\n      \"op\": \"create\"\n    }\n  ],\n  \"catalog\": [\n    {\n      \"name\": \"connect\",\n      \"level\": \"info\",\n      \"ru\": \"connect() готов: схема, режим сигналов, кэш, способ входа\"\n    },\n    {\n      \"name\": \"close\",\n      \"level\": \"info\",\n      \"ru\": \"db.close(): пул, подписки и таймеры закрыты\"\n    },\n    {\n      \"name\": \"registry.refresh\",\n      \"level\": \"debug\",\n      \"ru\": \"реестр классов перечитан\"\n    },\n    {\n      \"name\": \"session.renew\",\n      \"level\": \"info\",\n      \"ru\": \"сессия по ключу сервиса истекла — ключ обменян на новую\"\n    }\n  ]\n}"
+  "output": "Шаг 1. Логгер — console\n{\n  ts: '‹время›',\n  level: 'info',\n  event: 'connect',\n  op: 'connect',\n  ms: ‹мс›,\n  account: '‹id 1›',\n  detail: {\n    schema: 'v2.example_logging_01_log',\n    dsn: 'postgres://127.0.0.1:15440/letopis',\n    max: 10,\n    bypass: false,\n    revision: 12,\n    signals: 'class',\n    listen: true,\n    cache: true,\n    session: 'concierge',\n    account: '‹id 1›'\n  }\n} connect\n{\n  ts: '‹время›',\n  level: 'info',\n  event: 'auth.login',\n  op: 'open',\n  ms: ‹мс›,\n  tenant: '‹id 2›',\n  account: '‹id 3›',\n  detail: { method: 'PASSWORD' }\n} auth.login\n{\n  ts: '‹время›',\n  level: 'info',\n  event: 'write',\n  op: 'create',\n  ms: ‹мс›,\n  tenant: '‹id 2›',\n  account: '‹id 3›',\n  chain: 'Note().create({text}).rows()',\n  rows: 1,\n  detail: {\n    classes: { Note: 1 },\n    ids: [ '‹id 4›' ]\n  }\n} write\n[\n  {\n    \"вызов\": \"console.info\",\n    \"event\": \"connect\",\n    \"op\": \"connect\"\n  },\n  {\n    \"вызов\": \"console.info\",\n    \"event\": \"auth.login\",\n    \"op\": \"open\"\n  },\n  {\n    \"вызов\": \"console.info\",\n    \"event\": \"write\",\n    \"op\": \"create\"\n  }\n]\n\nШаг 2. Свой логгер: запись, удаление, возврат, ошибка\n{\n  \"события\": [\n    {\n      \"level\": \"info\",\n      \"event\": \"write\",\n      \"op\": \"create\",\n      \"rows\": 1\n    },\n    {\n      \"level\": \"info\",\n      \"event\": \"delete\",\n      \"op\": \"delete\",\n      \"rows\": 1\n    },\n    {\n      \"level\": \"info\",\n      \"event\": \"restore\",\n      \"op\": \"restore\",\n      \"rows\": 1\n    },\n    {\n      \"level\": \"warn\",\n      \"event\": \"error\",\n      \"op\": \"rows\",\n      \"code\": \"not_deleted\",\n      \"key\": \"write.restore_already\"\n    },\n    {\n      \"level\": \"info\",\n      \"event\": \"write\",\n      \"op\": \"update\",\n      \"rows\": 1\n    }\n  ],\n  \"цепочка правки\": \"Note({\\\"text\\\":\\\"***\\\"}).update({text}).rows()\"\n}\n\nШаг 3. Дом и квартиры: setup, приглашение, вход, выписка\n{\n  \"события\": [\n    {\n      \"level\": \"info\",\n      \"event\": \"setup.step\",\n      \"op\": \"setup\"\n    },\n    {\n      \"level\": \"info\",\n      \"event\": \"setup\",\n      \"op\": \"setup\"\n    },\n    {\n      \"level\": \"info\",\n      \"event\": \"connect\",\n      \"op\": \"connect\"\n    },\n    {\n      \"level\": \"info\",\n      \"event\": \"tenant.create\",\n      \"op\": \"createTenant\"\n    },\n    {\n      \"level\": \"info\",\n      \"event\": \"auth.invite\",\n      \"op\": \"invite\"\n    },\n    {\n      \"level\": \"info\",\n      \"event\": \"auth.login\",\n      \"op\": \"accept\"\n    },\n    {\n      \"level\": \"warn\",\n      \"event\": \"auth.fail\",\n      \"op\": \"open\"\n    },\n    {\n      \"level\": \"warn\",\n      \"event\": \"error\",\n      \"op\": \"open\",\n      \"code\": \"auth_failed\",\n      \"key\": \"api.auth_failed\"\n    },\n    {\n      \"level\": \"info\",\n      \"event\": \"auth.invite\",\n      \"op\": \"invite\"\n    },\n    {\n      \"level\": \"info\",\n      \"event\": \"auth.login\",\n      \"op\": \"accept\"\n    },\n    {\n      \"level\": \"info\",\n      \"event\": \"member.leave\",\n      \"op\": \"leave\"\n    },\n    {\n      \"level\": \"info\",\n      \"event\": \"auth.credential\",\n      \"op\": \"keys.issueApiKey\"\n    },\n    {\n      \"level\": \"info\",\n      \"event\": \"tenant.delete\",\n      \"op\": \"deleteTenant\",\n      \"rows\": 12\n    },\n    {\n      \"level\": \"info\",\n      \"event\": \"auth.login\",\n      \"op\": \"open\"\n    },\n    {\n      \"level\": \"info\",\n      \"event\": \"auth.logout\",\n      \"op\": \"close\"\n    }\n  ],\n  \"каталог LOG_EVENTS\": [\n    {\n      \"n\": \"setup\",\n      \"level\": \"info\",\n      \"ru\": \"setup() завершён: дом построен или накатан повторно\"\n    },\n    {\n      \"n\": \"auth.invite\",\n      \"level\": \"info\",\n      \"ru\": \"выдано приглашение в квартиру\"\n    },\n    {\n      \"n\": \"member.leave\",\n      \"level\": \"info\",\n      \"ru\": \"жилец выписался из квартиры (leave)\"\n    },\n    {\n      \"n\": \"tenant.delete\",\n      \"level\": \"info\",\n      \"ru\": \"квартира удалена (deleteTenant)\"\n    }\n  ]\n}"
 }

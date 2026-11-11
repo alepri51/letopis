@@ -7,25 +7,53 @@
   },
   "steps": [
     {
-      "result": {
-        "выход паролем": "сессия погашена",
-        "вход по коду": "код использован"
-      },
+      "result": [
+        {
+          "kind": "INVITE",
+          "live": 0,
+          "dead": 3
+        },
+        {
+          "kind": "OTP",
+          "live": 0,
+          "dead": 1
+        },
+        {
+          "kind": "SESSION",
+          "live": 3,
+          "dead": 1
+        }
+      ],
       "error": null,
       "entity": [],
       "removed": [],
       "log": [],
       "secret": [],
       "signals": [
-        "session:17f2c9b923ce1285"
+        "session:e8f1f36aff270b0e"
       ]
     },
     {
       "result": {
-        "skipped": false,
-        "sessions": 1,
-        "codes": 1,
-        "queue": 0
+        "код выхода": 0,
+        "отчёт": {
+          "skipped": false,
+          "sessions": 1,
+          "codes": 2
+        },
+        "очередь сигналов меньше половины": true,
+        "secret после": [
+          {
+            "kind": "INVITE",
+            "live": 0,
+            "dead": 2
+          },
+          {
+            "kind": "SESSION",
+            "live": 3,
+            "dead": 0
+          }
+        ]
       },
       "error": null,
       "entity": [],
@@ -38,8 +66,23 @@
       "result": {
         "skipped": false,
         "sessions": 0,
-        "codes": 0,
-        "queue": 0
+        "codes": 0
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "отчёт": {
+          "skipped": false,
+          "sessions": 0,
+          "codes": 0
+        },
+        "очередь сигналов меньше половины": true
       },
       "error": null,
       "entity": [],
@@ -49,6 +92,6 @@
       "signals": []
     }
   ],
-  "output": "Шаг 1. Сессии и коды копятся в secret\n{\n  \"выход паролем\": \"сессия погашена\",\n  \"вход по коду\": \"код использован\"\n}\n\nШаг 2. maintain() убирает лишнее\nletopis: администраторское подключение — RLS не действует, данные всех арендаторов видны\n{\n  \"skipped\": false,\n  \"sessions\": 1,\n  \"codes\": 1,\n  \"queue\": 0\n}\n\nШаг 3. Повторный вызов — убирать нечего\n{\n  \"skipped\": false,\n  \"sessions\": 0,\n  \"codes\": 0,\n  \"queue\": 0\n}",
+  "output": "Шаг 1. Сессии, коды и приглашения копятся в secret\n[\n  {\n    \"kind\": \"INVITE\",\n    \"live\": 0,\n    \"dead\": 3\n  },\n  {\n    \"kind\": \"OTP\",\n    \"live\": 0,\n    \"dead\": 1\n  },\n  {\n    \"kind\": \"SESSION\",\n    \"live\": 3,\n    \"dead\": 1\n  }\n]\n\nШаг 2. letopis maintain убирает лишнее\n{\n  \"код выхода\": 0,\n  \"отчёт\": {\n    \"skipped\": false,\n    \"sessions\": 1,\n    \"codes\": 2\n  },\n  \"очередь сигналов меньше половины\": true,\n  \"secret после\": [\n    {\n      \"kind\": \"INVITE\",\n      \"live\": 0,\n      \"dead\": 2\n    },\n    {\n      \"kind\": \"SESSION\",\n      \"live\": 3,\n      \"dead\": 0\n    }\n  ]\n}\n\nШаг 3. Повторный вызов — убирать нечего\n{\n  \"skipped\": false,\n  \"sessions\": 0,\n  \"codes\": 0\n}\n\nШаг 4. Из приложения: db.maintain()\n{\n  \"отчёт\": {\n    \"skipped\": false,\n    \"sessions\": 0,\n    \"codes\": 0\n  },\n  \"очередь сигналов меньше половины\": true\n}",
   "exitCode": 0
 }

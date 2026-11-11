@@ -1,0 +1,178 @@
+{
+  "id": "install/06-rotate-demolish",
+  "title": "Аварии и конец: новый пропуск и снос дома",
+  "summary": "Пропуск утёк — setup({ rotate: true }) выдаёт новый: старый перестаёт работать сразу, процессы со старым пропуском перезапускают с новым, а жильцы, которые уже вошли, работают дальше. demolish() сносит дом целиком — схему со всеми квартирами и роль консьержа.",
+  "tables": [
+    "counts"
+  ],
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": [],
+    "counts": {
+      "entity": {
+        "Account": 4,
+        "Class": 5,
+        "member": 1,
+        "Resource": 11,
+        "rule": 19
+      },
+      "log": {
+        "create": 40
+      },
+      "secret": {
+        "APIKEY": 1,
+        "CONCIERGE": 1,
+        "IDENT": 1,
+        "KEY": 1,
+        "PASSWORD": 1,
+        "SESSION": 2
+      }
+    }
+  },
+  "steps": [
+    {
+      "title": "Новый пропуск: setup({ rotate: true })",
+      "text": "`rotate` выпускает консьержу новый ключ и меняет пароль его роли. Дом и данные не трогаются (`created: false`), а пропуск — новый. Его кладут в настройки приложения вместо прежнего.",
+      "code": "const r = await setup(ADMIN_DSN, name, { rotate: true, quiet: true });\nnewPass = r.pass;\nreturn { created: r.created, 'пропуск новый': r.pass !== pass };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> r</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> setup</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">ADMIN_DSN</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, name, { rotate: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, quiet: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">newPass </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> r.pass;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { created: r.created, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'пропуск новый'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: r.pass </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!==</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> pass };</span></span></code></pre>",
+      "result": {
+        "created": false,
+        "пропуск новый": true
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": {
+        "entity": {
+          "Account": 4,
+          "Class": 5,
+          "member": 1,
+          "Resource": 11,
+          "rule": 19
+        },
+        "log": {
+          "create": 40
+        },
+        "secret": {
+          "APIKEY": 1,
+          "CONCIERGE": 1,
+          "IDENT": 1,
+          "KEY": 1,
+          "PASSWORD": 1,
+          "SESSION": 1
+        }
+      },
+      "signals": []
+    },
+    {
+      "title": "Старый пропуск не работает",
+      "text": "Новое подключение по старому пропуску — отказ `auth_failed` (ключ `boot.pass_stale`). Консьерж, подключённый до `rotate`, тоже потерял ключ: квартиры и вход ему больше не доступны — такой процесс перезапускают с новым пропуском. Сессии жильцов не связаны с ключом консьержа: Анна, которая уже вошла, работает дальше.",
+      "code": "({\n        'connect(старый пропуск)': await connect(pass).then(() => 'подключено', (e) => `${e.code} (${e.key})`),\n        'старый консьерж: tenants()': await db.tenants().then(() => 'работает', (e) => e.code),\n        'Анна: её квартира': me.tenantName,\n        'Анна: её ключи': (await me.keys.list()).map((k) => k.kind),\n      })",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'connect(старый пропуск)'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> connect</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(pass).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">then</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(() </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'подключено'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, (</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">e</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> `${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">e</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">code</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">} (${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">e</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">key</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">})`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'старый консьерж: tenants()'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">tenants</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">then</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(() </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'работает'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, (</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">e</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> e.code),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'Анна: её квартира'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: me.tenantName,</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'Анна: её ключи'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.keys.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">list</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">k</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> k.kind),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      })</span></span></code></pre>",
+      "result": {
+        "connect(старый пропуск)": "auth_failed (boot.pass_stale)",
+        "старый консьерж: tenants()": "no_session",
+        "Анна: её квартира": "Ромашка",
+        "Анна: её ключи": [
+          "PASSWORD"
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": {
+        "entity": {
+          "Account": 4,
+          "Class": 5,
+          "member": 1,
+          "Resource": 11,
+          "rule": 19
+        },
+        "log": {
+          "create": 40
+        },
+        "secret": {
+          "APIKEY": 1,
+          "CONCIERGE": 1,
+          "IDENT": 1,
+          "KEY": 1,
+          "PASSWORD": 1,
+          "SESSION": 1
+        }
+      },
+      "signals": []
+    },
+    {
+      "title": "Новый консьерж: connect(новый пропуск)",
+      "text": "Процесс с новым пропуском — полноценный консьерж: квартиры на месте, а токен Анны (`me.token`, например из cookie) открывает её корень через `resume()`.",
+      "code": "fresh = await connect(newPass);\nconst anna = await fresh.resume(me.token!);\nreturn { 'квартиры': (await fresh.tenants()).map((t) => t.name), 'resume(токен Анны)': anna.tenantName };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">fresh </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> connect</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(newPass);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> anna</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> fresh.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">resume</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(me.token</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'квартиры'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> fresh.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">tenants</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">t</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> t.name), </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'resume(токен Анны)'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: anna.tenantName };</span></span></code></pre>",
+      "result": {
+        "квартиры": [
+          "Ромашка"
+        ],
+        "resume(токен Анны)": "Ромашка"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": {
+        "entity": {
+          "Account": 4,
+          "Class": 5,
+          "member": 1,
+          "Resource": 11,
+          "rule": 19
+        },
+        "log": {
+          "create": 40
+        },
+        "secret": {
+          "APIKEY": 1,
+          "CONCIERGE": 1,
+          "IDENT": 1,
+          "KEY": 1,
+          "PASSWORD": 1,
+          "SESSION": 2
+        }
+      },
+      "signals": []
+    },
+    {
+      "title": "Снести дом: demolish()",
+      "text": "Сначала закрываются консьержи — дому, который сносят, они больше не нужны. `demolish(ADMIN_DSN, имя)` — мастер-ключом: схема дома со всеми квартирами, вещами и журналом и роль консьержа удаляются (`dropped: true`), сводка таблиц пуста. Повтор безопасен — дома уже нет, `dropped: false`. Пропуск снесённого дома не подходит: `auth_failed`.",
+      "code": "await db.close();\nawait fresh.close();\nconst first = await demolish(ADMIN_DSN, name, { quiet: true });\nconst again = await demolish(ADMIN_DSN, name, { quiet: true });\nreturn {\n  'первый раз': first, 'второй раз': again,\n  'connect(пропуск)': await connect(newPass).then(() => 'подключено', (e) => e.code),\n};",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">close</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> fresh.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">close</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> first</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> demolish</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">ADMIN_DSN</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, name, { quiet: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> again</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> demolish</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">ADMIN_DSN</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, name, { quiet: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'первый раз'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: first, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'второй раз'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: again,</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'connect(пропуск)'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> connect</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(newPass).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">then</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(() </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'подключено'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, (</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">e</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> e.code),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">};</span></span></code></pre>",
+      "result": {
+        "первый раз": {
+          "schema": "v2.g_install_06_rotate_demolish",
+          "dropped": true
+        },
+        "второй раз": {
+          "schema": "v2.g_install_06_rotate_demolish",
+          "dropped": false
+        },
+        "connect(пропуск)": "auth_failed"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "counts": {
+        "entity": {},
+        "log": {},
+        "secret": {}
+      },
+      "signals": []
+    }
+  ],
+  "output": "Шаг 1. Новый пропуск: setup({ rotate: true })\n{\n  \"created\": false,\n  \"пропуск новый\": true\n}\n\nШаг 2. Старый пропуск не работает\n{\n  \"connect(старый пропуск)\": \"auth_failed (boot.pass_stale)\",\n  \"старый консьерж: tenants()\": \"no_session\",\n  \"Анна: её квартира\": \"Ромашка\",\n  \"Анна: её ключи\": [\n    \"PASSWORD\"\n  ]\n}\n\nШаг 3. Новый консьерж: connect(новый пропуск)\n{\n  \"квартиры\": [\n    \"Ромашка\"\n  ],\n  \"resume(токен Анны)\": \"Ромашка\"\n}\n\nШаг 4. Снести дом: demolish()\n{\n  \"первый раз\": {\n    \"schema\": \"v2.example_install_06_rotate_demolish\",\n    \"dropped\": true\n  },\n  \"второй раз\": {\n    \"schema\": \"v2.example_install_06_rotate_demolish\",\n    \"dropped\": false\n  },\n  \"connect(пропуск)\": \"auth_failed\"\n}"
+}

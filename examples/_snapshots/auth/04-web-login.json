@@ -1,77 +1,254 @@
 {
   "id": "auth/04-web-login",
-  "title": "Вход для веб-сервиса: одно подключение сервиса и svc.as() на запрос",
-  "summary": "Веб-сервис подключается к базе один раз — по ключу сервиса. Вход — одна функция: пароль, компания из auth.tenants(), компания — в серверную сессию. Каждый запрос идёт через svc.as(аккаунт, { tenant }) на том же пуле, а не через connect({ token }) на каждый вход. Выход — svc.auth.revoke(token); погашенный токен connect() не принимает: no_session.",
-  "tables": [],
+  "title": "Веб-вход: форма, cookie и resume на каждый запрос",
+  "summary": "Веб-приложение подключается к дому один раз — консьержем. Форма входа зовёт db.open(ключ) и кладёт токен сессии в cookie; каждый запрос открывает корень жильца заново — db.resume(токен); выход — close(). Погашенный токен ничего не открывает: auth_failed, приложение отвечает 401.",
+  "tables": [
+    "secret"
+  ],
   "initial": {
     "entity": [],
     "log": [],
-    "secret": [],
+    "secret": [
+      {
+        "account": "Ромашка",
+        "tenant": "Ромашка",
+        "kind": "INVITE",
+        "ident": "email:anna@romashka.ru",
+        "meta": {
+          "roles": [
+            "owner"
+          ],
+          "status": "used",
+          "contact": {
+            "kind": "email",
+            "address": "anna@romashka.ru"
+          },
+          "attempts": 0
+        },
+        "material": "‹хэш›",
+        "expires_at": "через 7 дн",
+        "created_at": "установка",
+        "deleted_at": "установка"
+      }
+    ],
     "counts": null
   },
   "steps": [
     {
-      "title": "Войти в компанию — одна функция",
-      "text": "`svc` — единственное подключение сервиса (`connect({ dsn, schema, apiKey })` при запуске). `enterCompany` проверяет пароль (`verifyPassword` → `{ account, token }`), спрашивает у базы компании пользователя — `svc.as(account)` открывает его личный арендатор, `auth.tenants()` отдаёт членства с `name` и `personal` — и пишет выбранную компанию в серверную сессию под токеном. Клиент получает только токен в cookie. Свою таблицу «логин → компания» держать не нужно: членство хранит база.",
-      "code": "const r = await enterCompany(svc, user.login, user.password);\nif (typeof r === 'string') return r;\ncookie = r.cookie;\nreturn { 'компания': r.company, 'серверная сессия': sessions.get(r.cookie), 'чужая компания по имени': await enterCompany(svc, user.login, user.password, 'Нет такого') };",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> r</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> enterCompany</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(svc, user.login, user.password);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">if</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">typeof</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> r </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">===</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'string'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> r;</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">cookie </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> r.cookie;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'компания'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: r.company, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'серверная сессия'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: sessions.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">get</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(r.cookie), </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'чужая компания по имени'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> enterCompany</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(svc, user.login, user.password, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Нет такого'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) };</span></span></code></pre>",
+      "title": "Вход формой: db.open, токен — в cookie",
+      "text": "Приложение подключается к дому один раз, при запуске: `connect(pass, { postman })` — это `db`, его пул служит всем жильцам. Обработчик формы входа зовёт `db.open({ email, password, ttl })` и кладёт токен сессии в cookie: `HttpOnly` — скрипты страницы его не прочтут, `SameSite=Lax` — его не пришлёт чужой сайт; на HTTPS добавьте `Secure`. Срок cookie — как у сессии (`ttl: '8h'`). Неверный пароль — `auth_failed`: обработчик отвечает 401 и не уточняет, что именно не так. Токен в выводе заменён меткой.",
+      "code": "server = webApp(db);\nawait new Promise<void>((ready) => server.listen(0, '127.0.0.1', ready));\nsite = server.address() as AddressInfo;\nconst wrong = await browser(site, 'POST', '/login', { form: { email: annaKey.email, password: 'не тот' } });\nconst ok = await browser(site, 'POST', '/login', { form: annaKey });\ncookie = ok.setCookie!.split(';')[0]; // «sid=<токен>» — браузер присылает её с каждым запросом\nreturn {\n  'неверный пароль': { status: wrong.status, body: wrong.body },\n  'вход': { status: ok.status, body: ok.body },\n  'Set-Cookie': ok.setCookie!.replace(/sid=[0-9a-f]+/, 'sid=‹токен›'),\n};",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">server </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> webApp</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> new</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> Promise</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">&#x3C;</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">void</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">>((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">ready</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> server.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">listen</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">0</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'127.0.0.1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, ready));</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">site </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> server.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">address</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">() </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">as</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> AddressInfo</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> wrong</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> browser</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(site, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'POST'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'/login'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, { form: { email: annaKey.email, password: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'не тот'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> } });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> ok</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> browser</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(site, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'POST'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'/login'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, { form: annaKey });</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">cookie </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ok.setCookie</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">split</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">';'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">)[</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">0</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">]; </span><span style=\"color:#6A737D;--shiki-dark:#6A737D\">// «sid=&#x3C;токен>» — браузер присылает её с каждым запросом</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'неверный пароль'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: { status: wrong.status, body: wrong.body },</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'вход'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: { status: ok.status, body: ok.body },</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'Set-Cookie'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: ok.setCookie</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">replace</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">/</span><span style=\"color:#032F62;--shiki-dark:#DBEDFF\">sid=</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">[0-9a-f]</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">+</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">/</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'sid=‹токен›'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">};</span></span></code></pre>",
       "result": {
-        "компания": "Ромашка",
-        "серверная сессия": {
-          "account": "Анна",
-          "tenant": "Ромашка"
+        "неверный пароль": {
+          "status": 401,
+          "body": {
+            "error": "неверное имя или пароль"
+          }
         },
-        "чужая компания по имени": "вы не состоите в этой компании"
+        "вход": {
+          "status": 200,
+          "body": {
+            "квартира": "Ромашка"
+          }
+        },
+        "Set-Cookie": "sid=‹токен›; HttpOnly; SameSite=Lax; Path=/; Max-Age=28800"
       },
       "error": null,
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": [],
+      "secret": [
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "установка",
+          "deleted_at": "установка",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "08:00:00",
+            "cred": "секрет PASSWORD·1",
+            "methods": [
+              "PASSWORD"
+            ],
+            "login_at": "шаг 1"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 8 ч",
+          "created_at": "шаг 1",
+          "deleted_at": null,
+          "$new": true
+        }
+      ],
       "counts": null,
       "signals": [
-        "Class",
-        "Item",
-        "session:‹токен 1›"
+        "Order"
       ]
     },
     {
-      "title": "Каждый запрос — svc.as(аккаунт, { tenant })",
-      "text": "Обработчик берёт токен из cookie, проверяет сессию (`svc.auth.session(token)` — `null`, если она погашена или истекла) и работает через `svc.as(account, { tenant })` — с правами пользователя в его компании, на пуле сервиса. `connect({ token })` на каждый вход так делать не стоит: каждый `connect()` по `dsn` создаёт свой пул (до `max` соединений, по умолчанию 10), и пользователи быстро исчерпают соединения PostgreSQL.",
-      "code": "const u = (await dbFor(svc, cookie))!;\nreturn { 'вещей в компании': await u.Item().count(), 'сейчас': u.tenant === sessions.get(cookie)!.tenant ? 'компания из серверной сессии' : u.tenant };",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> u</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> dbFor</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(svc, cookie))</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'вещей в компании'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> u.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Item</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">count</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(), </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'сейчас'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: u.tenant </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">===</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> sessions.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">get</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(cookie)</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.tenant </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">?</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'компания из серверной сессии'</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> :</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> u.tenant };</span></span></code></pre>",
+      "title": "Каждый запрос — db.resume(токен из cookie)",
+      "text": "Обработчик берёт токен из cookie и зовёт `db.resume(токен)`: база проверяет, что сессия жива, и отдаёт корень квартиры жильца с его правами — на общем пуле консьержа, без своего подключения. Аккаунт и квартиру помнит сама сессия: из параметров запроса их не берут. Корень после запроса не закрывают: `close()` у жильца — это выход. Запрос без cookie — 401.",
+      "code": "const withCookie = await browser(site, 'GET', '/orders', { cookie });\nconst without = await browser(site, 'GET', '/orders');\nreturn {\n  'с cookie': { status: withCookie.status, body: withCookie.body },\n  'без cookie': { status: without.status, body: without.body },\n};",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> withCookie</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> browser</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(site, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'GET'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'/orders'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, { cookie });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> without</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> browser</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(site, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'GET'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'/orders'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'с cookie'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: { status: withCookie.status, body: withCookie.body },</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'без cookie'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: { status: without.status, body: without.body },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">};</span></span></code></pre>",
       "result": {
-        "вещей в компании": 1,
-        "сейчас": "компания из серверной сессии"
+        "с cookie": {
+          "status": 200,
+          "body": [
+            "A-1: 1200",
+            "A-2: 5400"
+          ]
+        },
+        "без cookie": {
+          "status": 401,
+          "body": {
+            "error": "войдите"
+          }
+        }
       },
       "error": null,
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": [],
+      "secret": [
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "установка",
+          "deleted_at": "установка",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "08:00:00",
+            "cred": "секрет PASSWORD·1",
+            "methods": [
+              "PASSWORD"
+            ],
+            "login_at": "шаг 1"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 8 ч",
+          "created_at": "шаг 1",
+          "deleted_at": null,
+          "$new": false
+        }
+      ],
       "counts": null,
       "signals": []
     },
     {
-      "title": "Выход: токен погашен — запрос и connect() получают отказ",
-      "text": "«Выйти» — `svc.auth.revoke(token)`. Следующий запрос с этим cookie: `svc.auth.session(token)` — `null`, обработчик отвечает «войдите заново». `connect({ token })` с погашенным, истёкшим или неверным токеном отклоняется: `no_session` (ключ `api.token_not_active`) — подключения без сессии он не возвращает.",
-      "code": "({\n        'revoke(token)': await svc.auth.revoke(cookie),\n        'запрос с этим cookie': (await dbFor(svc, cookie)) ? 'работает' : 'войдите заново',\n        'connect({ token })': await connect({ dsn: dsn.app, schema, token: cookie }).then(() => 'подключено', (e) => `${e.code} (${e.key})`),\n      })",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'revoke(token)'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> svc.auth.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">revoke</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(cookie),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'запрос с этим cookie'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> dbFor</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(svc, cookie)) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">?</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'работает'</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> :</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'войдите заново'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">        'connect({ token })'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> connect</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ dsn: dsn.app, schema, token: cookie }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">then</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(() </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'подключено'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, (</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">e</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> `${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">e</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">code</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">} (${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">e</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">key</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">})`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">      })</span></span></code></pre>",
+      "title": "Выход: close(); погашенный токен — 401",
+      "text": "`/logout` зовёт `me.close()`: сессия гаснет (в `secret` у неё заполнен `deleted_at`), cookie стирается (`Max-Age=0`). Тот же cookie, присланный ещё раз, — сохранённый в закладке или украденный, — уже ничего не открывает: `db.resume` отвечает `auth_failed`, обработчик — 401. Так же отвечают истёкшая сессия, смена пароля и выписка жильца.",
+      "code": "const out = await browser(site, 'POST', '/logout', { cookie });\nconst again = await browser(site, 'GET', '/orders', { cookie });\nconst resumed = await db.resume(cookie.slice('sid='.length)).then(() => 'жива', (e) => e.code);\nserver.closeAllConnections();\nawait new Promise((closed) => server.close(closed)); // остановить сервер примера\nreturn {\n  'выход': { status: out.status, body: out.body, 'Set-Cookie': out.setCookie },\n  'тот же cookie после выхода': { status: again.status, body: again.body },\n  'db.resume(токен)': resumed,\n};",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> out</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> browser</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(site, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'POST'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'/logout'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, { cookie });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> again</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> browser</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(site, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'GET'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'/orders'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, { cookie });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> resumed</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">resume</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(cookie.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">slice</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'sid='</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">length</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">)).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">then</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(() </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'жива'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, (</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">e</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> e.code);</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">server.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">closeAllConnections</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> new</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> Promise</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">closed</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> server.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">close</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(closed)); </span><span style=\"color:#6A737D;--shiki-dark:#6A737D\">// остановить сервер примера</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'выход'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: { status: out.status, body: out.body, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Set-Cookie'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: out.setCookie },</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'тот же cookie после выхода'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: { status: again.status, body: again.body },</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'db.resume(токен)'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: resumed,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">};</span></span></code></pre>",
       "result": {
-        "revoke(token)": true,
-        "запрос с этим cookie": "войдите заново",
-        "connect({ token })": "no_session (api.token_not_active)"
+        "выход": {
+          "status": 200,
+          "body": {
+            "вышли": true
+          },
+          "Set-Cookie": "sid=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0"
+        },
+        "тот же cookie после выхода": {
+          "status": 401,
+          "body": {
+            "error": "войдите заново"
+          }
+        },
+        "db.resume(токен)": "auth_failed"
       },
       "error": null,
       "entity": [],
       "removed": [],
       "log": [],
-      "secret": [],
+      "secret": [
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "установка",
+          "deleted_at": "установка",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "08:00:00",
+            "cred": "секрет PASSWORD·1",
+            "methods": [
+              "PASSWORD"
+            ],
+            "login_at": "шаг 1"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 8 ч",
+          "created_at": "шаг 1",
+          "deleted_at": "шаг 3",
+          "$new": true
+        }
+      ],
       "counts": null,
       "signals": [
-        "session:‹токен 2›"
+        "session:‹токен 1›"
       ]
     }
   ],
-  "output": "Шаг 1. Войти в компанию — одна функция\n{\n  \"компания\": \"Ромашка\",\n  \"серверная сессия\": {\n    \"account\": \"‹id 1›\",\n    \"tenant\": \"‹id 2›\"\n  },\n  \"чужая компания по имени\": \"вы не состоите в этой компании\"\n}\n\nШаг 2. Каждый запрос — svc.as(аккаунт, { tenant })\n{\n  \"вещей в компании\": 1,\n  \"сейчас\": \"компания из серверной сессии\"\n}\n\nШаг 3. Выход: токен погашен — запрос и connect() получают отказ\n{\n  \"revoke(token)\": true,\n  \"запрос с этим cookie\": \"войдите заново\",\n  \"connect({ token })\": \"no_session (api.token_not_active)\"\n}"
+  "output": "Шаг 1. Вход формой: db.open, токен — в cookie\n{\n  \"неверный пароль\": {\n    \"status\": 401,\n    \"body\": {\n      \"error\": \"неверное имя или пароль\"\n    }\n  },\n  \"вход\": {\n    \"status\": 200,\n    \"body\": {\n      \"квартира\": \"Ромашка\"\n    }\n  },\n  \"Set-Cookie\": \"sid=‹токен›; HttpOnly; SameSite=Lax; Path=/; Max-Age=28800\"\n}\n\nШаг 2. Каждый запрос — db.resume(токен из cookie)\n{\n  \"с cookie\": {\n    \"status\": 200,\n    \"body\": [\n      \"A-1: 1200\",\n      \"A-2: 5400\"\n    ]\n  },\n  \"без cookie\": {\n    \"status\": 401,\n    \"body\": {\n      \"error\": \"войдите\"\n    }\n  }\n}\n\nШаг 3. Выход: close(); погашенный токен — 401\n{\n  \"выход\": {\n    \"status\": 200,\n    \"body\": {\n      \"вышли\": true\n    },\n    \"Set-Cookie\": \"sid=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0\"\n  },\n  \"тот же cookie после выхода\": {\n    \"status\": 401,\n    \"body\": {\n      \"error\": \"войдите заново\"\n    }\n  },\n  \"db.resume(токен)\": \"auth_failed\"\n}"
 }

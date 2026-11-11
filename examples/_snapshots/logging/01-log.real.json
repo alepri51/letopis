@@ -15,6 +15,11 @@
         },
         {
           "вызов": "console.info",
+          "event": "auth.login",
+          "op": "open"
+        },
+        {
+          "вызов": "console.info",
           "event": "write",
           "op": "create"
         }
@@ -22,193 +27,42 @@
       "error": null,
       "entity": [
         {
-          "id": "382a4255-6cef-59c1-98d0-67d2aff1e1eb",
+          "id": "98b9e4b9-75ba-506e-8ce6-90bffca04b13",
           "class": "Note",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "86174133-7a74-5bf9-b9ff-36c8a073f566",
+          "owner": "86174133-7a74-5bf9-b9ff-36c8a073f566",
           "links": {},
           "data": {
             "text": "первая заметка"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "author": "33c0bfb4-08e1-5530-a849-59953f03408e",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:51.210143+00"
+          "at": "2026-11-10 20:15:54.358098+00"
         }
       ],
       "removed": [],
       "log": [
         {
-          "seq": "35",
-          "id": "382a4255-6cef-59c1-98d0-67d2aff1e1eb",
+          "seq": "42",
+          "id": "98b9e4b9-75ba-506e-8ce6-90bffca04b13",
           "rev": 1,
           "class": "Note",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "86174133-7a74-5bf9-b9ff-36c8a073f566",
           "links": {},
           "data": {
             "text": "первая заметка"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "author": "33c0bfb4-08e1-5530-a849-59953f03408e",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:51.210143+00",
-          "tx": "3892185"
-        }
-      ],
-      "secret": [],
-      "signals": [
-        "Class",
-        "Note"
-      ]
-    },
-    {
-      "result": [
-        {
-          "level": "info",
-          "event": "connect",
-          "op": "connect"
-        },
-        {
-          "level": "info",
-          "event": "write",
-          "op": "create",
-          "rows": 1
-        },
-        {
-          "level": "info",
-          "event": "delete",
-          "op": "delete",
-          "rows": 1
-        },
-        {
-          "level": "info",
-          "event": "restore",
-          "op": "restore",
-          "rows": 1
-        },
-        {
-          "level": "warn",
-          "event": "error",
-          "op": "rows",
-          "code": "not_deleted",
-          "key": "write.restore_already"
-        }
-      ],
-      "error": null,
-      "entity": [
-        {
-          "id": "382a4255-6cef-59c1-98d0-67d2aff1e1eb",
-          "class": "Note",
-          "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {},
-          "data": {
-            "text": "первая заметка"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": null,
-          "reason": null,
-          "at": "2026-11-04 05:14:51.210143+00"
-        },
-        {
-          "id": "3ba862f8-fbec-5e70-80a1-e4126dd05a6f",
-          "class": "Note",
-          "rev": 3,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {},
-          "data": {
-            "text": "черновик"
-          },
-          "tags": [],
-          "op": "restore",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": null,
-          "reason": null,
-          "at": "2026-11-04 05:14:51.358032+00"
-        }
-      ],
-      "removed": [],
-      "log": [
-        {
-          "seq": "35",
-          "id": "382a4255-6cef-59c1-98d0-67d2aff1e1eb",
-          "rev": 1,
-          "class": "Note",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {},
-          "data": {
-            "text": "первая заметка"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": null,
-          "reason": null,
-          "at": "2026-11-04 05:14:51.210143+00",
-          "tx": "3892185"
-        },
-        {
-          "seq": "36",
-          "id": "3ba862f8-fbec-5e70-80a1-e4126dd05a6f",
-          "rev": 1,
-          "class": "Note",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {},
-          "data": {
-            "text": "черновик"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": null,
-          "reason": null,
-          "at": "2026-11-04 05:14:51.300699+00",
-          "tx": "3892190"
-        },
-        {
-          "seq": "37",
-          "id": "3ba862f8-fbec-5e70-80a1-e4126dd05a6f",
-          "rev": 2,
-          "class": "Note",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {},
-          "data": {
-            "text": "черновик"
-          },
-          "tags": [],
-          "op": "delete",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": null,
-          "reason": null,
-          "at": "2026-11-04 05:14:51.336818+00",
-          "tx": "3892192"
-        },
-        {
-          "seq": "38",
-          "id": "3ba862f8-fbec-5e70-80a1-e4126dd05a6f",
-          "rev": 3,
-          "class": "Note",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {},
-          "data": {
-            "text": "черновик"
-          },
-          "tags": [],
-          "op": "restore",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": null,
-          "reason": null,
-          "at": "2026-11-04 05:14:51.358032+00",
-          "tx": "3892193"
+          "at": "2026-11-10 20:15:54.358098+00",
+          "tx": "4256243"
         }
       ],
       "secret": [],
@@ -218,11 +72,188 @@
     },
     {
       "result": {
-        "events": [
+        "события": [
           {
             "level": "info",
-            "event": "up",
-            "op": "up"
+            "event": "write",
+            "op": "create",
+            "rows": 1
+          },
+          {
+            "level": "info",
+            "event": "delete",
+            "op": "delete",
+            "rows": 1
+          },
+          {
+            "level": "info",
+            "event": "restore",
+            "op": "restore",
+            "rows": 1
+          },
+          {
+            "level": "warn",
+            "event": "error",
+            "op": "rows",
+            "code": "not_deleted",
+            "key": "write.restore_already"
+          },
+          {
+            "level": "info",
+            "event": "write",
+            "op": "update",
+            "rows": 1
+          }
+        ],
+        "цепочка правки": "Note({\"text\":\"***\"}).update({text}).rows()"
+      },
+      "error": null,
+      "entity": [
+        {
+          "id": "98b9e4b9-75ba-506e-8ce6-90bffca04b13",
+          "class": "Note",
+          "rev": 1,
+          "tenant": "86174133-7a74-5bf9-b9ff-36c8a073f566",
+          "owner": "86174133-7a74-5bf9-b9ff-36c8a073f566",
+          "links": {},
+          "data": {
+            "text": "первая заметка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "33c0bfb4-08e1-5530-a849-59953f03408e",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:15:54.358098+00"
+        },
+        {
+          "id": "43666637-4ff6-5ef7-9abd-fc4ef474dbc6",
+          "class": "Note",
+          "rev": 4,
+          "tenant": "86174133-7a74-5bf9-b9ff-36c8a073f566",
+          "owner": "86174133-7a74-5bf9-b9ff-36c8a073f566",
+          "links": {},
+          "data": {
+            "text": "итог"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "33c0bfb4-08e1-5530-a849-59953f03408e",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:15:54.713191+00"
+        }
+      ],
+      "removed": [],
+      "log": [
+        {
+          "seq": "42",
+          "id": "98b9e4b9-75ba-506e-8ce6-90bffca04b13",
+          "rev": 1,
+          "class": "Note",
+          "tenant": "86174133-7a74-5bf9-b9ff-36c8a073f566",
+          "links": {},
+          "data": {
+            "text": "первая заметка"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "33c0bfb4-08e1-5530-a849-59953f03408e",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:15:54.358098+00",
+          "tx": "4256243"
+        },
+        {
+          "seq": "43",
+          "id": "43666637-4ff6-5ef7-9abd-fc4ef474dbc6",
+          "rev": 1,
+          "class": "Note",
+          "tenant": "86174133-7a74-5bf9-b9ff-36c8a073f566",
+          "links": {},
+          "data": {
+            "text": "черновик"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "33c0bfb4-08e1-5530-a849-59953f03408e",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:15:54.614594+00",
+          "tx": "4256249"
+        },
+        {
+          "seq": "44",
+          "id": "43666637-4ff6-5ef7-9abd-fc4ef474dbc6",
+          "rev": 2,
+          "class": "Note",
+          "tenant": "86174133-7a74-5bf9-b9ff-36c8a073f566",
+          "links": {},
+          "data": {
+            "text": "черновик"
+          },
+          "tags": [],
+          "op": "delete",
+          "author": "33c0bfb4-08e1-5530-a849-59953f03408e",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:15:54.652528+00",
+          "tx": "4256251"
+        },
+        {
+          "seq": "45",
+          "id": "43666637-4ff6-5ef7-9abd-fc4ef474dbc6",
+          "rev": 3,
+          "class": "Note",
+          "tenant": "86174133-7a74-5bf9-b9ff-36c8a073f566",
+          "links": {},
+          "data": {
+            "text": "черновик"
+          },
+          "tags": [],
+          "op": "restore",
+          "author": "33c0bfb4-08e1-5530-a849-59953f03408e",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:15:54.674995+00",
+          "tx": "4256252"
+        },
+        {
+          "seq": "46",
+          "id": "43666637-4ff6-5ef7-9abd-fc4ef474dbc6",
+          "rev": 4,
+          "class": "Note",
+          "tenant": "86174133-7a74-5bf9-b9ff-36c8a073f566",
+          "links": {},
+          "data": {
+            "text": "итог"
+          },
+          "tags": [],
+          "op": "update",
+          "author": "33c0bfb4-08e1-5530-a849-59953f03408e",
+          "agent": null,
+          "reason": null,
+          "at": "2026-11-10 20:15:54.713191+00",
+          "tx": "4256254"
+        }
+      ],
+      "secret": [],
+      "signals": [
+        "Note"
+      ]
+    },
+    {
+      "result": {
+        "события": [
+          {
+            "level": "info",
+            "event": "setup.step",
+            "op": "setup"
+          },
+          {
+            "level": "info",
+            "event": "setup",
+            "op": "setup"
           },
           {
             "level": "info",
@@ -231,186 +262,233 @@
           },
           {
             "level": "info",
-            "event": "write",
-            "op": "create"
+            "event": "tenant.create",
+            "op": "createTenant"
+          },
+          {
+            "level": "info",
+            "event": "auth.invite",
+            "op": "invite"
+          },
+          {
+            "level": "info",
+            "event": "auth.login",
+            "op": "accept"
+          },
+          {
+            "level": "warn",
+            "event": "auth.fail",
+            "op": "open"
+          },
+          {
+            "level": "warn",
+            "event": "error",
+            "op": "open",
+            "code": "auth_failed",
+            "key": "api.auth_failed"
+          },
+          {
+            "level": "info",
+            "event": "auth.invite",
+            "op": "invite"
+          },
+          {
+            "level": "info",
+            "event": "auth.login",
+            "op": "accept"
+          },
+          {
+            "level": "info",
+            "event": "member.leave",
+            "op": "leave"
+          },
+          {
+            "level": "info",
+            "event": "auth.credential",
+            "op": "keys.issueApiKey"
+          },
+          {
+            "level": "info",
+            "event": "tenant.delete",
+            "op": "deleteTenant",
+            "rows": 12
+          },
+          {
+            "level": "info",
+            "event": "auth.login",
+            "op": "open"
+          },
+          {
+            "level": "info",
+            "event": "auth.logout",
+            "op": "close"
           }
         ],
-        "catalog": [
+        "каталог LOG_EVENTS": [
           {
-            "name": "connect",
+            "n": "setup",
             "level": "info",
-            "ru": "connect() готов: схема, режим сигналов, кэш, способ входа"
+            "ru": "setup() завершён: дом построен или накатан повторно"
           },
           {
-            "name": "close",
+            "n": "auth.invite",
             "level": "info",
-            "ru": "db.close(): пул, подписки и таймеры закрыты"
+            "ru": "выдано приглашение в квартиру"
           },
           {
-            "name": "registry.refresh",
-            "level": "debug",
-            "ru": "реестр классов перечитан"
+            "n": "member.leave",
+            "level": "info",
+            "ru": "жилец выписался из квартиры (leave)"
           },
           {
-            "name": "session.renew",
+            "n": "tenant.delete",
             "level": "info",
-            "ru": "сессия по ключу сервиса истекла — ключ обменян на новую"
+            "ru": "квартира удалена (deleteTenant)"
           }
         ]
       },
       "error": null,
       "entity": [
         {
-          "id": "382a4255-6cef-59c1-98d0-67d2aff1e1eb",
+          "id": "98b9e4b9-75ba-506e-8ce6-90bffca04b13",
           "class": "Note",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "86174133-7a74-5bf9-b9ff-36c8a073f566",
+          "owner": "86174133-7a74-5bf9-b9ff-36c8a073f566",
           "links": {},
           "data": {
             "text": "первая заметка"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "author": "33c0bfb4-08e1-5530-a849-59953f03408e",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:51.210143+00"
+          "at": "2026-11-10 20:15:54.358098+00"
         },
         {
-          "id": "3ba862f8-fbec-5e70-80a1-e4126dd05a6f",
+          "id": "43666637-4ff6-5ef7-9abd-fc4ef474dbc6",
           "class": "Note",
-          "rev": 3,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "rev": 4,
+          "tenant": "86174133-7a74-5bf9-b9ff-36c8a073f566",
+          "owner": "86174133-7a74-5bf9-b9ff-36c8a073f566",
           "links": {},
           "data": {
-            "text": "черновик"
+            "text": "итог"
           },
           "tags": [],
-          "op": "restore",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "op": "update",
+          "author": "33c0bfb4-08e1-5530-a849-59953f03408e",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:51.358032+00"
-        },
-        {
-          "id": "143ac31e-8912-5900-a1de-cc873937bb50",
-          "class": "Note",
-          "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "links": {},
-          "data": {
-            "text": "с маскировкой"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": null,
-          "reason": null,
-          "at": "2026-11-04 05:14:52.013932+00"
+          "at": "2026-11-10 20:15:54.713191+00"
         }
       ],
       "removed": [],
       "log": [
         {
-          "seq": "35",
-          "id": "382a4255-6cef-59c1-98d0-67d2aff1e1eb",
+          "seq": "42",
+          "id": "98b9e4b9-75ba-506e-8ce6-90bffca04b13",
           "rev": 1,
           "class": "Note",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "86174133-7a74-5bf9-b9ff-36c8a073f566",
           "links": {},
           "data": {
             "text": "первая заметка"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "author": "33c0bfb4-08e1-5530-a849-59953f03408e",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:51.210143+00",
-          "tx": "3892185"
+          "at": "2026-11-10 20:15:54.358098+00",
+          "tx": "4256243"
         },
         {
-          "seq": "36",
-          "id": "3ba862f8-fbec-5e70-80a1-e4126dd05a6f",
+          "seq": "43",
+          "id": "43666637-4ff6-5ef7-9abd-fc4ef474dbc6",
           "rev": 1,
           "class": "Note",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "86174133-7a74-5bf9-b9ff-36c8a073f566",
           "links": {},
           "data": {
             "text": "черновик"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "author": "33c0bfb4-08e1-5530-a849-59953f03408e",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:51.300699+00",
-          "tx": "3892190"
+          "at": "2026-11-10 20:15:54.614594+00",
+          "tx": "4256249"
         },
         {
-          "seq": "37",
-          "id": "3ba862f8-fbec-5e70-80a1-e4126dd05a6f",
+          "seq": "44",
+          "id": "43666637-4ff6-5ef7-9abd-fc4ef474dbc6",
           "rev": 2,
           "class": "Note",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "86174133-7a74-5bf9-b9ff-36c8a073f566",
           "links": {},
           "data": {
             "text": "черновик"
           },
           "tags": [],
           "op": "delete",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "author": "33c0bfb4-08e1-5530-a849-59953f03408e",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:51.336818+00",
-          "tx": "3892192"
+          "at": "2026-11-10 20:15:54.652528+00",
+          "tx": "4256251"
         },
         {
-          "seq": "38",
-          "id": "3ba862f8-fbec-5e70-80a1-e4126dd05a6f",
+          "seq": "45",
+          "id": "43666637-4ff6-5ef7-9abd-fc4ef474dbc6",
           "rev": 3,
           "class": "Note",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "86174133-7a74-5bf9-b9ff-36c8a073f566",
           "links": {},
           "data": {
             "text": "черновик"
           },
           "tags": [],
           "op": "restore",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "author": "33c0bfb4-08e1-5530-a849-59953f03408e",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:51.358032+00",
-          "tx": "3892193"
+          "at": "2026-11-10 20:15:54.674995+00",
+          "tx": "4256252"
         },
         {
-          "seq": "39",
-          "id": "143ac31e-8912-5900-a1de-cc873937bb50",
-          "rev": 1,
+          "seq": "46",
+          "id": "43666637-4ff6-5ef7-9abd-fc4ef474dbc6",
+          "rev": 4,
           "class": "Note",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "86174133-7a74-5bf9-b9ff-36c8a073f566",
           "links": {},
           "data": {
-            "text": "с маскировкой"
+            "text": "итог"
           },
           "tags": [],
-          "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
+          "op": "update",
+          "author": "33c0bfb4-08e1-5530-a849-59953f03408e",
           "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:14:52.013932+00",
-          "tx": "3892200"
+          "at": "2026-11-10 20:15:54.713191+00",
+          "tx": "4256254"
         }
       ],
       "secret": [],
       "signals": [
-        "Note"
+        "Account",
+        "Resource",
+        "member",
+        "rule",
+        "session:17022861553ec285",
+        "session:92d6b6f6dc5cb26f",
+        "session:9803bcb357c929a5"
       ]
     }
   ],
-  "output": "Шаг 1. Логгер — console\n{\n  ts: '2026-11-04T05:14:53.507Z',\n  level: 'info',\n  event: 'connect',\n  op: 'connect',\n  ms: 70,\n  tenant: '55cd1ada-aa68-5582-8b21-7dd4646a6a0a',\n  account: '3defbabb-a94d-5359-8463-dc947de193e1',\n  detail: {\n    schema: 'v2.example_logging_01_log',\n    dsn: 'postgres://127.0.0.1:15440/letopis',\n    pool: 'own',\n    max: 10,\n    bypass: false,\n    revision: 11,\n    signals: 'class',\n    listen: true,\n    cache: true,\n    session: 'token',\n    account: '3defbabb-a94d-5359-8463-dc947de193e1'\n  }\n} connect\n{\n  ts: '2026-11-04T05:14:53.524Z',\n  level: 'info',\n  event: 'write',\n  op: 'create',\n  ms: 13.9,\n  tenant: '55cd1ada-aa68-5582-8b21-7dd4646a6a0a',\n  account: '3defbabb-a94d-5359-8463-dc947de193e1',\n  chain: 'Note().create({text}).rows()',\n  rows: 1,\n  detail: {\n    classes: { Note: 1 },\n    ids: [ '9148a73d-1eb3-5576-ba7e-65531edf405c' ]\n  }\n} write\n[\n  {\n    \"вызов\": \"console.info\",\n    \"event\": \"connect\",\n    \"op\": \"connect\"\n  },\n  {\n    \"вызов\": \"console.info\",\n    \"event\": \"write\",\n    \"op\": \"create\"\n  }\n]\n\nШаг 2. Свой логгер: события write, delete, restore, error\n[\n  {\n    \"level\": \"info\",\n    \"event\": \"connect\",\n    \"op\": \"connect\"\n  },\n  {\n    \"level\": \"info\",\n    \"event\": \"write\",\n    \"op\": \"create\",\n    \"rows\": 1\n  },\n  {\n    \"level\": \"info\",\n    \"event\": \"delete\",\n    \"op\": \"delete\",\n    \"rows\": 1\n  },\n  {\n    \"level\": \"info\",\n    \"event\": \"restore\",\n    \"op\": \"restore\",\n    \"rows\": 1\n  },\n  {\n    \"level\": \"warn\",\n    \"event\": \"error\",\n    \"op\": \"rows\",\n    \"code\": \"not_deleted\",\n    \"key\": \"write.restore_already\"\n  }\n]\n\nШаг 3. Журнал установки и свои секретные поля: up({ log }), redact\n{\n  \"events\": [\n    {\n      \"level\": \"info\",\n      \"event\": \"up\",\n      \"op\": \"up\"\n    },\n    {\n      \"level\": \"info\",\n      \"event\": \"connect\",\n      \"op\": \"connect\"\n    },\n    {\n      \"level\": \"info\",\n      \"event\": \"write\",\n      \"op\": \"create\"\n    }\n  ],\n  \"catalog\": [\n    {\n      \"name\": \"connect\",\n      \"level\": \"info\",\n      \"ru\": \"connect() готов: схема, режим сигналов, кэш, способ входа\"\n    },\n    {\n      \"name\": \"close\",\n      \"level\": \"info\",\n      \"ru\": \"db.close(): пул, подписки и таймеры закрыты\"\n    },\n    {\n      \"name\": \"registry.refresh\",\n      \"level\": \"debug\",\n      \"ru\": \"реестр классов перечитан\"\n    },\n    {\n      \"name\": \"session.renew\",\n      \"level\": \"info\",\n      \"ru\": \"сессия по ключу сервиса истекла — ключ обменян на новую\"\n    }\n  ]\n}",
+  "output": "Шаг 1. Логгер — console\n{\n  ts: '2026-11-10T20:15:57.645Z',\n  level: 'info',\n  event: 'connect',\n  op: 'connect',\n  ms: 59.3,\n  account: '0a26b758-9040-55b5-8b35-7452aa2cf8d0',\n  detail: {\n    schema: 'v2.example_logging_01_log',\n    dsn: 'postgres://127.0.0.1:15440/letopis',\n    max: 10,\n    bypass: false,\n    revision: 12,\n    signals: 'class',\n    listen: true,\n    cache: true,\n    session: 'concierge',\n    account: '0a26b758-9040-55b5-8b35-7452aa2cf8d0'\n  }\n} connect\n{\n  ts: '2026-11-10T20:15:57.743Z',\n  level: 'info',\n  event: 'auth.login',\n  op: 'open',\n  ms: 96.2,\n  tenant: '741c5a13-d70d-5c62-87a9-e0ca76f92ece',\n  account: '4cb3d942-3069-5b1d-8899-a7751e1b87f1',\n  detail: { method: 'PASSWORD' }\n} auth.login\n{\n  ts: '2026-11-10T20:15:57.768Z',\n  level: 'info',\n  event: 'write',\n  op: 'create',\n  ms: 20.1,\n  tenant: '741c5a13-d70d-5c62-87a9-e0ca76f92ece',\n  account: '4cb3d942-3069-5b1d-8899-a7751e1b87f1',\n  chain: 'Note().create({text}).rows()',\n  rows: 1,\n  detail: {\n    classes: { Note: 1 },\n    ids: [ 'f16d01fb-f6ea-5a66-a130-4e279229f72e' ]\n  }\n} write\n[\n  {\n    \"вызов\": \"console.info\",\n    \"event\": \"connect\",\n    \"op\": \"connect\"\n  },\n  {\n    \"вызов\": \"console.info\",\n    \"event\": \"auth.login\",\n    \"op\": \"open\"\n  },\n  {\n    \"вызов\": \"console.info\",\n    \"event\": \"write\",\n    \"op\": \"create\"\n  }\n]\n\nШаг 2. Свой логгер: запись, удаление, возврат, ошибка\n{\n  \"события\": [\n    {\n      \"level\": \"info\",\n      \"event\": \"write\",\n      \"op\": \"create\",\n      \"rows\": 1\n    },\n    {\n      \"level\": \"info\",\n      \"event\": \"delete\",\n      \"op\": \"delete\",\n      \"rows\": 1\n    },\n    {\n      \"level\": \"info\",\n      \"event\": \"restore\",\n      \"op\": \"restore\",\n      \"rows\": 1\n    },\n    {\n      \"level\": \"warn\",\n      \"event\": \"error\",\n      \"op\": \"rows\",\n      \"code\": \"not_deleted\",\n      \"key\": \"write.restore_already\"\n    },\n    {\n      \"level\": \"info\",\n      \"event\": \"write\",\n      \"op\": \"update\",\n      \"rows\": 1\n    }\n  ],\n  \"цепочка правки\": \"Note({\\\"text\\\":\\\"***\\\"}).update({text}).rows()\"\n}\n\nШаг 3. Дом и квартиры: setup, приглашение, вход, выписка\n{\n  \"события\": [\n    {\n      \"level\": \"info\",\n      \"event\": \"setup.step\",\n      \"op\": \"setup\"\n    },\n    {\n      \"level\": \"info\",\n      \"event\": \"setup\",\n      \"op\": \"setup\"\n    },\n    {\n      \"level\": \"info\",\n      \"event\": \"connect\",\n      \"op\": \"connect\"\n    },\n    {\n      \"level\": \"info\",\n      \"event\": \"tenant.create\",\n      \"op\": \"createTenant\"\n    },\n    {\n      \"level\": \"info\",\n      \"event\": \"auth.invite\",\n      \"op\": \"invite\"\n    },\n    {\n      \"level\": \"info\",\n      \"event\": \"auth.login\",\n      \"op\": \"accept\"\n    },\n    {\n      \"level\": \"warn\",\n      \"event\": \"auth.fail\",\n      \"op\": \"open\"\n    },\n    {\n      \"level\": \"warn\",\n      \"event\": \"error\",\n      \"op\": \"open\",\n      \"code\": \"auth_failed\",\n      \"key\": \"api.auth_failed\"\n    },\n    {\n      \"level\": \"info\",\n      \"event\": \"auth.invite\",\n      \"op\": \"invite\"\n    },\n    {\n      \"level\": \"info\",\n      \"event\": \"auth.login\",\n      \"op\": \"accept\"\n    },\n    {\n      \"level\": \"info\",\n      \"event\": \"member.leave\",\n      \"op\": \"leave\"\n    },\n    {\n      \"level\": \"info\",\n      \"event\": \"auth.credential\",\n      \"op\": \"keys.issueApiKey\"\n    },\n    {\n      \"level\": \"info\",\n      \"event\": \"tenant.delete\",\n      \"op\": \"deleteTenant\",\n      \"rows\": 12\n    },\n    {\n      \"level\": \"info\",\n      \"event\": \"auth.login\",\n      \"op\": \"open\"\n    },\n    {\n      \"level\": \"info\",\n      \"event\": \"auth.logout\",\n      \"op\": \"close\"\n    }\n  ],\n  \"каталог LOG_EVENTS\": [\n    {\n      \"n\": \"setup\",\n      \"level\": \"info\",\n      \"ru\": \"setup() завершён: дом построен или накатан повторно\"\n    },\n    {\n      \"n\": \"auth.invite\",\n      \"level\": \"info\",\n      \"ru\": \"выдано приглашение в квартиру\"\n    },\n    {\n      \"n\": \"member.leave\",\n      \"level\": \"info\",\n      \"ru\": \"жилец выписался из квартиры (leave)\"\n    },\n    {\n      \"n\": \"tenant.delete\",\n      \"level\": \"info\",\n      \"ru\": \"квартира удалена (deleteTenant)\"\n    }\n  ]\n}",
   "exitCode": 0
 }

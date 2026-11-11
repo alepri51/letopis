@@ -1,7 +1,7 @@
 {
   "id": "hello/01-hello",
   "title": "Hello, world!",
-  "summary": "Вся letopis в одном шаге: поставить схему, подключиться, описать класс, записать объект и прочитать его.",
+  "summary": "Вся letopis в одном шаге: построить дом с моделью, завести квартиру, позвать в неё жильца, записать объект и прочитать его.",
   "tables": [
     "entity",
     "log"
@@ -15,9 +15,9 @@
   "steps": [
     {
       "title": "Hello, world!",
-      "text": "`up()` ставит схему и заводит арендатора с пользователем, `connect()` подключается от его имени, `syncModels` записывает класс, `create()` — объект, `rows()` читает его обратно.",
-      "code": "const r = await up({\n  dsn: dsn.admin, schema, quiet: true,\n  tenant: { name: 'Мир', user: { name: 'Аня', login: 'anya@example.com', password: 'Hello-2026!' } },\n  login: { user: 'hello_app', password: 'hello-secret' },\n});\nconst db = await connect({ dsn: r.login!.dsn!, admin: dsn.admin, schema, token: r.tenant!.token! });\nawait syncModels(db, [Greeting], { apply: true });\nawait db.Greeting().create({ text: 'Hello, world!' }).rows();\nconst [hello] = await db.Greeting().rows();\nreturn { text: hello.data.text, id: hello.id, rev: hello.rev };",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> r</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> up</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  dsn: dsn.admin, schema, quiet: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  tenant: { name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Мир'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, user: { name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Аня'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, login: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'anya@example.com'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, password: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Hello-2026!'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> } },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">  login: { user: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'hello_app'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, password: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'hello-secret'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> },</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">});</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> db</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> connect</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ dsn: r.login</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.dsn</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, admin: dsn.admin, schema, token: r.tenant</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.token</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> syncModels</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, [Greeting], { apply: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Greeting</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ text: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Hello, world!'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> [</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">hello</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Greeting</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { text: hello.data.text, id: hello.id, rev: hello.rev };</span></span></code></pre>",
+      "text": "`setup()` мастер-ключом строит дом — схему с моделью `Greeting` — и отдаёт пропуск консьержа. `connect(pass, { postman })` — консьерж: он заводит квартиру «Мир» и зовёт в неё Аню. Ссылку-приглашение консьерж отдаёт почтальону — функции приложения, которая доставляет письма; здесь это заглушка, она кладёт письмо в ящик. `accept(token, { name })` — Аня открывает ссылку и принимает приглашение, а дальше сразу работает в квартире: `create()` записывает объект, `rows()` читает его обратно.",
+      "code": "const { pass } = await setup(ADMIN_DSN, name, { models: [Greeting], quiet: true });\nconst db = await connect(pass, { postman });\nawait db.createTenant('Мир');\nawait (await db.in('Мир')).invite({ email: 'anya@example.com' }, ['owner']);\nconst anya = await db.accept(lastLetter('anya@example.com', 'invite').token, { name: 'Аня' });\nawait anya.Greeting().create({ text: 'Hello, world!' }).rows();\nconst [hello] = await anya.Greeting().rows();\nreturn { text: hello.data.text, id: hello.id, rev: hello.rev };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">pass</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> } </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> setup</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">ADMIN_DSN</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, name, { models: [Greeting], quiet: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> db</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> connect</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(pass, { postman });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">createTenant</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Мир'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">in</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Мир'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">)).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">invite</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ email: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'anya@example.com'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'owner'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">]);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> anya</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">accept</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">lastLetter</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'anya@example.com'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'invite'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).token, { name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Аня'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> anya.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Greeting</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ text: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Hello, world!'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> [</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">hello</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> anya.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Greeting</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { text: hello.data.text, id: hello.id, rev: hello.rev };</span></span></code></pre>",
       "result": {
         "text": "Hello, world!",
         "id": "Greeting·1",
@@ -26,18 +26,196 @@
       "error": null,
       "entity": [
         {
-          "id": "System",
-          "class": "Account",
+          "id": "Class «Account»",
+          "class": "Class",
           "rev": 1,
           "tenant": "System",
           "owner": "System",
           "links": {},
           "data": {
-            "name": "System",
-            "enabled": true,
-            "categories": [
-              "System"
-            ]
+            "key": [],
+            "kind": "hub",
+            "name": "Account",
+            "fields": {
+              "required": [
+                "name"
+              ],
+              "properties": {
+                "kind": {
+                  "enum": [
+                    "system",
+                    "service",
+                    "tenant",
+                    "person"
+                  ],
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "enabled": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "categories": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "uniqueItems": true
+                }
+              }
+            },
+            "system": true,
+            "resolved": {
+              "key": [],
+              "ends": {},
+              "kind": "hub",
+              "meta": {},
+              "name": "Account",
+              "vars": {
+                "v1": "system",
+                "v2": "service",
+                "v3": "tenant",
+                "v4": "person"
+              },
+              "cache": null,
+              "rules": [
+                {
+                  "cond": "@.type() == \"object\"",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || exists(@.keyvalue() ? (@.key == \"name\")))",
+                  "path": [
+                    "name"
+                  ],
+                  "vars": {},
+                  "keyword": "required",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "kind"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"kind\").value"
+                },
+                {
+                  "cond": "((@.type() == \"string\" && @ == $v1) || (@.type() == \"string\" && @ == $v2) || (@.type() == \"string\" && @ == $v3) || (@.type() == \"string\" && @ == $v4))",
+                  "path": [
+                    "kind"
+                  ],
+                  "vars": {
+                    "v1": "system",
+                    "v2": "service",
+                    "v3": "tenant",
+                    "v4": "person"
+                  },
+                  "keyword": "enum",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"kind\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "name"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"name\").value"
+                },
+                {
+                  "cond": "@.type() == \"boolean\"",
+                  "path": [
+                    "enabled"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"enabled\").value"
+                },
+                {
+                  "cond": "@.type() == \"array\"",
+                  "path": [
+                    "categories"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"categories\").value"
+                },
+                {
+                  "cond": "true",
+                  "path": [
+                    "categories"
+                  ],
+                  "vars": {},
+                  "extra": {
+                    "kind": "unique"
+                  },
+                  "keyword": "uniqueItems",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"categories\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "categories",
+                    "*"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"categories\").value ? (@.type() == \"array\")[*]"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"kind\" || @.key == \"name\" || @.key == \"enabled\" || @.key == \"categories\"))))",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "additionalProperties",
+                  "path_expr": "$"
+                }
+              ],
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "system",
+                      "service",
+                      "tenant",
+                      "person"
+                    ],
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "enabled": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "categories": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "uniqueItems": true
+                  }
+                },
+                "additionalProperties": false
+              },
+              "history": true,
+              "abstract": false,
+              "ancestors": [
+                "Account"
+              ],
+              "ownerDefault": "tenant"
+            }
           },
           "tags": [],
           "op": "create",
@@ -148,45 +326,81 @@
           ]
         },
         {
-          "id": "Class «Account»",
+          "id": "Class «Resource»",
           "class": "Class",
           "rev": 1,
           "tenant": "System",
           "owner": "System",
           "links": {},
           "data": {
-            "key": [],
+            "key": [
+              "alias"
+            ],
             "kind": "hub",
-            "name": "Account",
+            "name": "Resource",
             "fields": {
               "required": [
-                "name"
+                "alias",
+                "category"
               ],
               "properties": {
-                "name": {
+                "alias": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "pattern": {
+                  "type": "object",
+                  "properties": {
+                    "role": {
+                      "type": "string"
+                    },
+                    "class": {
+                      "type": "string"
+                    },
+                    "roles": {
+                      "type": "string"
+                    },
+                    "endpoint": {
+                      "type": "string"
+                    },
+                    "categories": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "category": {
+                  "enum": [
+                    "ACCOUNT",
+                    "API",
+                    "READ",
+                    "WRITE",
+                    "DELETE",
+                    "ROLE"
+                  ],
                   "type": "string"
                 },
-                "enabled": {
-                  "type": "boolean",
-                  "default": true
-                },
-                "categories": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  },
-                  "uniqueItems": true
+                "description": {
+                  "type": "string"
                 }
               }
             },
             "system": true,
             "resolved": {
-              "key": [],
+              "key": [
+                "alias"
+              ],
               "ends": {},
               "kind": "hub",
               "meta": {},
-              "name": "Account",
-              "vars": {},
+              "name": "Resource",
+              "vars": {
+                "v1": "ACCOUNT",
+                "v2": "API",
+                "v3": "READ",
+                "v4": "WRITE",
+                "v5": "DELETE",
+                "v6": "ROLE"
+              },
               "cache": null,
               "rules": [
                 {
@@ -197,9 +411,18 @@
                   "path_expr": "$"
                 },
                 {
-                  "cond": "(@.type() != \"object\" || exists(@.keyvalue() ? (@.key == \"name\")))",
+                  "cond": "(@.type() != \"object\" || exists(@.keyvalue() ? (@.key == \"alias\")))",
                   "path": [
-                    "name"
+                    "alias"
+                  ],
+                  "vars": {},
+                  "keyword": "required",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || exists(@.keyvalue() ? (@.key == \"category\")))",
+                  "path": [
+                    "category"
                   ],
                   "vars": {},
                   "keyword": "required",
@@ -208,54 +431,121 @@
                 {
                   "cond": "@.type() == \"string\"",
                   "path": [
-                    "name"
+                    "alias"
                   ],
                   "vars": {},
                   "keyword": "type",
-                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"name\").value"
-                },
-                {
-                  "cond": "@.type() == \"boolean\"",
-                  "path": [
-                    "enabled"
-                  ],
-                  "vars": {},
-                  "keyword": "type",
-                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"enabled\").value"
-                },
-                {
-                  "cond": "@.type() == \"array\"",
-                  "path": [
-                    "categories"
-                  ],
-                  "vars": {},
-                  "keyword": "type",
-                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"categories\").value"
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"alias\").value"
                 },
                 {
                   "cond": "true",
                   "path": [
-                    "categories"
+                    "alias"
                   ],
                   "vars": {},
                   "extra": {
-                    "kind": "unique"
+                    "max": null,
+                    "min": 1,
+                    "kind": "length"
                   },
-                  "keyword": "uniqueItems",
-                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"categories\").value"
+                  "keyword": "minLength",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"alias\").value"
+                },
+                {
+                  "cond": "@.type() == \"object\"",
+                  "path": [
+                    "pattern"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value"
                 },
                 {
                   "cond": "@.type() == \"string\"",
                   "path": [
-                    "categories",
-                    "*"
+                    "pattern",
+                    "role"
                   ],
                   "vars": {},
                   "keyword": "type",
-                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"categories\").value ? (@.type() == \"array\")[*]"
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value ? (@.type() == \"object\").keyvalue() ? (@.key == \"role\").value"
                 },
                 {
-                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"name\" || @.key == \"enabled\" || @.key == \"categories\"))))",
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "pattern",
+                    "class"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value ? (@.type() == \"object\").keyvalue() ? (@.key == \"class\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "pattern",
+                    "roles"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value ? (@.type() == \"object\").keyvalue() ? (@.key == \"roles\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "pattern",
+                    "endpoint"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value ? (@.type() == \"object\").keyvalue() ? (@.key == \"endpoint\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "pattern",
+                    "categories"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value ? (@.type() == \"object\").keyvalue() ? (@.key == \"categories\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "category"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"category\").value"
+                },
+                {
+                  "cond": "((@.type() == \"string\" && @ == $v1) || (@.type() == \"string\" && @ == $v2) || (@.type() == \"string\" && @ == $v3) || (@.type() == \"string\" && @ == $v4) || (@.type() == \"string\" && @ == $v5) || (@.type() == \"string\" && @ == $v6))",
+                  "path": [
+                    "category"
+                  ],
+                  "vars": {
+                    "v1": "ACCOUNT",
+                    "v2": "API",
+                    "v3": "READ",
+                    "v4": "WRITE",
+                    "v5": "DELETE",
+                    "v6": "ROLE"
+                  },
+                  "keyword": "enum",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"category\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "description"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"description\").value"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"alias\" || @.key == \"pattern\" || @.key == \"category\" || @.key == \"description\"))))",
                   "path": [],
                   "vars": {},
                   "keyword": "additionalProperties",
@@ -265,22 +555,47 @@
               "schema": {
                 "type": "object",
                 "required": [
-                  "name"
+                  "alias",
+                  "category"
                 ],
                 "properties": {
-                  "name": {
+                  "alias": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "pattern": {
+                    "type": "object",
+                    "properties": {
+                      "role": {
+                        "type": "string"
+                      },
+                      "class": {
+                        "type": "string"
+                      },
+                      "roles": {
+                        "type": "string"
+                      },
+                      "endpoint": {
+                        "type": "string"
+                      },
+                      "categories": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "category": {
+                    "enum": [
+                      "ACCOUNT",
+                      "API",
+                      "READ",
+                      "WRITE",
+                      "DELETE",
+                      "ROLE"
+                    ],
                     "type": "string"
                   },
-                  "enabled": {
-                    "type": "boolean",
-                    "default": true
-                  },
-                  "categories": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    },
-                    "uniqueItems": true
+                  "description": {
+                    "type": "string"
                   }
                 },
                 "additionalProperties": false
@@ -288,7 +603,7 @@
               "history": true,
               "abstract": false,
               "ancestors": [
-                "Account"
+                "Resource"
               ],
               "ownerDefault": "tenant"
             }
@@ -445,279 +760,6 @@
           ]
         },
         {
-          "id": "Class «Resource»",
-          "class": "Class",
-          "rev": 1,
-          "tenant": "System",
-          "owner": "System",
-          "links": {},
-          "data": {
-            "key": [
-              "alias"
-            ],
-            "kind": "hub",
-            "name": "Resource",
-            "fields": {
-              "required": [
-                "alias",
-                "category"
-              ],
-              "properties": {
-                "alias": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "pattern": {
-                  "type": "object",
-                  "properties": {
-                    "class": {
-                      "type": "string"
-                    },
-                    "roles": {
-                      "type": "string"
-                    },
-                    "endpoint": {
-                      "type": "string"
-                    },
-                    "categories": {
-                      "type": "string"
-                    }
-                  }
-                },
-                "category": {
-                  "enum": [
-                    "ACCOUNT",
-                    "API",
-                    "READ",
-                    "WRITE",
-                    "DELETE"
-                  ],
-                  "type": "string"
-                },
-                "description": {
-                  "type": "string"
-                }
-              }
-            },
-            "system": true,
-            "resolved": {
-              "key": [
-                "alias"
-              ],
-              "ends": {},
-              "kind": "hub",
-              "meta": {},
-              "name": "Resource",
-              "vars": {
-                "v1": "ACCOUNT",
-                "v2": "API",
-                "v3": "READ",
-                "v4": "WRITE",
-                "v5": "DELETE"
-              },
-              "cache": null,
-              "rules": [
-                {
-                  "cond": "@.type() == \"object\"",
-                  "path": [],
-                  "vars": {},
-                  "keyword": "type",
-                  "path_expr": "$"
-                },
-                {
-                  "cond": "(@.type() != \"object\" || exists(@.keyvalue() ? (@.key == \"alias\")))",
-                  "path": [
-                    "alias"
-                  ],
-                  "vars": {},
-                  "keyword": "required",
-                  "path_expr": "$"
-                },
-                {
-                  "cond": "(@.type() != \"object\" || exists(@.keyvalue() ? (@.key == \"category\")))",
-                  "path": [
-                    "category"
-                  ],
-                  "vars": {},
-                  "keyword": "required",
-                  "path_expr": "$"
-                },
-                {
-                  "cond": "@.type() == \"string\"",
-                  "path": [
-                    "alias"
-                  ],
-                  "vars": {},
-                  "keyword": "type",
-                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"alias\").value"
-                },
-                {
-                  "cond": "true",
-                  "path": [
-                    "alias"
-                  ],
-                  "vars": {},
-                  "extra": {
-                    "max": null,
-                    "min": 1,
-                    "kind": "length"
-                  },
-                  "keyword": "minLength",
-                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"alias\").value"
-                },
-                {
-                  "cond": "@.type() == \"object\"",
-                  "path": [
-                    "pattern"
-                  ],
-                  "vars": {},
-                  "keyword": "type",
-                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value"
-                },
-                {
-                  "cond": "@.type() == \"string\"",
-                  "path": [
-                    "pattern",
-                    "class"
-                  ],
-                  "vars": {},
-                  "keyword": "type",
-                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value ? (@.type() == \"object\").keyvalue() ? (@.key == \"class\").value"
-                },
-                {
-                  "cond": "@.type() == \"string\"",
-                  "path": [
-                    "pattern",
-                    "roles"
-                  ],
-                  "vars": {},
-                  "keyword": "type",
-                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value ? (@.type() == \"object\").keyvalue() ? (@.key == \"roles\").value"
-                },
-                {
-                  "cond": "@.type() == \"string\"",
-                  "path": [
-                    "pattern",
-                    "endpoint"
-                  ],
-                  "vars": {},
-                  "keyword": "type",
-                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value ? (@.type() == \"object\").keyvalue() ? (@.key == \"endpoint\").value"
-                },
-                {
-                  "cond": "@.type() == \"string\"",
-                  "path": [
-                    "pattern",
-                    "categories"
-                  ],
-                  "vars": {},
-                  "keyword": "type",
-                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value ? (@.type() == \"object\").keyvalue() ? (@.key == \"categories\").value"
-                },
-                {
-                  "cond": "@.type() == \"string\"",
-                  "path": [
-                    "category"
-                  ],
-                  "vars": {},
-                  "keyword": "type",
-                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"category\").value"
-                },
-                {
-                  "cond": "((@.type() == \"string\" && @ == $v1) || (@.type() == \"string\" && @ == $v2) || (@.type() == \"string\" && @ == $v3) || (@.type() == \"string\" && @ == $v4) || (@.type() == \"string\" && @ == $v5))",
-                  "path": [
-                    "category"
-                  ],
-                  "vars": {
-                    "v1": "ACCOUNT",
-                    "v2": "API",
-                    "v3": "READ",
-                    "v4": "WRITE",
-                    "v5": "DELETE"
-                  },
-                  "keyword": "enum",
-                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"category\").value"
-                },
-                {
-                  "cond": "@.type() == \"string\"",
-                  "path": [
-                    "description"
-                  ],
-                  "vars": {},
-                  "keyword": "type",
-                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"description\").value"
-                },
-                {
-                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"alias\" || @.key == \"pattern\" || @.key == \"category\" || @.key == \"description\"))))",
-                  "path": [],
-                  "vars": {},
-                  "keyword": "additionalProperties",
-                  "path_expr": "$"
-                }
-              ],
-              "schema": {
-                "type": "object",
-                "required": [
-                  "alias",
-                  "category"
-                ],
-                "properties": {
-                  "alias": {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  "pattern": {
-                    "type": "object",
-                    "properties": {
-                      "class": {
-                        "type": "string"
-                      },
-                      "roles": {
-                        "type": "string"
-                      },
-                      "endpoint": {
-                        "type": "string"
-                      },
-                      "categories": {
-                        "type": "string"
-                      }
-                    }
-                  },
-                  "category": {
-                    "enum": [
-                      "ACCOUNT",
-                      "API",
-                      "READ",
-                      "WRITE",
-                      "DELETE"
-                    ],
-                    "type": "string"
-                  },
-                  "description": {
-                    "type": "string"
-                  }
-                },
-                "additionalProperties": false
-              },
-              "history": true,
-              "abstract": false,
-              "ancestors": [
-                "Resource"
-              ],
-              "ownerDefault": "tenant"
-            }
-          },
-          "tags": [],
-          "op": "create",
-          "author": "System",
-          "agent": null,
-          "reason": null,
-          "at": "t1",
-          "$changed": [
-            "*"
-          ]
-        },
-        {
           "id": "Class «rule»",
           "class": "Class",
           "rev": 1,
@@ -755,12 +797,18 @@
                   "type": "integer",
                   "default": 0
                 },
+                "default": {
+                  "type": "boolean"
+                },
                 "enabled": {
                   "type": "boolean",
                   "default": true
                 },
                 "message": {
                   "type": "string"
+                },
+                "concierge": {
+                  "type": "boolean"
                 },
                 "permission": {
                   "enum": [
@@ -838,6 +886,15 @@
                 {
                   "cond": "@.type() == \"boolean\"",
                   "path": [
+                    "default"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"default\").value"
+                },
+                {
+                  "cond": "@.type() == \"boolean\"",
+                  "path": [
                     "enabled"
                   ],
                   "vars": {},
@@ -852,6 +909,15 @@
                   "vars": {},
                   "keyword": "type",
                   "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"message\").value"
+                },
+                {
+                  "cond": "@.type() == \"boolean\"",
+                  "path": [
+                    "concierge"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"concierge\").value"
                 },
                 {
                   "cond": "@.type() == \"string\"",
@@ -884,7 +950,7 @@
                   "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"description\").value"
                 },
                 {
-                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"code\" || @.key == \"weight\" || @.key == \"enabled\" || @.key == \"message\" || @.key == \"permission\" || @.key == \"description\"))))",
+                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"code\" || @.key == \"weight\" || @.key == \"default\" || @.key == \"enabled\" || @.key == \"message\" || @.key == \"concierge\" || @.key == \"permission\" || @.key == \"description\"))))",
                   "path": [],
                   "vars": {},
                   "keyword": "additionalProperties",
@@ -904,12 +970,18 @@
                     "type": "integer",
                     "default": 0
                   },
+                  "default": {
+                    "type": "boolean"
+                  },
                   "enabled": {
                     "type": "boolean",
                     "default": true
                   },
                   "message": {
                     "type": "string"
+                  },
+                  "concierge": {
+                    "type": "boolean"
                   },
                   "permission": {
                     "enum": [
@@ -950,11 +1022,32 @@
           "owner": "System",
           "links": {},
           "data": {
-            "alias": "anonymous:ACCOUNT",
+            "alias": "all:DELETE",
+            "category": "DELETE"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t1",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "Resource·10",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "alias": "signals:API",
             "pattern": {
-              "categories": "{Anonymous,Shadow}"
+              "endpoint": "letopis.signals"
             },
-            "category": "ACCOUNT"
+            "category": "API"
           },
           "tags": [],
           "op": "create",
@@ -974,11 +1067,8 @@
           "owner": "System",
           "links": {},
           "data": {
-            "alias": "authenticated:ACCOUNT",
-            "pattern": {
-              "categories": "!{Anonymous,Shadow}"
-            },
-            "category": "ACCOUNT"
+            "alias": "all:READ",
+            "category": "READ"
           },
           "tags": [],
           "op": "create",
@@ -998,8 +1088,8 @@
           "owner": "System",
           "links": {},
           "data": {
-            "alias": "any:ACCOUNT",
-            "category": "ACCOUNT"
+            "alias": "all:ROLE",
+            "category": "ROLE"
           },
           "tags": [],
           "op": "create",
@@ -1019,11 +1109,8 @@
           "owner": "System",
           "links": {},
           "data": {
-            "alias": "service:ACCOUNT",
-            "pattern": {
-              "categories": "{Service}"
-            },
-            "category": "ACCOUNT"
+            "alias": "all:WRITE",
+            "category": "WRITE"
           },
           "tags": [],
           "op": "create",
@@ -1043,10 +1130,7 @@
           "owner": "System",
           "links": {},
           "data": {
-            "alias": "admin:ACCOUNT",
-            "pattern": {
-              "roles": "{admin}"
-            },
+            "alias": "any:ACCOUNT",
             "category": "ACCOUNT"
           },
           "tags": [],
@@ -1088,11 +1172,11 @@
           "owner": "System",
           "links": {},
           "data": {
-            "alias": "auth:API",
+            "alias": "authenticated:ACCOUNT",
             "pattern": {
-              "endpoint": "auth.*"
+              "categories": "{User}"
             },
-            "category": "API"
+            "category": "ACCOUNT"
           },
           "tags": [],
           "op": "create",
@@ -1112,9 +1196,9 @@
           "owner": "System",
           "links": {},
           "data": {
-            "alias": "letopis:API",
+            "alias": "maintain:API",
             "pattern": {
-              "endpoint": "letopis.*"
+              "endpoint": "letopis.maintain"
             },
             "category": "API"
           },
@@ -1136,11 +1220,36 @@
           "owner": "System",
           "links": {},
           "data": {
-            "alias": "signals:API",
+            "alias": "service:ACCOUNT",
             "pattern": {
-              "endpoint": "letopis.signals"
+              "categories": "{Service}"
             },
-            "category": "API"
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t1",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "System",
+          "class": "Account",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "kind": "system",
+            "name": "System",
+            "enabled": true,
+            "categories": [
+              "System"
+            ]
           },
           "tags": [],
           "op": "create",
@@ -1159,14 +1268,14 @@
           "tenant": "System",
           "owner": "System",
           "links": {
-            "Group": "Resource·3",
+            "Group": "Resource·5",
             "Object": "Resource·6"
           },
           "data": {
             "code": 403,
             "weight": 0,
+            "default": true,
             "enabled": true,
-            "message": "Доступ запрещён по умолчанию",
             "permission": "deny"
           },
           "tags": [],
@@ -1186,13 +1295,14 @@
           "tenant": "System",
           "owner": "System",
           "links": {
-            "Group": "Resource·4",
-            "Object": "Resource·7"
+            "Group": "Resource·5",
+            "Object": "Resource·1"
           },
           "data": {
-            "weight": 100,
+            "weight": 0,
+            "default": true,
             "enabled": true,
-            "permission": "allow"
+            "permission": "deny"
           },
           "tags": [],
           "op": "create",
@@ -1211,13 +1321,14 @@
           "tenant": "System",
           "owner": "System",
           "links": {
-            "Group": "Resource·4",
-            "Object": "Resource·9"
+            "Group": "Resource·5",
+            "Object": "Resource·2"
           },
           "data": {
-            "weight": 100,
+            "weight": 0,
+            "default": true,
             "enabled": true,
-            "permission": "allow"
+            "permission": "deny"
           },
           "tags": [],
           "op": "create",
@@ -1237,12 +1348,13 @@
           "owner": "System",
           "links": {
             "Group": "Resource·5",
-            "Object": "Resource·7"
+            "Object": "Resource·4"
           },
           "data": {
-            "weight": 100,
+            "weight": 0,
+            "default": true,
             "enabled": true,
-            "permission": "allow"
+            "permission": "deny"
           },
           "tags": [],
           "op": "create",
@@ -1261,34 +1373,13 @@
           "tenant": "System",
           "owner": "System",
           "links": {
-            "Group": "Resource·5",
-            "Object": "Resource·8"
+            "Group": "Resource·9",
+            "Object": "Resource·10"
           },
           "data": {
             "weight": 100,
             "enabled": true,
             "permission": "allow"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "System",
-          "agent": null,
-          "reason": null,
-          "at": "t1",
-          "$changed": [
-            "*"
-          ]
-        },
-        {
-          "id": "Resource·10",
-          "class": "Resource",
-          "rev": 1,
-          "tenant": "System",
-          "owner": "System",
-          "links": {},
-          "data": {
-            "alias": "all:READ",
-            "category": "READ"
           },
           "tags": [],
           "op": "create",
@@ -1307,34 +1398,13 @@
           "tenant": "System",
           "owner": "System",
           "links": {
-            "Group": "Resource·5",
-            "Object": "Resource·10"
+            "Group": "Resource·9",
+            "Object": "Resource·8"
           },
           "data": {
             "weight": 100,
             "enabled": true,
             "permission": "allow"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "System",
-          "agent": null,
-          "reason": null,
-          "at": "t1",
-          "$changed": [
-            "*"
-          ]
-        },
-        {
-          "id": "Resource·11",
-          "class": "Resource",
-          "rev": 1,
-          "tenant": "System",
-          "owner": "System",
-          "links": {},
-          "data": {
-            "alias": "all:WRITE",
-            "category": "WRITE"
           },
           "tags": [],
           "op": "create",
@@ -1353,34 +1423,14 @@
           "tenant": "System",
           "owner": "System",
           "links": {
-            "Group": "Resource·5",
-            "Object": "Resource·11"
+            "Group": "Resource·9",
+            "Object": "Resource·1"
           },
           "data": {
-            "weight": 100,
+            "weight": 1000000,
             "enabled": true,
+            "concierge": true,
             "permission": "allow"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "System",
-          "agent": null,
-          "reason": null,
-          "at": "t1",
-          "$changed": [
-            "*"
-          ]
-        },
-        {
-          "id": "Resource·12",
-          "class": "Resource",
-          "rev": 1,
-          "tenant": "System",
-          "owner": "System",
-          "links": {},
-          "data": {
-            "alias": "all:DELETE",
-            "category": "DELETE"
           },
           "tags": [],
           "op": "create",
@@ -1399,12 +1449,13 @@
           "tenant": "System",
           "owner": "System",
           "links": {
-            "Group": "Resource·5",
-            "Object": "Resource·12"
+            "Group": "Resource·9",
+            "Object": "Resource·2"
           },
           "data": {
-            "weight": 100,
+            "weight": 1000000,
             "enabled": true,
+            "concierge": true,
             "permission": "allow"
           },
           "tags": [],
@@ -1413,52 +1464,6 @@
           "agent": null,
           "reason": null,
           "at": "t1",
-          "$changed": [
-            "*"
-          ]
-        },
-        {
-          "id": "service",
-          "class": "Account",
-          "rev": 1,
-          "tenant": "System",
-          "owner": "System",
-          "links": {},
-          "data": {
-            "name": "service",
-            "enabled": true,
-            "categories": [
-              "Service"
-            ]
-          },
-          "tags": [],
-          "op": "create",
-          "author": "System",
-          "agent": null,
-          "reason": null,
-          "at": "t1",
-          "$changed": [
-            "*"
-          ]
-        },
-        {
-          "id": "Мир",
-          "class": "Account",
-          "rev": 1,
-          "tenant": "System",
-          "owner": "System",
-          "links": {},
-          "data": {
-            "name": "Мир",
-            "enabled": true,
-            "categories": []
-          },
-          "tags": [],
-          "op": "create",
-          "author": "System",
-          "agent": null,
-          "reason": null,
-          "at": "t2",
           "$changed": [
             "*"
           ]
@@ -1467,15 +1472,16 @@
           "id": "rule·9",
           "class": "rule",
           "rev": 1,
-          "tenant": "Мир",
-          "owner": "Мир",
+          "tenant": "System",
+          "owner": "System",
           "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·10"
+            "Group": "Resource·9",
+            "Object": "Resource·4"
           },
           "data": {
-            "weight": 10,
+            "weight": 1000000,
             "enabled": true,
+            "concierge": true,
             "permission": "allow"
           },
           "tags": [],
@@ -1483,98 +1489,24 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t2",
+          "at": "t1",
           "$changed": [
             "*"
           ]
         },
         {
-          "id": "rule·10",
-          "class": "rule",
-          "rev": 1,
-          "tenant": "Мир",
-          "owner": "Мир",
-          "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·11"
-          },
-          "data": {
-            "weight": 10,
-            "enabled": true,
-            "permission": "allow"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "System",
-          "agent": null,
-          "reason": null,
-          "at": "t2",
-          "$changed": [
-            "*"
-          ]
-        },
-        {
-          "id": "rule·11",
-          "class": "rule",
-          "rev": 1,
-          "tenant": "Мир",
-          "owner": "Мир",
-          "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·12"
-          },
-          "data": {
-            "weight": 10,
-            "enabled": true,
-            "permission": "allow"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "System",
-          "agent": null,
-          "reason": null,
-          "at": "t2",
-          "$changed": [
-            "*"
-          ]
-        },
-        {
-          "id": "Аня",
+          "id": "консьерж",
           "class": "Account",
           "rev": 1,
           "tenant": "System",
           "owner": "System",
           "links": {},
           "data": {
-            "name": "Аня",
+            "kind": "service",
+            "name": "concierge",
             "enabled": true,
             "categories": [
-              "User"
-            ]
-          },
-          "tags": [],
-          "op": "create",
-          "author": "System",
-          "agent": null,
-          "reason": null,
-          "at": "t2",
-          "$changed": [
-            "*"
-          ]
-        },
-        {
-          "id": "member·1",
-          "class": "member",
-          "rev": 1,
-          "tenant": "Мир",
-          "owner": "Мир",
-          "links": {
-            "User": "Аня",
-            "Tenant": "Мир"
-          },
-          "data": {
-            "roles": [
-              "owner"
+              "Service"
             ]
           },
           "tags": [],
@@ -1591,8 +1523,8 @@
           "id": "Class «Greeting»",
           "class": "Class",
           "rev": 1,
-          "tenant": "Мир",
-          "owner": "Мир",
+          "tenant": "System",
+          "owner": "System",
           "links": {},
           "data": {
             "kind": "hub",
@@ -1671,10 +1603,367 @@
           },
           "tags": [],
           "op": "create",
-          "author": "Аня",
+          "author": "консьерж",
           "agent": null,
           "reason": null,
           "at": "t3",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "Resource·11",
+          "class": "Resource",
+          "rev": 1,
+          "tenant": "Мир",
+          "owner": "Мир",
+          "links": {},
+          "data": {
+            "alias": "role:owner:ACCOUNT",
+            "pattern": {
+              "roles": "{owner}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t4",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "rule·10",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Мир",
+          "owner": "консьерж",
+          "links": {
+            "Group": "Resource·11",
+            "Object": "Resource·1"
+          },
+          "data": {
+            "weight": 100000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t4",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "rule·11",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Мир",
+          "owner": "консьерж",
+          "links": {
+            "Group": "Resource·11",
+            "Object": "Resource·2"
+          },
+          "data": {
+            "weight": 100000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t4",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "rule·12",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Мир",
+          "owner": "консьерж",
+          "links": {
+            "Group": "Resource·11",
+            "Object": "Resource·3"
+          },
+          "data": {
+            "weight": 100000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t4",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "rule·13",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Мир",
+          "owner": "консьерж",
+          "links": {
+            "Group": "Resource·11",
+            "Object": "Resource·4"
+          },
+          "data": {
+            "weight": 100000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t4",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "rule·14",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Мир",
+          "owner": "консьерж",
+          "links": {
+            "Group": "Resource·11",
+            "Object": "Resource·6"
+          },
+          "data": {
+            "weight": 100000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t4",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "rule·15",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Мир",
+          "owner": "консьерж",
+          "links": {
+            "Group": "Resource·9",
+            "Object": "Resource·1"
+          },
+          "data": {
+            "weight": 1000000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t4",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "rule·16",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Мир",
+          "owner": "консьерж",
+          "links": {
+            "Group": "Resource·9",
+            "Object": "Resource·2"
+          },
+          "data": {
+            "weight": 1000000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t4",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "rule·17",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Мир",
+          "owner": "консьерж",
+          "links": {
+            "Group": "Resource·9",
+            "Object": "Resource·3"
+          },
+          "data": {
+            "weight": 1000000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t4",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "rule·18",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Мир",
+          "owner": "консьерж",
+          "links": {
+            "Group": "Resource·9",
+            "Object": "Resource·4"
+          },
+          "data": {
+            "weight": 1000000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t4",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "rule·19",
+          "class": "rule",
+          "rev": 1,
+          "tenant": "Мир",
+          "owner": "консьерж",
+          "links": {
+            "Group": "Resource·9",
+            "Object": "Resource·6"
+          },
+          "data": {
+            "weight": 1000000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t4",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "Мир",
+          "class": "Account",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "kind": "tenant",
+            "name": "Мир",
+            "enabled": true,
+            "categories": []
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t4",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "member·1",
+          "class": "member",
+          "rev": 1,
+          "tenant": "Мир",
+          "owner": "Мир",
+          "links": {
+            "User": "Аня",
+            "Tenant": "Мир"
+          },
+          "data": {
+            "roles": [
+              "owner"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t5",
+          "$changed": [
+            "*"
+          ]
+        },
+        {
+          "id": "Аня",
+          "class": "Account",
+          "rev": 1,
+          "tenant": "System",
+          "owner": "System",
+          "links": {},
+          "data": {
+            "kind": "person",
+            "name": "Аня",
+            "enabled": true,
+            "categories": [
+              "User"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t5",
           "$changed": [
             "*"
           ]
@@ -1694,7 +1983,7 @@
           "author": "Аня",
           "agent": null,
           "reason": null,
-          "at": "t4",
+          "at": "t6",
           "$changed": [
             "*"
           ]
@@ -1704,17 +1993,195 @@
       "log": [
         {
           "seq": "1",
-          "id": "System",
+          "id": "Class «Account»",
           "rev": 1,
-          "class": "Account",
+          "class": "Class",
           "tenant": "System",
           "links": {},
           "data": {
-            "name": "System",
-            "enabled": true,
-            "categories": [
-              "System"
-            ]
+            "key": [],
+            "kind": "hub",
+            "name": "Account",
+            "fields": {
+              "required": [
+                "name"
+              ],
+              "properties": {
+                "kind": {
+                  "enum": [
+                    "system",
+                    "service",
+                    "tenant",
+                    "person"
+                  ],
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "enabled": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "categories": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "uniqueItems": true
+                }
+              }
+            },
+            "system": true,
+            "resolved": {
+              "key": [],
+              "ends": {},
+              "kind": "hub",
+              "meta": {},
+              "name": "Account",
+              "vars": {
+                "v1": "system",
+                "v2": "service",
+                "v3": "tenant",
+                "v4": "person"
+              },
+              "cache": null,
+              "rules": [
+                {
+                  "cond": "@.type() == \"object\"",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || exists(@.keyvalue() ? (@.key == \"name\")))",
+                  "path": [
+                    "name"
+                  ],
+                  "vars": {},
+                  "keyword": "required",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "kind"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"kind\").value"
+                },
+                {
+                  "cond": "((@.type() == \"string\" && @ == $v1) || (@.type() == \"string\" && @ == $v2) || (@.type() == \"string\" && @ == $v3) || (@.type() == \"string\" && @ == $v4))",
+                  "path": [
+                    "kind"
+                  ],
+                  "vars": {
+                    "v1": "system",
+                    "v2": "service",
+                    "v3": "tenant",
+                    "v4": "person"
+                  },
+                  "keyword": "enum",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"kind\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "name"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"name\").value"
+                },
+                {
+                  "cond": "@.type() == \"boolean\"",
+                  "path": [
+                    "enabled"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"enabled\").value"
+                },
+                {
+                  "cond": "@.type() == \"array\"",
+                  "path": [
+                    "categories"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"categories\").value"
+                },
+                {
+                  "cond": "true",
+                  "path": [
+                    "categories"
+                  ],
+                  "vars": {},
+                  "extra": {
+                    "kind": "unique"
+                  },
+                  "keyword": "uniqueItems",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"categories\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "categories",
+                    "*"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"categories\").value ? (@.type() == \"array\")[*]"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"kind\" || @.key == \"name\" || @.key == \"enabled\" || @.key == \"categories\"))))",
+                  "path": [],
+                  "vars": {},
+                  "keyword": "additionalProperties",
+                  "path_expr": "$"
+                }
+              ],
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "system",
+                      "service",
+                      "tenant",
+                      "person"
+                    ],
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "enabled": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "categories": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "uniqueItems": true
+                  }
+                },
+                "additionalProperties": false
+              },
+              "history": true,
+              "abstract": false,
+              "ancestors": [
+                "Account"
+              ],
+              "ownerDefault": "tenant"
+            }
           },
           "tags": [],
           "op": "create",
@@ -1822,44 +2289,80 @@
         },
         {
           "seq": "3",
-          "id": "Class «Account»",
+          "id": "Class «Resource»",
           "rev": 1,
           "class": "Class",
           "tenant": "System",
           "links": {},
           "data": {
-            "key": [],
+            "key": [
+              "alias"
+            ],
             "kind": "hub",
-            "name": "Account",
+            "name": "Resource",
             "fields": {
               "required": [
-                "name"
+                "alias",
+                "category"
               ],
               "properties": {
-                "name": {
+                "alias": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "pattern": {
+                  "type": "object",
+                  "properties": {
+                    "role": {
+                      "type": "string"
+                    },
+                    "class": {
+                      "type": "string"
+                    },
+                    "roles": {
+                      "type": "string"
+                    },
+                    "endpoint": {
+                      "type": "string"
+                    },
+                    "categories": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "category": {
+                  "enum": [
+                    "ACCOUNT",
+                    "API",
+                    "READ",
+                    "WRITE",
+                    "DELETE",
+                    "ROLE"
+                  ],
                   "type": "string"
                 },
-                "enabled": {
-                  "type": "boolean",
-                  "default": true
-                },
-                "categories": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  },
-                  "uniqueItems": true
+                "description": {
+                  "type": "string"
                 }
               }
             },
             "system": true,
             "resolved": {
-              "key": [],
+              "key": [
+                "alias"
+              ],
               "ends": {},
               "kind": "hub",
               "meta": {},
-              "name": "Account",
-              "vars": {},
+              "name": "Resource",
+              "vars": {
+                "v1": "ACCOUNT",
+                "v2": "API",
+                "v3": "READ",
+                "v4": "WRITE",
+                "v5": "DELETE",
+                "v6": "ROLE"
+              },
               "cache": null,
               "rules": [
                 {
@@ -1870,9 +2373,18 @@
                   "path_expr": "$"
                 },
                 {
-                  "cond": "(@.type() != \"object\" || exists(@.keyvalue() ? (@.key == \"name\")))",
+                  "cond": "(@.type() != \"object\" || exists(@.keyvalue() ? (@.key == \"alias\")))",
                   "path": [
-                    "name"
+                    "alias"
+                  ],
+                  "vars": {},
+                  "keyword": "required",
+                  "path_expr": "$"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || exists(@.keyvalue() ? (@.key == \"category\")))",
+                  "path": [
+                    "category"
                   ],
                   "vars": {},
                   "keyword": "required",
@@ -1881,54 +2393,121 @@
                 {
                   "cond": "@.type() == \"string\"",
                   "path": [
-                    "name"
+                    "alias"
                   ],
                   "vars": {},
                   "keyword": "type",
-                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"name\").value"
-                },
-                {
-                  "cond": "@.type() == \"boolean\"",
-                  "path": [
-                    "enabled"
-                  ],
-                  "vars": {},
-                  "keyword": "type",
-                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"enabled\").value"
-                },
-                {
-                  "cond": "@.type() == \"array\"",
-                  "path": [
-                    "categories"
-                  ],
-                  "vars": {},
-                  "keyword": "type",
-                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"categories\").value"
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"alias\").value"
                 },
                 {
                   "cond": "true",
                   "path": [
-                    "categories"
+                    "alias"
                   ],
                   "vars": {},
                   "extra": {
-                    "kind": "unique"
+                    "max": null,
+                    "min": 1,
+                    "kind": "length"
                   },
-                  "keyword": "uniqueItems",
-                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"categories\").value"
+                  "keyword": "minLength",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"alias\").value"
+                },
+                {
+                  "cond": "@.type() == \"object\"",
+                  "path": [
+                    "pattern"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value"
                 },
                 {
                   "cond": "@.type() == \"string\"",
                   "path": [
-                    "categories",
-                    "*"
+                    "pattern",
+                    "role"
                   ],
                   "vars": {},
                   "keyword": "type",
-                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"categories\").value ? (@.type() == \"array\")[*]"
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value ? (@.type() == \"object\").keyvalue() ? (@.key == \"role\").value"
                 },
                 {
-                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"name\" || @.key == \"enabled\" || @.key == \"categories\"))))",
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "pattern",
+                    "class"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value ? (@.type() == \"object\").keyvalue() ? (@.key == \"class\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "pattern",
+                    "roles"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value ? (@.type() == \"object\").keyvalue() ? (@.key == \"roles\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "pattern",
+                    "endpoint"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value ? (@.type() == \"object\").keyvalue() ? (@.key == \"endpoint\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "pattern",
+                    "categories"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value ? (@.type() == \"object\").keyvalue() ? (@.key == \"categories\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "category"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"category\").value"
+                },
+                {
+                  "cond": "((@.type() == \"string\" && @ == $v1) || (@.type() == \"string\" && @ == $v2) || (@.type() == \"string\" && @ == $v3) || (@.type() == \"string\" && @ == $v4) || (@.type() == \"string\" && @ == $v5) || (@.type() == \"string\" && @ == $v6))",
+                  "path": [
+                    "category"
+                  ],
+                  "vars": {
+                    "v1": "ACCOUNT",
+                    "v2": "API",
+                    "v3": "READ",
+                    "v4": "WRITE",
+                    "v5": "DELETE",
+                    "v6": "ROLE"
+                  },
+                  "keyword": "enum",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"category\").value"
+                },
+                {
+                  "cond": "@.type() == \"string\"",
+                  "path": [
+                    "description"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"description\").value"
+                },
+                {
+                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"alias\" || @.key == \"pattern\" || @.key == \"category\" || @.key == \"description\"))))",
                   "path": [],
                   "vars": {},
                   "keyword": "additionalProperties",
@@ -1938,22 +2517,47 @@
               "schema": {
                 "type": "object",
                 "required": [
-                  "name"
+                  "alias",
+                  "category"
                 ],
                 "properties": {
-                  "name": {
+                  "alias": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "pattern": {
+                    "type": "object",
+                    "properties": {
+                      "role": {
+                        "type": "string"
+                      },
+                      "class": {
+                        "type": "string"
+                      },
+                      "roles": {
+                        "type": "string"
+                      },
+                      "endpoint": {
+                        "type": "string"
+                      },
+                      "categories": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "category": {
+                    "enum": [
+                      "ACCOUNT",
+                      "API",
+                      "READ",
+                      "WRITE",
+                      "DELETE",
+                      "ROLE"
+                    ],
                     "type": "string"
                   },
-                  "enabled": {
-                    "type": "boolean",
-                    "default": true
-                  },
-                  "categories": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    },
-                    "uniqueItems": true
+                  "description": {
+                    "type": "string"
                   }
                 },
                 "additionalProperties": false
@@ -1961,7 +2565,7 @@
               "history": true,
               "abstract": false,
               "ancestors": [
-                "Account"
+                "Resource"
               ],
               "ownerDefault": "tenant"
             }
@@ -2115,277 +2719,6 @@
         },
         {
           "seq": "5",
-          "id": "Class «Resource»",
-          "rev": 1,
-          "class": "Class",
-          "tenant": "System",
-          "links": {},
-          "data": {
-            "key": [
-              "alias"
-            ],
-            "kind": "hub",
-            "name": "Resource",
-            "fields": {
-              "required": [
-                "alias",
-                "category"
-              ],
-              "properties": {
-                "alias": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "pattern": {
-                  "type": "object",
-                  "properties": {
-                    "class": {
-                      "type": "string"
-                    },
-                    "roles": {
-                      "type": "string"
-                    },
-                    "endpoint": {
-                      "type": "string"
-                    },
-                    "categories": {
-                      "type": "string"
-                    }
-                  }
-                },
-                "category": {
-                  "enum": [
-                    "ACCOUNT",
-                    "API",
-                    "READ",
-                    "WRITE",
-                    "DELETE"
-                  ],
-                  "type": "string"
-                },
-                "description": {
-                  "type": "string"
-                }
-              }
-            },
-            "system": true,
-            "resolved": {
-              "key": [
-                "alias"
-              ],
-              "ends": {},
-              "kind": "hub",
-              "meta": {},
-              "name": "Resource",
-              "vars": {
-                "v1": "ACCOUNT",
-                "v2": "API",
-                "v3": "READ",
-                "v4": "WRITE",
-                "v5": "DELETE"
-              },
-              "cache": null,
-              "rules": [
-                {
-                  "cond": "@.type() == \"object\"",
-                  "path": [],
-                  "vars": {},
-                  "keyword": "type",
-                  "path_expr": "$"
-                },
-                {
-                  "cond": "(@.type() != \"object\" || exists(@.keyvalue() ? (@.key == \"alias\")))",
-                  "path": [
-                    "alias"
-                  ],
-                  "vars": {},
-                  "keyword": "required",
-                  "path_expr": "$"
-                },
-                {
-                  "cond": "(@.type() != \"object\" || exists(@.keyvalue() ? (@.key == \"category\")))",
-                  "path": [
-                    "category"
-                  ],
-                  "vars": {},
-                  "keyword": "required",
-                  "path_expr": "$"
-                },
-                {
-                  "cond": "@.type() == \"string\"",
-                  "path": [
-                    "alias"
-                  ],
-                  "vars": {},
-                  "keyword": "type",
-                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"alias\").value"
-                },
-                {
-                  "cond": "true",
-                  "path": [
-                    "alias"
-                  ],
-                  "vars": {},
-                  "extra": {
-                    "max": null,
-                    "min": 1,
-                    "kind": "length"
-                  },
-                  "keyword": "minLength",
-                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"alias\").value"
-                },
-                {
-                  "cond": "@.type() == \"object\"",
-                  "path": [
-                    "pattern"
-                  ],
-                  "vars": {},
-                  "keyword": "type",
-                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value"
-                },
-                {
-                  "cond": "@.type() == \"string\"",
-                  "path": [
-                    "pattern",
-                    "class"
-                  ],
-                  "vars": {},
-                  "keyword": "type",
-                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value ? (@.type() == \"object\").keyvalue() ? (@.key == \"class\").value"
-                },
-                {
-                  "cond": "@.type() == \"string\"",
-                  "path": [
-                    "pattern",
-                    "roles"
-                  ],
-                  "vars": {},
-                  "keyword": "type",
-                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value ? (@.type() == \"object\").keyvalue() ? (@.key == \"roles\").value"
-                },
-                {
-                  "cond": "@.type() == \"string\"",
-                  "path": [
-                    "pattern",
-                    "endpoint"
-                  ],
-                  "vars": {},
-                  "keyword": "type",
-                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value ? (@.type() == \"object\").keyvalue() ? (@.key == \"endpoint\").value"
-                },
-                {
-                  "cond": "@.type() == \"string\"",
-                  "path": [
-                    "pattern",
-                    "categories"
-                  ],
-                  "vars": {},
-                  "keyword": "type",
-                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"pattern\").value ? (@.type() == \"object\").keyvalue() ? (@.key == \"categories\").value"
-                },
-                {
-                  "cond": "@.type() == \"string\"",
-                  "path": [
-                    "category"
-                  ],
-                  "vars": {},
-                  "keyword": "type",
-                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"category\").value"
-                },
-                {
-                  "cond": "((@.type() == \"string\" && @ == $v1) || (@.type() == \"string\" && @ == $v2) || (@.type() == \"string\" && @ == $v3) || (@.type() == \"string\" && @ == $v4) || (@.type() == \"string\" && @ == $v5))",
-                  "path": [
-                    "category"
-                  ],
-                  "vars": {
-                    "v1": "ACCOUNT",
-                    "v2": "API",
-                    "v3": "READ",
-                    "v4": "WRITE",
-                    "v5": "DELETE"
-                  },
-                  "keyword": "enum",
-                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"category\").value"
-                },
-                {
-                  "cond": "@.type() == \"string\"",
-                  "path": [
-                    "description"
-                  ],
-                  "vars": {},
-                  "keyword": "type",
-                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"description\").value"
-                },
-                {
-                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"alias\" || @.key == \"pattern\" || @.key == \"category\" || @.key == \"description\"))))",
-                  "path": [],
-                  "vars": {},
-                  "keyword": "additionalProperties",
-                  "path_expr": "$"
-                }
-              ],
-              "schema": {
-                "type": "object",
-                "required": [
-                  "alias",
-                  "category"
-                ],
-                "properties": {
-                  "alias": {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  "pattern": {
-                    "type": "object",
-                    "properties": {
-                      "class": {
-                        "type": "string"
-                      },
-                      "roles": {
-                        "type": "string"
-                      },
-                      "endpoint": {
-                        "type": "string"
-                      },
-                      "categories": {
-                        "type": "string"
-                      }
-                    }
-                  },
-                  "category": {
-                    "enum": [
-                      "ACCOUNT",
-                      "API",
-                      "READ",
-                      "WRITE",
-                      "DELETE"
-                    ],
-                    "type": "string"
-                  },
-                  "description": {
-                    "type": "string"
-                  }
-                },
-                "additionalProperties": false
-              },
-              "history": true,
-              "abstract": false,
-              "ancestors": [
-                "Resource"
-              ],
-              "ownerDefault": "tenant"
-            }
-          },
-          "tags": [],
-          "op": "create",
-          "author": "System",
-          "agent": null,
-          "reason": null,
-          "at": "t1",
-          "$new": true
-        },
-        {
-          "seq": "6",
           "id": "Class «rule»",
           "rev": 1,
           "class": "Class",
@@ -2422,12 +2755,18 @@
                   "type": "integer",
                   "default": 0
                 },
+                "default": {
+                  "type": "boolean"
+                },
                 "enabled": {
                   "type": "boolean",
                   "default": true
                 },
                 "message": {
                   "type": "string"
+                },
+                "concierge": {
+                  "type": "boolean"
                 },
                 "permission": {
                   "enum": [
@@ -2505,6 +2844,15 @@
                 {
                   "cond": "@.type() == \"boolean\"",
                   "path": [
+                    "default"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"default\").value"
+                },
+                {
+                  "cond": "@.type() == \"boolean\"",
+                  "path": [
                     "enabled"
                   ],
                   "vars": {},
@@ -2519,6 +2867,15 @@
                   "vars": {},
                   "keyword": "type",
                   "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"message\").value"
+                },
+                {
+                  "cond": "@.type() == \"boolean\"",
+                  "path": [
+                    "concierge"
+                  ],
+                  "vars": {},
+                  "keyword": "type",
+                  "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"concierge\").value"
                 },
                 {
                   "cond": "@.type() == \"string\"",
@@ -2551,7 +2908,7 @@
                   "path_expr": "$ ? (@.type() == \"object\").keyvalue() ? (@.key == \"description\").value"
                 },
                 {
-                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"code\" || @.key == \"weight\" || @.key == \"enabled\" || @.key == \"message\" || @.key == \"permission\" || @.key == \"description\"))))",
+                  "cond": "(@.type() != \"object\" || !exists(@.keyvalue() ? (!(@.key == \"code\" || @.key == \"weight\" || @.key == \"default\" || @.key == \"enabled\" || @.key == \"message\" || @.key == \"concierge\" || @.key == \"permission\" || @.key == \"description\"))))",
                   "path": [],
                   "vars": {},
                   "keyword": "additionalProperties",
@@ -2571,12 +2928,18 @@
                     "type": "integer",
                     "default": 0
                   },
+                  "default": {
+                    "type": "boolean"
+                  },
                   "enabled": {
                     "type": "boolean",
                     "default": true
                   },
                   "message": {
                     "type": "string"
+                  },
+                  "concierge": {
+                    "type": "boolean"
                   },
                   "permission": {
                     "enum": [
@@ -2608,18 +2971,37 @@
           "$new": true
         },
         {
-          "seq": "7",
+          "seq": "6",
           "id": "Resource·1",
           "rev": 1,
           "class": "Resource",
           "tenant": "System",
           "links": {},
           "data": {
-            "alias": "anonymous:ACCOUNT",
+            "alias": "all:DELETE",
+            "category": "DELETE"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t1",
+          "$new": true
+        },
+        {
+          "seq": "7",
+          "id": "Resource·10",
+          "rev": 1,
+          "class": "Resource",
+          "tenant": "System",
+          "links": {},
+          "data": {
+            "alias": "signals:API",
             "pattern": {
-              "categories": "{Anonymous,Shadow}"
+              "endpoint": "letopis.signals"
             },
-            "category": "ACCOUNT"
+            "category": "API"
           },
           "tags": [],
           "op": "create",
@@ -2637,11 +3019,8 @@
           "tenant": "System",
           "links": {},
           "data": {
-            "alias": "authenticated:ACCOUNT",
-            "pattern": {
-              "categories": "!{Anonymous,Shadow}"
-            },
-            "category": "ACCOUNT"
+            "alias": "all:READ",
+            "category": "READ"
           },
           "tags": [],
           "op": "create",
@@ -2659,8 +3038,8 @@
           "tenant": "System",
           "links": {},
           "data": {
-            "alias": "any:ACCOUNT",
-            "category": "ACCOUNT"
+            "alias": "all:ROLE",
+            "category": "ROLE"
           },
           "tags": [],
           "op": "create",
@@ -2678,11 +3057,8 @@
           "tenant": "System",
           "links": {},
           "data": {
-            "alias": "service:ACCOUNT",
-            "pattern": {
-              "categories": "{Service}"
-            },
-            "category": "ACCOUNT"
+            "alias": "all:WRITE",
+            "category": "WRITE"
           },
           "tags": [],
           "op": "create",
@@ -2700,10 +3076,7 @@
           "tenant": "System",
           "links": {},
           "data": {
-            "alias": "admin:ACCOUNT",
-            "pattern": {
-              "roles": "{admin}"
-            },
+            "alias": "any:ACCOUNT",
             "category": "ACCOUNT"
           },
           "tags": [],
@@ -2741,11 +3114,11 @@
           "tenant": "System",
           "links": {},
           "data": {
-            "alias": "auth:API",
+            "alias": "authenticated:ACCOUNT",
             "pattern": {
-              "endpoint": "auth.*"
+              "categories": "{User}"
             },
-            "category": "API"
+            "category": "ACCOUNT"
           },
           "tags": [],
           "op": "create",
@@ -2763,9 +3136,9 @@
           "tenant": "System",
           "links": {},
           "data": {
-            "alias": "letopis:API",
+            "alias": "maintain:API",
             "pattern": {
-              "endpoint": "letopis.*"
+              "endpoint": "letopis.maintain"
             },
             "category": "API"
           },
@@ -2785,11 +3158,11 @@
           "tenant": "System",
           "links": {},
           "data": {
-            "alias": "signals:API",
+            "alias": "service:ACCOUNT",
             "pattern": {
-              "endpoint": "letopis.signals"
+              "categories": "{Service}"
             },
-            "category": "API"
+            "category": "ACCOUNT"
           },
           "tags": [],
           "op": "create",
@@ -2801,20 +3174,18 @@
         },
         {
           "seq": "16",
-          "id": "rule·1",
+          "id": "System",
           "rev": 1,
-          "class": "rule",
+          "class": "Account",
           "tenant": "System",
-          "links": {
-            "Group": "Resource·3",
-            "Object": "Resource·6"
-          },
+          "links": {},
           "data": {
-            "code": 403,
-            "weight": 0,
+            "kind": "system",
+            "name": "System",
             "enabled": true,
-            "message": "Доступ запрещён по умолчанию",
-            "permission": "deny"
+            "categories": [
+              "System"
+            ]
           },
           "tags": [],
           "op": "create",
@@ -2826,18 +3197,20 @@
         },
         {
           "seq": "17",
-          "id": "rule·2",
+          "id": "rule·1",
           "rev": 1,
           "class": "rule",
           "tenant": "System",
           "links": {
-            "Group": "Resource·4",
-            "Object": "Resource·7"
+            "Group": "Resource·5",
+            "Object": "Resource·6"
           },
           "data": {
-            "weight": 100,
+            "code": 403,
+            "weight": 0,
+            "default": true,
             "enabled": true,
-            "permission": "allow"
+            "permission": "deny"
           },
           "tags": [],
           "op": "create",
@@ -2849,18 +3222,19 @@
         },
         {
           "seq": "18",
-          "id": "rule·3",
+          "id": "rule·2",
           "rev": 1,
           "class": "rule",
           "tenant": "System",
           "links": {
-            "Group": "Resource·4",
-            "Object": "Resource·9"
+            "Group": "Resource·5",
+            "Object": "Resource·1"
           },
           "data": {
-            "weight": 100,
+            "weight": 0,
+            "default": true,
             "enabled": true,
-            "permission": "allow"
+            "permission": "deny"
           },
           "tags": [],
           "op": "create",
@@ -2872,18 +3246,19 @@
         },
         {
           "seq": "19",
-          "id": "rule·4",
+          "id": "rule·3",
           "rev": 1,
           "class": "rule",
           "tenant": "System",
           "links": {
             "Group": "Resource·5",
-            "Object": "Resource·7"
+            "Object": "Resource·2"
           },
           "data": {
-            "weight": 100,
+            "weight": 0,
+            "default": true,
             "enabled": true,
-            "permission": "allow"
+            "permission": "deny"
           },
           "tags": [],
           "op": "create",
@@ -2895,18 +3270,19 @@
         },
         {
           "seq": "20",
-          "id": "rule·5",
+          "id": "rule·4",
           "rev": 1,
           "class": "rule",
           "tenant": "System",
           "links": {
             "Group": "Resource·5",
-            "Object": "Resource·8"
+            "Object": "Resource·4"
           },
           "data": {
-            "weight": 100,
+            "weight": 0,
+            "default": true,
             "enabled": true,
-            "permission": "allow"
+            "permission": "deny"
           },
           "tags": [],
           "op": "create",
@@ -2918,14 +3294,18 @@
         },
         {
           "seq": "21",
-          "id": "Resource·10",
+          "id": "rule·5",
           "rev": 1,
-          "class": "Resource",
+          "class": "rule",
           "tenant": "System",
-          "links": {},
+          "links": {
+            "Group": "Resource·9",
+            "Object": "Resource·10"
+          },
           "data": {
-            "alias": "all:READ",
-            "category": "READ"
+            "weight": 100,
+            "enabled": true,
+            "permission": "allow"
           },
           "tags": [],
           "op": "create",
@@ -2942,8 +3322,8 @@
           "class": "rule",
           "tenant": "System",
           "links": {
-            "Group": "Resource·5",
-            "Object": "Resource·10"
+            "Group": "Resource·9",
+            "Object": "Resource·8"
           },
           "data": {
             "weight": 100,
@@ -2960,14 +3340,19 @@
         },
         {
           "seq": "23",
-          "id": "Resource·11",
+          "id": "rule·7",
           "rev": 1,
-          "class": "Resource",
+          "class": "rule",
           "tenant": "System",
-          "links": {},
+          "links": {
+            "Group": "Resource·9",
+            "Object": "Resource·1"
+          },
           "data": {
-            "alias": "all:WRITE",
-            "category": "WRITE"
+            "weight": 1000000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
           },
           "tags": [],
           "op": "create",
@@ -2979,17 +3364,18 @@
         },
         {
           "seq": "24",
-          "id": "rule·7",
+          "id": "rule·8",
           "rev": 1,
           "class": "rule",
           "tenant": "System",
           "links": {
-            "Group": "Resource·5",
-            "Object": "Resource·11"
+            "Group": "Resource·9",
+            "Object": "Resource·2"
           },
           "data": {
-            "weight": 100,
+            "weight": 1000000,
             "enabled": true,
+            "concierge": true,
             "permission": "allow"
           },
           "tags": [],
@@ -3002,14 +3388,19 @@
         },
         {
           "seq": "25",
-          "id": "Resource·12",
+          "id": "rule·9",
           "rev": 1,
-          "class": "Resource",
+          "class": "rule",
           "tenant": "System",
-          "links": {},
+          "links": {
+            "Group": "Resource·9",
+            "Object": "Resource·4"
+          },
           "data": {
-            "alias": "all:DELETE",
-            "category": "DELETE"
+            "weight": 1000000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
           },
           "tags": [],
           "op": "create",
@@ -3021,36 +3412,14 @@
         },
         {
           "seq": "26",
-          "id": "rule·8",
-          "rev": 1,
-          "class": "rule",
-          "tenant": "System",
-          "links": {
-            "Group": "Resource·5",
-            "Object": "Resource·12"
-          },
-          "data": {
-            "weight": 100,
-            "enabled": true,
-            "permission": "allow"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "System",
-          "agent": null,
-          "reason": null,
-          "at": "t1",
-          "$new": true
-        },
-        {
-          "seq": "27",
-          "id": "service",
+          "id": "консьерж",
           "rev": 1,
           "class": "Account",
           "tenant": "System",
           "links": {},
           "data": {
-            "name": "service",
+            "kind": "service",
+            "name": "concierge",
             "enabled": true,
             "categories": [
               "Service"
@@ -3061,149 +3430,15 @@
           "author": "System",
           "agent": null,
           "reason": null,
-          "at": "t1",
-          "$new": true
-        },
-        {
-          "seq": "28",
-          "id": "Мир",
-          "rev": 1,
-          "class": "Account",
-          "tenant": "System",
-          "links": {},
-          "data": {
-            "name": "Мир",
-            "enabled": true,
-            "categories": []
-          },
-          "tags": [],
-          "op": "create",
-          "author": "System",
-          "agent": null,
-          "reason": null,
           "at": "t2",
           "$new": true
         },
         {
-          "seq": "29",
-          "id": "rule·9",
-          "rev": 1,
-          "class": "rule",
-          "tenant": "Мир",
-          "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·10"
-          },
-          "data": {
-            "weight": 10,
-            "enabled": true,
-            "permission": "allow"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "System",
-          "agent": null,
-          "reason": null,
-          "at": "t2",
-          "$new": true
-        },
-        {
-          "seq": "30",
-          "id": "rule·10",
-          "rev": 1,
-          "class": "rule",
-          "tenant": "Мир",
-          "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·11"
-          },
-          "data": {
-            "weight": 10,
-            "enabled": true,
-            "permission": "allow"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "System",
-          "agent": null,
-          "reason": null,
-          "at": "t2",
-          "$new": true
-        },
-        {
-          "seq": "31",
-          "id": "rule·11",
-          "rev": 1,
-          "class": "rule",
-          "tenant": "Мир",
-          "links": {
-            "Group": "Resource·2",
-            "Object": "Resource·12"
-          },
-          "data": {
-            "weight": 10,
-            "enabled": true,
-            "permission": "allow"
-          },
-          "tags": [],
-          "op": "create",
-          "author": "System",
-          "agent": null,
-          "reason": null,
-          "at": "t2",
-          "$new": true
-        },
-        {
-          "seq": "32",
-          "id": "Аня",
-          "rev": 1,
-          "class": "Account",
-          "tenant": "System",
-          "links": {},
-          "data": {
-            "name": "Аня",
-            "enabled": true,
-            "categories": [
-              "User"
-            ]
-          },
-          "tags": [],
-          "op": "create",
-          "author": "System",
-          "agent": null,
-          "reason": null,
-          "at": "t2",
-          "$new": true
-        },
-        {
-          "seq": "33",
-          "id": "member·1",
-          "rev": 1,
-          "class": "member",
-          "tenant": "Мир",
-          "links": {
-            "User": "Аня",
-            "Tenant": "Мир"
-          },
-          "data": {
-            "roles": [
-              "owner"
-            ]
-          },
-          "tags": [],
-          "op": "create",
-          "author": "System",
-          "agent": null,
-          "reason": null,
-          "at": "t2",
-          "$new": true
-        },
-        {
-          "seq": "34",
+          "seq": "27",
           "id": "Class «Greeting»",
           "rev": 1,
           "class": "Class",
-          "tenant": "Мир",
+          "tenant": "System",
           "links": {},
           "data": {
             "kind": "hub",
@@ -3282,14 +3517,343 @@
           },
           "tags": [],
           "op": "create",
-          "author": "Аня",
+          "author": "консьерж",
           "agent": null,
           "reason": null,
           "at": "t3",
           "$new": true
         },
         {
+          "seq": "28",
+          "id": "Resource·11",
+          "rev": 1,
+          "class": "Resource",
+          "tenant": "Мир",
+          "links": {},
+          "data": {
+            "alias": "role:owner:ACCOUNT",
+            "pattern": {
+              "roles": "{owner}"
+            },
+            "category": "ACCOUNT"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t4",
+          "$new": true
+        },
+        {
+          "seq": "29",
+          "id": "rule·10",
+          "rev": 1,
+          "class": "rule",
+          "tenant": "Мир",
+          "links": {
+            "Group": "Resource·11",
+            "Object": "Resource·1"
+          },
+          "data": {
+            "weight": 100000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t4",
+          "$new": true
+        },
+        {
+          "seq": "30",
+          "id": "rule·11",
+          "rev": 1,
+          "class": "rule",
+          "tenant": "Мир",
+          "links": {
+            "Group": "Resource·11",
+            "Object": "Resource·2"
+          },
+          "data": {
+            "weight": 100000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t4",
+          "$new": true
+        },
+        {
+          "seq": "31",
+          "id": "rule·12",
+          "rev": 1,
+          "class": "rule",
+          "tenant": "Мир",
+          "links": {
+            "Group": "Resource·11",
+            "Object": "Resource·3"
+          },
+          "data": {
+            "weight": 100000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t4",
+          "$new": true
+        },
+        {
+          "seq": "32",
+          "id": "rule·13",
+          "rev": 1,
+          "class": "rule",
+          "tenant": "Мир",
+          "links": {
+            "Group": "Resource·11",
+            "Object": "Resource·4"
+          },
+          "data": {
+            "weight": 100000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t4",
+          "$new": true
+        },
+        {
+          "seq": "33",
+          "id": "rule·14",
+          "rev": 1,
+          "class": "rule",
+          "tenant": "Мир",
+          "links": {
+            "Group": "Resource·11",
+            "Object": "Resource·6"
+          },
+          "data": {
+            "weight": 100000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t4",
+          "$new": true
+        },
+        {
+          "seq": "34",
+          "id": "rule·15",
+          "rev": 1,
+          "class": "rule",
+          "tenant": "Мир",
+          "links": {
+            "Group": "Resource·9",
+            "Object": "Resource·1"
+          },
+          "data": {
+            "weight": 1000000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t4",
+          "$new": true
+        },
+        {
           "seq": "35",
+          "id": "rule·16",
+          "rev": 1,
+          "class": "rule",
+          "tenant": "Мир",
+          "links": {
+            "Group": "Resource·9",
+            "Object": "Resource·2"
+          },
+          "data": {
+            "weight": 1000000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t4",
+          "$new": true
+        },
+        {
+          "seq": "36",
+          "id": "rule·17",
+          "rev": 1,
+          "class": "rule",
+          "tenant": "Мир",
+          "links": {
+            "Group": "Resource·9",
+            "Object": "Resource·3"
+          },
+          "data": {
+            "weight": 1000000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t4",
+          "$new": true
+        },
+        {
+          "seq": "37",
+          "id": "rule·18",
+          "rev": 1,
+          "class": "rule",
+          "tenant": "Мир",
+          "links": {
+            "Group": "Resource·9",
+            "Object": "Resource·4"
+          },
+          "data": {
+            "weight": 1000000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t4",
+          "$new": true
+        },
+        {
+          "seq": "38",
+          "id": "rule·19",
+          "rev": 1,
+          "class": "rule",
+          "tenant": "Мир",
+          "links": {
+            "Group": "Resource·9",
+            "Object": "Resource·6"
+          },
+          "data": {
+            "weight": 1000000,
+            "enabled": true,
+            "concierge": true,
+            "permission": "allow"
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t4",
+          "$new": true
+        },
+        {
+          "seq": "39",
+          "id": "Мир",
+          "rev": 1,
+          "class": "Account",
+          "tenant": "System",
+          "links": {},
+          "data": {
+            "kind": "tenant",
+            "name": "Мир",
+            "enabled": true,
+            "categories": []
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t4",
+          "$new": true
+        },
+        {
+          "seq": "40",
+          "id": "member·1",
+          "rev": 1,
+          "class": "member",
+          "tenant": "Мир",
+          "links": {
+            "User": "Аня",
+            "Tenant": "Мир"
+          },
+          "data": {
+            "roles": [
+              "owner"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t5",
+          "$new": true
+        },
+        {
+          "seq": "41",
+          "id": "Аня",
+          "rev": 1,
+          "class": "Account",
+          "tenant": "System",
+          "links": {},
+          "data": {
+            "kind": "person",
+            "name": "Аня",
+            "enabled": true,
+            "categories": [
+              "User"
+            ]
+          },
+          "tags": [],
+          "op": "create",
+          "author": "System",
+          "agent": null,
+          "reason": null,
+          "at": "t5",
+          "$new": true
+        },
+        {
+          "seq": "42",
           "id": "Greeting·1",
           "rev": 1,
           "class": "Greeting",
@@ -3303,7 +3867,7 @@
           "author": "Аня",
           "agent": null,
           "reason": null,
-          "at": "t4",
+          "at": "t6",
           "$new": true
         }
       ],
@@ -3311,7 +3875,8 @@
       "counts": null,
       "signals": [
         "Class",
-        "Greeting"
+        "Greeting",
+        "member"
       ]
     }
   ],

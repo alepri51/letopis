@@ -1,7 +1,7 @@
 {
   "id": "write/07-mass-journal-order",
   "title": "Правка многих строк: версии в журнале — в порядке id",
-  "summary": "Одна правка, которая задела много строк, пишет их версии в журнал одним оператором. Порядок этих записей задан явно — по id объекта, а не тем, как база решила обойти таблицу. Поэтому журнал одинаков от прогона к прогону и не зависит от того, в каком порядке строки создавались.",
+  "summary": "Одна правка, которая задела много строк, пишет их версии в журнал одним оператором. Порядок этих записей задан явно — по id объекта, а не тем, как база решила обойти таблицу, и не тем, в каком порядке строки создавались. Поэтому у одних и тех же объектов он всегда один и тот же.",
   "tables": [
     "log"
   ],
@@ -14,9 +14,9 @@
   "steps": [
     {
       "title": "Пять меток — по одной, в порядке названий",
-      "text": null,
-      "code": "for (const name of NAMES) await db.Tag().create({ name }).rows();\nreturn (await db.Tag().rows()).map((t) => t.data.name);",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">for</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> name</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> of</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> NAMES</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Tag</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Tag</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">t</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> t.data.name);</span></span></code></pre>",
+      "text": "Метки создаются по одной, в порядке списка `NAMES`. `sort('at')` читает их в порядке создания: без `sort()` порядок строк не определён.",
+      "code": "for (const name of NAMES) await me.Tag().create({ name }).rows();\nreturn (await me.Tag().sort('at').rows()).map((t) => t.data.name);",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">for</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> name</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> of</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> NAMES</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Tag</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Tag</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">sort</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'at'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">t</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> t.data.name);</span></span></code></pre>",
       "result": [
         "чай",
         "кофе",
@@ -29,7 +29,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "35",
+          "seq": "42",
           "id": "Tag «чай»",
           "rev": 1,
           "class": "Tag",
@@ -42,13 +42,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": true
         },
         {
-          "seq": "36",
+          "seq": "43",
           "id": "Tag «кофе»",
           "rev": 1,
           "class": "Tag",
@@ -61,13 +61,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t2",
           "$new": true
         },
         {
-          "seq": "37",
+          "seq": "44",
           "id": "Tag «какао»",
           "rev": 1,
           "class": "Tag",
@@ -80,13 +80,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$new": true
         },
         {
-          "seq": "38",
+          "seq": "45",
           "id": "Tag «сок»",
           "rev": 1,
           "class": "Tag",
@@ -99,13 +99,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t4",
           "$new": true
         },
         {
-          "seq": "39",
+          "seq": "46",
           "id": "Tag «вода»",
           "rev": 1,
           "class": "Tag",
@@ -118,7 +118,7 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t5",
           "$new": true
@@ -127,44 +127,24 @@
       "secret": [],
       "counts": null,
       "signals": [
-        "Class",
         "Tag"
       ]
     },
     {
       "title": "Одна правка всех пяти",
-      "text": "`update` с `{ all: true }` правит все метки одним оператором, и база пишет пять версий в журнал (без фильтра и без `all` библиотека откажет — `invalid_query`). Порядок записей — по id меток: он не совпадает с порядком, в котором метки создавались.",
-      "code": "await db.Tag().update({ active: true }, { all: true, reason: 'включить все' }).rows();\nconst journal = await admin.unsafe(`select data->>'name' as name from \"${schema}\".log where class = 'Tag' and op = 'update' order by seq`);\nconst ids = await admin.unsafe(`select data->>'name' as name from \"${schema}\".entity where class = 'Tag' order by id`);\nreturn {\n  'порядок создания': NAMES,\n  'порядок версий в журнале': journal.map((r) => r.name),\n  'порядок id': ids.map((r) => r.name),\n};",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Tag</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ active: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, { all: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, reason: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'включить все'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> journal</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> admin.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">unsafe</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">`select data->>'name' as name from \"${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">schema</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">}\".log where class = 'Tag' and op = 'update' order by seq`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> ids</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> admin.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">unsafe</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">`select data->>'name' as name from \"${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">schema</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">}\".entity where class = 'Tag' order by id`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'порядок создания'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">NAMES</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'порядок версий в журнале'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: journal.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">r</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> r.name),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'порядок id'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: ids.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">r</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> r.name),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">};</span></span></code></pre>",
+      "text": "`update` с `{ all: true }` правит все метки одним оператором, и база пишет пять версий в журнал (без фильтра и без `all` библиотека откажет — `invalid_query`). Запрос мастер-ключом сверяет порядок версий в журнале с порядком id меток: они совпадают. Сам этот порядок в каждом доме свой — id меток вычислены из id квартиры, а он случаен, — поэтому пример печатает не названия, а итог сверки.",
+      "code": "await me.Tag().update({ active: true }, { all: true, reason: 'включить все' }).rows();\nconst journal = await admin.unsafe(`select data->>'name' as name from \"${schema}\".log where class = 'Tag' and op = 'update' order by seq`);\nconst ids = await admin.unsafe(`select data->>'name' as name from \"${schema}\".entity where class = 'Tag' order by id`);\nconst names = (rows: readonly Record<string, unknown>[]) => JSON.stringify(rows.map((r) => r.name));\nreturn {\n  'версий в журнале': journal.length,\n  'журнал — в порядке id': names(journal) === names(ids),\n};",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Tag</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ active: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, { all: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, reason: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'включить все'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> journal</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> admin.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">unsafe</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">`select data->>'name' as name from \"${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">schema</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">}\".log where class = 'Tag' and op = 'update' order by seq`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> ids</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> admin.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">unsafe</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">`select data->>'name' as name from \"${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">schema</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">}\".entity where class = 'Tag' order by id`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> names</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">rows</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> readonly</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> Record</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">&#x3C;</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">string</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">unknown</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">>[]) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> JSON</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">stringify</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(rows.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">r</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> r.name));</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'версий в журнале'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: journal.</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">length</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'журнал — в порядке id'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">names</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(journal) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">===</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> names</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(ids),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">};</span></span></code></pre>",
       "result": {
-        "порядок создания": [
-          "чай",
-          "кофе",
-          "какао",
-          "сок",
-          "вода"
-        ],
-        "порядок версий в журнале": [
-          "вода",
-          "сок",
-          "чай",
-          "какао",
-          "кофе"
-        ],
-        "порядок id": [
-          "вода",
-          "сок",
-          "чай",
-          "какао",
-          "кофе"
-        ]
+        "версий в журнале": 5,
+        "журнал — в порядке id": true
       },
       "error": null,
       "entity": [],
       "removed": [],
       "log": [
         {
-          "seq": "35",
+          "seq": "42",
           "id": "Tag «чай»",
           "rev": 1,
           "class": "Tag",
@@ -177,13 +157,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": false
         },
         {
-          "seq": "36",
+          "seq": "43",
           "id": "Tag «кофе»",
           "rev": 1,
           "class": "Tag",
@@ -196,13 +176,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t2",
           "$new": false
         },
         {
-          "seq": "37",
+          "seq": "44",
           "id": "Tag «какао»",
           "rev": 1,
           "class": "Tag",
@@ -215,13 +195,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t3",
           "$new": false
         },
         {
-          "seq": "38",
+          "seq": "45",
           "id": "Tag «сок»",
           "rev": 1,
           "class": "Tag",
@@ -234,13 +214,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t4",
           "$new": false
         },
         {
-          "seq": "39",
+          "seq": "46",
           "id": "Tag «вода»",
           "rev": 1,
           "class": "Tag",
@@ -253,13 +233,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t5",
           "$new": false
         },
         {
-          "seq": "40",
+          "seq": "47",
           "id": "Tag «вода»",
           "rev": 2,
           "class": "Tag",
@@ -272,13 +252,51 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "включить все",
           "at": "t6",
           "$new": true
         },
         {
-          "seq": "41",
+          "seq": "48",
+          "id": "Tag «какао»",
+          "rev": 2,
+          "class": "Tag",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "какао",
+            "active": true
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": null,
+          "reason": "включить все",
+          "at": "t6",
+          "$new": true
+        },
+        {
+          "seq": "49",
+          "id": "Tag «кофе»",
+          "rev": 2,
+          "class": "Tag",
+          "tenant": "Ромашка",
+          "links": {},
+          "data": {
+            "name": "кофе",
+            "active": true
+          },
+          "tags": [],
+          "op": "update",
+          "author": "Анна",
+          "agent": null,
+          "reason": "включить все",
+          "at": "t6",
+          "$new": true
+        },
+        {
+          "seq": "50",
           "id": "Tag «сок»",
           "rev": 2,
           "class": "Tag",
@@ -291,13 +309,13 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "включить все",
           "at": "t6",
           "$new": true
         },
         {
-          "seq": "42",
+          "seq": "51",
           "id": "Tag «чай»",
           "rev": 2,
           "class": "Tag",
@@ -310,45 +328,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
-          "reason": "включить все",
-          "at": "t6",
-          "$new": true
-        },
-        {
-          "seq": "43",
-          "id": "Tag «какао»",
-          "rev": 2,
-          "class": "Tag",
-          "tenant": "Ромашка",
-          "links": {},
-          "data": {
-            "name": "какао",
-            "active": true
-          },
-          "tags": [],
-          "op": "update",
-          "author": "Анна",
-          "agent": "service",
-          "reason": "включить все",
-          "at": "t6",
-          "$new": true
-        },
-        {
-          "seq": "44",
-          "id": "Tag «кофе»",
-          "rev": 2,
-          "class": "Tag",
-          "tenant": "Ромашка",
-          "links": {},
-          "data": {
-            "name": "кофе",
-            "active": true
-          },
-          "tags": [],
-          "op": "update",
-          "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "включить все",
           "at": "t6",
           "$new": true
@@ -361,5 +341,5 @@
       ]
     }
   ],
-  "output": "Шаг 1. Пять меток — по одной, в порядке названий\n[\n  \"чай\",\n  \"кофе\",\n  \"какао\",\n  \"сок\",\n  \"вода\"\n]\n\nШаг 2. Одна правка всех пяти\n{\n  \"порядок создания\": [\n    \"чай\",\n    \"кофе\",\n    \"какао\",\n    \"сок\",\n    \"вода\"\n  ],\n  \"порядок версий в журнале\": [\n    \"вода\",\n    \"сок\",\n    \"чай\",\n    \"какао\",\n    \"кофе\"\n  ],\n  \"порядок id\": [\n    \"вода\",\n    \"сок\",\n    \"чай\",\n    \"какао\",\n    \"кофе\"\n  ]\n}"
+  "output": "Шаг 1. Пять меток — по одной, в порядке названий\n[\n  \"чай\",\n  \"кофе\",\n  \"какао\",\n  \"сок\",\n  \"вода\"\n]\n\nШаг 2. Одна правка всех пяти\n{\n  \"версий в журнале\": 5,\n  \"журнал — в порядке id\": true\n}"
 }

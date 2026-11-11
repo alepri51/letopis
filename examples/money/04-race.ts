@@ -1,5 +1,5 @@
-import { syncModels, LetopisError } from 'letopis';
-import type { Db } from 'letopis';
+import { LetopisError } from 'letopis';
+import type { Room } from 'letopis';
 import { hub } from 'letopis/model';
 import { z } from 'zod';
 import { example } from '../_shared/example.ts';
@@ -9,8 +9,8 @@ const Card = hub('Card', { number: z.string(), balance: z.number().int().min(0) 
 let card: { id: string };
 
 /** Списание «прочитал — проверил — записал итог»; how.lock — сначала занять блокировку карты (tr.lock), how.forUpdate — читать строку с forUpdate(). */
-async function debit(db: Db, amount: number, how: { lock?: boolean; forUpdate?: boolean }, before?: () => Promise<void>) {
-  const tr = await db.begin({ reason: `списание ${amount}` });
+async function debit(me: Room, amount: number, how: { lock?: boolean; forUpdate?: boolean }, before?: () => Promise<void>) {
+  const tr = await me.begin({ reason: `списание ${amount}` });
   try {
     if (how.lock) await tr.lock(`card:${card.id}`);
     const row = how.forUpdate ? await tr.Card(card).forUpdate().first() : await tr.Card(card).first();
@@ -35,12 +35,16 @@ export default example({
   tables: ['entity'],
   classes: ['Card'],
   covers: ['nuance.lock-all-writers'],
+  models: [Card],
   steps: [
     {
       title: 'Карта с 500',
-      run: async ({ db }) => {
-        await syncModels(db, [Card], { apply: true });
-        [card] = await db.Card().create({ number: '4242', balance: 500 }).rows();
+      text:
+        'Класс `Card` — модель дома. `debit(me, …)` — функция приложения в начале программы: «прочитал — проверил — ' +
+        'записал итог» в транзакции `me.begin()`. Каждая `begin()` берёт своё соединение из пула консьержа, поэтому ' +
+        'две транзакции одного корня квартиры идут одновременно — как два запроса Анны из двух вкладок.',
+      run: async ({ me }) => {
+        [card] = await me.Card().create({ number: '4242', balance: 500 }).rows();
         return card;
       },
     },
@@ -49,11 +53,10 @@ export default example({
       text:
         'Первое списание прочло 500 и ещё не записало итог, а второе успело прочесть те же 500 и записать 100. Первое ' +
         'записывает свой итог — тоже 100. Списано 800, а с карты ушло 400: запись итога затёрла чужую правку.',
-      run: async ({ db, connect, dsn, schema, up }) => {
-        const other = await connect({ dsn: dsn.app, schema, token: up.tenant!.token! });
+      run: async ({ me }) => {
         const second: string[] = [];
-        const first = await debit(db, 400, {}, async () => { second.push(await debit(other, 400, {})); });
-        return { 'первое': first, 'второе': second[0], 'на карте': (await db.Card(card).first())!.data.balance };
+        const first = await debit(me, 400, {}, async () => { second.push(await debit(me, 400, {})); });
+        return { 'первое': first, 'второе': second[0], 'на карте': (await me.Card(card).first())!.data.balance };
       },
     },
     {
@@ -61,15 +64,14 @@ export default example({
       text:
         '`tr.lock(ключ)` — блокировка до конца транзакции. Второе списание берёт тот же ключ и встаёт в очередь — это видно ' +
         'по базе (`waitForLock`). Первое записывает итог и фиксируется, второе читает уже 100.',
-      run: async ({ db, connect, dsn, schema, up, admin }) => {
-        await db.Card(card).update({ balance: 500 }, { reason: 'снова 500' }).rows();
-        const other = await connect({ dsn: dsn.app, schema, token: up.tenant!.token! });
+      run: async ({ me, admin }) => {
+        await me.Card(card).update({ balance: 500 }, { reason: 'снова 500' }).rows();
         let second!: Promise<string>, waited = false;
-        const first = await debit(db, 400, { lock: true }, async () => {
-          second = debit(other, 400, { lock: true });
-          waited = await waitForLock(admin as never);
+        const first = await debit(me, 400, { lock: true }, async () => {
+          second = debit(me, 400, { lock: true });
+          waited = await waitForLock(admin);
         });
-        return { 'первое': first, 'второе ждало блокировку': waited, 'второе': await second, 'на карте': (await db.Card(card).first())!.data.balance };
+        return { 'первое': first, 'второе ждало блокировку': waited, 'второе': await second, 'на карте': (await me.Card(card).first())!.data.balance };
       },
     },
     {
@@ -78,15 +80,14 @@ export default example({
         '`forUpdate()` в транзакции блокирует прочитанную строку: второе чтение той же строки с `forUpdate()` ждёт ' +
         'фиксации первого. Защищает, только если так читают все, кто правит эти данные; для сумм проще `inc` — база ' +
         'сама сложит приращения и проверит `min(0)`.',
-      run: async ({ db, connect, dsn, schema, up, admin }) => {
-        await db.Card(card).update({ balance: 500 }, { reason: 'снова 500' }).rows();
-        const other = await connect({ dsn: dsn.app, schema, token: up.tenant!.token! });
+      run: async ({ me, admin }) => {
+        await me.Card(card).update({ balance: 500 }, { reason: 'снова 500' }).rows();
         let second!: Promise<string>, waited = false;
-        const first = await debit(db, 400, { forUpdate: true }, async () => {
-          second = debit(other, 400, { forUpdate: true });
-          waited = await waitForLock(admin as never);
+        const first = await debit(me, 400, { forUpdate: true }, async () => {
+          second = debit(me, 400, { forUpdate: true });
+          waited = await waitForLock(admin);
         });
-        return { 'первое': first, 'второе ждало строку': waited, 'второе': await second, 'на карте': (await db.Card(card).first())!.data.balance };
+        return { 'первое': first, 'второе ждало строку': waited, 'второе': await second, 'на карте': (await me.Card(card).first())!.data.balance };
       },
     },
   ],

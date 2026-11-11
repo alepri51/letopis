@@ -1,93 +1,148 @@
-import { syncModels } from 'letopis';
-import type { Db } from 'letopis';
+import { createServer, request, type IncomingMessage, type Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { LetopisError } from 'letopis';
+import type { House } from 'letopis';
 import { hub } from 'letopis/model';
 import { z } from 'zod';
 import { example } from '../_shared/example.ts';
 
-// класс компании: его описание есть только в арендаторе «Ромашка»
-const Item = hub('Item', { code: z.string() }, { key: ['code'] });
+// Заказ магазина — то, что жилец смотрит после входа.
+const Order = hub('Order', { number: z.string(), total: z.number().int() }, { key: ['number'] });
 
-/** Серверная сессия веб-сервиса: токен из cookie → кто вошёл и в какой компании. Клиент присылает только cookie. */
-const sessions = new Map<string, { account: string; tenant: string }>();
-let cookie: string;
+/** Тело запроса строкой. */
+async function bodyOf(req: IncomingMessage): Promise<string> {
+  let text = '';
+  for await (const chunk of req) text += chunk;
+  return text;
+}
 
 /**
- * Войти в компанию — одна функция: пароль, список компаний пользователя у базы, выбор компании. Компания пишется в
- * серверную сессию, а не берётся из параметра запроса: в чужую компанию база не пустит и сама (tenant_denied).
+ * Веб-приложение на node:http. db — консьерж, одно подключение на всё приложение: вход формой — db.open(ключ), токен
+ * сессии — в cookie; каждый запрос — db.resume(токен из cookie); выход — close() корня жильца.
  */
-async function enterCompany(svc: Db, identifier: string, password: string, companyName?: string) {
-  const ok = await svc.auth.verifyPassword({ identifier, password });
-  if (!ok) return 'неверный логин или пароль';
-  const me = await svc.as(ok.account); // личный арендатор — только чтобы спросить, в каких компаниях он состоит
-  const companies = (await me.auth.tenants()).filter((t) => !t.personal);
-  const company = companyName === undefined ? companies[0] : companies.find((c) => c.name === companyName);
-  if (!company) {
-    await svc.auth.revoke(ok.token);
-    return 'вы не состоите в этой компании';
-  }
-  sessions.set(ok.token, { account: ok.account, tenant: company.tenant });
-  return { cookie: ok.token, company: company.name };
+function webApp(db: House): Server {
+  return createServer(async (req, res) => {
+    const send = (status: number, body: unknown, cookie?: string) => {
+      res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', ...(cookie ? { 'set-cookie': cookie } : {}) });
+      res.end(JSON.stringify(body));
+    };
+    try {
+      if (req.method === 'POST' && req.url === '/login') {
+        const form = new URLSearchParams(await bodyOf(req));
+        const me = await db.open({ email: form.get('email') ?? '', password: form.get('password') ?? '', ttl: '8h' });
+        return send(200, { 'квартира': me.tenantName }, `sid=${me.token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${8 * 3600}`);
+      }
+      const token = /(?:^|;\s*)sid=([0-9a-f]+)/.exec(req.headers.cookie ?? '')?.[1];
+      if (!token) return send(401, { error: 'войдите' });
+      const me = await db.resume(token); // сессия жива — корень квартиры жильца с его правами
+      if (req.method === 'GET' && req.url === '/orders') {
+        return send(200, (await me.Order().sort('data.number').rows()).map((r) => `${r.data.number}: ${r.data.total}`));
+      }
+      if (req.method === 'POST' && req.url === '/logout') {
+        await me.close(); // выход: сессия гаснет
+        return send(200, { 'вышли': true }, 'sid=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0');
+      }
+      return send(404, { error: 'нет такой страницы' });
+    } catch (e) {
+      if (e instanceof LetopisError && e.code === 'auth_failed') {
+        return send(401, { error: req.url === '/login' ? 'неверное имя или пароль' : 'войдите заново' });
+      }
+      if (e instanceof LetopisError && e.code === 'invalid_data') return send(400, { error: 'заполните форму' });
+      return send(500, { error: 'ошибка сервера' });
+    }
+  });
 }
 
-/** Каждый запрос: сессия жива? — подключение от имени пользователя в его компании на общем пуле сервиса. */
-async function dbFor(svc: Db, token: string): Promise<Db | null> {
-  const s = sessions.get(token);
-  if (!s || !(await svc.auth.session(token))) {
-    sessions.delete(token);
-    return null; // 401: войти заново
-  }
-  return svc.as(s.account, { tenant: s.tenant });
+/** Запрос к приложению, как из браузера: метод, путь, cookie и поля формы; ответ — код, Set-Cookie и тело. */
+function browser(site: AddressInfo, method: string, path: string, opts: { cookie?: string; form?: Record<string, string> } = {}) {
+  const body = opts.form ? new URLSearchParams(opts.form).toString() : '';
+  const headers = { ...(opts.cookie ? { cookie: opts.cookie } : {}), ...(opts.form ? { 'content-type': 'application/x-www-form-urlencoded' } : {}) };
+  return new Promise<{ status: number; setCookie: string | null; body: unknown }>((done, fail) => {
+    const req = request({ host: site.address, port: site.port, method, path, headers }, (res) => {
+      let text = '';
+      res.setEncoding('utf8');
+      res.on('data', (chunk) => (text += chunk));
+      res.on('end', () => done({ status: res.statusCode ?? 0, setCookie: res.headers['set-cookie']?.[0] ?? null, body: JSON.parse(text) }));
+    });
+    req.on('error', fail);
+    req.end(body);
+  });
 }
+
+let server: Server, site: AddressInfo, cookie: string;
 
 export default example({
-  title: 'Вход для веб-сервиса: одно подключение сервиса и svc.as() на запрос',
+  title: 'Веб-вход: форма, cookie и resume на каждый запрос',
   summary:
-    'Веб-сервис подключается к базе один раз — по ключу сервиса. Вход — одна функция: пароль, компания из auth.tenants(), ' +
-    'компания — в серверную сессию. Каждый запрос идёт через svc.as(аккаунт, { tenant }) на том же пуле, а не через ' +
-    'connect({ token }) на каждый вход. Выход — svc.auth.revoke(token); погашенный токен connect() не принимает: no_session.',
-  tables: [],
-  covers: ['db.as', 'auth.session', 'auth.verifyPassword', 'connect.token', 'error.no_session', 'nuance.web-login-one-pool', 'nuance.revoked-session-empty'],
+    'Веб-приложение подключается к дому один раз — консьержем. Форма входа зовёт db.open(ключ) и кладёт токен сессии в ' +
+    'cookie; каждый запрос открывает корень жильца заново — db.resume(токен); выход — close(). Погашенный токен ' +
+    'ничего не открывает: auth_failed, приложение отвечает 401.',
+  tables: ['secret'],
+  models: [Order],
+  covers: [
+    'house.open', 'house.resume', 'db.close', 'db.token', 'db.tenantName', 'error.auth_failed',
+    'nuance.web-login-one-pool', 'nuance.logout-by-token',
+  ],
   steps: [
     {
-      title: 'Войти в компанию — одна функция',
+      title: 'Вход формой: db.open, токен — в cookie',
       text:
-        '`svc` — единственное подключение сервиса (`connect({ dsn, schema, apiKey })` при запуске). `enterCompany` ' +
-        'проверяет пароль (`verifyPassword` → `{ account, token }`), спрашивает у базы компании пользователя — ' +
-        '`svc.as(account)` открывает его личный арендатор, `auth.tenants()` отдаёт членства с `name` и `personal` — и ' +
-        'пишет выбранную компанию в серверную сессию под токеном. Клиент получает только токен в cookie. Свою таблицу ' +
-        '«логин → компания» держать не нужно: членство хранит база.',
-      run: async ({ db, svc, user }) => {
-        await syncModels(db, [Item], { apply: true }); // скрыть
-        await db.Item().create({ code: 'B-1' }).rows(); // скрыть
-        const r = await enterCompany(svc, user.login, user.password);
-        if (typeof r === 'string') return r;
-        cookie = r.cookie;
-        return { 'компания': r.company, 'серверная сессия': sessions.get(r.cookie), 'чужая компания по имени': await enterCompany(svc, user.login, user.password, 'Нет такого') };
+        'Приложение подключается к дому один раз, при запуске: `connect(pass, { postman })` — это `db`, его пул служит ' +
+        'всем жильцам. Обработчик формы входа зовёт `db.open({ email, password, ttl })` и кладёт токен сессии в cookie: ' +
+        '`HttpOnly` — скрипты страницы его не прочтут, `SameSite=Lax` — его не пришлёт чужой сайт; на HTTPS добавьте ' +
+        '`Secure`. Срок cookie — как у сессии (`ttl: \'8h\'`). Неверный пароль — `auth_failed`: обработчик отвечает 401 и ' +
+        'не уточняет, что именно не так. Токен в выводе заменён меткой.',
+      run: async ({ db, me, annaKey }) => {
+        await me.Order().create({ number: 'A-1', total: 1200 }).rows(); // скрыть
+        await me.Order().create({ number: 'A-2', total: 5400 }).rows(); // скрыть
+        server = webApp(db);
+        await new Promise<void>((ready) => server.listen(0, '127.0.0.1', ready));
+        site = server.address() as AddressInfo;
+        const wrong = await browser(site, 'POST', '/login', { form: { email: annaKey.email, password: 'не тот' } });
+        const ok = await browser(site, 'POST', '/login', { form: annaKey });
+        cookie = ok.setCookie!.split(';')[0]; // «sid=<токен>» — браузер присылает её с каждым запросом
+        return {
+          'неверный пароль': { status: wrong.status, body: wrong.body },
+          'вход': { status: ok.status, body: ok.body },
+          'Set-Cookie': ok.setCookie!.replace(/sid=[0-9a-f]+/, 'sid=‹токен›'),
+        };
       },
     },
     {
-      title: 'Каждый запрос — svc.as(аккаунт, { tenant })',
+      title: 'Каждый запрос — db.resume(токен из cookie)',
       text:
-        'Обработчик берёт токен из cookie, проверяет сессию (`svc.auth.session(token)` — `null`, если она погашена или ' +
-        'истекла) и работает через `svc.as(account, { tenant })` — с правами пользователя в его компании, на пуле сервиса. ' +
-        '`connect({ token })` на каждый вход так делать не стоит: каждый `connect()` по `dsn` создаёт свой пул (до `max` ' +
-        'соединений, по умолчанию 10), и пользователи быстро исчерпают соединения PostgreSQL.',
-      run: async ({ svc }) => {
-        const u = (await dbFor(svc, cookie))!;
-        return { 'вещей в компании': await u.Item().count(), 'сейчас': u.tenant === sessions.get(cookie)!.tenant ? 'компания из серверной сессии' : u.tenant };
+        'Обработчик берёт токен из cookie и зовёт `db.resume(токен)`: база проверяет, что сессия жива, и отдаёт корень ' +
+        'квартиры жильца с его правами — на общем пуле консьержа, без своего подключения. Аккаунт и квартиру помнит сама ' +
+        'сессия: из параметров запроса их не берут. Корень после запроса не закрывают: `close()` у жильца — это выход. ' +
+        'Запрос без cookie — 401.',
+      run: async () => {
+        const withCookie = await browser(site, 'GET', '/orders', { cookie });
+        const without = await browser(site, 'GET', '/orders');
+        return {
+          'с cookie': { status: withCookie.status, body: withCookie.body },
+          'без cookie': { status: without.status, body: without.body },
+        };
       },
     },
     {
-      title: 'Выход: токен погашен — запрос и connect() получают отказ',
+      title: 'Выход: close(); погашенный токен — 401',
       text:
-        '«Выйти» — `svc.auth.revoke(token)`. Следующий запрос с этим cookie: `svc.auth.session(token)` — `null`, ' +
-        'обработчик отвечает «войдите заново». `connect({ token })` с погашенным, истёкшим или неверным токеном ' +
-        'отклоняется: `no_session` (ключ `api.token_not_active`) — подключения без сессии он не возвращает.',
-      run: async ({ svc, connect, dsn, schema }) => ({
-        'revoke(token)': await svc.auth.revoke(cookie),
-        'запрос с этим cookie': (await dbFor(svc, cookie)) ? 'работает' : 'войдите заново',
-        'connect({ token })': await connect({ dsn: dsn.app, schema, token: cookie }).then(() => 'подключено', (e) => `${e.code} (${e.key})`),
-      }),
+        '`/logout` зовёт `me.close()`: сессия гаснет (в `secret` у неё заполнен `deleted_at`), cookie стирается ' +
+        '(`Max-Age=0`). Тот же cookie, присланный ещё раз, — сохранённый в закладке или украденный, — уже ничего не ' +
+        'открывает: `db.resume` отвечает `auth_failed`, обработчик — 401. Так же отвечают истёкшая сессия, смена ' +
+        'пароля и выписка жильца.',
+      run: async ({ db }) => {
+        const out = await browser(site, 'POST', '/logout', { cookie });
+        const again = await browser(site, 'GET', '/orders', { cookie });
+        const resumed = await db.resume(cookie.slice('sid='.length)).then(() => 'жива', (e) => e.code);
+        server.closeAllConnections();
+        await new Promise((closed) => server.close(closed)); // остановить сервер примера
+        return {
+          'выход': { status: out.status, body: out.body, 'Set-Cookie': out.setCookie },
+          'тот же cookie после выхода': { status: again.status, body: again.body },
+          'db.resume(токен)': resumed,
+        };
+      },
     },
   ],
 });

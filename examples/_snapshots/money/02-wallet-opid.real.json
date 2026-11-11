@@ -8,8 +8,8 @@
   "steps": [
     {
       "result": {
-        "at": "2026-11-04T05:15:22.825726+00:00",
-        "id": "5d02cf6f-5837-551f-9418-ef32303f6dbb",
+        "at": "2026-11-10T20:16:38.425989+00:00",
+        "id": "dc33440f-45e0-5974-91bd-7e239a88eebe",
         "op": "create",
         "rev": 1,
         "data": {
@@ -19,19 +19,18 @@
         "tags": [],
         "class": "Wallet",
         "links": {},
-        "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-        "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-        "agent": "9778f1b8-e599-5cf7-81ae-4839892df5ff"
+        "owner": "3b785f3c-c948-58f1-85ef-9de8ef3b332b",
+        "author": "27769e5b-aa2e-53b0-9787-7e875e10912b",
+        "tenant": "3b785f3c-c948-58f1-85ef-9de8ef3b332b"
       },
       "error": null,
       "entity": [
         {
-          "id": "5d02cf6f-5837-551f-9418-ef32303f6dbb",
+          "id": "dc33440f-45e0-5974-91bd-7e239a88eebe",
           "class": "Wallet",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3b785f3c-c948-58f1-85ef-9de8ef3b332b",
+          "owner": "3b785f3c-c948-58f1-85ef-9de8ef3b332b",
           "links": {},
           "data": {
             "number": "W-1",
@@ -39,20 +38,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "9778f1b8-e599-5cf7-81ae-4839892df5ff",
+          "author": "27769e5b-aa2e-53b0-9787-7e875e10912b",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:22.825726+00"
+          "at": "2026-11-10 20:16:38.425989+00"
         }
       ],
       "removed": [],
       "log": [
         {
-          "seq": "36",
-          "id": "5d02cf6f-5837-551f-9418-ef32303f6dbb",
+          "seq": "43",
+          "id": "dc33440f-45e0-5974-91bd-7e239a88eebe",
           "rev": 1,
           "class": "Wallet",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3b785f3c-c948-58f1-85ef-9de8ef3b332b",
           "links": {},
           "data": {
             "number": "W-1",
@@ -60,16 +59,15 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "9778f1b8-e599-5cf7-81ae-4839892df5ff",
+          "author": "27769e5b-aa2e-53b0-9787-7e875e10912b",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:22.825726+00",
-          "tx": "3892845"
+          "at": "2026-11-10 20:16:38.425989+00",
+          "tx": "4257304"
         }
       ],
       "secret": [],
       "signals": [
-        "Class",
         "Wallet"
       ]
     },
@@ -78,11 +76,11 @@
       "error": null,
       "entity": [
         {
-          "id": "5d02cf6f-5837-551f-9418-ef32303f6dbb",
+          "id": "dc33440f-45e0-5974-91bd-7e239a88eebe",
           "class": "Wallet",
           "rev": 2,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3b785f3c-c948-58f1-85ef-9de8ef3b332b",
+          "owner": "3b785f3c-c948-58f1-85ef-9de8ef3b332b",
           "links": {},
           "data": {
             "number": "W-1",
@@ -90,19 +88,19 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "9778f1b8-e599-5cf7-81ae-4839892df5ff",
+          "author": "27769e5b-aa2e-53b0-9787-7e875e10912b",
+          "agent": null,
           "reason": "topup op-1",
-          "at": "2026-11-04 05:15:22.856733+00"
+          "at": "2026-11-10 20:16:38.472511+00"
         },
         {
-          "id": "2866c08b-3ba9-5545-85cf-ceafba023067",
+          "id": "e18ba30c-21cc-5e6b-8e81-de23b7eaf7cd",
           "class": "Movement",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3b785f3c-c948-58f1-85ef-9de8ef3b332b",
+          "owner": "3b785f3c-c948-58f1-85ef-9de8ef3b332b",
           "links": {
-            "Wallet": "5d02cf6f-5837-551f-9418-ef32303f6dbb"
+            "Wallet": "dc33440f-45e0-5974-91bd-7e239a88eebe"
           },
           "data": {
             "kind": "topup",
@@ -111,20 +109,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "9778f1b8-e599-5cf7-81ae-4839892df5ff",
+          "author": "27769e5b-aa2e-53b0-9787-7e875e10912b",
+          "agent": null,
           "reason": "topup op-1",
-          "at": "2026-11-04 05:15:22.84473+00"
+          "at": "2026-11-10 20:16:38.456124+00"
         }
       ],
       "removed": [],
       "log": [
         {
-          "seq": "36",
-          "id": "5d02cf6f-5837-551f-9418-ef32303f6dbb",
+          "seq": "43",
+          "id": "dc33440f-45e0-5974-91bd-7e239a88eebe",
           "rev": 1,
           "class": "Wallet",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3b785f3c-c948-58f1-85ef-9de8ef3b332b",
           "links": {},
           "data": {
             "number": "W-1",
@@ -132,20 +130,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "9778f1b8-e599-5cf7-81ae-4839892df5ff",
+          "author": "27769e5b-aa2e-53b0-9787-7e875e10912b",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:22.825726+00",
-          "tx": "3892845"
+          "at": "2026-11-10 20:16:38.425989+00",
+          "tx": "4257304"
         },
         {
-          "seq": "37",
-          "id": "2866c08b-3ba9-5545-85cf-ceafba023067",
+          "seq": "44",
+          "id": "e18ba30c-21cc-5e6b-8e81-de23b7eaf7cd",
           "rev": 1,
           "class": "Movement",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3b785f3c-c948-58f1-85ef-9de8ef3b332b",
           "links": {
-            "Wallet": "5d02cf6f-5837-551f-9418-ef32303f6dbb"
+            "Wallet": "dc33440f-45e0-5974-91bd-7e239a88eebe"
           },
           "data": {
             "kind": "topup",
@@ -154,18 +152,18 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "9778f1b8-e599-5cf7-81ae-4839892df5ff",
+          "author": "27769e5b-aa2e-53b0-9787-7e875e10912b",
+          "agent": null,
           "reason": "topup op-1",
-          "at": "2026-11-04 05:15:22.84473+00",
-          "tx": "3892849"
+          "at": "2026-11-10 20:16:38.456124+00",
+          "tx": "4257308"
         },
         {
-          "seq": "38",
-          "id": "5d02cf6f-5837-551f-9418-ef32303f6dbb",
+          "seq": "45",
+          "id": "dc33440f-45e0-5974-91bd-7e239a88eebe",
           "rev": 2,
           "class": "Wallet",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3b785f3c-c948-58f1-85ef-9de8ef3b332b",
           "links": {},
           "data": {
             "number": "W-1",
@@ -173,11 +171,11 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "9778f1b8-e599-5cf7-81ae-4839892df5ff",
+          "author": "27769e5b-aa2e-53b0-9787-7e875e10912b",
+          "agent": null,
           "reason": "topup op-1",
-          "at": "2026-11-04 05:15:22.856733+00",
-          "tx": "3892849"
+          "at": "2026-11-10 20:16:38.472511+00",
+          "tx": "4257308"
         }
       ],
       "secret": [],
@@ -191,11 +189,11 @@
       "error": null,
       "entity": [
         {
-          "id": "5d02cf6f-5837-551f-9418-ef32303f6dbb",
+          "id": "dc33440f-45e0-5974-91bd-7e239a88eebe",
           "class": "Wallet",
           "rev": 2,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3b785f3c-c948-58f1-85ef-9de8ef3b332b",
+          "owner": "3b785f3c-c948-58f1-85ef-9de8ef3b332b",
           "links": {},
           "data": {
             "number": "W-1",
@@ -203,19 +201,19 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "9778f1b8-e599-5cf7-81ae-4839892df5ff",
+          "author": "27769e5b-aa2e-53b0-9787-7e875e10912b",
+          "agent": null,
           "reason": "topup op-1",
-          "at": "2026-11-04 05:15:22.856733+00"
+          "at": "2026-11-10 20:16:38.472511+00"
         },
         {
-          "id": "2866c08b-3ba9-5545-85cf-ceafba023067",
+          "id": "e18ba30c-21cc-5e6b-8e81-de23b7eaf7cd",
           "class": "Movement",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3b785f3c-c948-58f1-85ef-9de8ef3b332b",
+          "owner": "3b785f3c-c948-58f1-85ef-9de8ef3b332b",
           "links": {
-            "Wallet": "5d02cf6f-5837-551f-9418-ef32303f6dbb"
+            "Wallet": "dc33440f-45e0-5974-91bd-7e239a88eebe"
           },
           "data": {
             "kind": "topup",
@@ -224,20 +222,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "9778f1b8-e599-5cf7-81ae-4839892df5ff",
+          "author": "27769e5b-aa2e-53b0-9787-7e875e10912b",
+          "agent": null,
           "reason": "topup op-1",
-          "at": "2026-11-04 05:15:22.84473+00"
+          "at": "2026-11-10 20:16:38.456124+00"
         }
       ],
       "removed": [],
       "log": [
         {
-          "seq": "36",
-          "id": "5d02cf6f-5837-551f-9418-ef32303f6dbb",
+          "seq": "43",
+          "id": "dc33440f-45e0-5974-91bd-7e239a88eebe",
           "rev": 1,
           "class": "Wallet",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3b785f3c-c948-58f1-85ef-9de8ef3b332b",
           "links": {},
           "data": {
             "number": "W-1",
@@ -245,20 +243,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "9778f1b8-e599-5cf7-81ae-4839892df5ff",
+          "author": "27769e5b-aa2e-53b0-9787-7e875e10912b",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:22.825726+00",
-          "tx": "3892845"
+          "at": "2026-11-10 20:16:38.425989+00",
+          "tx": "4257304"
         },
         {
-          "seq": "37",
-          "id": "2866c08b-3ba9-5545-85cf-ceafba023067",
+          "seq": "44",
+          "id": "e18ba30c-21cc-5e6b-8e81-de23b7eaf7cd",
           "rev": 1,
           "class": "Movement",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3b785f3c-c948-58f1-85ef-9de8ef3b332b",
           "links": {
-            "Wallet": "5d02cf6f-5837-551f-9418-ef32303f6dbb"
+            "Wallet": "dc33440f-45e0-5974-91bd-7e239a88eebe"
           },
           "data": {
             "kind": "topup",
@@ -267,18 +265,18 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "9778f1b8-e599-5cf7-81ae-4839892df5ff",
+          "author": "27769e5b-aa2e-53b0-9787-7e875e10912b",
+          "agent": null,
           "reason": "topup op-1",
-          "at": "2026-11-04 05:15:22.84473+00",
-          "tx": "3892849"
+          "at": "2026-11-10 20:16:38.456124+00",
+          "tx": "4257308"
         },
         {
-          "seq": "38",
-          "id": "5d02cf6f-5837-551f-9418-ef32303f6dbb",
+          "seq": "45",
+          "id": "dc33440f-45e0-5974-91bd-7e239a88eebe",
           "rev": 2,
           "class": "Wallet",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3b785f3c-c948-58f1-85ef-9de8ef3b332b",
           "links": {},
           "data": {
             "number": "W-1",
@@ -286,11 +284,11 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "9778f1b8-e599-5cf7-81ae-4839892df5ff",
+          "author": "27769e5b-aa2e-53b0-9787-7e875e10912b",
+          "agent": null,
           "reason": "topup op-1",
-          "at": "2026-11-04 05:15:22.856733+00",
-          "tx": "3892849"
+          "at": "2026-11-10 20:16:38.472511+00",
+          "tx": "4257308"
         }
       ],
       "secret": [],
@@ -301,11 +299,11 @@
       "error": null,
       "entity": [
         {
-          "id": "5d02cf6f-5837-551f-9418-ef32303f6dbb",
+          "id": "dc33440f-45e0-5974-91bd-7e239a88eebe",
           "class": "Wallet",
           "rev": 3,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3b785f3c-c948-58f1-85ef-9de8ef3b332b",
+          "owner": "3b785f3c-c948-58f1-85ef-9de8ef3b332b",
           "links": {},
           "data": {
             "number": "W-1",
@@ -313,19 +311,19 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "9778f1b8-e599-5cf7-81ae-4839892df5ff",
+          "author": "27769e5b-aa2e-53b0-9787-7e875e10912b",
+          "agent": null,
           "reason": "debit op-2",
-          "at": "2026-11-04 05:15:22.917682+00"
+          "at": "2026-11-10 20:16:38.517727+00"
         },
         {
-          "id": "2866c08b-3ba9-5545-85cf-ceafba023067",
+          "id": "e18ba30c-21cc-5e6b-8e81-de23b7eaf7cd",
           "class": "Movement",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3b785f3c-c948-58f1-85ef-9de8ef3b332b",
+          "owner": "3b785f3c-c948-58f1-85ef-9de8ef3b332b",
           "links": {
-            "Wallet": "5d02cf6f-5837-551f-9418-ef32303f6dbb"
+            "Wallet": "dc33440f-45e0-5974-91bd-7e239a88eebe"
           },
           "data": {
             "kind": "topup",
@@ -334,19 +332,19 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "9778f1b8-e599-5cf7-81ae-4839892df5ff",
+          "author": "27769e5b-aa2e-53b0-9787-7e875e10912b",
+          "agent": null,
           "reason": "topup op-1",
-          "at": "2026-11-04 05:15:22.84473+00"
+          "at": "2026-11-10 20:16:38.456124+00"
         },
         {
-          "id": "ac2302d5-fd59-5902-9ad9-cb6bf0469925",
+          "id": "3733e7e8-e6be-5468-9568-aab21d8424fa",
           "class": "Movement",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3b785f3c-c948-58f1-85ef-9de8ef3b332b",
+          "owner": "3b785f3c-c948-58f1-85ef-9de8ef3b332b",
           "links": {
-            "Wallet": "5d02cf6f-5837-551f-9418-ef32303f6dbb"
+            "Wallet": "dc33440f-45e0-5974-91bd-7e239a88eebe"
           },
           "data": {
             "kind": "debit",
@@ -355,20 +353,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "9778f1b8-e599-5cf7-81ae-4839892df5ff",
+          "author": "27769e5b-aa2e-53b0-9787-7e875e10912b",
+          "agent": null,
           "reason": "debit op-2",
-          "at": "2026-11-04 05:15:22.896315+00"
+          "at": "2026-11-10 20:16:38.509851+00"
         }
       ],
       "removed": [],
       "log": [
         {
-          "seq": "36",
-          "id": "5d02cf6f-5837-551f-9418-ef32303f6dbb",
+          "seq": "43",
+          "id": "dc33440f-45e0-5974-91bd-7e239a88eebe",
           "rev": 1,
           "class": "Wallet",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3b785f3c-c948-58f1-85ef-9de8ef3b332b",
           "links": {},
           "data": {
             "number": "W-1",
@@ -376,20 +374,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "9778f1b8-e599-5cf7-81ae-4839892df5ff",
+          "author": "27769e5b-aa2e-53b0-9787-7e875e10912b",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:22.825726+00",
-          "tx": "3892845"
+          "at": "2026-11-10 20:16:38.425989+00",
+          "tx": "4257304"
         },
         {
-          "seq": "37",
-          "id": "2866c08b-3ba9-5545-85cf-ceafba023067",
+          "seq": "44",
+          "id": "e18ba30c-21cc-5e6b-8e81-de23b7eaf7cd",
           "rev": 1,
           "class": "Movement",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3b785f3c-c948-58f1-85ef-9de8ef3b332b",
           "links": {
-            "Wallet": "5d02cf6f-5837-551f-9418-ef32303f6dbb"
+            "Wallet": "dc33440f-45e0-5974-91bd-7e239a88eebe"
           },
           "data": {
             "kind": "topup",
@@ -398,18 +396,18 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "9778f1b8-e599-5cf7-81ae-4839892df5ff",
+          "author": "27769e5b-aa2e-53b0-9787-7e875e10912b",
+          "agent": null,
           "reason": "topup op-1",
-          "at": "2026-11-04 05:15:22.84473+00",
-          "tx": "3892849"
+          "at": "2026-11-10 20:16:38.456124+00",
+          "tx": "4257308"
         },
         {
-          "seq": "38",
-          "id": "5d02cf6f-5837-551f-9418-ef32303f6dbb",
+          "seq": "45",
+          "id": "dc33440f-45e0-5974-91bd-7e239a88eebe",
           "rev": 2,
           "class": "Wallet",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3b785f3c-c948-58f1-85ef-9de8ef3b332b",
           "links": {},
           "data": {
             "number": "W-1",
@@ -417,20 +415,20 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "9778f1b8-e599-5cf7-81ae-4839892df5ff",
+          "author": "27769e5b-aa2e-53b0-9787-7e875e10912b",
+          "agent": null,
           "reason": "topup op-1",
-          "at": "2026-11-04 05:15:22.856733+00",
-          "tx": "3892849"
+          "at": "2026-11-10 20:16:38.472511+00",
+          "tx": "4257308"
         },
         {
-          "seq": "39",
-          "id": "ac2302d5-fd59-5902-9ad9-cb6bf0469925",
+          "seq": "46",
+          "id": "3733e7e8-e6be-5468-9568-aab21d8424fa",
           "rev": 1,
           "class": "Movement",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3b785f3c-c948-58f1-85ef-9de8ef3b332b",
           "links": {
-            "Wallet": "5d02cf6f-5837-551f-9418-ef32303f6dbb"
+            "Wallet": "dc33440f-45e0-5974-91bd-7e239a88eebe"
           },
           "data": {
             "kind": "debit",
@@ -439,18 +437,18 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "9778f1b8-e599-5cf7-81ae-4839892df5ff",
+          "author": "27769e5b-aa2e-53b0-9787-7e875e10912b",
+          "agent": null,
           "reason": "debit op-2",
-          "at": "2026-11-04 05:15:22.896315+00",
-          "tx": "3892857"
+          "at": "2026-11-10 20:16:38.509851+00",
+          "tx": "4257316"
         },
         {
-          "seq": "40",
-          "id": "5d02cf6f-5837-551f-9418-ef32303f6dbb",
+          "seq": "47",
+          "id": "dc33440f-45e0-5974-91bd-7e239a88eebe",
           "rev": 3,
           "class": "Wallet",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3b785f3c-c948-58f1-85ef-9de8ef3b332b",
           "links": {},
           "data": {
             "number": "W-1",
@@ -458,11 +456,11 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "9778f1b8-e599-5cf7-81ae-4839892df5ff",
+          "author": "27769e5b-aa2e-53b0-9787-7e875e10912b",
+          "agent": null,
           "reason": "debit op-2",
-          "at": "2026-11-04 05:15:22.917682+00",
-          "tx": "3892857"
+          "at": "2026-11-10 20:16:38.517727+00",
+          "tx": "4257316"
         }
       ],
       "secret": [],
@@ -488,11 +486,11 @@
       },
       "entity": [
         {
-          "id": "5d02cf6f-5837-551f-9418-ef32303f6dbb",
+          "id": "dc33440f-45e0-5974-91bd-7e239a88eebe",
           "class": "Wallet",
           "rev": 3,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3b785f3c-c948-58f1-85ef-9de8ef3b332b",
+          "owner": "3b785f3c-c948-58f1-85ef-9de8ef3b332b",
           "links": {},
           "data": {
             "number": "W-1",
@@ -500,19 +498,19 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "9778f1b8-e599-5cf7-81ae-4839892df5ff",
+          "author": "27769e5b-aa2e-53b0-9787-7e875e10912b",
+          "agent": null,
           "reason": "debit op-2",
-          "at": "2026-11-04 05:15:22.917682+00"
+          "at": "2026-11-10 20:16:38.517727+00"
         },
         {
-          "id": "2866c08b-3ba9-5545-85cf-ceafba023067",
+          "id": "e18ba30c-21cc-5e6b-8e81-de23b7eaf7cd",
           "class": "Movement",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3b785f3c-c948-58f1-85ef-9de8ef3b332b",
+          "owner": "3b785f3c-c948-58f1-85ef-9de8ef3b332b",
           "links": {
-            "Wallet": "5d02cf6f-5837-551f-9418-ef32303f6dbb"
+            "Wallet": "dc33440f-45e0-5974-91bd-7e239a88eebe"
           },
           "data": {
             "kind": "topup",
@@ -521,19 +519,19 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "9778f1b8-e599-5cf7-81ae-4839892df5ff",
+          "author": "27769e5b-aa2e-53b0-9787-7e875e10912b",
+          "agent": null,
           "reason": "topup op-1",
-          "at": "2026-11-04 05:15:22.84473+00"
+          "at": "2026-11-10 20:16:38.456124+00"
         },
         {
-          "id": "ac2302d5-fd59-5902-9ad9-cb6bf0469925",
+          "id": "3733e7e8-e6be-5468-9568-aab21d8424fa",
           "class": "Movement",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3b785f3c-c948-58f1-85ef-9de8ef3b332b",
+          "owner": "3b785f3c-c948-58f1-85ef-9de8ef3b332b",
           "links": {
-            "Wallet": "5d02cf6f-5837-551f-9418-ef32303f6dbb"
+            "Wallet": "dc33440f-45e0-5974-91bd-7e239a88eebe"
           },
           "data": {
             "kind": "debit",
@@ -542,20 +540,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "9778f1b8-e599-5cf7-81ae-4839892df5ff",
+          "author": "27769e5b-aa2e-53b0-9787-7e875e10912b",
+          "agent": null,
           "reason": "debit op-2",
-          "at": "2026-11-04 05:15:22.896315+00"
+          "at": "2026-11-10 20:16:38.509851+00"
         }
       ],
       "removed": [],
       "log": [
         {
-          "seq": "36",
-          "id": "5d02cf6f-5837-551f-9418-ef32303f6dbb",
+          "seq": "43",
+          "id": "dc33440f-45e0-5974-91bd-7e239a88eebe",
           "rev": 1,
           "class": "Wallet",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3b785f3c-c948-58f1-85ef-9de8ef3b332b",
           "links": {},
           "data": {
             "number": "W-1",
@@ -563,20 +561,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "9778f1b8-e599-5cf7-81ae-4839892df5ff",
+          "author": "27769e5b-aa2e-53b0-9787-7e875e10912b",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:22.825726+00",
-          "tx": "3892845"
+          "at": "2026-11-10 20:16:38.425989+00",
+          "tx": "4257304"
         },
         {
-          "seq": "37",
-          "id": "2866c08b-3ba9-5545-85cf-ceafba023067",
+          "seq": "44",
+          "id": "e18ba30c-21cc-5e6b-8e81-de23b7eaf7cd",
           "rev": 1,
           "class": "Movement",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3b785f3c-c948-58f1-85ef-9de8ef3b332b",
           "links": {
-            "Wallet": "5d02cf6f-5837-551f-9418-ef32303f6dbb"
+            "Wallet": "dc33440f-45e0-5974-91bd-7e239a88eebe"
           },
           "data": {
             "kind": "topup",
@@ -585,18 +583,18 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "9778f1b8-e599-5cf7-81ae-4839892df5ff",
+          "author": "27769e5b-aa2e-53b0-9787-7e875e10912b",
+          "agent": null,
           "reason": "topup op-1",
-          "at": "2026-11-04 05:15:22.84473+00",
-          "tx": "3892849"
+          "at": "2026-11-10 20:16:38.456124+00",
+          "tx": "4257308"
         },
         {
-          "seq": "38",
-          "id": "5d02cf6f-5837-551f-9418-ef32303f6dbb",
+          "seq": "45",
+          "id": "dc33440f-45e0-5974-91bd-7e239a88eebe",
           "rev": 2,
           "class": "Wallet",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3b785f3c-c948-58f1-85ef-9de8ef3b332b",
           "links": {},
           "data": {
             "number": "W-1",
@@ -604,20 +602,20 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "9778f1b8-e599-5cf7-81ae-4839892df5ff",
+          "author": "27769e5b-aa2e-53b0-9787-7e875e10912b",
+          "agent": null,
           "reason": "topup op-1",
-          "at": "2026-11-04 05:15:22.856733+00",
-          "tx": "3892849"
+          "at": "2026-11-10 20:16:38.472511+00",
+          "tx": "4257308"
         },
         {
-          "seq": "39",
-          "id": "ac2302d5-fd59-5902-9ad9-cb6bf0469925",
+          "seq": "46",
+          "id": "3733e7e8-e6be-5468-9568-aab21d8424fa",
           "rev": 1,
           "class": "Movement",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3b785f3c-c948-58f1-85ef-9de8ef3b332b",
           "links": {
-            "Wallet": "5d02cf6f-5837-551f-9418-ef32303f6dbb"
+            "Wallet": "dc33440f-45e0-5974-91bd-7e239a88eebe"
           },
           "data": {
             "kind": "debit",
@@ -626,18 +624,18 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "9778f1b8-e599-5cf7-81ae-4839892df5ff",
+          "author": "27769e5b-aa2e-53b0-9787-7e875e10912b",
+          "agent": null,
           "reason": "debit op-2",
-          "at": "2026-11-04 05:15:22.896315+00",
-          "tx": "3892857"
+          "at": "2026-11-10 20:16:38.509851+00",
+          "tx": "4257316"
         },
         {
-          "seq": "40",
-          "id": "5d02cf6f-5837-551f-9418-ef32303f6dbb",
+          "seq": "47",
+          "id": "dc33440f-45e0-5974-91bd-7e239a88eebe",
           "rev": 3,
           "class": "Wallet",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3b785f3c-c948-58f1-85ef-9de8ef3b332b",
           "links": {},
           "data": {
             "number": "W-1",
@@ -645,11 +643,11 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "9778f1b8-e599-5cf7-81ae-4839892df5ff",
+          "author": "27769e5b-aa2e-53b0-9787-7e875e10912b",
+          "agent": null,
           "reason": "debit op-2",
-          "at": "2026-11-04 05:15:22.917682+00",
-          "tx": "3892857"
+          "at": "2026-11-10 20:16:38.517727+00",
+          "tx": "4257316"
         }
       ],
       "secret": [],
@@ -663,11 +661,11 @@
       "error": null,
       "entity": [
         {
-          "id": "5d02cf6f-5837-551f-9418-ef32303f6dbb",
+          "id": "dc33440f-45e0-5974-91bd-7e239a88eebe",
           "class": "Wallet",
           "rev": 3,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3b785f3c-c948-58f1-85ef-9de8ef3b332b",
+          "owner": "3b785f3c-c948-58f1-85ef-9de8ef3b332b",
           "links": {},
           "data": {
             "number": "W-1",
@@ -675,19 +673,19 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "9778f1b8-e599-5cf7-81ae-4839892df5ff",
+          "author": "27769e5b-aa2e-53b0-9787-7e875e10912b",
+          "agent": null,
           "reason": "debit op-2",
-          "at": "2026-11-04 05:15:22.917682+00"
+          "at": "2026-11-10 20:16:38.517727+00"
         },
         {
-          "id": "2866c08b-3ba9-5545-85cf-ceafba023067",
+          "id": "e18ba30c-21cc-5e6b-8e81-de23b7eaf7cd",
           "class": "Movement",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3b785f3c-c948-58f1-85ef-9de8ef3b332b",
+          "owner": "3b785f3c-c948-58f1-85ef-9de8ef3b332b",
           "links": {
-            "Wallet": "5d02cf6f-5837-551f-9418-ef32303f6dbb"
+            "Wallet": "dc33440f-45e0-5974-91bd-7e239a88eebe"
           },
           "data": {
             "kind": "topup",
@@ -696,19 +694,19 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "9778f1b8-e599-5cf7-81ae-4839892df5ff",
+          "author": "27769e5b-aa2e-53b0-9787-7e875e10912b",
+          "agent": null,
           "reason": "topup op-1",
-          "at": "2026-11-04 05:15:22.84473+00"
+          "at": "2026-11-10 20:16:38.456124+00"
         },
         {
-          "id": "ac2302d5-fd59-5902-9ad9-cb6bf0469925",
+          "id": "3733e7e8-e6be-5468-9568-aab21d8424fa",
           "class": "Movement",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3b785f3c-c948-58f1-85ef-9de8ef3b332b",
+          "owner": "3b785f3c-c948-58f1-85ef-9de8ef3b332b",
           "links": {
-            "Wallet": "5d02cf6f-5837-551f-9418-ef32303f6dbb"
+            "Wallet": "dc33440f-45e0-5974-91bd-7e239a88eebe"
           },
           "data": {
             "kind": "debit",
@@ -717,20 +715,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "9778f1b8-e599-5cf7-81ae-4839892df5ff",
+          "author": "27769e5b-aa2e-53b0-9787-7e875e10912b",
+          "agent": null,
           "reason": "debit op-2",
-          "at": "2026-11-04 05:15:22.896315+00"
+          "at": "2026-11-10 20:16:38.509851+00"
         }
       ],
       "removed": [],
       "log": [
         {
-          "seq": "36",
-          "id": "5d02cf6f-5837-551f-9418-ef32303f6dbb",
+          "seq": "43",
+          "id": "dc33440f-45e0-5974-91bd-7e239a88eebe",
           "rev": 1,
           "class": "Wallet",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3b785f3c-c948-58f1-85ef-9de8ef3b332b",
           "links": {},
           "data": {
             "number": "W-1",
@@ -738,20 +736,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "9778f1b8-e599-5cf7-81ae-4839892df5ff",
+          "author": "27769e5b-aa2e-53b0-9787-7e875e10912b",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:22.825726+00",
-          "tx": "3892845"
+          "at": "2026-11-10 20:16:38.425989+00",
+          "tx": "4257304"
         },
         {
-          "seq": "37",
-          "id": "2866c08b-3ba9-5545-85cf-ceafba023067",
+          "seq": "44",
+          "id": "e18ba30c-21cc-5e6b-8e81-de23b7eaf7cd",
           "rev": 1,
           "class": "Movement",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3b785f3c-c948-58f1-85ef-9de8ef3b332b",
           "links": {
-            "Wallet": "5d02cf6f-5837-551f-9418-ef32303f6dbb"
+            "Wallet": "dc33440f-45e0-5974-91bd-7e239a88eebe"
           },
           "data": {
             "kind": "topup",
@@ -760,18 +758,18 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "9778f1b8-e599-5cf7-81ae-4839892df5ff",
+          "author": "27769e5b-aa2e-53b0-9787-7e875e10912b",
+          "agent": null,
           "reason": "topup op-1",
-          "at": "2026-11-04 05:15:22.84473+00",
-          "tx": "3892849"
+          "at": "2026-11-10 20:16:38.456124+00",
+          "tx": "4257308"
         },
         {
-          "seq": "38",
-          "id": "5d02cf6f-5837-551f-9418-ef32303f6dbb",
+          "seq": "45",
+          "id": "dc33440f-45e0-5974-91bd-7e239a88eebe",
           "rev": 2,
           "class": "Wallet",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3b785f3c-c948-58f1-85ef-9de8ef3b332b",
           "links": {},
           "data": {
             "number": "W-1",
@@ -779,20 +777,20 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "9778f1b8-e599-5cf7-81ae-4839892df5ff",
+          "author": "27769e5b-aa2e-53b0-9787-7e875e10912b",
+          "agent": null,
           "reason": "topup op-1",
-          "at": "2026-11-04 05:15:22.856733+00",
-          "tx": "3892849"
+          "at": "2026-11-10 20:16:38.472511+00",
+          "tx": "4257308"
         },
         {
-          "seq": "39",
-          "id": "ac2302d5-fd59-5902-9ad9-cb6bf0469925",
+          "seq": "46",
+          "id": "3733e7e8-e6be-5468-9568-aab21d8424fa",
           "rev": 1,
           "class": "Movement",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3b785f3c-c948-58f1-85ef-9de8ef3b332b",
           "links": {
-            "Wallet": "5d02cf6f-5837-551f-9418-ef32303f6dbb"
+            "Wallet": "dc33440f-45e0-5974-91bd-7e239a88eebe"
           },
           "data": {
             "kind": "debit",
@@ -801,18 +799,18 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "9778f1b8-e599-5cf7-81ae-4839892df5ff",
+          "author": "27769e5b-aa2e-53b0-9787-7e875e10912b",
+          "agent": null,
           "reason": "debit op-2",
-          "at": "2026-11-04 05:15:22.896315+00",
-          "tx": "3892857"
+          "at": "2026-11-10 20:16:38.509851+00",
+          "tx": "4257316"
         },
         {
-          "seq": "40",
-          "id": "5d02cf6f-5837-551f-9418-ef32303f6dbb",
+          "seq": "47",
+          "id": "dc33440f-45e0-5974-91bd-7e239a88eebe",
           "rev": 3,
           "class": "Wallet",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "3b785f3c-c948-58f1-85ef-9de8ef3b332b",
           "links": {},
           "data": {
             "number": "W-1",
@@ -820,17 +818,17 @@
           },
           "tags": [],
           "op": "update",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "9778f1b8-e599-5cf7-81ae-4839892df5ff",
+          "author": "27769e5b-aa2e-53b0-9787-7e875e10912b",
+          "agent": null,
           "reason": "debit op-2",
-          "at": "2026-11-04 05:15:22.917682+00",
-          "tx": "3892857"
+          "at": "2026-11-10 20:16:38.517727+00",
+          "tx": "4257316"
         }
       ],
       "secret": [],
       "signals": []
     }
   ],
-  "output": "Шаг 1. Кошелёк\n{\n  \"at\": \"2026-11-04T05:15:24.334654+00:00\",\n  \"id\": \"5d02cf6f-5837-551f-9418-ef32303f6dbb\",\n  \"op\": \"create\",\n  \"rev\": 1,\n  \"data\": {\n    \"number\": \"W-1\",\n    \"balance\": 0\n  },\n  \"tags\": [],\n  \"class\": \"Wallet\",\n  \"links\": {},\n  \"owner\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n  \"author\": \"3defbabb-a94d-5359-8463-dc947de193e1\",\n  \"tenant\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n  \"agent\": \"2d6a8ab5-0a65-553c-bed7-4768bb4fcb29\"\n}\n\nШаг 2. Пополнение на 1000\n\"проведено\"\n\nШаг 3. Ответ потерялся — повтор той же операции\n\"уже было\"\n\nШаг 4. Списание 300\n\"проведено\"\n\nШаг 5. Списать больше, чем есть, — нельзя\nотказ, как и задумано: letopis: invalid_data: данные не проходят описание класса Wallet: balance — нарушено правило minimum\n\nШаг 6. Итог\n{\n  \"баланс\": 700,\n  \"операций\": 2\n}",
+  "output": "Шаг 1. Кошелёк\n{\n  \"at\": \"2026-11-10T20:16:40.36814+00:00\",\n  \"id\": \"7f0c2b3c-80d4-5482-a0d2-888789324d36\",\n  \"op\": \"create\",\n  \"rev\": 1,\n  \"data\": {\n    \"number\": \"W-1\",\n    \"balance\": 0\n  },\n  \"tags\": [],\n  \"class\": \"Wallet\",\n  \"links\": {},\n  \"owner\": \"ddf7f254-eb87-5b0e-bbd6-6ee74fa2a57a\",\n  \"author\": \"445f920a-486f-5790-98aa-236294a77e1b\",\n  \"tenant\": \"ddf7f254-eb87-5b0e-bbd6-6ee74fa2a57a\"\n}\n\nШаг 2. Пополнение на 1000\n\"проведено\"\n\nШаг 3. Ответ потерялся — повтор той же операции\n\"уже было\"\n\nШаг 4. Списание 300\n\"проведено\"\n\nШаг 5. Списать больше, чем есть, — нельзя\nотказ, как и задумано: letopis: invalid_data: данные не проходят описание класса Wallet: balance — нарушено правило minimum\n\nШаг 6. Итог\n{\n  \"баланс\": 700,\n  \"операций\": 2\n}",
   "exitCode": 0
 }

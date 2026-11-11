@@ -1,0 +1,970 @@
+{
+  "id": "invites/02-edges",
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": [
+      {
+        "account": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+        "tenant": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+        "kind": "INVITE",
+        "ident": "email:anna@romashka.ru",
+        "meta": {
+          "roles": [
+            "owner"
+          ],
+          "status": "used",
+          "contact": {
+            "kind": "email",
+            "address": "anna@romashka.ru"
+          },
+          "attempts": 0
+        },
+        "material": "f85fb8ab9ba0cfee1f663374f5a5c37bc2699feef5614e91682603a51ff0b06e",
+        "expires_at": "2026-11-17 20:15:22.458618+00",
+        "created_at": "2026-11-10 20:15:22.460047+00",
+        "deleted_at": "2026-11-10 20:15:22.568383+00"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "result": {
+        "новый токен": true,
+        "прежняя ссылка": "revoked",
+        "принять прежнюю": "auth_failed (api.invite_inactive)",
+        "новая ссылка": "active",
+        "ждут ответа": [
+          {
+            "to": "petr@romashka.ru",
+            "roles": [
+              "staff"
+            ],
+            "from": "Анна"
+          }
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "tenant": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "f85fb8ab9ba0cfee1f663374f5a5c37bc2699feef5614e91682603a51ff0b06e",
+          "expires_at": "2026-11-17 20:15:22.458618+00",
+          "created_at": "2026-11-10 20:15:22.460047+00",
+          "deleted_at": "2026-11-10 20:15:22.568383+00"
+        },
+        {
+          "account": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "tenant": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "kind": "INVITE",
+          "ident": "email:petr@romashka.ru",
+          "meta": {
+            "by": "f8297114-dfee-5f14-8497-eb67873d419d",
+            "roles": [
+              "staff"
+            ],
+            "reason": "replaced",
+            "status": "revoked",
+            "contact": {
+              "kind": "email",
+              "address": "petr@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "8260f80c4a02cc0b18902663bb1001f6ec7f4c3338f7e03015e45889eeb5fe17",
+          "expires_at": "2026-11-17 20:15:22.605571+00",
+          "created_at": "2026-11-10 20:15:22.607742+00",
+          "deleted_at": "2026-11-10 20:15:22.615104+00"
+        },
+        {
+          "account": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "tenant": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "kind": "INVITE",
+          "ident": "email:petr@romashka.ru",
+          "meta": {
+            "by": "f8297114-dfee-5f14-8497-eb67873d419d",
+            "roles": [
+              "staff"
+            ],
+            "contact": {
+              "kind": "email",
+              "address": "petr@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "3c22ab5df93f6fbf7860b51009748aca8f5d6f1dc9445730ce557d8db07c5d35",
+          "expires_at": "2026-11-17 20:15:22.613954+00",
+          "created_at": "2026-11-10 20:15:22.615206+00",
+          "deleted_at": null
+        }
+      ],
+      "signals": []
+    },
+    {
+      "result": {
+        "отменено": true,
+        "ещё раз": false,
+        "ссылка Коли": "revoked"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "tenant": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "f85fb8ab9ba0cfee1f663374f5a5c37bc2699feef5614e91682603a51ff0b06e",
+          "expires_at": "2026-11-17 20:15:22.458618+00",
+          "created_at": "2026-11-10 20:15:22.460047+00",
+          "deleted_at": "2026-11-10 20:15:22.568383+00"
+        },
+        {
+          "account": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "tenant": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "kind": "INVITE",
+          "ident": "email:petr@romashka.ru",
+          "meta": {
+            "by": "f8297114-dfee-5f14-8497-eb67873d419d",
+            "roles": [
+              "staff"
+            ],
+            "reason": "replaced",
+            "status": "revoked",
+            "contact": {
+              "kind": "email",
+              "address": "petr@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "8260f80c4a02cc0b18902663bb1001f6ec7f4c3338f7e03015e45889eeb5fe17",
+          "expires_at": "2026-11-17 20:15:22.605571+00",
+          "created_at": "2026-11-10 20:15:22.607742+00",
+          "deleted_at": "2026-11-10 20:15:22.615104+00"
+        },
+        {
+          "account": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "tenant": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "kind": "INVITE",
+          "ident": "email:petr@romashka.ru",
+          "meta": {
+            "by": "f8297114-dfee-5f14-8497-eb67873d419d",
+            "roles": [
+              "staff"
+            ],
+            "contact": {
+              "kind": "email",
+              "address": "petr@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "3c22ab5df93f6fbf7860b51009748aca8f5d6f1dc9445730ce557d8db07c5d35",
+          "expires_at": "2026-11-17 20:15:22.613954+00",
+          "created_at": "2026-11-10 20:15:22.615206+00",
+          "deleted_at": null
+        },
+        {
+          "account": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "tenant": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "kind": "INVITE",
+          "ident": "email:kolya@romashka.ru",
+          "meta": {
+            "by": "f8297114-dfee-5f14-8497-eb67873d419d",
+            "roles": [
+              "staff"
+            ],
+            "reason": "revoked",
+            "status": "revoked",
+            "contact": {
+              "kind": "email",
+              "address": "kolya@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "162bb7c6e448193cc698ad41420c0026a07f4666d9e9d186adf92b156d617339",
+          "expires_at": "2026-11-17 20:15:22.653068+00",
+          "created_at": "2026-11-10 20:15:22.654514+00",
+          "deleted_at": "2026-11-10 20:15:22.662736+00"
+        }
+      ],
+      "signals": []
+    },
+    {
+      "result": {
+        "Олегу можно выдать guest": true,
+        "Ира принимает": "acl_denied (api.invite_lost)",
+        "ссылка Иры": "revoked"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "tenant": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "f85fb8ab9ba0cfee1f663374f5a5c37bc2699feef5614e91682603a51ff0b06e",
+          "expires_at": "2026-11-17 20:15:22.458618+00",
+          "created_at": "2026-11-10 20:15:22.460047+00",
+          "deleted_at": "2026-11-10 20:15:22.568383+00"
+        },
+        {
+          "account": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "tenant": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "kind": "INVITE",
+          "ident": "email:petr@romashka.ru",
+          "meta": {
+            "by": "f8297114-dfee-5f14-8497-eb67873d419d",
+            "roles": [
+              "staff"
+            ],
+            "reason": "replaced",
+            "status": "revoked",
+            "contact": {
+              "kind": "email",
+              "address": "petr@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "8260f80c4a02cc0b18902663bb1001f6ec7f4c3338f7e03015e45889eeb5fe17",
+          "expires_at": "2026-11-17 20:15:22.605571+00",
+          "created_at": "2026-11-10 20:15:22.607742+00",
+          "deleted_at": "2026-11-10 20:15:22.615104+00"
+        },
+        {
+          "account": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "tenant": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "kind": "INVITE",
+          "ident": "email:petr@romashka.ru",
+          "meta": {
+            "by": "f8297114-dfee-5f14-8497-eb67873d419d",
+            "roles": [
+              "staff"
+            ],
+            "contact": {
+              "kind": "email",
+              "address": "petr@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "3c22ab5df93f6fbf7860b51009748aca8f5d6f1dc9445730ce557d8db07c5d35",
+          "expires_at": "2026-11-17 20:15:22.613954+00",
+          "created_at": "2026-11-10 20:15:22.615206+00",
+          "deleted_at": null
+        },
+        {
+          "account": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "tenant": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "kind": "INVITE",
+          "ident": "email:kolya@romashka.ru",
+          "meta": {
+            "by": "f8297114-dfee-5f14-8497-eb67873d419d",
+            "roles": [
+              "staff"
+            ],
+            "reason": "revoked",
+            "status": "revoked",
+            "contact": {
+              "kind": "email",
+              "address": "kolya@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "162bb7c6e448193cc698ad41420c0026a07f4666d9e9d186adf92b156d617339",
+          "expires_at": "2026-11-17 20:15:22.653068+00",
+          "created_at": "2026-11-10 20:15:22.654514+00",
+          "deleted_at": "2026-11-10 20:15:22.662736+00"
+        },
+        {
+          "account": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "tenant": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "kind": "INVITE",
+          "ident": "email:oleg@romashka.ru",
+          "meta": {
+            "by": "f8297114-dfee-5f14-8497-eb67873d419d",
+            "roles": [
+              "staff"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "oleg@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "394f38d4ddbdde6be2377948ddc87d3aeba287018bd90115447567614072a789",
+          "expires_at": "2026-11-17 20:15:22.684463+00",
+          "created_at": "2026-11-10 20:15:22.685743+00",
+          "deleted_at": "2026-11-10 20:15:22.800705+00"
+        },
+        {
+          "account": "adf4cf0c-d442-5cf3-8060-9231cf84a998",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "IDENT",
+          "ident": "email:oleg@romashka.ru",
+          "meta": {
+            "kind": "email",
+            "address": "oleg@romashka.ru"
+          },
+          "material": null,
+          "expires_at": null,
+          "created_at": "2026-11-10 20:15:22.799575+00",
+          "deleted_at": null
+        },
+        {
+          "account": "adf4cf0c-d442-5cf3-8060-9231cf84a998",
+          "tenant": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "kind": "PASSWORD",
+          "ident": "email:oleg@romashka.ru",
+          "meta": {},
+          "material": "736372797074243332373638243824312432354e37345151705474615658616d3774796d7854773d3d2434763737486e50394f57424b436b4759596653704475494865722b615a336e506b384669444858614b65343d",
+          "expires_at": null,
+          "created_at": "2026-11-10 20:15:22.800563+00",
+          "deleted_at": null
+        },
+        {
+          "account": "adf4cf0c-d442-5cf3-8060-9231cf84a998",
+          "tenant": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "691424ad-aedf-46b2-8d76-04818e2baaaf",
+            "methods": [
+              "INVITE",
+              "FIRST"
+            ],
+            "login_at": "2026-11-10T20:15:22.800831+00:00"
+          },
+          "material": "c20770ef985487637aa2947652184ab9724b8bb48120a439a8447425bdb4dd20",
+          "expires_at": "2026-11-17 20:15:22.800848+00",
+          "created_at": "2026-11-10 20:15:22.800851+00",
+          "deleted_at": null
+        },
+        {
+          "account": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "tenant": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "kind": "INVITE",
+          "ident": "email:ira@romashka.ru",
+          "meta": {
+            "by": "adf4cf0c-d442-5cf3-8060-9231cf84a998",
+            "roles": [
+              "guest"
+            ],
+            "reason": "inviter",
+            "status": "revoked",
+            "contact": {
+              "kind": "email",
+              "address": "ira@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "b09987dddf4cbaace6a5e9d235290685043c5d580c3e41a6572ecf2b50750450",
+          "expires_at": "2026-11-17 20:15:22.874413+00",
+          "created_at": "2026-11-10 20:15:22.875521+00",
+          "deleted_at": "2026-11-10 20:15:22.936625+00"
+        }
+      ],
+      "signals": [
+        "Resource",
+        "member",
+        "rule"
+      ]
+    },
+    {
+      "result": {
+        "почтальон упал": {
+          "code": "postman_failed",
+          "cause": "почтовый сервис недоступен"
+        },
+        "без почтальона": "no_postman (api.no_postman)",
+        "ссылка Петра": "active",
+        "приглашений Петра": 1
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "tenant": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "f85fb8ab9ba0cfee1f663374f5a5c37bc2699feef5614e91682603a51ff0b06e",
+          "expires_at": "2026-11-17 20:15:22.458618+00",
+          "created_at": "2026-11-10 20:15:22.460047+00",
+          "deleted_at": "2026-11-10 20:15:22.568383+00"
+        },
+        {
+          "account": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "tenant": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "kind": "INVITE",
+          "ident": "email:petr@romashka.ru",
+          "meta": {
+            "by": "f8297114-dfee-5f14-8497-eb67873d419d",
+            "roles": [
+              "staff"
+            ],
+            "reason": "replaced",
+            "status": "revoked",
+            "contact": {
+              "kind": "email",
+              "address": "petr@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "8260f80c4a02cc0b18902663bb1001f6ec7f4c3338f7e03015e45889eeb5fe17",
+          "expires_at": "2026-11-17 20:15:22.605571+00",
+          "created_at": "2026-11-10 20:15:22.607742+00",
+          "deleted_at": "2026-11-10 20:15:22.615104+00"
+        },
+        {
+          "account": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "tenant": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "kind": "INVITE",
+          "ident": "email:petr@romashka.ru",
+          "meta": {
+            "by": "f8297114-dfee-5f14-8497-eb67873d419d",
+            "roles": [
+              "staff"
+            ],
+            "contact": {
+              "kind": "email",
+              "address": "petr@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "3c22ab5df93f6fbf7860b51009748aca8f5d6f1dc9445730ce557d8db07c5d35",
+          "expires_at": "2026-11-17 20:15:22.613954+00",
+          "created_at": "2026-11-10 20:15:22.615206+00",
+          "deleted_at": null
+        },
+        {
+          "account": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "tenant": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "kind": "INVITE",
+          "ident": "email:kolya@romashka.ru",
+          "meta": {
+            "by": "f8297114-dfee-5f14-8497-eb67873d419d",
+            "roles": [
+              "staff"
+            ],
+            "reason": "revoked",
+            "status": "revoked",
+            "contact": {
+              "kind": "email",
+              "address": "kolya@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "162bb7c6e448193cc698ad41420c0026a07f4666d9e9d186adf92b156d617339",
+          "expires_at": "2026-11-17 20:15:22.653068+00",
+          "created_at": "2026-11-10 20:15:22.654514+00",
+          "deleted_at": "2026-11-10 20:15:22.662736+00"
+        },
+        {
+          "account": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "tenant": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "kind": "INVITE",
+          "ident": "email:oleg@romashka.ru",
+          "meta": {
+            "by": "f8297114-dfee-5f14-8497-eb67873d419d",
+            "roles": [
+              "staff"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "oleg@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "394f38d4ddbdde6be2377948ddc87d3aeba287018bd90115447567614072a789",
+          "expires_at": "2026-11-17 20:15:22.684463+00",
+          "created_at": "2026-11-10 20:15:22.685743+00",
+          "deleted_at": "2026-11-10 20:15:22.800705+00"
+        },
+        {
+          "account": "adf4cf0c-d442-5cf3-8060-9231cf84a998",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "IDENT",
+          "ident": "email:oleg@romashka.ru",
+          "meta": {
+            "kind": "email",
+            "address": "oleg@romashka.ru"
+          },
+          "material": null,
+          "expires_at": null,
+          "created_at": "2026-11-10 20:15:22.799575+00",
+          "deleted_at": null
+        },
+        {
+          "account": "adf4cf0c-d442-5cf3-8060-9231cf84a998",
+          "tenant": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "kind": "PASSWORD",
+          "ident": "email:oleg@romashka.ru",
+          "meta": {},
+          "material": "736372797074243332373638243824312432354e37345151705474615658616d3774796d7854773d3d2434763737486e50394f57424b436b4759596653704475494865722b615a336e506b384669444858614b65343d",
+          "expires_at": null,
+          "created_at": "2026-11-10 20:15:22.800563+00",
+          "deleted_at": null
+        },
+        {
+          "account": "adf4cf0c-d442-5cf3-8060-9231cf84a998",
+          "tenant": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "691424ad-aedf-46b2-8d76-04818e2baaaf",
+            "methods": [
+              "INVITE",
+              "FIRST"
+            ],
+            "login_at": "2026-11-10T20:15:22.800831+00:00"
+          },
+          "material": "c20770ef985487637aa2947652184ab9724b8bb48120a439a8447425bdb4dd20",
+          "expires_at": "2026-11-17 20:15:22.800848+00",
+          "created_at": "2026-11-10 20:15:22.800851+00",
+          "deleted_at": null
+        },
+        {
+          "account": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "tenant": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "kind": "INVITE",
+          "ident": "email:ira@romashka.ru",
+          "meta": {
+            "by": "adf4cf0c-d442-5cf3-8060-9231cf84a998",
+            "roles": [
+              "guest"
+            ],
+            "reason": "inviter",
+            "status": "revoked",
+            "contact": {
+              "kind": "email",
+              "address": "ira@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "b09987dddf4cbaace6a5e9d235290685043c5d580c3e41a6572ecf2b50750450",
+          "expires_at": "2026-11-17 20:15:22.874413+00",
+          "created_at": "2026-11-10 20:15:22.875521+00",
+          "deleted_at": "2026-11-10 20:15:22.936625+00"
+        },
+        {
+          "account": "04df94bc-cf0b-582e-886d-6bafcff2da46",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "28766d20-f35f-4a0e-9859-b8fed66b8781",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "2026-11-10T20:15:23.01281+00:00"
+          },
+          "material": "04efa0a5b5bf1977e8c4e850ea36369b14d82bf2c605519b63a28a83aaed2caa",
+          "expires_at": "2026-11-17 20:15:23.012825+00",
+          "created_at": "2026-11-10 20:15:23.012833+00",
+          "deleted_at": null
+        },
+        {
+          "account": "f8297114-dfee-5f14-8497-eb67873d419d",
+          "tenant": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "74e67859-7a01-43f6-86d8-24f16ec0f864",
+            "methods": [
+              "PASSWORD"
+            ],
+            "login_at": "2026-11-10T20:15:23.29238+00:00"
+          },
+          "material": "c6ecc8e5518a9baf70bccd11f3ca86e98635ccf8eabb2fff0d314c052cfa52b7",
+          "expires_at": "2026-11-17 20:15:23.292391+00",
+          "created_at": "2026-11-10 20:15:23.292393+00",
+          "deleted_at": null
+        },
+        {
+          "account": "04df94bc-cf0b-582e-886d-6bafcff2da46",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "28766d20-f35f-4a0e-9859-b8fed66b8781",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "2026-11-10T20:15:23.376998+00:00"
+          },
+          "material": "8defa367543a3e7d5901295819f8d7c6e121da45cdaad3223760999ac80274a3",
+          "expires_at": "2026-11-17 20:15:23.377009+00",
+          "created_at": "2026-11-10 20:15:23.377015+00",
+          "deleted_at": null
+        },
+        {
+          "account": "f8297114-dfee-5f14-8497-eb67873d419d",
+          "tenant": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "74e67859-7a01-43f6-86d8-24f16ec0f864",
+            "methods": [
+              "PASSWORD"
+            ],
+            "login_at": "2026-11-10T20:15:23.615912+00:00"
+          },
+          "material": "8c099849be67a391d883a9c1855973a01e42d32cddd46192d9ec33fc870da6ad",
+          "expires_at": "2026-11-17 20:15:23.615925+00",
+          "created_at": "2026-11-10 20:15:23.615927+00",
+          "deleted_at": null
+        }
+      ],
+      "signals": []
+    },
+    {
+      "result": {
+        "позвать Олега ещё раз": "exists (sql-access.already_member)",
+        "неизвестная ссылка": "auth_failed (api.invite_unknown)",
+        "Олег зовёт без ролей": "acl_denied (sql-access.invite_denied)",
+        "Анна зовёт без ролей": "прошло"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "tenant": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "f85fb8ab9ba0cfee1f663374f5a5c37bc2699feef5614e91682603a51ff0b06e",
+          "expires_at": "2026-11-17 20:15:22.458618+00",
+          "created_at": "2026-11-10 20:15:22.460047+00",
+          "deleted_at": "2026-11-10 20:15:22.568383+00"
+        },
+        {
+          "account": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "tenant": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "kind": "INVITE",
+          "ident": "email:petr@romashka.ru",
+          "meta": {
+            "by": "f8297114-dfee-5f14-8497-eb67873d419d",
+            "roles": [
+              "staff"
+            ],
+            "reason": "replaced",
+            "status": "revoked",
+            "contact": {
+              "kind": "email",
+              "address": "petr@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "8260f80c4a02cc0b18902663bb1001f6ec7f4c3338f7e03015e45889eeb5fe17",
+          "expires_at": "2026-11-17 20:15:22.605571+00",
+          "created_at": "2026-11-10 20:15:22.607742+00",
+          "deleted_at": "2026-11-10 20:15:22.615104+00"
+        },
+        {
+          "account": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "tenant": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "kind": "INVITE",
+          "ident": "email:petr@romashka.ru",
+          "meta": {
+            "by": "f8297114-dfee-5f14-8497-eb67873d419d",
+            "roles": [
+              "staff"
+            ],
+            "contact": {
+              "kind": "email",
+              "address": "petr@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "3c22ab5df93f6fbf7860b51009748aca8f5d6f1dc9445730ce557d8db07c5d35",
+          "expires_at": "2026-11-17 20:15:22.613954+00",
+          "created_at": "2026-11-10 20:15:22.615206+00",
+          "deleted_at": null
+        },
+        {
+          "account": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "tenant": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "kind": "INVITE",
+          "ident": "email:kolya@romashka.ru",
+          "meta": {
+            "by": "f8297114-dfee-5f14-8497-eb67873d419d",
+            "roles": [
+              "staff"
+            ],
+            "reason": "revoked",
+            "status": "revoked",
+            "contact": {
+              "kind": "email",
+              "address": "kolya@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "162bb7c6e448193cc698ad41420c0026a07f4666d9e9d186adf92b156d617339",
+          "expires_at": "2026-11-17 20:15:22.653068+00",
+          "created_at": "2026-11-10 20:15:22.654514+00",
+          "deleted_at": "2026-11-10 20:15:22.662736+00"
+        },
+        {
+          "account": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "tenant": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "kind": "INVITE",
+          "ident": "email:oleg@romashka.ru",
+          "meta": {
+            "by": "f8297114-dfee-5f14-8497-eb67873d419d",
+            "roles": [
+              "staff"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "oleg@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "394f38d4ddbdde6be2377948ddc87d3aeba287018bd90115447567614072a789",
+          "expires_at": "2026-11-17 20:15:22.684463+00",
+          "created_at": "2026-11-10 20:15:22.685743+00",
+          "deleted_at": "2026-11-10 20:15:22.800705+00"
+        },
+        {
+          "account": "adf4cf0c-d442-5cf3-8060-9231cf84a998",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "IDENT",
+          "ident": "email:oleg@romashka.ru",
+          "meta": {
+            "kind": "email",
+            "address": "oleg@romashka.ru"
+          },
+          "material": null,
+          "expires_at": null,
+          "created_at": "2026-11-10 20:15:22.799575+00",
+          "deleted_at": null
+        },
+        {
+          "account": "adf4cf0c-d442-5cf3-8060-9231cf84a998",
+          "tenant": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "kind": "PASSWORD",
+          "ident": "email:oleg@romashka.ru",
+          "meta": {},
+          "material": "736372797074243332373638243824312432354e37345151705474615658616d3774796d7854773d3d2434763737486e50394f57424b436b4759596653704475494865722b615a336e506b384669444858614b65343d",
+          "expires_at": null,
+          "created_at": "2026-11-10 20:15:22.800563+00",
+          "deleted_at": null
+        },
+        {
+          "account": "adf4cf0c-d442-5cf3-8060-9231cf84a998",
+          "tenant": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "691424ad-aedf-46b2-8d76-04818e2baaaf",
+            "methods": [
+              "INVITE",
+              "FIRST"
+            ],
+            "login_at": "2026-11-10T20:15:22.800831+00:00"
+          },
+          "material": "c20770ef985487637aa2947652184ab9724b8bb48120a439a8447425bdb4dd20",
+          "expires_at": "2026-11-17 20:15:22.800848+00",
+          "created_at": "2026-11-10 20:15:22.800851+00",
+          "deleted_at": null
+        },
+        {
+          "account": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "tenant": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "kind": "INVITE",
+          "ident": "email:ira@romashka.ru",
+          "meta": {
+            "by": "adf4cf0c-d442-5cf3-8060-9231cf84a998",
+            "roles": [
+              "guest"
+            ],
+            "reason": "inviter",
+            "status": "revoked",
+            "contact": {
+              "kind": "email",
+              "address": "ira@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "b09987dddf4cbaace6a5e9d235290685043c5d580c3e41a6572ecf2b50750450",
+          "expires_at": "2026-11-17 20:15:22.874413+00",
+          "created_at": "2026-11-10 20:15:22.875521+00",
+          "deleted_at": "2026-11-10 20:15:22.936625+00"
+        },
+        {
+          "account": "04df94bc-cf0b-582e-886d-6bafcff2da46",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "28766d20-f35f-4a0e-9859-b8fed66b8781",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "2026-11-10T20:15:23.01281+00:00"
+          },
+          "material": "04efa0a5b5bf1977e8c4e850ea36369b14d82bf2c605519b63a28a83aaed2caa",
+          "expires_at": "2026-11-17 20:15:23.012825+00",
+          "created_at": "2026-11-10 20:15:23.012833+00",
+          "deleted_at": null
+        },
+        {
+          "account": "f8297114-dfee-5f14-8497-eb67873d419d",
+          "tenant": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "74e67859-7a01-43f6-86d8-24f16ec0f864",
+            "methods": [
+              "PASSWORD"
+            ],
+            "login_at": "2026-11-10T20:15:23.29238+00:00"
+          },
+          "material": "c6ecc8e5518a9baf70bccd11f3ca86e98635ccf8eabb2fff0d314c052cfa52b7",
+          "expires_at": "2026-11-17 20:15:23.292391+00",
+          "created_at": "2026-11-10 20:15:23.292393+00",
+          "deleted_at": null
+        },
+        {
+          "account": "04df94bc-cf0b-582e-886d-6bafcff2da46",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "28766d20-f35f-4a0e-9859-b8fed66b8781",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "2026-11-10T20:15:23.376998+00:00"
+          },
+          "material": "8defa367543a3e7d5901295819f8d7c6e121da45cdaad3223760999ac80274a3",
+          "expires_at": "2026-11-17 20:15:23.377009+00",
+          "created_at": "2026-11-10 20:15:23.377015+00",
+          "deleted_at": null
+        },
+        {
+          "account": "f8297114-dfee-5f14-8497-eb67873d419d",
+          "tenant": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "74e67859-7a01-43f6-86d8-24f16ec0f864",
+            "methods": [
+              "PASSWORD"
+            ],
+            "login_at": "2026-11-10T20:15:23.615912+00:00"
+          },
+          "material": "8c099849be67a391d883a9c1855973a01e42d32cddd46192d9ec33fc870da6ad",
+          "expires_at": "2026-11-17 20:15:23.615925+00",
+          "created_at": "2026-11-10 20:15:23.615927+00",
+          "deleted_at": null
+        },
+        {
+          "account": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "tenant": "3a695494-02d6-5b89-aa57-c78c2b561fee",
+          "kind": "INVITE",
+          "ident": "email:zoya@romashka.ru",
+          "meta": {
+            "by": "f8297114-dfee-5f14-8497-eb67873d419d",
+            "roles": [],
+            "contact": {
+              "kind": "email",
+              "address": "zoya@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "7e79d773ac7dfe9c08a5ac442156679db2aac3b046957e0e959fa0f4634a89cd",
+          "expires_at": "2026-11-17 20:15:23.703661+00",
+          "created_at": "2026-11-10 20:15:23.705225+00",
+          "deleted_at": null
+        }
+      ],
+      "signals": []
+    }
+  ],
+  "output": "Шаг 1. Повтор: новая ссылка, прежняя гаснет\n{\n  \"новый токен\": true,\n  \"прежняя ссылка\": \"revoked\",\n  \"принять прежнюю\": \"auth_failed (api.invite_inactive)\",\n  \"новая ссылка\": \"active\",\n  \"ждут ответа\": [\n    {\n      \"to\": \"petr@romashka.ru\",\n      \"roles\": [\n        \"staff\"\n      ],\n      \"from\": \"Анна\"\n    }\n  ]\n}\n\nШаг 2. Отмена: revokeInvite\n{\n  \"отменено\": true,\n  \"ещё раз\": false,\n  \"ссылка Коли\": \"revoked\"\n}\n\nШаг 3. Звавший потерял право — ссылка гаснет\n{\n  \"Олегу можно выдать guest\": true,\n  \"Ира принимает\": \"acl_denied (api.invite_lost)\",\n  \"ссылка Иры\": \"revoked\"\n}\n\nШаг 4. Почтальон не доставил — приглашения нет\n{\n  \"почтальон упал\": {\n    \"code\": \"postman_failed\",\n    \"cause\": \"почтовый сервис недоступен\"\n  },\n  \"без почтальона\": \"no_postman (api.no_postman)\",\n  \"ссылка Петра\": \"active\",\n  \"приглашений Петра\": 1\n}\n\nШаг 5. Ещё края: прописанный, неизвестная ссылка, приглашение без ролей\n{\n  \"позвать Олега ещё раз\": \"exists (sql-access.already_member)\",\n  \"неизвестная ссылка\": \"auth_failed (api.invite_unknown)\",\n  \"Олег зовёт без ролей\": \"acl_denied (sql-access.invite_denied)\",\n  \"Анна зовёт без ролей\": \"прошло\"\n}",
+  "exitCode": 0
+}

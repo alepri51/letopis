@@ -135,11 +135,11 @@
       "error": null,
       "entity": [
         {
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "id": "6676e16d-3fbd-5767-9174-2aef89d5983c",
           "class": "Shop",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
+          "owner": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
           "links": {},
           "data": {
             "city": "Казань",
@@ -147,20 +147,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "2ab963e1-5676-51a1-9277-51a5444a403b",
+          "author": "ec5cd1b3-778d-5541-9cf8-a45007c0d1b8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:02.305771+00"
+          "at": "2026-11-10 20:16:09.44975+00"
         }
       ],
       "removed": [],
       "log": [
         {
-          "seq": "46",
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "seq": "53",
+          "id": "6676e16d-3fbd-5767-9174-2aef89d5983c",
           "rev": 1,
           "class": "Shop",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
           "links": {},
           "data": {
             "city": "Казань",
@@ -168,11 +168,11 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "2ab963e1-5676-51a1-9277-51a5444a403b",
+          "author": "ec5cd1b3-778d-5541-9cf8-a45007c0d1b8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:02.305771+00",
-          "tx": "3892443"
+          "at": "2026-11-10 20:16:09.44975+00",
+          "tx": "4256626"
         }
       ],
       "secret": [],
@@ -182,8 +182,8 @@
     },
     {
       "result": {
-        "at": "2026-11-04T05:15:02.32684+00:00",
-        "id": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+        "at": "2026-11-10T20:16:09.492771+00:00",
+        "id": "6f35e97b-30c2-5c1b-a362-8e2cebe4fdea",
         "op": "create",
         "rev": 1,
         "data": {
@@ -192,21 +192,20 @@
         "tags": [],
         "class": "Category",
         "links": {
-          "Parent": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+          "Parent": "4a46efbd-dee5-5cde-a4f1-6b7fa1b2870b"
         },
-        "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-        "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-        "agent": "2ab963e1-5676-51a1-9277-51a5444a403b"
+        "owner": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
+        "author": "ec5cd1b3-778d-5541-9cf8-a45007c0d1b8",
+        "tenant": "2affce91-c272-57d6-ae3f-93e8cd8cb21c"
       },
       "error": null,
       "entity": [
         {
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "id": "6676e16d-3fbd-5767-9174-2aef89d5983c",
           "class": "Shop",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
+          "owner": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
           "links": {},
           "data": {
             "city": "Казань",
@@ -214,56 +213,56 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "2ab963e1-5676-51a1-9277-51a5444a403b",
+          "author": "ec5cd1b3-778d-5541-9cf8-a45007c0d1b8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:02.305771+00"
+          "at": "2026-11-10 20:16:09.44975+00"
         },
         {
-          "id": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac",
+          "id": "4a46efbd-dee5-5cde-a4f1-6b7fa1b2870b",
           "class": "Category",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
+          "owner": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
           "links": {},
           "data": {
             "name": "Чай"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "2ab963e1-5676-51a1-9277-51a5444a403b",
+          "author": "ec5cd1b3-778d-5541-9cf8-a45007c0d1b8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:02.320253+00"
+          "at": "2026-11-10 20:16:09.479532+00"
         },
         {
-          "id": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+          "id": "6f35e97b-30c2-5c1b-a362-8e2cebe4fdea",
           "class": "Category",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
+          "owner": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
           "links": {
-            "Parent": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+            "Parent": "4a46efbd-dee5-5cde-a4f1-6b7fa1b2870b"
           },
           "data": {
             "name": "Зелёный чай"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "2ab963e1-5676-51a1-9277-51a5444a403b",
+          "author": "ec5cd1b3-778d-5541-9cf8-a45007c0d1b8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:02.32684+00"
+          "at": "2026-11-10 20:16:09.492771+00"
         }
       ],
       "removed": [],
       "log": [
         {
-          "seq": "46",
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "seq": "53",
+          "id": "6676e16d-3fbd-5767-9174-2aef89d5983c",
           "rev": 1,
           "class": "Shop",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
           "links": {},
           "data": {
             "city": "Казань",
@@ -271,49 +270,49 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "2ab963e1-5676-51a1-9277-51a5444a403b",
+          "author": "ec5cd1b3-778d-5541-9cf8-a45007c0d1b8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:02.305771+00",
-          "tx": "3892443"
+          "at": "2026-11-10 20:16:09.44975+00",
+          "tx": "4256626"
         },
         {
-          "seq": "47",
-          "id": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac",
+          "seq": "54",
+          "id": "4a46efbd-dee5-5cde-a4f1-6b7fa1b2870b",
           "rev": 1,
           "class": "Category",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
           "links": {},
           "data": {
             "name": "Чай"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "2ab963e1-5676-51a1-9277-51a5444a403b",
+          "author": "ec5cd1b3-778d-5541-9cf8-a45007c0d1b8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:02.320253+00",
-          "tx": "3892447"
+          "at": "2026-11-10 20:16:09.479532+00",
+          "tx": "4256630"
         },
         {
-          "seq": "48",
-          "id": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+          "seq": "55",
+          "id": "6f35e97b-30c2-5c1b-a362-8e2cebe4fdea",
           "rev": 1,
           "class": "Category",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
           "links": {
-            "Parent": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+            "Parent": "4a46efbd-dee5-5cde-a4f1-6b7fa1b2870b"
           },
           "data": {
             "name": "Зелёный чай"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "2ab963e1-5676-51a1-9277-51a5444a403b",
+          "author": "ec5cd1b3-778d-5541-9cf8-a45007c0d1b8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:02.32684+00",
-          "tx": "3892449"
+          "at": "2026-11-10 20:16:09.492771+00",
+          "tx": "4256632"
         }
       ],
       "secret": [],
@@ -323,8 +322,8 @@
     },
     {
       "result": {
-        "at": "2026-11-04T05:15:02.340175+00:00",
-        "id": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0",
+        "at": "2026-11-10T20:16:09.515761+00:00",
+        "id": "46937fbe-2dfc-5840-8baa-f198a0b76e0b",
         "op": "create",
         "rev": 1,
         "data": {
@@ -335,24 +334,23 @@
         "tags": [],
         "class": "Product",
         "links": {
-          "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "Shop": "6676e16d-3fbd-5767-9174-2aef89d5983c",
           "Category": [
-            "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5"
+            "6f35e97b-30c2-5c1b-a362-8e2cebe4fdea"
           ]
         },
-        "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-        "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-        "agent": "2ab963e1-5676-51a1-9277-51a5444a403b"
+        "owner": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
+        "author": "ec5cd1b3-778d-5541-9cf8-a45007c0d1b8",
+        "tenant": "2affce91-c272-57d6-ae3f-93e8cd8cb21c"
       },
       "error": null,
       "entity": [
         {
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "id": "6676e16d-3fbd-5767-9174-2aef89d5983c",
           "class": "Shop",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
+          "owner": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
           "links": {},
           "data": {
             "city": "Казань",
@@ -360,57 +358,57 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "2ab963e1-5676-51a1-9277-51a5444a403b",
+          "author": "ec5cd1b3-778d-5541-9cf8-a45007c0d1b8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:02.305771+00"
+          "at": "2026-11-10 20:16:09.44975+00"
         },
         {
-          "id": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac",
+          "id": "4a46efbd-dee5-5cde-a4f1-6b7fa1b2870b",
           "class": "Category",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
+          "owner": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
           "links": {},
           "data": {
             "name": "Чай"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "2ab963e1-5676-51a1-9277-51a5444a403b",
+          "author": "ec5cd1b3-778d-5541-9cf8-a45007c0d1b8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:02.320253+00"
+          "at": "2026-11-10 20:16:09.479532+00"
         },
         {
-          "id": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+          "id": "6f35e97b-30c2-5c1b-a362-8e2cebe4fdea",
           "class": "Category",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
+          "owner": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
           "links": {
-            "Parent": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+            "Parent": "4a46efbd-dee5-5cde-a4f1-6b7fa1b2870b"
           },
           "data": {
             "name": "Зелёный чай"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "2ab963e1-5676-51a1-9277-51a5444a403b",
+          "author": "ec5cd1b3-778d-5541-9cf8-a45007c0d1b8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:02.32684+00"
+          "at": "2026-11-10 20:16:09.492771+00"
         },
         {
-          "id": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0",
+          "id": "46937fbe-2dfc-5840-8baa-f198a0b76e0b",
           "class": "Product",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
+          "owner": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Shop": "6676e16d-3fbd-5767-9174-2aef89d5983c",
             "Category": [
-              "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5"
+              "6f35e97b-30c2-5c1b-a362-8e2cebe4fdea"
             ]
           },
           "data": {
@@ -420,20 +418,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "2ab963e1-5676-51a1-9277-51a5444a403b",
+          "author": "ec5cd1b3-778d-5541-9cf8-a45007c0d1b8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:02.340175+00"
+          "at": "2026-11-10 20:16:09.515761+00"
         }
       ],
       "removed": [],
       "log": [
         {
-          "seq": "46",
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "seq": "53",
+          "id": "6676e16d-3fbd-5767-9174-2aef89d5983c",
           "rev": 1,
           "class": "Shop",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
           "links": {},
           "data": {
             "city": "Казань",
@@ -441,60 +439,60 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "2ab963e1-5676-51a1-9277-51a5444a403b",
+          "author": "ec5cd1b3-778d-5541-9cf8-a45007c0d1b8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:02.305771+00",
-          "tx": "3892443"
+          "at": "2026-11-10 20:16:09.44975+00",
+          "tx": "4256626"
         },
         {
-          "seq": "47",
-          "id": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac",
+          "seq": "54",
+          "id": "4a46efbd-dee5-5cde-a4f1-6b7fa1b2870b",
           "rev": 1,
           "class": "Category",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
           "links": {},
           "data": {
             "name": "Чай"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "2ab963e1-5676-51a1-9277-51a5444a403b",
+          "author": "ec5cd1b3-778d-5541-9cf8-a45007c0d1b8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:02.320253+00",
-          "tx": "3892447"
+          "at": "2026-11-10 20:16:09.479532+00",
+          "tx": "4256630"
         },
         {
-          "seq": "48",
-          "id": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+          "seq": "55",
+          "id": "6f35e97b-30c2-5c1b-a362-8e2cebe4fdea",
           "rev": 1,
           "class": "Category",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
           "links": {
-            "Parent": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+            "Parent": "4a46efbd-dee5-5cde-a4f1-6b7fa1b2870b"
           },
           "data": {
             "name": "Зелёный чай"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "2ab963e1-5676-51a1-9277-51a5444a403b",
+          "author": "ec5cd1b3-778d-5541-9cf8-a45007c0d1b8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:02.32684+00",
-          "tx": "3892449"
+          "at": "2026-11-10 20:16:09.492771+00",
+          "tx": "4256632"
         },
         {
-          "seq": "49",
-          "id": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0",
+          "seq": "56",
+          "id": "46937fbe-2dfc-5840-8baa-f198a0b76e0b",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Shop": "6676e16d-3fbd-5767-9174-2aef89d5983c",
             "Category": [
-              "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5"
+              "6f35e97b-30c2-5c1b-a362-8e2cebe4fdea"
             ]
           },
           "data": {
@@ -504,11 +502,11 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "2ab963e1-5676-51a1-9277-51a5444a403b",
+          "author": "ec5cd1b3-778d-5541-9cf8-a45007c0d1b8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:02.340175+00",
-          "tx": "3892453"
+          "at": "2026-11-10 20:16:09.515761+00",
+          "tx": "4256636"
         }
       ],
       "secret": [],
@@ -519,8 +517,8 @@
     {
       "result": [
         {
-          "at": "2026-11-04T05:15:02.366317+00:00",
-          "id": "fd3a3416-55d6-5445-bfbf-d33631bab515",
+          "at": "2026-11-10T20:16:09.583678+00:00",
+          "id": "c2c212b9-c1f7-5e81-acdf-7e09e6e4b29c",
           "op": "create",
           "rev": 1,
           "data": {
@@ -530,23 +528,22 @@
           "tags": [],
           "class": "line",
           "links": {
-            "Order": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
-            "Product": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0"
+            "Order": "909c01b9-fa2e-59f1-b2a3-df3d0f0ac892",
+            "Product": "46937fbe-2dfc-5840-8baa-f198a0b76e0b"
           },
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "agent": "2ab963e1-5676-51a1-9277-51a5444a403b"
+          "owner": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
+          "author": "ec5cd1b3-778d-5541-9cf8-a45007c0d1b8",
+          "tenant": "2affce91-c272-57d6-ae3f-93e8cd8cb21c"
         }
       ],
       "error": null,
       "entity": [
         {
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "id": "6676e16d-3fbd-5767-9174-2aef89d5983c",
           "class": "Shop",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
+          "owner": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
           "links": {},
           "data": {
             "city": "Казань",
@@ -554,57 +551,57 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "2ab963e1-5676-51a1-9277-51a5444a403b",
+          "author": "ec5cd1b3-778d-5541-9cf8-a45007c0d1b8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:02.305771+00"
+          "at": "2026-11-10 20:16:09.44975+00"
         },
         {
-          "id": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac",
+          "id": "4a46efbd-dee5-5cde-a4f1-6b7fa1b2870b",
           "class": "Category",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
+          "owner": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
           "links": {},
           "data": {
             "name": "Чай"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "2ab963e1-5676-51a1-9277-51a5444a403b",
+          "author": "ec5cd1b3-778d-5541-9cf8-a45007c0d1b8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:02.320253+00"
+          "at": "2026-11-10 20:16:09.479532+00"
         },
         {
-          "id": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+          "id": "6f35e97b-30c2-5c1b-a362-8e2cebe4fdea",
           "class": "Category",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
+          "owner": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
           "links": {
-            "Parent": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+            "Parent": "4a46efbd-dee5-5cde-a4f1-6b7fa1b2870b"
           },
           "data": {
             "name": "Зелёный чай"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "2ab963e1-5676-51a1-9277-51a5444a403b",
+          "author": "ec5cd1b3-778d-5541-9cf8-a45007c0d1b8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:02.32684+00"
+          "at": "2026-11-10 20:16:09.492771+00"
         },
         {
-          "id": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0",
+          "id": "46937fbe-2dfc-5840-8baa-f198a0b76e0b",
           "class": "Product",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
+          "owner": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Shop": "6676e16d-3fbd-5767-9174-2aef89d5983c",
             "Category": [
-              "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5"
+              "6f35e97b-30c2-5c1b-a362-8e2cebe4fdea"
             ]
           },
           "data": {
@@ -614,17 +611,17 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "2ab963e1-5676-51a1-9277-51a5444a403b",
+          "author": "ec5cd1b3-778d-5541-9cf8-a45007c0d1b8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:02.340175+00"
+          "at": "2026-11-10 20:16:09.515761+00"
         },
         {
-          "id": "4f9e45a0-7946-55d0-bf41-c322481b0959",
+          "id": "44422b78-5f55-5d14-bfb4-bff6175667bb",
           "class": "Customer",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
+          "owner": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
           "links": {},
           "data": {
             "name": "Ольга",
@@ -632,40 +629,40 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "2ab963e1-5676-51a1-9277-51a5444a403b",
+          "author": "ec5cd1b3-778d-5541-9cf8-a45007c0d1b8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:02.353788+00"
+          "at": "2026-11-10 20:16:09.543671+00"
         },
         {
-          "id": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
+          "id": "909c01b9-fa2e-59f1-b2a3-df3d0f0ac892",
           "class": "Order",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
+          "owner": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
-            "Customer": "4f9e45a0-7946-55d0-bf41-c322481b0959"
+            "Shop": "6676e16d-3fbd-5767-9174-2aef89d5983c",
+            "Customer": "44422b78-5f55-5d14-bfb4-bff6175667bb"
           },
           "data": {
             "number": "A-1"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "2ab963e1-5676-51a1-9277-51a5444a403b",
+          "author": "ec5cd1b3-778d-5541-9cf8-a45007c0d1b8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:02.361611+00"
+          "at": "2026-11-10 20:16:09.57836+00"
         },
         {
-          "id": "fd3a3416-55d6-5445-bfbf-d33631bab515",
+          "id": "c2c212b9-c1f7-5e81-acdf-7e09e6e4b29c",
           "class": "line",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
+          "owner": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
           "links": {
-            "Order": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
-            "Product": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0"
+            "Order": "909c01b9-fa2e-59f1-b2a3-df3d0f0ac892",
+            "Product": "46937fbe-2dfc-5840-8baa-f198a0b76e0b"
           },
           "data": {
             "qty": 2,
@@ -673,20 +670,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "2ab963e1-5676-51a1-9277-51a5444a403b",
+          "author": "ec5cd1b3-778d-5541-9cf8-a45007c0d1b8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:02.366317+00"
+          "at": "2026-11-10 20:16:09.583678+00"
         }
       ],
       "removed": [],
       "log": [
         {
-          "seq": "46",
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "seq": "53",
+          "id": "6676e16d-3fbd-5767-9174-2aef89d5983c",
           "rev": 1,
           "class": "Shop",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
           "links": {},
           "data": {
             "city": "Казань",
@@ -694,60 +691,60 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "2ab963e1-5676-51a1-9277-51a5444a403b",
+          "author": "ec5cd1b3-778d-5541-9cf8-a45007c0d1b8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:02.305771+00",
-          "tx": "3892443"
+          "at": "2026-11-10 20:16:09.44975+00",
+          "tx": "4256626"
         },
         {
-          "seq": "47",
-          "id": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac",
+          "seq": "54",
+          "id": "4a46efbd-dee5-5cde-a4f1-6b7fa1b2870b",
           "rev": 1,
           "class": "Category",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
           "links": {},
           "data": {
             "name": "Чай"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "2ab963e1-5676-51a1-9277-51a5444a403b",
+          "author": "ec5cd1b3-778d-5541-9cf8-a45007c0d1b8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:02.320253+00",
-          "tx": "3892447"
+          "at": "2026-11-10 20:16:09.479532+00",
+          "tx": "4256630"
         },
         {
-          "seq": "48",
-          "id": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+          "seq": "55",
+          "id": "6f35e97b-30c2-5c1b-a362-8e2cebe4fdea",
           "rev": 1,
           "class": "Category",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
           "links": {
-            "Parent": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+            "Parent": "4a46efbd-dee5-5cde-a4f1-6b7fa1b2870b"
           },
           "data": {
             "name": "Зелёный чай"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "2ab963e1-5676-51a1-9277-51a5444a403b",
+          "author": "ec5cd1b3-778d-5541-9cf8-a45007c0d1b8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:02.32684+00",
-          "tx": "3892449"
+          "at": "2026-11-10 20:16:09.492771+00",
+          "tx": "4256632"
         },
         {
-          "seq": "49",
-          "id": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0",
+          "seq": "56",
+          "id": "46937fbe-2dfc-5840-8baa-f198a0b76e0b",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Shop": "6676e16d-3fbd-5767-9174-2aef89d5983c",
             "Category": [
-              "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5"
+              "6f35e97b-30c2-5c1b-a362-8e2cebe4fdea"
             ]
           },
           "data": {
@@ -757,18 +754,18 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "2ab963e1-5676-51a1-9277-51a5444a403b",
+          "author": "ec5cd1b3-778d-5541-9cf8-a45007c0d1b8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:02.340175+00",
-          "tx": "3892453"
+          "at": "2026-11-10 20:16:09.515761+00",
+          "tx": "4256636"
         },
         {
-          "seq": "50",
-          "id": "4f9e45a0-7946-55d0-bf41-c322481b0959",
+          "seq": "57",
+          "id": "44422b78-5f55-5d14-bfb4-bff6175667bb",
           "rev": 1,
           "class": "Customer",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
           "links": {},
           "data": {
             "name": "Ольга",
@@ -776,42 +773,42 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "2ab963e1-5676-51a1-9277-51a5444a403b",
+          "author": "ec5cd1b3-778d-5541-9cf8-a45007c0d1b8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:02.353788+00",
-          "tx": "3892457"
+          "at": "2026-11-10 20:16:09.543671+00",
+          "tx": "4256640"
         },
         {
-          "seq": "51",
-          "id": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
+          "seq": "58",
+          "id": "909c01b9-fa2e-59f1-b2a3-df3d0f0ac892",
           "rev": 1,
           "class": "Order",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
-            "Customer": "4f9e45a0-7946-55d0-bf41-c322481b0959"
+            "Shop": "6676e16d-3fbd-5767-9174-2aef89d5983c",
+            "Customer": "44422b78-5f55-5d14-bfb4-bff6175667bb"
           },
           "data": {
             "number": "A-1"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "2ab963e1-5676-51a1-9277-51a5444a403b",
+          "author": "ec5cd1b3-778d-5541-9cf8-a45007c0d1b8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:02.361611+00",
-          "tx": "3892459"
+          "at": "2026-11-10 20:16:09.57836+00",
+          "tx": "4256642"
         },
         {
-          "seq": "52",
-          "id": "fd3a3416-55d6-5445-bfbf-d33631bab515",
+          "seq": "59",
+          "id": "c2c212b9-c1f7-5e81-acdf-7e09e6e4b29c",
           "rev": 1,
           "class": "line",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
           "links": {
-            "Order": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
-            "Product": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0"
+            "Order": "909c01b9-fa2e-59f1-b2a3-df3d0f0ac892",
+            "Product": "46937fbe-2dfc-5840-8baa-f198a0b76e0b"
           },
           "data": {
             "qty": 2,
@@ -819,11 +816,11 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "2ab963e1-5676-51a1-9277-51a5444a403b",
+          "author": "ec5cd1b3-778d-5541-9cf8-a45007c0d1b8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:02.366317+00",
-          "tx": "3892459"
+          "at": "2026-11-10 20:16:09.583678+00",
+          "tx": "4256642"
         }
       ],
       "secret": [],
@@ -837,18 +834,18 @@
       "result": null,
       "error": {
         "code": "exists",
-        "message": "letopis: exists: объект класса Shop уже существует (id 820d0964-969f-5ad6-bc38-f38710912f70)",
+        "message": "letopis: exists: объект класса Shop уже существует (id 6676e16d-3fbd-5767-9174-2aef89d5983c)",
         "detail": {
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70"
+          "id": "6676e16d-3fbd-5767-9174-2aef89d5983c"
         }
       },
       "entity": [
         {
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "id": "6676e16d-3fbd-5767-9174-2aef89d5983c",
           "class": "Shop",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
+          "owner": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
           "links": {},
           "data": {
             "city": "Казань",
@@ -856,57 +853,57 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "2ab963e1-5676-51a1-9277-51a5444a403b",
+          "author": "ec5cd1b3-778d-5541-9cf8-a45007c0d1b8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:02.305771+00"
+          "at": "2026-11-10 20:16:09.44975+00"
         },
         {
-          "id": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac",
+          "id": "4a46efbd-dee5-5cde-a4f1-6b7fa1b2870b",
           "class": "Category",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
+          "owner": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
           "links": {},
           "data": {
             "name": "Чай"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "2ab963e1-5676-51a1-9277-51a5444a403b",
+          "author": "ec5cd1b3-778d-5541-9cf8-a45007c0d1b8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:02.320253+00"
+          "at": "2026-11-10 20:16:09.479532+00"
         },
         {
-          "id": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+          "id": "6f35e97b-30c2-5c1b-a362-8e2cebe4fdea",
           "class": "Category",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
+          "owner": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
           "links": {
-            "Parent": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+            "Parent": "4a46efbd-dee5-5cde-a4f1-6b7fa1b2870b"
           },
           "data": {
             "name": "Зелёный чай"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "2ab963e1-5676-51a1-9277-51a5444a403b",
+          "author": "ec5cd1b3-778d-5541-9cf8-a45007c0d1b8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:02.32684+00"
+          "at": "2026-11-10 20:16:09.492771+00"
         },
         {
-          "id": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0",
+          "id": "46937fbe-2dfc-5840-8baa-f198a0b76e0b",
           "class": "Product",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
+          "owner": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Shop": "6676e16d-3fbd-5767-9174-2aef89d5983c",
             "Category": [
-              "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5"
+              "6f35e97b-30c2-5c1b-a362-8e2cebe4fdea"
             ]
           },
           "data": {
@@ -916,17 +913,17 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "2ab963e1-5676-51a1-9277-51a5444a403b",
+          "author": "ec5cd1b3-778d-5541-9cf8-a45007c0d1b8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:02.340175+00"
+          "at": "2026-11-10 20:16:09.515761+00"
         },
         {
-          "id": "4f9e45a0-7946-55d0-bf41-c322481b0959",
+          "id": "44422b78-5f55-5d14-bfb4-bff6175667bb",
           "class": "Customer",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
+          "owner": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
           "links": {},
           "data": {
             "name": "Ольга",
@@ -934,40 +931,40 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "2ab963e1-5676-51a1-9277-51a5444a403b",
+          "author": "ec5cd1b3-778d-5541-9cf8-a45007c0d1b8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:02.353788+00"
+          "at": "2026-11-10 20:16:09.543671+00"
         },
         {
-          "id": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
+          "id": "909c01b9-fa2e-59f1-b2a3-df3d0f0ac892",
           "class": "Order",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
+          "owner": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
-            "Customer": "4f9e45a0-7946-55d0-bf41-c322481b0959"
+            "Shop": "6676e16d-3fbd-5767-9174-2aef89d5983c",
+            "Customer": "44422b78-5f55-5d14-bfb4-bff6175667bb"
           },
           "data": {
             "number": "A-1"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "2ab963e1-5676-51a1-9277-51a5444a403b",
+          "author": "ec5cd1b3-778d-5541-9cf8-a45007c0d1b8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:02.361611+00"
+          "at": "2026-11-10 20:16:09.57836+00"
         },
         {
-          "id": "fd3a3416-55d6-5445-bfbf-d33631bab515",
+          "id": "c2c212b9-c1f7-5e81-acdf-7e09e6e4b29c",
           "class": "line",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
+          "owner": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
           "links": {
-            "Order": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
-            "Product": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0"
+            "Order": "909c01b9-fa2e-59f1-b2a3-df3d0f0ac892",
+            "Product": "46937fbe-2dfc-5840-8baa-f198a0b76e0b"
           },
           "data": {
             "qty": 2,
@@ -975,20 +972,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "2ab963e1-5676-51a1-9277-51a5444a403b",
+          "author": "ec5cd1b3-778d-5541-9cf8-a45007c0d1b8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:02.366317+00"
+          "at": "2026-11-10 20:16:09.583678+00"
         }
       ],
       "removed": [],
       "log": [
         {
-          "seq": "46",
-          "id": "820d0964-969f-5ad6-bc38-f38710912f70",
+          "seq": "53",
+          "id": "6676e16d-3fbd-5767-9174-2aef89d5983c",
           "rev": 1,
           "class": "Shop",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
           "links": {},
           "data": {
             "city": "Казань",
@@ -996,60 +993,60 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "2ab963e1-5676-51a1-9277-51a5444a403b",
+          "author": "ec5cd1b3-778d-5541-9cf8-a45007c0d1b8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:02.305771+00",
-          "tx": "3892443"
+          "at": "2026-11-10 20:16:09.44975+00",
+          "tx": "4256626"
         },
         {
-          "seq": "47",
-          "id": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac",
+          "seq": "54",
+          "id": "4a46efbd-dee5-5cde-a4f1-6b7fa1b2870b",
           "rev": 1,
           "class": "Category",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
           "links": {},
           "data": {
             "name": "Чай"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "2ab963e1-5676-51a1-9277-51a5444a403b",
+          "author": "ec5cd1b3-778d-5541-9cf8-a45007c0d1b8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:02.320253+00",
-          "tx": "3892447"
+          "at": "2026-11-10 20:16:09.479532+00",
+          "tx": "4256630"
         },
         {
-          "seq": "48",
-          "id": "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5",
+          "seq": "55",
+          "id": "6f35e97b-30c2-5c1b-a362-8e2cebe4fdea",
           "rev": 1,
           "class": "Category",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
           "links": {
-            "Parent": "fe5cdf89-ba6f-5806-9ce1-c59e102020ac"
+            "Parent": "4a46efbd-dee5-5cde-a4f1-6b7fa1b2870b"
           },
           "data": {
             "name": "Зелёный чай"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "2ab963e1-5676-51a1-9277-51a5444a403b",
+          "author": "ec5cd1b3-778d-5541-9cf8-a45007c0d1b8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:02.32684+00",
-          "tx": "3892449"
+          "at": "2026-11-10 20:16:09.492771+00",
+          "tx": "4256632"
         },
         {
-          "seq": "49",
-          "id": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0",
+          "seq": "56",
+          "id": "46937fbe-2dfc-5840-8baa-f198a0b76e0b",
           "rev": 1,
           "class": "Product",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
+            "Shop": "6676e16d-3fbd-5767-9174-2aef89d5983c",
             "Category": [
-              "e8d0eb60-d5ca-530b-aa99-0d4fba4313e5"
+              "6f35e97b-30c2-5c1b-a362-8e2cebe4fdea"
             ]
           },
           "data": {
@@ -1059,18 +1056,18 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "2ab963e1-5676-51a1-9277-51a5444a403b",
+          "author": "ec5cd1b3-778d-5541-9cf8-a45007c0d1b8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:02.340175+00",
-          "tx": "3892453"
+          "at": "2026-11-10 20:16:09.515761+00",
+          "tx": "4256636"
         },
         {
-          "seq": "50",
-          "id": "4f9e45a0-7946-55d0-bf41-c322481b0959",
+          "seq": "57",
+          "id": "44422b78-5f55-5d14-bfb4-bff6175667bb",
           "rev": 1,
           "class": "Customer",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
           "links": {},
           "data": {
             "name": "Ольга",
@@ -1078,42 +1075,42 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "2ab963e1-5676-51a1-9277-51a5444a403b",
+          "author": "ec5cd1b3-778d-5541-9cf8-a45007c0d1b8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:02.353788+00",
-          "tx": "3892457"
+          "at": "2026-11-10 20:16:09.543671+00",
+          "tx": "4256640"
         },
         {
-          "seq": "51",
-          "id": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
+          "seq": "58",
+          "id": "909c01b9-fa2e-59f1-b2a3-df3d0f0ac892",
           "rev": 1,
           "class": "Order",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
           "links": {
-            "Shop": "820d0964-969f-5ad6-bc38-f38710912f70",
-            "Customer": "4f9e45a0-7946-55d0-bf41-c322481b0959"
+            "Shop": "6676e16d-3fbd-5767-9174-2aef89d5983c",
+            "Customer": "44422b78-5f55-5d14-bfb4-bff6175667bb"
           },
           "data": {
             "number": "A-1"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "2ab963e1-5676-51a1-9277-51a5444a403b",
+          "author": "ec5cd1b3-778d-5541-9cf8-a45007c0d1b8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:02.361611+00",
-          "tx": "3892459"
+          "at": "2026-11-10 20:16:09.57836+00",
+          "tx": "4256642"
         },
         {
-          "seq": "52",
-          "id": "fd3a3416-55d6-5445-bfbf-d33631bab515",
+          "seq": "59",
+          "id": "c2c212b9-c1f7-5e81-acdf-7e09e6e4b29c",
           "rev": 1,
           "class": "line",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "2affce91-c272-57d6-ae3f-93e8cd8cb21c",
           "links": {
-            "Order": "a81ea94e-7777-5ed4-abae-f7fa9ffd9948",
-            "Product": "9f69fa84-16f4-51f9-af51-bfd3c133f8d0"
+            "Order": "909c01b9-fa2e-59f1-b2a3-df3d0f0ac892",
+            "Product": "46937fbe-2dfc-5840-8baa-f198a0b76e0b"
           },
           "data": {
             "qty": 2,
@@ -1121,17 +1118,17 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "2ab963e1-5676-51a1-9277-51a5444a403b",
+          "author": "ec5cd1b3-778d-5541-9cf8-a45007c0d1b8",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:15:02.366317+00",
-          "tx": "3892459"
+          "at": "2026-11-10 20:16:09.583678+00",
+          "tx": "4256642"
         }
       ],
       "secret": [],
       "signals": []
     }
   ],
-  "output": "Шаг 1. Сухой прогон: что будет создано\n{\n  \"applied\": false,\n  \"created\": [\n    \"Shop\",\n    \"Category\",\n    \"Product\",\n    \"Customer\",\n    \"Order\",\n    \"line\"\n  ]\n}\n\nШаг 2. Записываем модель\n{\n  \"applied\": true,\n  \"created\": [\n    \"Shop\",\n    \"Category\",\n    \"Product\",\n    \"Customer\",\n    \"Order\",\n    \"line\"\n  ],\n  \"lost\": []\n}\n\nШаг 3. Что записано в базе: ключи и концы\n[\n  {\n    \"класс\": \"Shop\",\n    \"ключ\": \"name\",\n    \"концы\": \"—\"\n  },\n  {\n    \"класс\": \"Category\",\n    \"ключ\": \"name\",\n    \"концы\": \"Parent → Category (unset)\"\n  },\n  {\n    \"класс\": \"Product\",\n    \"ключ\": \"Shop + sku\",\n    \"концы\": \"Shop → Shop (restrict), Category → Category (unset)\"\n  },\n  {\n    \"класс\": \"Customer\",\n    \"ключ\": \"—\",\n    \"концы\": \"—\"\n  },\n  {\n    \"класс\": \"Order\",\n    \"ключ\": \"Shop + number\",\n    \"концы\": \"Shop → Shop (restrict), Customer → Customer (restrict)\"\n  },\n  {\n    \"класс\": \"line\",\n    \"ключ\": \"Order + Product\",\n    \"концы\": \"Order → Order (cascade), Product → Product (restrict)\"\n  }\n]\n\nШаг 4. Конец модели изнутри\n{\n  \"Product.Category\": {\n    \"targets\": [\n      \"модель Category\"\n    ],\n    \"classNames\": [\n      \"Category\"\n    ],\n    \"many\": true,\n    \"required\": false,\n    \"min\": null,\n    \"max\": 5,\n    \"onDeleteRule\": \"unset\",\n    \"metaData\": null\n  },\n  \"Category.Parent\": {\n    \"targets\": [\n      \"имя «Category»\"\n    ],\n    \"classNames\": [\n      \"Category\"\n    ],\n    \"many\": false,\n    \"required\": false,\n    \"min\": null,\n    \"max\": null,\n    \"onDeleteRule\": \"unset\",\n    \"metaData\": {\n      \"title\": \"Родитель\"\n    }\n  },\n  \"исходный one('Category') не изменился\": true\n}\n\nШаг 5. Магазин: id вычисляется из ключа\n{\n  \"sameId\": true\n}\n\nШаг 6. Дерево категорий: конец на родителя\n{\n  \"at\": \"2026-11-04T05:15:03.919149+00:00\",\n  \"id\": \"e8d0eb60-d5ca-530b-aa99-0d4fba4313e5\",\n  \"op\": \"create\",\n  \"rev\": 1,\n  \"data\": {\n    \"name\": \"Зелёный чай\"\n  },\n  \"tags\": [],\n  \"class\": \"Category\",\n  \"links\": {\n    \"Parent\": \"fe5cdf89-ba6f-5806-9ce1-c59e102020ac\"\n  },\n  \"owner\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n  \"author\": \"3defbabb-a94d-5359-8463-dc947de193e1\",\n  \"tenant\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n  \"agent\": \"59ed1b0d-fd62-5d85-83de-9ef7c88b3106\"\n}\n\nШаг 7. Товар: магазин — из пути, категория — вызовом .Category.add()\n{\n  \"at\": \"2026-11-04T05:15:03.933834+00:00\",\n  \"id\": \"9f69fa84-16f4-51f9-af51-bfd3c133f8d0\",\n  \"op\": \"create\",\n  \"rev\": 1,\n  \"data\": {\n    \"sku\": \"T-7\",\n    \"price\": 900,\n    \"title\": \"Сенча\"\n  },\n  \"tags\": [],\n  \"class\": \"Product\",\n  \"links\": {\n    \"Shop\": \"820d0964-969f-5ad6-bc38-f38710912f70\",\n    \"Category\": [\n      \"e8d0eb60-d5ca-530b-aa99-0d4fba4313e5\"\n    ]\n  },\n  \"owner\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n  \"author\": \"3defbabb-a94d-5359-8463-dc947de193e1\",\n  \"tenant\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n  \"agent\": \"59ed1b0d-fd62-5d85-83de-9ef7c88b3106\"\n}\n\nШаг 8. Покупатель, заказ и строка заказа — одним планом\n[\n  {\n    \"at\": \"2026-11-04T05:15:03.956593+00:00\",\n    \"id\": \"fd3a3416-55d6-5445-bfbf-d33631bab515\",\n    \"op\": \"create\",\n    \"rev\": 1,\n    \"data\": {\n      \"qty\": 2,\n      \"price\": 900\n    },\n    \"tags\": [],\n    \"class\": \"line\",\n    \"links\": {\n      \"Order\": \"a81ea94e-7777-5ed4-abae-f7fa9ffd9948\",\n      \"Product\": \"9f69fa84-16f4-51f9-af51-bfd3c133f8d0\"\n    },\n    \"owner\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n    \"author\": \"3defbabb-a94d-5359-8463-dc947de193e1\",\n    \"tenant\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\",\n    \"agent\": \"59ed1b0d-fd62-5d85-83de-9ef7c88b3106\"\n  }\n]\n\nШаг 9. Второй магазин с тем же ключом — отказ\nотказ, как и задумано: letopis: exists: объект класса Shop уже существует (id 820d0964-969f-5ad6-bc38-f38710912f70)",
+  "output": "Шаг 1. Сухой прогон: что будет создано\n{\n  \"applied\": false,\n  \"created\": [\n    \"Shop\",\n    \"Category\",\n    \"Product\",\n    \"Customer\",\n    \"Order\",\n    \"line\"\n  ]\n}\n\nШаг 2. Записываем модель в дом\n{\n  \"applied\": true,\n  \"created\": [\n    \"Shop\",\n    \"Category\",\n    \"Product\",\n    \"Customer\",\n    \"Order\",\n    \"line\"\n  ],\n  \"lost\": []\n}\n\nШаг 3. Что записано в базе: ключи и концы\n[\n  {\n    \"класс\": \"Shop\",\n    \"ключ\": \"name\",\n    \"концы\": \"—\"\n  },\n  {\n    \"класс\": \"Category\",\n    \"ключ\": \"name\",\n    \"концы\": \"Parent → Category (unset)\"\n  },\n  {\n    \"класс\": \"Product\",\n    \"ключ\": \"Shop + sku\",\n    \"концы\": \"Shop → Shop (restrict), Category → Category (unset)\"\n  },\n  {\n    \"класс\": \"Customer\",\n    \"ключ\": \"—\",\n    \"концы\": \"—\"\n  },\n  {\n    \"класс\": \"Order\",\n    \"ключ\": \"Shop + number\",\n    \"концы\": \"Shop → Shop (restrict), Customer → Customer (restrict)\"\n  },\n  {\n    \"класс\": \"line\",\n    \"ключ\": \"Order + Product\",\n    \"концы\": \"Order → Order (cascade), Product → Product (restrict)\"\n  }\n]\n\nШаг 4. Конец модели изнутри\n{\n  \"Product.Category\": {\n    \"targets\": [\n      \"модель Category\"\n    ],\n    \"classNames\": [\n      \"Category\"\n    ],\n    \"many\": true,\n    \"required\": false,\n    \"min\": null,\n    \"max\": 5,\n    \"onDeleteRule\": \"unset\",\n    \"metaData\": null\n  },\n  \"Category.Parent\": {\n    \"targets\": [\n      \"имя «Category»\"\n    ],\n    \"classNames\": [\n      \"Category\"\n    ],\n    \"many\": false,\n    \"required\": false,\n    \"min\": null,\n    \"max\": null,\n    \"onDeleteRule\": \"unset\",\n    \"metaData\": {\n      \"title\": \"Родитель\"\n    }\n  },\n  \"исходный one('Category') не изменился\": true\n}\n\nШаг 5. Магазин: id вычисляется из ключа\n{\n  \"sameId\": true\n}\n\nШаг 6. Дерево категорий: конец на родителя\n{\n  \"at\": \"2026-11-10T20:16:12.022705+00:00\",\n  \"id\": \"c5d20c57-989d-580f-8529-93a6c6873ff1\",\n  \"op\": \"create\",\n  \"rev\": 1,\n  \"data\": {\n    \"name\": \"Зелёный чай\"\n  },\n  \"tags\": [],\n  \"class\": \"Category\",\n  \"links\": {\n    \"Parent\": \"96a7c10e-2783-5f30-860f-51dcf2fff162\"\n  },\n  \"owner\": \"d2b14e26-2bcb-5542-b2ca-204350eb23e2\",\n  \"author\": \"93e33881-e255-5c73-894d-2c66cb8e2022\",\n  \"tenant\": \"d2b14e26-2bcb-5542-b2ca-204350eb23e2\"\n}\n\nШаг 7. Товар: магазин — из пути, категория — вызовом .Category.add()\n{\n  \"at\": \"2026-11-10T20:16:12.037171+00:00\",\n  \"id\": \"e6c35e44-88ec-5ba7-9303-e145f36af2f1\",\n  \"op\": \"create\",\n  \"rev\": 1,\n  \"data\": {\n    \"sku\": \"T-7\",\n    \"price\": 900,\n    \"title\": \"Сенча\"\n  },\n  \"tags\": [],\n  \"class\": \"Product\",\n  \"links\": {\n    \"Shop\": \"2df1e53c-da9c-57fb-97ac-c766b8b29656\",\n    \"Category\": [\n      \"c5d20c57-989d-580f-8529-93a6c6873ff1\"\n    ]\n  },\n  \"owner\": \"d2b14e26-2bcb-5542-b2ca-204350eb23e2\",\n  \"author\": \"93e33881-e255-5c73-894d-2c66cb8e2022\",\n  \"tenant\": \"d2b14e26-2bcb-5542-b2ca-204350eb23e2\"\n}\n\nШаг 8. Покупатель, заказ и строка заказа — одним планом\n[\n  {\n    \"at\": \"2026-11-10T20:16:12.065734+00:00\",\n    \"id\": \"e78ed2e8-6f70-5057-9185-b8867dd3f6c4\",\n    \"op\": \"create\",\n    \"rev\": 1,\n    \"data\": {\n      \"qty\": 2,\n      \"price\": 900\n    },\n    \"tags\": [],\n    \"class\": \"line\",\n    \"links\": {\n      \"Order\": \"9d112d86-6442-5b04-870e-19c6b7c1e450\",\n      \"Product\": \"e6c35e44-88ec-5ba7-9303-e145f36af2f1\"\n    },\n    \"owner\": \"d2b14e26-2bcb-5542-b2ca-204350eb23e2\",\n    \"author\": \"93e33881-e255-5c73-894d-2c66cb8e2022\",\n    \"tenant\": \"d2b14e26-2bcb-5542-b2ca-204350eb23e2\"\n  }\n]\n\nШаг 9. Второй магазин с тем же ключом — отказ\nотказ, как и задумано: letopis: exists: объект класса Shop уже существует (id 2df1e53c-da9c-57fb-97ac-c766b8b29656)",
   "exitCode": 0
 }

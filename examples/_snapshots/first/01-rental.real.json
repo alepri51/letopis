@@ -24,11 +24,11 @@
       "error": null,
       "entity": [
         {
-          "id": "045522e2-9af3-58fd-ba83-0e9ff2e5e113",
+          "id": "d19e2bb3-3b57-58d2-a6f7-75c1dac38720",
           "class": "Item",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
+          "owner": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {},
           "data": {
             "code": "B-1",
@@ -36,17 +36,17 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:58.902432+00"
+          "at": "2026-11-10 20:14:30.039232+00"
         },
         {
-          "id": "6b969aa8-4ebb-56d4-95c7-1fdc9b70b315",
+          "id": "16623ba9-25fa-5545-8ed0-341c8a574f29",
           "class": "Member",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
+          "owner": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {},
           "data": {
             "card": "C-1",
@@ -54,17 +54,17 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:58.909435+00"
+          "at": "2026-11-10 20:14:30.058541+00"
         },
         {
-          "id": "f2f14e35-dfe8-555d-87fe-44f512267f33",
+          "id": "fc999bcb-fa90-5429-8394-c8e9c42773ee",
           "class": "Member",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
+          "owner": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {},
           "data": {
             "card": "C-2",
@@ -72,20 +72,20 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:58.91584+00"
+          "at": "2026-11-10 20:14:30.068916+00"
         }
       ],
       "removed": [],
       "log": [
         {
-          "seq": "37",
-          "id": "045522e2-9af3-58fd-ba83-0e9ff2e5e113",
+          "seq": "44",
+          "id": "d19e2bb3-3b57-58d2-a6f7-75c1dac38720",
           "rev": 1,
           "class": "Item",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {},
           "data": {
             "code": "B-1",
@@ -93,18 +93,18 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:58.902432+00",
-          "tx": "3891676"
+          "at": "2026-11-10 20:14:30.039232+00",
+          "tx": "4255150"
         },
         {
-          "seq": "38",
-          "id": "6b969aa8-4ebb-56d4-95c7-1fdc9b70b315",
+          "seq": "45",
+          "id": "16623ba9-25fa-5545-8ed0-341c8a574f29",
           "rev": 1,
           "class": "Member",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {},
           "data": {
             "card": "C-1",
@@ -112,18 +112,18 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:58.909435+00",
-          "tx": "3891678"
+          "at": "2026-11-10 20:14:30.058541+00",
+          "tx": "4255152"
         },
         {
-          "seq": "39",
-          "id": "f2f14e35-dfe8-555d-87fe-44f512267f33",
+          "seq": "46",
+          "id": "fc999bcb-fa90-5429-8394-c8e9c42773ee",
           "rev": 1,
           "class": "Member",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {},
           "data": {
             "card": "C-2",
@@ -131,16 +131,15 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:58.91584+00",
-          "tx": "3891680"
+          "at": "2026-11-10 20:14:30.068916+00",
+          "tx": "4255154"
         }
       ],
       "secret": [],
       "signals": [
-        "Class",
         "Item",
         "Member"
       ]
@@ -153,11 +152,11 @@
       "error": null,
       "entity": [
         {
-          "id": "045522e2-9af3-58fd-ba83-0e9ff2e5e113",
+          "id": "d19e2bb3-3b57-58d2-a6f7-75c1dac38720",
           "class": "Item",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
+          "owner": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {},
           "data": {
             "code": "B-1",
@@ -165,17 +164,17 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:58.902432+00"
+          "at": "2026-11-10 20:14:30.039232+00"
         },
         {
-          "id": "6b969aa8-4ebb-56d4-95c7-1fdc9b70b315",
+          "id": "16623ba9-25fa-5545-8ed0-341c8a574f29",
           "class": "Member",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
+          "owner": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {},
           "data": {
             "card": "C-1",
@@ -183,17 +182,17 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:58.909435+00"
+          "at": "2026-11-10 20:14:30.058541+00"
         },
         {
-          "id": "f2f14e35-dfe8-555d-87fe-44f512267f33",
+          "id": "fc999bcb-fa90-5429-8394-c8e9c42773ee",
           "class": "Member",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
+          "owner": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {},
           "data": {
             "card": "C-2",
@@ -201,40 +200,40 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:58.91584+00"
+          "at": "2026-11-10 20:14:30.068916+00"
         },
         {
-          "id": "09a365a1-6694-5e8f-8d7e-26d755429093",
+          "id": "ffa3f677-b6f1-5608-8137-c88038f84dc4",
           "class": "OpenLoan",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
+          "owner": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {
-            "Item": "045522e2-9af3-58fd-ba83-0e9ff2e5e113",
-            "Member": "f2f14e35-dfe8-555d-87fe-44f512267f33"
+            "Item": "d19e2bb3-3b57-58d2-a6f7-75c1dac38720",
+            "Member": "fc999bcb-fa90-5429-8394-c8e9c42773ee"
           },
           "data": {
             "since": "2026-11-03"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:58.934136+00"
+          "at": "2026-11-10 20:14:30.090452+00"
         }
       ],
       "removed": [],
       "log": [
         {
-          "seq": "37",
-          "id": "045522e2-9af3-58fd-ba83-0e9ff2e5e113",
+          "seq": "44",
+          "id": "d19e2bb3-3b57-58d2-a6f7-75c1dac38720",
           "rev": 1,
           "class": "Item",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {},
           "data": {
             "code": "B-1",
@@ -242,18 +241,18 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:58.902432+00",
-          "tx": "3891676"
+          "at": "2026-11-10 20:14:30.039232+00",
+          "tx": "4255150"
         },
         {
-          "seq": "38",
-          "id": "6b969aa8-4ebb-56d4-95c7-1fdc9b70b315",
+          "seq": "45",
+          "id": "16623ba9-25fa-5545-8ed0-341c8a574f29",
           "rev": 1,
           "class": "Member",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {},
           "data": {
             "card": "C-1",
@@ -261,18 +260,18 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:58.909435+00",
-          "tx": "3891678"
+          "at": "2026-11-10 20:14:30.058541+00",
+          "tx": "4255152"
         },
         {
-          "seq": "39",
-          "id": "f2f14e35-dfe8-555d-87fe-44f512267f33",
+          "seq": "46",
+          "id": "fc999bcb-fa90-5429-8394-c8e9c42773ee",
           "rev": 1,
           "class": "Member",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {},
           "data": {
             "card": "C-2",
@@ -280,32 +279,32 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:58.91584+00",
-          "tx": "3891680"
+          "at": "2026-11-10 20:14:30.068916+00",
+          "tx": "4255154"
         },
         {
-          "seq": "40",
-          "id": "09a365a1-6694-5e8f-8d7e-26d755429093",
+          "seq": "47",
+          "id": "ffa3f677-b6f1-5608-8137-c88038f84dc4",
           "rev": 1,
           "class": "OpenLoan",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {
-            "Item": "045522e2-9af3-58fd-ba83-0e9ff2e5e113",
-            "Member": "f2f14e35-dfe8-555d-87fe-44f512267f33"
+            "Item": "d19e2bb3-3b57-58d2-a6f7-75c1dac38720",
+            "Member": "fc999bcb-fa90-5429-8394-c8e9c42773ee"
           },
           "data": {
             "since": "2026-11-03"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:58.934136+00",
-          "tx": "3891684"
+          "at": "2026-11-10 20:14:30.090452+00",
+          "tx": "4255160"
         }
       ],
       "secret": [],
@@ -329,11 +328,11 @@
       "error": null,
       "entity": [
         {
-          "id": "045522e2-9af3-58fd-ba83-0e9ff2e5e113",
+          "id": "d19e2bb3-3b57-58d2-a6f7-75c1dac38720",
           "class": "Item",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
+          "owner": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {},
           "data": {
             "code": "B-1",
@@ -341,17 +340,17 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:58.902432+00"
+          "at": "2026-11-10 20:14:30.039232+00"
         },
         {
-          "id": "6b969aa8-4ebb-56d4-95c7-1fdc9b70b315",
+          "id": "16623ba9-25fa-5545-8ed0-341c8a574f29",
           "class": "Member",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
+          "owner": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {},
           "data": {
             "card": "C-1",
@@ -359,17 +358,17 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:58.909435+00"
+          "at": "2026-11-10 20:14:30.058541+00"
         },
         {
-          "id": "f2f14e35-dfe8-555d-87fe-44f512267f33",
+          "id": "fc999bcb-fa90-5429-8394-c8e9c42773ee",
           "class": "Member",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
+          "owner": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {},
           "data": {
             "card": "C-2",
@@ -377,40 +376,40 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:58.91584+00"
+          "at": "2026-11-10 20:14:30.068916+00"
         },
         {
-          "id": "09a365a1-6694-5e8f-8d7e-26d755429093",
+          "id": "ffa3f677-b6f1-5608-8137-c88038f84dc4",
           "class": "OpenLoan",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
+          "owner": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {
-            "Item": "045522e2-9af3-58fd-ba83-0e9ff2e5e113",
-            "Member": "f2f14e35-dfe8-555d-87fe-44f512267f33"
+            "Item": "d19e2bb3-3b57-58d2-a6f7-75c1dac38720",
+            "Member": "fc999bcb-fa90-5429-8394-c8e9c42773ee"
           },
           "data": {
             "since": "2026-11-03"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:58.934136+00"
+          "at": "2026-11-10 20:14:30.090452+00"
         }
       ],
       "removed": [],
       "log": [
         {
-          "seq": "37",
-          "id": "045522e2-9af3-58fd-ba83-0e9ff2e5e113",
+          "seq": "44",
+          "id": "d19e2bb3-3b57-58d2-a6f7-75c1dac38720",
           "rev": 1,
           "class": "Item",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {},
           "data": {
             "code": "B-1",
@@ -418,18 +417,18 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:58.902432+00",
-          "tx": "3891676"
+          "at": "2026-11-10 20:14:30.039232+00",
+          "tx": "4255150"
         },
         {
-          "seq": "38",
-          "id": "6b969aa8-4ebb-56d4-95c7-1fdc9b70b315",
+          "seq": "45",
+          "id": "16623ba9-25fa-5545-8ed0-341c8a574f29",
           "rev": 1,
           "class": "Member",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {},
           "data": {
             "card": "C-1",
@@ -437,18 +436,18 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:58.909435+00",
-          "tx": "3891678"
+          "at": "2026-11-10 20:14:30.058541+00",
+          "tx": "4255152"
         },
         {
-          "seq": "39",
-          "id": "f2f14e35-dfe8-555d-87fe-44f512267f33",
+          "seq": "46",
+          "id": "fc999bcb-fa90-5429-8394-c8e9c42773ee",
           "rev": 1,
           "class": "Member",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {},
           "data": {
             "card": "C-2",
@@ -456,32 +455,32 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:58.91584+00",
-          "tx": "3891680"
+          "at": "2026-11-10 20:14:30.068916+00",
+          "tx": "4255154"
         },
         {
-          "seq": "40",
-          "id": "09a365a1-6694-5e8f-8d7e-26d755429093",
+          "seq": "47",
+          "id": "ffa3f677-b6f1-5608-8137-c88038f84dc4",
           "rev": 1,
           "class": "OpenLoan",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {
-            "Item": "045522e2-9af3-58fd-ba83-0e9ff2e5e113",
-            "Member": "f2f14e35-dfe8-555d-87fe-44f512267f33"
+            "Item": "d19e2bb3-3b57-58d2-a6f7-75c1dac38720",
+            "Member": "fc999bcb-fa90-5429-8394-c8e9c42773ee"
           },
           "data": {
             "since": "2026-11-03"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:58.934136+00",
-          "tx": "3891684"
+          "at": "2026-11-10 20:14:30.090452+00",
+          "tx": "4255160"
         }
       ],
       "secret": [],
@@ -503,11 +502,11 @@
       "error": null,
       "entity": [
         {
-          "id": "045522e2-9af3-58fd-ba83-0e9ff2e5e113",
+          "id": "d19e2bb3-3b57-58d2-a6f7-75c1dac38720",
           "class": "Item",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
+          "owner": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {},
           "data": {
             "code": "B-1",
@@ -515,17 +514,17 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:58.902432+00"
+          "at": "2026-11-10 20:14:30.039232+00"
         },
         {
-          "id": "6b969aa8-4ebb-56d4-95c7-1fdc9b70b315",
+          "id": "16623ba9-25fa-5545-8ed0-341c8a574f29",
           "class": "Member",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
+          "owner": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {},
           "data": {
             "card": "C-1",
@@ -533,19 +532,19 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:58.909435+00"
+          "at": "2026-11-10 20:14:30.058541+00"
         }
       ],
       "removed": [
         {
-          "id": "f2f14e35-dfe8-555d-87fe-44f512267f33",
+          "id": "fc999bcb-fa90-5429-8394-c8e9c42773ee",
           "class": "Member",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
+          "owner": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {},
           "data": {
             "card": "C-2",
@@ -553,39 +552,39 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:58.91584+00"
+          "at": "2026-11-10 20:14:30.068916+00"
         },
         {
-          "id": "09a365a1-6694-5e8f-8d7e-26d755429093",
+          "id": "ffa3f677-b6f1-5608-8137-c88038f84dc4",
           "class": "OpenLoan",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
+          "owner": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {
-            "Item": "045522e2-9af3-58fd-ba83-0e9ff2e5e113",
-            "Member": "f2f14e35-dfe8-555d-87fe-44f512267f33"
+            "Item": "d19e2bb3-3b57-58d2-a6f7-75c1dac38720",
+            "Member": "fc999bcb-fa90-5429-8394-c8e9c42773ee"
           },
           "data": {
             "since": "2026-11-03"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:58.934136+00"
+          "at": "2026-11-10 20:14:30.090452+00"
         }
       ],
       "log": [
         {
-          "seq": "37",
-          "id": "045522e2-9af3-58fd-ba83-0e9ff2e5e113",
+          "seq": "44",
+          "id": "d19e2bb3-3b57-58d2-a6f7-75c1dac38720",
           "rev": 1,
           "class": "Item",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {},
           "data": {
             "code": "B-1",
@@ -593,18 +592,18 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:58.902432+00",
-          "tx": "3891676"
+          "at": "2026-11-10 20:14:30.039232+00",
+          "tx": "4255150"
         },
         {
-          "seq": "38",
-          "id": "6b969aa8-4ebb-56d4-95c7-1fdc9b70b315",
+          "seq": "45",
+          "id": "16623ba9-25fa-5545-8ed0-341c8a574f29",
           "rev": 1,
           "class": "Member",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {},
           "data": {
             "card": "C-1",
@@ -612,18 +611,18 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:58.909435+00",
-          "tx": "3891678"
+          "at": "2026-11-10 20:14:30.058541+00",
+          "tx": "4255152"
         },
         {
-          "seq": "39",
-          "id": "f2f14e35-dfe8-555d-87fe-44f512267f33",
+          "seq": "46",
+          "id": "fc999bcb-fa90-5429-8394-c8e9c42773ee",
           "rev": 1,
           "class": "Member",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {},
           "data": {
             "card": "C-2",
@@ -631,39 +630,39 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:58.91584+00",
-          "tx": "3891680"
+          "at": "2026-11-10 20:14:30.068916+00",
+          "tx": "4255154"
         },
         {
-          "seq": "40",
-          "id": "09a365a1-6694-5e8f-8d7e-26d755429093",
+          "seq": "47",
+          "id": "ffa3f677-b6f1-5608-8137-c88038f84dc4",
           "rev": 1,
           "class": "OpenLoan",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {
-            "Item": "045522e2-9af3-58fd-ba83-0e9ff2e5e113",
-            "Member": "f2f14e35-dfe8-555d-87fe-44f512267f33"
+            "Item": "d19e2bb3-3b57-58d2-a6f7-75c1dac38720",
+            "Member": "fc999bcb-fa90-5429-8394-c8e9c42773ee"
           },
           "data": {
             "since": "2026-11-03"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:58.934136+00",
-          "tx": "3891684"
+          "at": "2026-11-10 20:14:30.090452+00",
+          "tx": "4255160"
         },
         {
-          "seq": "41",
-          "id": "f2f14e35-dfe8-555d-87fe-44f512267f33",
+          "seq": "48",
+          "id": "fc999bcb-fa90-5429-8394-c8e9c42773ee",
           "rev": 2,
           "class": "Member",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {},
           "data": {
             "card": "C-2",
@@ -671,32 +670,32 @@
           },
           "tags": [],
           "op": "delete",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": "удалён по ошибке",
-          "at": "2026-11-04 05:13:59.018968+00",
-          "tx": "3891691"
+          "at": "2026-11-10 20:14:30.171367+00",
+          "tx": "4255168"
         },
         {
-          "seq": "42",
-          "id": "09a365a1-6694-5e8f-8d7e-26d755429093",
+          "seq": "49",
+          "id": "ffa3f677-b6f1-5608-8137-c88038f84dc4",
           "rev": 2,
           "class": "OpenLoan",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {
-            "Item": "045522e2-9af3-58fd-ba83-0e9ff2e5e113",
-            "Member": "f2f14e35-dfe8-555d-87fe-44f512267f33"
+            "Item": "d19e2bb3-3b57-58d2-a6f7-75c1dac38720",
+            "Member": "fc999bcb-fa90-5429-8394-c8e9c42773ee"
           },
           "data": {
             "since": "2026-11-03"
           },
           "tags": [],
           "op": "delete",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": "удалён по ошибке",
-          "at": "2026-11-04 05:13:59.021631+00",
-          "tx": "3891691"
+          "at": "2026-11-10 20:14:30.17479+00",
+          "tx": "4255168"
         }
       ],
       "secret": [],
@@ -714,11 +713,11 @@
       "error": null,
       "entity": [
         {
-          "id": "045522e2-9af3-58fd-ba83-0e9ff2e5e113",
+          "id": "d19e2bb3-3b57-58d2-a6f7-75c1dac38720",
           "class": "Item",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
+          "owner": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {},
           "data": {
             "code": "B-1",
@@ -726,17 +725,17 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:58.902432+00"
+          "at": "2026-11-10 20:14:30.039232+00"
         },
         {
-          "id": "6b969aa8-4ebb-56d4-95c7-1fdc9b70b315",
+          "id": "16623ba9-25fa-5545-8ed0-341c8a574f29",
           "class": "Member",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
+          "owner": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {},
           "data": {
             "card": "C-1",
@@ -744,40 +743,40 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:58.909435+00"
+          "at": "2026-11-10 20:14:30.058541+00"
         },
         {
-          "id": "09a365a1-6694-5e8f-8d7e-26d755429093",
+          "id": "ffa3f677-b6f1-5608-8137-c88038f84dc4",
           "class": "OpenLoan",
           "rev": 3,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
+          "owner": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {
-            "Item": "045522e2-9af3-58fd-ba83-0e9ff2e5e113",
-            "Member": "6b969aa8-4ebb-56d4-95c7-1fdc9b70b315"
+            "Item": "d19e2bb3-3b57-58d2-a6f7-75c1dac38720",
+            "Member": "16623ba9-25fa-5545-8ed0-341c8a574f29"
           },
           "data": {
             "since": "2026-11-04"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:59.042693+00"
+          "at": "2026-11-10 20:14:30.200535+00"
         }
       ],
       "removed": [],
       "log": [
         {
-          "seq": "37",
-          "id": "045522e2-9af3-58fd-ba83-0e9ff2e5e113",
+          "seq": "44",
+          "id": "d19e2bb3-3b57-58d2-a6f7-75c1dac38720",
           "rev": 1,
           "class": "Item",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {},
           "data": {
             "code": "B-1",
@@ -785,18 +784,18 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:58.902432+00",
-          "tx": "3891676"
+          "at": "2026-11-10 20:14:30.039232+00",
+          "tx": "4255150"
         },
         {
-          "seq": "38",
-          "id": "6b969aa8-4ebb-56d4-95c7-1fdc9b70b315",
+          "seq": "45",
+          "id": "16623ba9-25fa-5545-8ed0-341c8a574f29",
           "rev": 1,
           "class": "Member",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {},
           "data": {
             "card": "C-1",
@@ -804,18 +803,18 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:58.909435+00",
-          "tx": "3891678"
+          "at": "2026-11-10 20:14:30.058541+00",
+          "tx": "4255152"
         },
         {
-          "seq": "39",
-          "id": "f2f14e35-dfe8-555d-87fe-44f512267f33",
+          "seq": "46",
+          "id": "fc999bcb-fa90-5429-8394-c8e9c42773ee",
           "rev": 1,
           "class": "Member",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {},
           "data": {
             "card": "C-2",
@@ -823,39 +822,39 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:58.91584+00",
-          "tx": "3891680"
+          "at": "2026-11-10 20:14:30.068916+00",
+          "tx": "4255154"
         },
         {
-          "seq": "40",
-          "id": "09a365a1-6694-5e8f-8d7e-26d755429093",
+          "seq": "47",
+          "id": "ffa3f677-b6f1-5608-8137-c88038f84dc4",
           "rev": 1,
           "class": "OpenLoan",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {
-            "Item": "045522e2-9af3-58fd-ba83-0e9ff2e5e113",
-            "Member": "f2f14e35-dfe8-555d-87fe-44f512267f33"
+            "Item": "d19e2bb3-3b57-58d2-a6f7-75c1dac38720",
+            "Member": "fc999bcb-fa90-5429-8394-c8e9c42773ee"
           },
           "data": {
             "since": "2026-11-03"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:58.934136+00",
-          "tx": "3891684"
+          "at": "2026-11-10 20:14:30.090452+00",
+          "tx": "4255160"
         },
         {
-          "seq": "41",
-          "id": "f2f14e35-dfe8-555d-87fe-44f512267f33",
+          "seq": "48",
+          "id": "fc999bcb-fa90-5429-8394-c8e9c42773ee",
           "rev": 2,
           "class": "Member",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {},
           "data": {
             "card": "C-2",
@@ -863,53 +862,53 @@
           },
           "tags": [],
           "op": "delete",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": "удалён по ошибке",
-          "at": "2026-11-04 05:13:59.018968+00",
-          "tx": "3891691"
+          "at": "2026-11-10 20:14:30.171367+00",
+          "tx": "4255168"
         },
         {
-          "seq": "42",
-          "id": "09a365a1-6694-5e8f-8d7e-26d755429093",
+          "seq": "49",
+          "id": "ffa3f677-b6f1-5608-8137-c88038f84dc4",
           "rev": 2,
           "class": "OpenLoan",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {
-            "Item": "045522e2-9af3-58fd-ba83-0e9ff2e5e113",
-            "Member": "f2f14e35-dfe8-555d-87fe-44f512267f33"
+            "Item": "d19e2bb3-3b57-58d2-a6f7-75c1dac38720",
+            "Member": "fc999bcb-fa90-5429-8394-c8e9c42773ee"
           },
           "data": {
             "since": "2026-11-03"
           },
           "tags": [],
           "op": "delete",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": "удалён по ошибке",
-          "at": "2026-11-04 05:13:59.021631+00",
-          "tx": "3891691"
+          "at": "2026-11-10 20:14:30.17479+00",
+          "tx": "4255168"
         },
         {
-          "seq": "43",
-          "id": "09a365a1-6694-5e8f-8d7e-26d755429093",
+          "seq": "50",
+          "id": "ffa3f677-b6f1-5608-8137-c88038f84dc4",
           "rev": 3,
           "class": "OpenLoan",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {
-            "Item": "045522e2-9af3-58fd-ba83-0e9ff2e5e113",
-            "Member": "6b969aa8-4ebb-56d4-95c7-1fdc9b70b315"
+            "Item": "d19e2bb3-3b57-58d2-a6f7-75c1dac38720",
+            "Member": "16623ba9-25fa-5545-8ed0-341c8a574f29"
           },
           "data": {
             "since": "2026-11-04"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:59.042693+00",
-          "tx": "3891694"
+          "at": "2026-11-10 20:14:30.200535+00",
+          "tx": "4255172"
         }
       ],
       "secret": [],
@@ -929,11 +928,11 @@
       "error": null,
       "entity": [
         {
-          "id": "045522e2-9af3-58fd-ba83-0e9ff2e5e113",
+          "id": "d19e2bb3-3b57-58d2-a6f7-75c1dac38720",
           "class": "Item",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
+          "owner": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {},
           "data": {
             "code": "B-1",
@@ -941,17 +940,17 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:58.902432+00"
+          "at": "2026-11-10 20:14:30.039232+00"
         },
         {
-          "id": "6b969aa8-4ebb-56d4-95c7-1fdc9b70b315",
+          "id": "16623ba9-25fa-5545-8ed0-341c8a574f29",
           "class": "Member",
           "rev": 1,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
+          "owner": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {},
           "data": {
             "card": "C-1",
@@ -959,17 +958,17 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:58.909435+00"
+          "at": "2026-11-10 20:14:30.058541+00"
         },
         {
-          "id": "f2f14e35-dfe8-555d-87fe-44f512267f33",
+          "id": "fc999bcb-fa90-5429-8394-c8e9c42773ee",
           "class": "Member",
           "rev": 3,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
+          "owner": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {},
           "data": {
             "card": "C-2",
@@ -977,40 +976,40 @@
           },
           "tags": [],
           "op": "restore",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:59.074347+00"
+          "at": "2026-11-10 20:14:30.244059+00"
         },
         {
-          "id": "09a365a1-6694-5e8f-8d7e-26d755429093",
+          "id": "ffa3f677-b6f1-5608-8137-c88038f84dc4",
           "class": "OpenLoan",
           "rev": 3,
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
-          "owner": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
+          "owner": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {
-            "Item": "045522e2-9af3-58fd-ba83-0e9ff2e5e113",
-            "Member": "6b969aa8-4ebb-56d4-95c7-1fdc9b70b315"
+            "Item": "d19e2bb3-3b57-58d2-a6f7-75c1dac38720",
+            "Member": "16623ba9-25fa-5545-8ed0-341c8a574f29"
           },
           "data": {
             "since": "2026-11-04"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:59.042693+00"
+          "at": "2026-11-10 20:14:30.200535+00"
         }
       ],
       "removed": [],
       "log": [
         {
-          "seq": "37",
-          "id": "045522e2-9af3-58fd-ba83-0e9ff2e5e113",
+          "seq": "44",
+          "id": "d19e2bb3-3b57-58d2-a6f7-75c1dac38720",
           "rev": 1,
           "class": "Item",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {},
           "data": {
             "code": "B-1",
@@ -1018,18 +1017,18 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:58.902432+00",
-          "tx": "3891676"
+          "at": "2026-11-10 20:14:30.039232+00",
+          "tx": "4255150"
         },
         {
-          "seq": "38",
-          "id": "6b969aa8-4ebb-56d4-95c7-1fdc9b70b315",
+          "seq": "45",
+          "id": "16623ba9-25fa-5545-8ed0-341c8a574f29",
           "rev": 1,
           "class": "Member",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {},
           "data": {
             "card": "C-1",
@@ -1037,18 +1036,18 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:58.909435+00",
-          "tx": "3891678"
+          "at": "2026-11-10 20:14:30.058541+00",
+          "tx": "4255152"
         },
         {
-          "seq": "39",
-          "id": "f2f14e35-dfe8-555d-87fe-44f512267f33",
+          "seq": "46",
+          "id": "fc999bcb-fa90-5429-8394-c8e9c42773ee",
           "rev": 1,
           "class": "Member",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {},
           "data": {
             "card": "C-2",
@@ -1056,39 +1055,39 @@
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:58.91584+00",
-          "tx": "3891680"
+          "at": "2026-11-10 20:14:30.068916+00",
+          "tx": "4255154"
         },
         {
-          "seq": "40",
-          "id": "09a365a1-6694-5e8f-8d7e-26d755429093",
+          "seq": "47",
+          "id": "ffa3f677-b6f1-5608-8137-c88038f84dc4",
           "rev": 1,
           "class": "OpenLoan",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {
-            "Item": "045522e2-9af3-58fd-ba83-0e9ff2e5e113",
-            "Member": "f2f14e35-dfe8-555d-87fe-44f512267f33"
+            "Item": "d19e2bb3-3b57-58d2-a6f7-75c1dac38720",
+            "Member": "fc999bcb-fa90-5429-8394-c8e9c42773ee"
           },
           "data": {
             "since": "2026-11-03"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:58.934136+00",
-          "tx": "3891684"
+          "at": "2026-11-10 20:14:30.090452+00",
+          "tx": "4255160"
         },
         {
-          "seq": "41",
-          "id": "f2f14e35-dfe8-555d-87fe-44f512267f33",
+          "seq": "48",
+          "id": "fc999bcb-fa90-5429-8394-c8e9c42773ee",
           "rev": 2,
           "class": "Member",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {},
           "data": {
             "card": "C-2",
@@ -1096,60 +1095,60 @@
           },
           "tags": [],
           "op": "delete",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": "удалён по ошибке",
-          "at": "2026-11-04 05:13:59.018968+00",
-          "tx": "3891691"
+          "at": "2026-11-10 20:14:30.171367+00",
+          "tx": "4255168"
         },
         {
-          "seq": "42",
-          "id": "09a365a1-6694-5e8f-8d7e-26d755429093",
+          "seq": "49",
+          "id": "ffa3f677-b6f1-5608-8137-c88038f84dc4",
           "rev": 2,
           "class": "OpenLoan",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {
-            "Item": "045522e2-9af3-58fd-ba83-0e9ff2e5e113",
-            "Member": "f2f14e35-dfe8-555d-87fe-44f512267f33"
+            "Item": "d19e2bb3-3b57-58d2-a6f7-75c1dac38720",
+            "Member": "fc999bcb-fa90-5429-8394-c8e9c42773ee"
           },
           "data": {
             "since": "2026-11-03"
           },
           "tags": [],
           "op": "delete",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": "удалён по ошибке",
-          "at": "2026-11-04 05:13:59.021631+00",
-          "tx": "3891691"
+          "at": "2026-11-10 20:14:30.17479+00",
+          "tx": "4255168"
         },
         {
-          "seq": "43",
-          "id": "09a365a1-6694-5e8f-8d7e-26d755429093",
+          "seq": "50",
+          "id": "ffa3f677-b6f1-5608-8137-c88038f84dc4",
           "rev": 3,
           "class": "OpenLoan",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {
-            "Item": "045522e2-9af3-58fd-ba83-0e9ff2e5e113",
-            "Member": "6b969aa8-4ebb-56d4-95c7-1fdc9b70b315"
+            "Item": "d19e2bb3-3b57-58d2-a6f7-75c1dac38720",
+            "Member": "16623ba9-25fa-5545-8ed0-341c8a574f29"
           },
           "data": {
             "since": "2026-11-04"
           },
           "tags": [],
           "op": "create",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:59.042693+00",
-          "tx": "3891694"
+          "at": "2026-11-10 20:14:30.200535+00",
+          "tx": "4255172"
         },
         {
-          "seq": "44",
-          "id": "f2f14e35-dfe8-555d-87fe-44f512267f33",
+          "seq": "51",
+          "id": "fc999bcb-fa90-5429-8394-c8e9c42773ee",
           "rev": 3,
           "class": "Member",
-          "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a",
+          "tenant": "9e8c552f-21d9-5528-bda7-f9034edfe288",
           "links": {},
           "data": {
             "card": "C-2",
@@ -1157,11 +1156,11 @@
           },
           "tags": [],
           "op": "restore",
-          "author": "3defbabb-a94d-5359-8463-dc947de193e1",
-          "agent": "85fe3ca6-04e7-5ef0-b7e2-f8ef4f90218f",
+          "author": "fdeee4be-a83a-54b2-9db8-d26b834c1956",
+          "agent": null,
           "reason": null,
-          "at": "2026-11-04 05:13:59.074347+00",
-          "tx": "3891698"
+          "at": "2026-11-10 20:14:30.244059+00",
+          "tx": "4255176"
         }
       ],
       "secret": [],

@@ -19,7 +19,6 @@
       "secret": [],
       "signals": [
         "Category",
-        "Class",
         "Customer",
         "Order",
         "Product",
@@ -30,10 +29,10 @@
     },
     {
       "result": [
-        "Чайник: 0",
         "Кружка: 0",
+        "Пуэр: 0",
         "Сенча: 0",
-        "Пуэр: 0"
+        "Чайник: 0"
       ],
       "error": null,
       "entity": [],
@@ -97,6 +96,20 @@
       "signals": []
     },
     {
+      "result": {
+        "найдено товаров": 4,
+        "предупреждение": [
+          "letopis: Product(…): поле title = undefined — условие по нему снято, шаг находит строки без него. Проверьте переменную; отсутствие значения ищет isNull()"
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
       "result": null,
       "error": {
         "code": "invalid_query",
@@ -124,19 +137,24 @@
       ]
     },
     {
-      "result": null,
-      "error": {
-        "code": "tenant_denied",
-        "message": "letopis: tenant_denied: нет членства в арендаторе",
-        "detail": {}
+      "result": {
+        "квартира «Нет такой»": "target_not_found (api.tenant_unknown)",
+        "удалённая квартира по id": "tenant_denied (sql-core.no_membership)",
+        "keys.list() у консьержа": "invalid_query (api.resident_only)"
       },
+      "error": null,
       "entity": [],
       "removed": [],
       "log": [],
       "secret": [],
-      "signals": []
+      "signals": [
+        "Account",
+        "Resource",
+        "member",
+        "rule"
+      ]
     }
   ],
-  "output": "Шаг 1. invalid_query — правка без условия\nотказ, как и задумано: letopis: invalid_query: update() без фильтра (Product): ни у шага глагола, ни у шагов до него нет фильтра, id, непустого tags(), owner() или limit(), и раньше в цепочке нет create() или upsert() — правка прошла бы по всем строкам\n\nШаг 2. Все строки — явно: { all: true }\n[\n  \"Чайник: 0\",\n  \"Кружка: 0\",\n  \"Сенча: 0\",\n  \"Пуэр: 0\"\n]\n\nШаг 3. invalid_query — удаление без условия\nотказ, как и задумано: letopis: invalid_query: delete({ confirm: true, expect }) без фильтра (Category): ни у шага глагола, ни у шагов до него нет фильтра, id, непустого tags(), owner() или limit(), и раньше в цепочке нет create() или upsert() — правка прошла бы по всем строкам\n\nШаг 4. invalid_query — подтверждение удаления без expect\nотказ, как и задумано: letopis: invalid_query: delete({ confirm: true }) без { expect }: удаление не сверено с предпросмотром, который видел пользователь — ничего не удалено\n\nШаг 5. invalid_data — неизвестная опция\nотказ, как и задумано: letopis: invalid_data: неизвестная опция connect({ maxx }) — похожие: max\n\nШаг 6. invalid_query — неизвестное поле фильтра\nотказ, как и задумано: letopis: invalid_query: Product({ titel }): поле titel не описано в классе Product — похожие: title\n\nШаг 7. invalid_query — after() перед count()\nотказ, как и задумано: letopis: invalid_query: count() не листается: after() сдвигает начало страницы rows(), ids(), versions() и paths(), а count() считает по всем объектам шага\n\nШаг 8. confirmation_required — удаление через MCP без подтверждения человека\n{\n  \"код\": \"confirmation_required\",\n  \"покупатель на месте\": true\n}\n\nШаг 9. tenant_denied — арендатор без членства\nотказ, как и задумано: letopis: tenant_denied: нет членства в арендаторе",
+  "output": "Шаг 1. invalid_query — правка без условия\nотказ, как и задумано: letopis: invalid_query: update() без фильтра (Product): ни у шага глагола, ни у шагов до него нет фильтра, id, непустого tags(), owner() или limit(), и раньше в цепочке нет create() или upsert() — правка прошла бы по всем строкам\n\nШаг 2. Все строки — явно: { all: true }\n[\n  \"Кружка: 0\",\n  \"Пуэр: 0\",\n  \"Сенча: 0\",\n  \"Чайник: 0\"\n]\n\nШаг 3. invalid_query — удаление без условия\nотказ, как и задумано: letopis: invalid_query: delete({ confirm: true, expect }) без фильтра (Category): ни у шага глагола, ни у шагов до него нет фильтра, id, непустого tags(), owner() или limit(), и раньше в цепочке нет create() или upsert() — правка прошла бы по всем строкам\n\nШаг 4. invalid_query — подтверждение удаления без expect\nотказ, как и задумано: letopis: invalid_query: delete({ confirm: true }) без { expect }: удаление не сверено с предпросмотром, который видел пользователь — ничего не удалено\n\nШаг 5. invalid_data — неизвестная опция\nотказ, как и задумано: letopis: invalid_data: неизвестная опция connect({ maxx }) — похожие: max\n\nШаг 6. invalid_query — неизвестное поле фильтра\nотказ, как и задумано: letopis: invalid_query: Product({ titel }): поле titel не описано в классе Product — похожие: title\n\nШаг 7. Предупреждение — undefined в фильтре\n{\n  \"найдено товаров\": 4,\n  \"предупреждение\": [\n    \"letopis: Product(…): поле title = undefined — условие по нему снято, шаг находит строки без него. Проверьте переменную; отсутствие значения ищет isNull()\"\n  ]\n}\n\nШаг 8. invalid_query — after() перед count()\nотказ, как и задумано: letopis: invalid_query: count() не листается: after() сдвигает начало страницы rows(), ids(), versions() и paths(), а count() считает по всем объектам шага\n\nШаг 9. confirmation_required — удаление через MCP без подтверждения человека\n{\n  \"код\": \"confirmation_required\",\n  \"покупатель на месте\": true\n}\n\nШаг 10. Квартиры: нет такой, удалённая, метод жильца у консьержа\n{\n  \"квартира «Нет такой»\": \"target_not_found (api.tenant_unknown)\",\n  \"удалённая квартира по id\": \"tenant_denied (sql-core.no_membership)\",\n  \"keys.list() у консьержа\": \"invalid_query (api.resident_only)\"\n}",
   "exitCode": 0
 }

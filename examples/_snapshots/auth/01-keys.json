@@ -1,0 +1,1504 @@
+{
+  "id": "auth/01-keys",
+  "title": "Ключи жильца: пароль и TOTP, ключ API, ключ и секрет, внешний вход, код",
+  "summary": "Ключ — способ войти, который открывает ровно одну квартиру. Пароль задают при принятии приглашения, остальные ключи жилец заводит сам в me.keys; db.open(ключ) открывает квартиру этого ключа. Код из письма доказывает контакт, а не открывает одну квартиру: у кого квартир несколько, выбирает её после кода. Править ключи можно только после недавнего входа паролем, кодом или внешним входом, а подтверждённый TOTP база требует при каждом входе паролем.",
+  "tables": [
+    "secret"
+  ],
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": [
+      {
+        "account": "Ромашка",
+        "tenant": "Ромашка",
+        "kind": "INVITE",
+        "ident": "email:anna@romashka.ru",
+        "meta": {
+          "roles": [
+            "owner"
+          ],
+          "status": "used",
+          "contact": {
+            "kind": "email",
+            "address": "anna@romashka.ru"
+          },
+          "attempts": 0
+        },
+        "material": "‹хэш›",
+        "expires_at": "через 7 дн",
+        "created_at": "установка",
+        "deleted_at": "установка"
+      }
+    ],
+    "counts": null
+  },
+  "steps": [
+    {
+      "title": "Первый ключ Анны — пароль",
+      "text": "Ключ — строка таблицы `secret`, колонка `tenant` — квартира, которую он открывает. Первый ключ Анны завёл `db.accept` при подготовке: пароль от «Ромашки», в базе — только его хэш scrypt. Имя для входа — контакт Анны (`anna@romashka.ru`): у аккаунта он один на весь дом. `me.keys.list()` — ключи жильца в этой квартире без секретов: вид, имя для входа (`ident`), включён ли, срок.",
+      "code": "(await me.keys.list()).map((k) => ({ kind: k.kind, ident: k.ident, enabled: k.enabled, expiresAt: k.expiresAt }))",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.keys.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">list</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">k</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ kind: k.kind, ident: k.ident, enabled: k.enabled, expiresAt: k.expiresAt }))</span></span></code></pre>",
+      "result": [
+        {
+          "kind": "PASSWORD",
+          "ident": "email:anna@romashka.ru",
+          "enabled": true,
+          "expiresAt": null
+        }
+      ],
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "установка",
+          "deleted_at": "установка",
+          "$new": false
+        }
+      ],
+      "counts": null,
+      "signals": []
+    },
+    {
+      "title": "Ключ API — для программы",
+      "text": "`keys.issueApiKey()` выдаёт ключ `lts_…` — для скрипта, интеграции или ИИ-агента. Он показывается один раз, в базе — его хэш и начало (`ident`). `db.open({ apiKey })` открывает ту же квартиру от имени того же аккаунта. Вход ключом API — не интерактивный: из такой сессии ключи не правят, выпустить ещё один ключ — отказ `acl_denied`. Править ключи можно 10 минут после входа паролем, кодом или внешним входом.",
+      "code": "apiKey = await me.keys.issueApiKey({ name: 'склад' });\nconst bot = await db.open({ apiKey: apiKey.key });\nreturn {\n  'ключ начинается с': apiKey.key.slice(0, 4),\n  'квартира': bot.tenantName,\n  'тот же аккаунт': bot.account === me.account,\n  'из сессии ключа — ещё ключ': await bot.keys.issueApiKey({ name: 'ещё' }).then(() => 'выдан', (e) => e.code),\n};",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">apiKey </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.keys.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">issueApiKey</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'склад'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> bot</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">open</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ apiKey: apiKey.key });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'ключ начинается с'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: apiKey.key.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">slice</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">0</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">4</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'квартира'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: bot.tenantName,</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'тот же аккаунт'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: bot.account </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">===</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.account,</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'из сессии ключа — ещё ключ'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> bot.keys.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">issueApiKey</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'ещё'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">then</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(() </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'выдан'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, (</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">e</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> e.code),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">};</span></span></code></pre>",
+      "result": {
+        "ключ начинается с": "lts_",
+        "квартира": "Ромашка",
+        "тот же аккаунт": true,
+        "из сессии ключа — ещё ключ": "acl_denied"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "установка",
+          "deleted_at": "установка",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "APIKEY",
+          "ident": "‹токен 1›",
+          "meta": {
+            "name": "склад"
+          },
+          "material": "‹хэш›",
+          "expires_at": null,
+          "created_at": "шаг 2",
+          "deleted_at": null,
+          "$new": true
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет APIKEY·2",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "шаг 2"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 2",
+          "deleted_at": null,
+          "$new": true
+        }
+      ],
+      "counts": null,
+      "signals": []
+    },
+    {
+      "title": "Ключ и секрет — для интеграции",
+      "text": "`keys.issueKeySecret()` — пара для систем, которые хранят открытый ключ и секрет раздельно (касса, учётная система). Секрет показывается один раз. `db.open({ key, secret })` — вход парой; неверный секрет — `auth_failed`, без подсказки, что именно не так.",
+      "code": "const pair = await me.keys.issueKeySecret({ name: 'касса' });\nreturn {\n  'квартира': (await db.open({ key: pair.key, secret: pair.secret })).tenantName,\n  'неверный секрет': await db.open({ key: pair.key, secret: 'не тот' }).then(() => 'вошла', (e) => e.code),\n};",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> pair</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.keys.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">issueKeySecret</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'касса'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'квартира'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">open</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ key: pair.key, secret: pair.secret })).tenantName,</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'неверный секрет'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">open</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ key: pair.key, secret: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'не тот'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">then</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(() </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'вошла'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, (</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">e</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> e.code),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">};</span></span></code></pre>",
+      "result": {
+        "квартира": "Ромашка",
+        "неверный секрет": "auth_failed"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "установка",
+          "deleted_at": "установка",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "APIKEY",
+          "ident": "‹токен 1›",
+          "meta": {
+            "name": "склад"
+          },
+          "material": "‹хэш›",
+          "expires_at": null,
+          "created_at": "шаг 2",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет APIKEY·2",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "шаг 2"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 2",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "KEYSECRET",
+          "ident": "‹ключ пары›",
+          "meta": {
+            "name": "касса"
+          },
+          "material": "‹хэш›",
+          "expires_at": null,
+          "created_at": "шаг 3",
+          "deleted_at": null,
+          "$new": true
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет KEYSECRET·1",
+            "methods": [
+              "KEYSECRET"
+            ],
+            "login_at": "шаг 3"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 3",
+          "deleted_at": null,
+          "$new": true
+        }
+      ],
+      "counts": null,
+      "signals": []
+    },
+    {
+      "title": "Внешний вход: Telegram",
+      "text": "Telegram, Google, корпоративный вход: токен провайдера проверяет само приложение, а letopis хранит только внешний id — `keys.link({ kind, identifier })`, ключ без секрета. Потом `db.open({ external })` открывает квартиру по этому id. Один внешний id открывает одну квартиру во всём доме: привязать его ко второй — отказ `exists`.",
+      "code": "await me.keys.link({ kind: 'TELEGRAM', identifier: '100500' });\nreturn { 'квартира': (await db.open({ external: { kind: 'TELEGRAM', identifier: '100500' } })).tenantName };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.keys.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">link</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ kind: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'TELEGRAM'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, identifier: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'100500'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'квартира'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">open</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ external: { kind: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'TELEGRAM'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, identifier: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'100500'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> } })).tenantName };</span></span></code></pre>",
+      "result": {
+        "квартира": "Ромашка"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "установка",
+          "deleted_at": "установка",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "APIKEY",
+          "ident": "‹токен 1›",
+          "meta": {
+            "name": "склад"
+          },
+          "material": "‹хэш›",
+          "expires_at": null,
+          "created_at": "шаг 2",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет APIKEY·2",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "шаг 2"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 2",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "KEYSECRET",
+          "ident": "‹ключ пары›",
+          "meta": {
+            "name": "касса"
+          },
+          "material": "‹хэш›",
+          "expires_at": null,
+          "created_at": "шаг 3",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет KEYSECRET·1",
+            "methods": [
+              "KEYSECRET"
+            ],
+            "login_at": "шаг 3"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 3",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "TELEGRAM",
+          "ident": "100500",
+          "meta": {},
+          "material": null,
+          "expires_at": null,
+          "created_at": "шаг 4",
+          "deleted_at": null,
+          "$new": true
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет TELEGRAM·1",
+            "methods": [
+              "TELEGRAM"
+            ],
+            "login_at": "шаг 4"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 4",
+          "deleted_at": null,
+          "$new": true
+        }
+      ],
+      "counts": null,
+      "signals": []
+    },
+    {
+      "title": "Вход кодом: requestCode, tenantsOf и open",
+      "text": "`db.requestCode({ email })` — библиотека выпускает одноразовый код (6 цифр, 10 минут, 5 попыток) и отдаёт его почтальону письмом `kind: 'code'`; ответ — только срок. Он одинаков всегда, даже если такого контакта в доме нет: по ответу не узнать, кто здесь живёт. Код доказывает контакт, а не открывает одну квартиру: `db.tenantsOf({ email, code })` — квартиры, где прописан аккаунт, код при этом не гаснет. `db.open({ email, code })` — вход: квартира одна, называть её не нужно. Вход кодом интерактивный: из такой сессии ключи править можно. Второй вход тем же кодом — `auth_failed`.",
+      "code": "const sent = await db.requestCode({ email: annaKey.email });\nconst { code } = lastLetter(annaKey.email, 'code'); // код из письма\nconst rooms = await db.tenantsOf({ email: annaKey.email, code });\nconst viaCode = await db.open({ email: annaKey.email, code });\nreturn {\n  'ответ requestCode': sent,\n  'квартиры по коду': rooms.map((t) => t.name),\n  'вошла в': viaCode.tenantName,\n  'тот же код ещё раз': await db.open({ email: annaKey.email, code }).then(() => 'вошла', (e) => e.code),\n  'код на незнакомый адрес': await db.requestCode({ email: 'nobody@romashka.ru' }),\n};",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> sent</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">requestCode</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ email: annaKey.email });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">code</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> } </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> lastLetter</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(annaKey.email, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'code'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">); </span><span style=\"color:#6A737D;--shiki-dark:#6A737D\">// код из письма</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> rooms</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">tenantsOf</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ email: annaKey.email, code });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> viaCode</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">open</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ email: annaKey.email, code });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'ответ requestCode'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: sent,</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'квартиры по коду'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: rooms.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">t</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> t.name),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'вошла в'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: viaCode.tenantName,</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'тот же код ещё раз'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">open</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ email: annaKey.email, code }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">then</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(() </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'вошла'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, (</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">e</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> e.code),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'код на незнакомый адрес'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">requestCode</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ email: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'nobody@romashka.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">};</span></span></code></pre>",
+      "result": {
+        "ответ requestCode": {
+          "expiresAt": "через 10 мин"
+        },
+        "квартиры по коду": [
+          "Ромашка"
+        ],
+        "вошла в": "Ромашка",
+        "тот же код ещё раз": "auth_failed",
+        "код на незнакомый адрес": {
+          "expiresAt": "через 10 мин"
+        }
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "установка",
+          "deleted_at": "установка",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "APIKEY",
+          "ident": "‹токен 1›",
+          "meta": {
+            "name": "склад"
+          },
+          "material": "‹хэш›",
+          "expires_at": null,
+          "created_at": "шаг 2",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет APIKEY·2",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "шаг 2"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 2",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "KEYSECRET",
+          "ident": "‹ключ пары›",
+          "meta": {
+            "name": "касса"
+          },
+          "material": "‹хэш›",
+          "expires_at": null,
+          "created_at": "шаг 3",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет KEYSECRET·1",
+            "methods": [
+              "KEYSECRET"
+            ],
+            "login_at": "шаг 3"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 3",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "TELEGRAM",
+          "ident": "100500",
+          "meta": {},
+          "material": null,
+          "expires_at": null,
+          "created_at": "шаг 4",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет TELEGRAM·1",
+            "methods": [
+              "TELEGRAM"
+            ],
+            "login_at": "шаг 4"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 4",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "System",
+          "kind": "OTP",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "attempts": 0,
+            "max_attempts": 5
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 10 мин",
+          "created_at": "шаг 5",
+          "deleted_at": "шаг 5",
+          "$new": true
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "OTP"
+            ],
+            "login_at": "шаг 5"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 5",
+          "deleted_at": null,
+          "$new": true
+        }
+      ],
+      "counts": null,
+      "signals": []
+    },
+    {
+      "title": "Второй фактор: TOTP",
+      "text": "`keys.enrollTotp()` даёт секрет и ссылку `otpauth://` для QR-кода приложения-аутентификатора; фактор включает первая верная проверка `keys.verifyTotp(код)`. Дальше база сама требует код при входе в эту квартиру паролем, кодом из письма или внешним входом: без `totp` — `auth_failed` с ключом `api.totp_required` (ключ верен, повторите вход с кодом), с неверным кодом — просто `auth_failed`. Ключ API и пара «ключ и секрет» кода не спрашивают. `totpCode(секрет)` считает код, как приложение, — помощник для тестов. Код, уже принятый `verifyTotp`, второй раз не проходит, поэтому вход здесь — с кодом следующего 30-секундного шага: у человека это просто следующий код в приложении.",
+      "code": "const { secret, uri } = await me.keys.enrollTotp({ issuer: 'Ромашка' });\nconst why = (e: { code: string; key?: string }) => `${e.code} (${e.key})`;\nconst verified = await me.keys.verifyTotp(totpCode(secret));\nawait db.requestCode({ email: annaKey.email });\nconst { code } = lastLetter(annaKey.email, 'code');\nreturn {\n  'ссылка для QR': uri.startsWith('otpauth://totp/'),\n  'verifyTotp': verified,\n  'пароль без кода': await db.open(annaKey).then(() => 'вошла', why),\n  'код из письма без кода TOTP': await db.open({ email: annaKey.email, code }).then(() => 'вошла', why),\n  'Telegram без кода': await db.open({ external: { kind: 'TELEGRAM', identifier: '100500' } }).then(() => 'вошла', why),\n  'ключ API без кода': (await db.open({ apiKey: apiKey.key })).tenantName,\n  'пароль и неверный код': await db.open({ ...annaKey, totp: '000000' }).then(() => 'вошла', why),\n  'пароль и код': (await db.open({ ...annaKey, totp: totpCode(secret, Date.now() + 30_000) })).tenantName,\n};",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">secret</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">uri</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> } </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.keys.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">enrollTotp</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ issuer: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Ромашка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> why</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">e</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">code</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">:</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> string</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">; </span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">key</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">?:</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> string</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> `${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">e</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">code</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">} (${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">e</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">key</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">})`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> verified</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.keys.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">verifyTotp</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">totpCode</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(secret));</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">requestCode</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ email: annaKey.email });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">code</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> } </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> lastLetter</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(annaKey.email, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'code'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'ссылка для QR'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: uri.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">startsWith</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'otpauth://totp/'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'verifyTotp'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: verified,</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'пароль без кода'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">open</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(annaKey).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">then</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(() </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'вошла'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, why),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'код из письма без кода TOTP'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">open</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ email: annaKey.email, code }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">then</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(() </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'вошла'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, why),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'Telegram без кода'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">open</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ external: { kind: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'TELEGRAM'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, identifier: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'100500'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> } }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">then</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(() </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'вошла'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, why),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'ключ API без кода'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">open</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ apiKey: apiKey.key })).tenantName,</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'пароль и неверный код'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">open</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">...</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">annaKey, totp: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'000000'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">then</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(() </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'вошла'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, why),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'пароль и код'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">open</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">...</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">annaKey, totp: </span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">totpCode</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(secret, Date.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">now</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">() </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">+</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> 30_000</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) })).tenantName,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">};</span></span></code></pre>",
+      "result": {
+        "ссылка для QR": true,
+        "verifyTotp": true,
+        "пароль без кода": "auth_failed (api.totp_required)",
+        "код из письма без кода TOTP": "auth_failed (api.totp_required)",
+        "Telegram без кода": "auth_failed (api.totp_required)",
+        "ключ API без кода": "Ромашка",
+        "пароль и неверный код": "auth_failed (api.auth_failed)",
+        "пароль и код": "Ромашка"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "установка",
+          "deleted_at": "установка",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "APIKEY",
+          "ident": "‹токен 1›",
+          "meta": {
+            "name": "склад"
+          },
+          "material": "‹хэш›",
+          "expires_at": null,
+          "created_at": "шаг 2",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет APIKEY·2",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "шаг 2"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 2",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "KEYSECRET",
+          "ident": "‹ключ пары›",
+          "meta": {
+            "name": "касса"
+          },
+          "material": "‹хэш›",
+          "expires_at": null,
+          "created_at": "шаг 3",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет KEYSECRET·1",
+            "methods": [
+              "KEYSECRET"
+            ],
+            "login_at": "шаг 3"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 3",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "TELEGRAM",
+          "ident": "100500",
+          "meta": {},
+          "material": null,
+          "expires_at": null,
+          "created_at": "шаг 4",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет TELEGRAM·1",
+            "methods": [
+              "TELEGRAM"
+            ],
+            "login_at": "шаг 4"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 4",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "System",
+          "kind": "OTP",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "attempts": 0,
+            "max_attempts": 5
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 10 мин",
+          "created_at": "шаг 5",
+          "deleted_at": "шаг 5",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "OTP"
+            ],
+            "login_at": "шаг 5"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 5",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "TOTP",
+          "ident": "Анна",
+          "meta": {
+            "confirmed": true,
+            "last_step": "‹шаг TOTP›"
+          },
+          "material": "‹хэш›",
+          "expires_at": null,
+          "created_at": "шаг 6",
+          "deleted_at": null,
+          "$new": true
+        },
+        {
+          "account": "Анна",
+          "tenant": "System",
+          "kind": "OTP",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "attempts": 0,
+            "max_attempts": 5
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 10 мин",
+          "created_at": "шаг 6",
+          "deleted_at": null,
+          "$new": true
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет APIKEY·2",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "шаг 6"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 6",
+          "deleted_at": null,
+          "$new": true
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет PASSWORD·1",
+            "methods": [
+              "PASSWORD",
+              "TOTP"
+            ],
+            "login_at": "шаг 6"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 6",
+          "deleted_at": null,
+          "$new": true
+        }
+      ],
+      "counts": null,
+      "signals": []
+    },
+    {
+      "title": "Список ключей и отзыв",
+      "text": "Теперь у Анны в «Ромашке» пять ключей. `keys.revoke(id)` отзывает свой ключ: ключ API больше не открывает квартиру, а сессии, открытые им, гаснут — `db.resume(токен)` такой сессии отвечает `auth_failed`. Отзыв пароля или внешнего входа гасит все остальные сессии жильца в квартире.",
+      "code": "const bot = await db.open({ apiKey: apiKey.key });\nconst before = (await me.keys.list()).map(keyLine);\nreturn {\n  'ключи': before,\n  'отозван': await me.keys.revoke(apiKey.id),\n  'вход отозванным ключом': await db.open({ apiKey: apiKey.key }).then(() => 'вошла', (e) => e.code),\n  'его сессия': await db.resume(bot.token!).then(() => 'жива', (e) => e.code),\n};",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> bot</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">open</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ apiKey: apiKey.key });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> before</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.keys.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">list</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(keyLine);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'ключи'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: before,</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'отозван'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.keys.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">revoke</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(apiKey.id),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'вход отозванным ключом'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">open</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ apiKey: apiKey.key }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">then</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(() </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'вошла'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, (</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">e</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> e.code),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'его сессия'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">resume</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(bot.token</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">then</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(() </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'жива'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, (</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">e</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> e.code),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">};</span></span></code></pre>",
+      "result": {
+        "ключи": [
+          "PASSWORD",
+          "APIKEY «склад»",
+          "KEYSECRET «касса»",
+          "TELEGRAM",
+          "TOTP"
+        ],
+        "отозван": true,
+        "вход отозванным ключом": "auth_failed",
+        "его сессия": "auth_failed"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "установка",
+          "deleted_at": "установка",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "APIKEY",
+          "ident": "‹токен 1›",
+          "meta": {
+            "name": "склад"
+          },
+          "material": "‹хэш›",
+          "expires_at": null,
+          "created_at": "шаг 2",
+          "deleted_at": "шаг 7",
+          "$new": true
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет APIKEY·2",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "шаг 2"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 2",
+          "deleted_at": "шаг 7",
+          "$new": true
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "KEYSECRET",
+          "ident": "‹ключ пары›",
+          "meta": {
+            "name": "касса"
+          },
+          "material": "‹хэш›",
+          "expires_at": null,
+          "created_at": "шаг 3",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет KEYSECRET·1",
+            "methods": [
+              "KEYSECRET"
+            ],
+            "login_at": "шаг 3"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 3",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "TELEGRAM",
+          "ident": "100500",
+          "meta": {},
+          "material": null,
+          "expires_at": null,
+          "created_at": "шаг 4",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет TELEGRAM·1",
+            "methods": [
+              "TELEGRAM"
+            ],
+            "login_at": "шаг 4"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 4",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "System",
+          "kind": "OTP",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "attempts": 0,
+            "max_attempts": 5
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 10 мин",
+          "created_at": "шаг 5",
+          "deleted_at": "шаг 5",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "OTP"
+            ],
+            "login_at": "шаг 5"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 5",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "TOTP",
+          "ident": "Анна",
+          "meta": {
+            "confirmed": true,
+            "last_step": "‹шаг TOTP›"
+          },
+          "material": "‹хэш›",
+          "expires_at": null,
+          "created_at": "шаг 6",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "System",
+          "kind": "OTP",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "attempts": 0,
+            "max_attempts": 5
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 10 мин",
+          "created_at": "шаг 6",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет APIKEY·2",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "шаг 6"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 6",
+          "deleted_at": "шаг 7",
+          "$new": true
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет PASSWORD·1",
+            "methods": [
+              "PASSWORD",
+              "TOTP"
+            ],
+            "login_at": "шаг 6"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 6",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет APIKEY·2",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "шаг 7"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 7",
+          "deleted_at": "шаг 7",
+          "$new": true
+        }
+      ],
+      "counts": null,
+      "signals": [
+        "session:‹токен 1›",
+        "session:‹токен 2›",
+        "session:‹токен 3›"
+      ]
+    },
+    {
+      "title": "Вторая квартира — свой пароль",
+      "text": "Консьерж заводит «Лютик» и зовёт туда Бориса, а Борис зовёт Анну. По ссылке видно, что у контакта уже есть аккаунт в доме (`hasAccount`): входить заранее не нужно, `accept` пропишет тот же аккаунт. Но у каждой квартиры свой пароль: принять приглашение с паролем от «Ромашки» нельзя — `invalid_data` (`api.password_reused`), приглашение при этом живо. С другим паролем Анна прописана в «Лютике» тем же аккаунтом. Каждый пароль открывает ровно свою квартиру, а TOTP «Ромашки» на «Лютик» не действует. Внешний id Telegram уже открывает «Ромашку» — привязать его в «Лютике» нельзя: `exists`.",
+      "code": "await db.createTenant('Лютик');\nconst boris = await inviteAndAccept(db, await db.in('Лютик'), { email: 'boris@lutik.ru' }, ['owner'], { password: 'Лютик-2026!', name: 'Борис' });\nawait boris.invite({ email: annaKey.email }, ['staff']);\nconst { token } = lastLetter(annaKey.email, 'invite');\nconst seen = await db.invitation(token);\nconst samePassword = await db.accept(token, { password: annaKey.password }).then(() => 'принято', (e) => `${e.code} (${e.key})`);\nconst inLutik = await db.accept(token, { password: 'Лютик-Анна-2026!' });\nreturn {\n  'по ссылке': { 'квартира': seen.tenantName, 'кто зовёт': seen.from?.name, 'аккаунт уже есть': seen.hasAccount },\n  'тот же пароль': samePassword,\n  'другой пароль': inLutik.tenantName,\n  'тот же аккаунт': inLutik.account === me.account,\n  'пароль «Лютика» открывает': (await db.open({ email: annaKey.email, password: 'Лютик-Анна-2026!' })).tenantName,\n  'Борис привязывает Telegram Анны': await boris.keys.link({ kind: 'TELEGRAM', identifier: '100500' }).then(() => 'привязан', (e) => e.code),\n};",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">createTenant</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Лютик'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> boris</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> inviteAndAccept</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(db, </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">in</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Лютик'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">), { email: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'boris@lutik.ru'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'owner'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">], { password: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Лютик-2026!'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Борис'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> boris.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">invite</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ email: annaKey.email }, [</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'staff'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">]);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">token</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> } </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\"> lastLetter</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(annaKey.email, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'invite'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> seen</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">invitation</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(token);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> samePassword</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">accept</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(token, { password: annaKey.password }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">then</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(() </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'принято'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, (</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">e</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> `${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">e</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">code</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">} (${</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">e</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">.</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">key</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">})`</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">);</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\"> inLutik</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> =</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">accept</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(token, { password: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Лютик-Анна-2026!'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> });</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'по ссылке'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: { </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'квартира'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: seen.tenantName, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'кто зовёт'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: seen.from?.name, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'аккаунт уже есть'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: seen.hasAccount },</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'тот же пароль'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: samePassword,</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'другой пароль'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: inLutik.tenantName,</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'тот же аккаунт'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: inLutik.account </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">===</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.account,</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'пароль «Лютика» открывает'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">open</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ email: annaKey.email, password: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Лютик-Анна-2026!'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> })).tenantName,</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'Борис привязывает Telegram Анны'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> boris.keys.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">link</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ kind: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'TELEGRAM'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, identifier: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'100500'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">then</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(() </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\"> 'привязан'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, (</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">e</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> e.code),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">};</span></span></code></pre>",
+      "result": {
+        "по ссылке": {
+          "квартира": "Лютик",
+          "кто зовёт": "Борис",
+          "аккаунт уже есть": true
+        },
+        "тот же пароль": "invalid_data (api.password_reused)",
+        "другой пароль": "Лютик",
+        "тот же аккаунт": true,
+        "пароль «Лютика» открывает": "Лютик",
+        "Борис привязывает Telegram Анны": "exists"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "Ромашка",
+          "tenant": "Ромашка",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "установка",
+          "deleted_at": "установка",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "APIKEY",
+          "ident": "‹токен 1›",
+          "meta": {
+            "name": "склад"
+          },
+          "material": "‹хэш›",
+          "expires_at": null,
+          "created_at": "шаг 2",
+          "deleted_at": "шаг 7",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет APIKEY·2",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "шаг 2"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 2",
+          "deleted_at": "шаг 7",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "KEYSECRET",
+          "ident": "‹ключ пары›",
+          "meta": {
+            "name": "касса"
+          },
+          "material": "‹хэш›",
+          "expires_at": null,
+          "created_at": "шаг 3",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет KEYSECRET·1",
+            "methods": [
+              "KEYSECRET"
+            ],
+            "login_at": "шаг 3"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 3",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "TELEGRAM",
+          "ident": "100500",
+          "meta": {},
+          "material": null,
+          "expires_at": null,
+          "created_at": "шаг 4",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет TELEGRAM·1",
+            "methods": [
+              "TELEGRAM"
+            ],
+            "login_at": "шаг 4"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 4",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "System",
+          "kind": "OTP",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "attempts": 0,
+            "max_attempts": 5
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 10 мин",
+          "created_at": "шаг 5",
+          "deleted_at": "шаг 5",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "OTP"
+            ],
+            "login_at": "шаг 5"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 5",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "TOTP",
+          "ident": "Анна",
+          "meta": {
+            "confirmed": true,
+            "last_step": "‹шаг TOTP›"
+          },
+          "material": "‹хэш›",
+          "expires_at": null,
+          "created_at": "шаг 6",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "System",
+          "kind": "OTP",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "attempts": 0,
+            "max_attempts": 5
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 10 мин",
+          "created_at": "шаг 6",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет APIKEY·2",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "шаг 6"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 6",
+          "deleted_at": "шаг 7",
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет PASSWORD·1",
+            "methods": [
+              "PASSWORD",
+              "TOTP"
+            ],
+            "login_at": "шаг 6"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 6",
+          "deleted_at": null,
+          "$new": false
+        },
+        {
+          "account": "Анна",
+          "tenant": "Ромашка",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет APIKEY·2",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "шаг 7"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 7",
+          "deleted_at": "шаг 7",
+          "$new": false
+        },
+        {
+          "account": "Лютик",
+          "tenant": "Лютик",
+          "kind": "INVITE",
+          "ident": "email:boris@lutik.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "boris@lutik.ru"
+            },
+            "attempts": 0
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 8",
+          "deleted_at": "шаг 8",
+          "$new": true
+        },
+        {
+          "account": "Борис",
+          "tenant": "System",
+          "kind": "IDENT",
+          "ident": "email:boris@lutik.ru",
+          "meta": {
+            "kind": "email",
+            "address": "boris@lutik.ru"
+          },
+          "material": null,
+          "expires_at": null,
+          "created_at": "шаг 8",
+          "deleted_at": null,
+          "$new": true
+        },
+        {
+          "account": "Борис",
+          "tenant": "Лютик",
+          "kind": "PASSWORD",
+          "ident": "email:boris@lutik.ru",
+          "meta": {},
+          "material": "‹хэш›",
+          "expires_at": null,
+          "created_at": "шаг 8",
+          "deleted_at": null,
+          "$new": true
+        },
+        {
+          "account": "Борис",
+          "tenant": "Лютик",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет PASSWORD·2",
+            "methods": [
+              "INVITE",
+              "FIRST"
+            ],
+            "login_at": "шаг 8"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 8",
+          "deleted_at": null,
+          "$new": true
+        },
+        {
+          "account": "Лютик",
+          "tenant": "Лютик",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "by": "Борис",
+            "roles": [
+              "staff"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 1
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 8",
+          "deleted_at": "шаг 8",
+          "$new": true
+        },
+        {
+          "account": "Анна",
+          "tenant": "Лютик",
+          "kind": "PASSWORD",
+          "ident": "email:anna@romashka.ru",
+          "meta": {},
+          "material": "‹хэш›",
+          "expires_at": null,
+          "created_at": "шаг 8",
+          "deleted_at": null,
+          "$new": true
+        },
+        {
+          "account": "Анна",
+          "tenant": "Лютик",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет PASSWORD·3",
+            "methods": [
+              "INVITE"
+            ],
+            "login_at": "шаг 8"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 8",
+          "deleted_at": null,
+          "$new": true
+        },
+        {
+          "account": "Анна",
+          "tenant": "Лютик",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "секрет PASSWORD·3",
+            "methods": [
+              "PASSWORD"
+            ],
+            "login_at": "шаг 8"
+          },
+          "material": "‹хэш›",
+          "expires_at": "через 7 дн",
+          "created_at": "шаг 8",
+          "deleted_at": null,
+          "$new": true
+        }
+      ],
+      "counts": null,
+      "signals": [
+        "member"
+      ]
+    }
+  ],
+  "output": "Шаг 1. Первый ключ Анны — пароль\n[\n  {\n    \"kind\": \"PASSWORD\",\n    \"ident\": \"email:anna@romashka.ru\",\n    \"enabled\": true,\n    \"expiresAt\": null\n  }\n]\n\nШаг 2. Ключ API — для программы\n{\n  \"ключ начинается с\": \"lts_\",\n  \"квартира\": \"Ромашка\",\n  \"тот же аккаунт\": true,\n  \"из сессии ключа — ещё ключ\": \"acl_denied\"\n}\n\nШаг 3. Ключ и секрет — для интеграции\n{\n  \"квартира\": \"Ромашка\",\n  \"неверный секрет\": \"auth_failed\"\n}\n\nШаг 4. Внешний вход: Telegram\n{\n  \"квартира\": \"Ромашка\"\n}\n\nШаг 5. Вход кодом: requestCode, tenantsOf и open\n{\n  \"ответ requestCode\": {\n    \"expiresAt\": \"‹время›\"\n  },\n  \"квартиры по коду\": [\n    \"Ромашка\"\n  ],\n  \"вошла в\": \"Ромашка\",\n  \"тот же код ещё раз\": \"auth_failed\",\n  \"код на незнакомый адрес\": {\n    \"expiresAt\": \"‹время›\"\n  }\n}\n\nШаг 6. Второй фактор: TOTP\n{\n  \"ссылка для QR\": true,\n  \"verifyTotp\": true,\n  \"пароль без кода\": \"auth_failed (api.totp_required)\",\n  \"код из письма без кода TOTP\": \"auth_failed (api.totp_required)\",\n  \"Telegram без кода\": \"auth_failed (api.totp_required)\",\n  \"ключ API без кода\": \"Ромашка\",\n  \"пароль и неверный код\": \"auth_failed (api.auth_failed)\",\n  \"пароль и код\": \"Ромашка\"\n}\n\nШаг 7. Список ключей и отзыв\n{\n  \"ключи\": [\n    \"PASSWORD\",\n    \"APIKEY «склад»\",\n    \"KEYSECRET «касса»\",\n    \"TELEGRAM\",\n    \"TOTP\"\n  ],\n  \"отозван\": true,\n  \"вход отозванным ключом\": \"auth_failed\",\n  \"его сессия\": \"auth_failed\"\n}\n\nШаг 8. Вторая квартира — свой пароль\n{\n  \"по ссылке\": {\n    \"квартира\": \"Лютик\",\n    \"кто зовёт\": \"Борис\",\n    \"аккаунт уже есть\": true\n  },\n  \"тот же пароль\": \"invalid_data (api.password_reused)\",\n  \"другой пароль\": \"Лютик\",\n  \"тот же аккаунт\": true,\n  \"пароль «Лютика» открывает\": \"Лютик\",\n  \"Борис привязывает Telegram Анны\": \"exists\"\n}"
+}

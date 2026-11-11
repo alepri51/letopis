@@ -1,4 +1,4 @@
-import { syncModels } from 'letopis';
+import { setup } from 'letopis';
 import { hub } from 'letopis/model';
 import { z } from 'zod';
 import { example } from '../_shared/example.ts';
@@ -9,46 +9,51 @@ export default example({
   title: 'Три таблицы: entity, log и secret',
   summary:
     'Всё, что хранит letopis, лежит в трёх таблицах. entity — объекты сейчас, log — все их версии, secret — ' +
-    'пароли, ключи и сессии. Даже описание класса — это объект в entity.',
-  covers: ['db.auth', 'auth.verifyPassword', 'nuance.class-is-entity', 'nuance.session-in-secret'],
+    'ключи, приглашения и сессии. Даже описание класса — это объект в entity.',
+  covers: ['house.open', 'db.token', 'setup.models', 'db.refresh', 'nuance.class-is-entity', 'nuance.session-in-secret', 'nuance.registry-refresh'],
   tables: ['entity', 'log', 'secret'],
   classes: ['Class'],
   steps: [
     {
-      title: 'Что лежит в базе сразу после установки',
+      title: 'Что лежит в базе сразу после подготовки',
       text:
-        'Установка уже завела служебные объекты: описания системных классов (`Class`), аккаунты (`Account`: System, ' +
-        'арендатор «Ромашка», пользователь Анна и сервис), членство Анны в «Ромашке» (`member`), ресурсы (`Resource`) ' +
-        'и правила доступа (`rule`). `member` и `rule` — системные классы-связи, их имена библиотека пишет со строчной ' +
-        'буквы. SQL-запрос прямо к таблице показывает, сколько строк каждого класса в `entity`.',
+        'Дом уже завёл служебные объекты: описания системных классов (`Class`), аккаунты (`Account`: System, консьерж, ' +
+        'квартира «Ромашка» и Анна), прописку Анны в «Ромашке» (`member`), ресурсы (`Resource`) и правила матрицы ' +
+        '(`rule`). `member` и `rule` — системные классы-связи, их имена библиотека пишет со строчной буквы. SQL-запрос ' +
+        'мастер-ключом прямо к таблице показывает, сколько строк каждого класса в `entity`.',
       run: async ({ admin, schema }) => {
         return admin.unsafe(`select class, count(*)::int as rows from "${schema}".entity group by class order by class`);
       },
     },
     {
-      title: 'Вход по паролю — новая строка в secret',
+      title: 'Вход по ключу — новая строка в secret',
       text:
-        'Проверка пароля выдаёт сессию. Сессия — строка вида `SESSION` в таблице `secret`. Запрос к таблице берёт ' +
-        'самую новую сессию Анны: в колонке `material` лежит не токен, а его хэш sha256 — запрос сверяет его с ' +
-        'выданным токеном. В `entity` и `log` ничего не меняется.',
-      run: async ({ svc, user, admin, schema }) => {
-        const login = await svc.auth.verifyPassword({ identifier: user.login, password: user.password });
+        '`db.open(ключ)` — вход Анны по паролю: консьерж сверяет ключ и открывает сессию в квартире, которую этот ключ ' +
+        'открывает. Сессия — строка вида `SESSION` в таблице `secret`, колонка `tenant` — её квартира. Запрос берёт самую ' +
+        'новую сессию Анны: в колонке `material` лежит не токен, а его хэш sha256 — запрос сверяет его с токеном ' +
+        '`anna.token`. В `entity` и `log` ничего не меняется.',
+      run: async ({ db, annaKey, admin, schema }) => {
+        const anna = await db.open(annaKey);
         return admin.unsafe(
-          `select kind, account,
-                  case when material = sha256(convert_to($1, 'UTF8')) then 'sha256 токена' else 'другое' end as material,
-                  expires_at is not null as expires
-             from "${schema}".secret where kind = 'SESSION' and account = $2 order by created_at desc limit 1`,
-          [login!.token, login!.account],
+          `select s.kind, a.data->>'name' as account, t.data->>'name' as tenant,
+                  case when s.material = sha256(convert_to($1, 'UTF8')) then 'sha256 токена' else 'другое' end as material,
+                  s.expires_at is not null as expires
+             from "${schema}".secret s
+             join "${schema}".entity a on a.id = s.account
+             join "${schema}".entity t on t.id = s.tenant
+            where s.kind = 'SESSION' and s.account = $2 order by s.created_at desc limit 1`,
+          [anna.token, anna.account],
         );
       },
     },
     {
       title: 'Описание класса — тоже объект',
       text:
-        'Описываем класс «Заметка». В `entity` появилась строка класса `Class`: имя класса и его поля. Её версия ' +
-        'записана в журнал, как у любого объекта: `versions` — число строк этого объекта в `log`.',
-      run: async ({ db, admin, schema }) => {
-        await syncModels(db, [Note], { apply: true });
+        'Дописываем в дом класс «Заметка»: `setup()` с моделью достраивает дом, ничего прежнего не трогая. В `entity` ' +
+        'появилась строка класса `Class`: имя класса и его поля. Её версия записана в журнал, как у любого объекта: ' +
+        '`versions` — число строк этого объекта в `log`.',
+      run: async ({ ADMIN_DSN, name, admin, schema }) => {
+        await setup(ADMIN_DSN, name, { models: [Note], quiet: true });
         return admin.unsafe(
           `select e.class, e.rev, e.data->>'name' as name, e.data->'fields' as fields,
                   (select count(*)::int from "${schema}".log l where l.id = e.id) as versions
@@ -58,8 +63,13 @@ export default example({
     },
     {
       title: 'Первая заметка',
-      text: 'Объект класса «Заметка»: строка в `entity` и запись `create` в журнале.',
-      run: async ({ db }) => db.Note().create({ text: 'Позвонить поставщику' }).rows(),
+      text:
+        'Корень Анны открыт до того, как в доме появился класс «Заметка»: список классов он перечитывает по сигналу ' +
+        'базы, а сразу — `me.refresh()`. Затем объект класса «Заметка»: строка в `entity` и запись `create` в журнале.',
+      run: async ({ me }) => {
+        await me.refresh();
+        return me.Note().create({ text: 'Позвонить поставщику' }).rows();
+      },
     },
   ],
 });

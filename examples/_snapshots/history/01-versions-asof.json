@@ -15,8 +15,8 @@
     {
       "title": "Товар и три правки — с причинами",
       "text": "Причина — опция `reason` глагола; она записывается в журнал рядом с версией.",
-      "code": "[kettle] = await db.Shop(shop).Product().create({ sku: 'K-1', title: 'Чайник', price: 2500 }, { reason: 'новый товар' }).rows();\nt1 = (await db.Product(kettle).first())!.at;\nawait db.Product(kettle).update({ price: 2200 }, { reason: 'осенняя скидка' }).rows();\nawait db.Product(kettle).update({ title: 'Чайник стеклянный' }, { reason: 'уточнили название' }).rows();\nreturn db.Product(kettle).update({ price: 2400 }, { reason: 'скидка кончилась' }).rows();",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">[kettle] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ sku: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'K-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Чайник'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">2500</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, { reason: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'новый товар'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">t1 </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">first</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">())</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.at;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">2200</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, { reason: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'осенняя скидка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Чайник стеклянный'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, { reason: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'уточнили название'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">2400</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, { reason: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'скидка кончилась'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span></code></pre>",
+      "code": "[kettle] = await me.Shop(shop).Product().create({ sku: 'K-1', title: 'Чайник', price: 2500 }, { reason: 'новый товар' }).rows();\nt1 = (await me.Product(kettle).first())!.at;\nawait me.Product(kettle).update({ price: 2200 }, { reason: 'осенняя скидка' }).rows();\nawait me.Product(kettle).update({ title: 'Чайник стеклянный' }, { reason: 'уточнили название' }).rows();\nreturn me.Product(kettle).update({ price: 2400 }, { reason: 'скидка кончилась' }).rows();",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">[kettle] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Shop</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(shop).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ sku: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'K-1'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Чайник'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">2500</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, { reason: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'новый товар'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">t1 </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">first</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">())</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">!</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">.at;</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">2200</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, { reason: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'осенняя скидка'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ title: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Чайник стеклянный'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, { reason: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'уточнили название'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ price: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">2400</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }, { reason: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'скидка кончилась'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span></code></pre>",
       "result": [
         {
           "at": "t5",
@@ -36,7 +36,6 @@
           "owner": "Ромашка",
           "author": "Анна",
           "tenant": "Ромашка",
-          "agent": "service",
           "reason": "скидка кончилась"
         }
       ],
@@ -45,7 +44,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "41",
+          "seq": "48",
           "id": "Shop «Ромашка»",
           "rev": 1,
           "class": "Shop",
@@ -57,13 +56,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": true
         },
         {
-          "seq": "42",
+          "seq": "49",
           "id": "Product «Чайник»",
           "rev": 1,
           "class": "Product",
@@ -79,13 +78,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "новый товар",
           "at": "t2",
           "$new": true
         },
         {
-          "seq": "43",
+          "seq": "50",
           "id": "Product «Чайник»",
           "rev": 2,
           "class": "Product",
@@ -101,13 +100,13 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "осенняя скидка",
           "at": "t3",
           "$new": true
         },
         {
-          "seq": "44",
+          "seq": "51",
           "id": "Product «Чайник»",
           "rev": 3,
           "class": "Product",
@@ -123,13 +122,13 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "уточнили название",
           "at": "t4",
           "$new": true
         },
         {
-          "seq": "45",
+          "seq": "52",
           "id": "Product «Чайник»",
           "rev": 4,
           "class": "Product",
@@ -145,7 +144,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "скидка кончилась",
           "at": "t5",
           "$new": true
@@ -154,7 +153,6 @@
       "secret": [],
       "counts": null,
       "signals": [
-        "Class",
         "Product",
         "Shop"
       ]
@@ -162,8 +160,8 @@
     {
       "title": "Все версии",
       "text": null,
-      "code": "(await db.Product(kettle).versions()).map((v) => ({ rev: v.rev, op: v.op, title: v.data.title, price: v.data.price, reason: v.reason }))",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">versions</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">v</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ rev: v.rev, op: v.op, title: v.data.title, price: v.data.price, reason: v.reason }))</span></span></code></pre>",
+      "code": "(await me.Product(kettle).versions()).map((v) => ({ rev: v.rev, op: v.op, title: v.data.title, price: v.data.price, reason: v.reason }))",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">versions</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">v</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ rev: v.rev, op: v.op, title: v.data.title, price: v.data.price, reason: v.reason }))</span></span></code></pre>",
       "result": [
         {
           "rev": 1,
@@ -199,7 +197,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "41",
+          "seq": "48",
           "id": "Shop «Ромашка»",
           "rev": 1,
           "class": "Shop",
@@ -211,13 +209,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": false
         },
         {
-          "seq": "42",
+          "seq": "49",
           "id": "Product «Чайник»",
           "rev": 1,
           "class": "Product",
@@ -233,13 +231,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "новый товар",
           "at": "t2",
           "$new": false
         },
         {
-          "seq": "43",
+          "seq": "50",
           "id": "Product «Чайник»",
           "rev": 2,
           "class": "Product",
@@ -255,13 +253,13 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "осенняя скидка",
           "at": "t3",
           "$new": false
         },
         {
-          "seq": "44",
+          "seq": "51",
           "id": "Product «Чайник»",
           "rev": 3,
           "class": "Product",
@@ -277,13 +275,13 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "уточнили название",
           "at": "t4",
           "$new": false
         },
         {
-          "seq": "45",
+          "seq": "52",
           "id": "Product «Чайник»",
           "rev": 4,
           "class": "Product",
@@ -299,7 +297,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "скидка кончилась",
           "at": "t5",
           "$new": false
@@ -312,8 +310,8 @@
     {
       "title": "Товар на момент создания",
       "text": "`asOf(момент)` — тот же запрос, но по состоянию журнала на этот момент. Время — строка ISO или `Date`.",
-      "code": "const [row] = await db.Product(kettle).asOf(t1).rows();\nreturn { title: row.data.title, price: row.data.price, rev: row.rev };",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> [</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">row</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">asOf</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(t1).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { title: row.data.title, price: row.data.price, rev: row.rev };</span></span></code></pre>",
+      "code": "const [row] = await me.Product(kettle).asOf(t1).rows();\nreturn { title: row.data.title, price: row.data.price, rev: row.rev };",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> [</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">row</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">asOf</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(t1).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> { title: row.data.title, price: row.data.price, rev: row.rev };</span></span></code></pre>",
       "result": {
         "title": "Чайник",
         "price": 2500,
@@ -324,7 +322,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "41",
+          "seq": "48",
           "id": "Shop «Ромашка»",
           "rev": 1,
           "class": "Shop",
@@ -336,13 +334,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": false
         },
         {
-          "seq": "42",
+          "seq": "49",
           "id": "Product «Чайник»",
           "rev": 1,
           "class": "Product",
@@ -358,13 +356,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "новый товар",
           "at": "t2",
           "$new": false
         },
         {
-          "seq": "43",
+          "seq": "50",
           "id": "Product «Чайник»",
           "rev": 2,
           "class": "Product",
@@ -380,13 +378,13 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "осенняя скидка",
           "at": "t3",
           "$new": false
         },
         {
-          "seq": "44",
+          "seq": "51",
           "id": "Product «Чайник»",
           "rev": 3,
           "class": "Product",
@@ -402,13 +400,13 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "уточнили название",
           "at": "t4",
           "$new": false
         },
         {
-          "seq": "45",
+          "seq": "52",
           "id": "Product «Чайник»",
           "rev": 4,
           "class": "Product",
@@ -424,7 +422,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "скидка кончилась",
           "at": "t5",
           "$new": false
@@ -437,8 +435,8 @@
     {
       "title": "Последние версии — новые первыми",
       "text": "`sort()` и `limit()` работают и для версий: `sort(\"at\", \"desc\").limit(2)` — две последние правки, ограничение — в самом запросе. Что изменила версия, видно, если сравнить её с предыдущей.",
-      "code": "(await db.Product(kettle).sort('at', 'desc').limit(2).versions()).map((v) => ({ rev: v.rev, price: v.data.price, reason: v.reason }))",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">sort</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'at'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'desc'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">limit</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">2</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">versions</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">v</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ rev: v.rev, price: v.data.price, reason: v.reason }))</span></span></code></pre>",
+      "code": "(await me.Product(kettle).sort('at', 'desc').limit(2).versions()).map((v) => ({ rev: v.rev, price: v.data.price, reason: v.reason }))",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">sort</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'at'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">, </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'desc'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">limit</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">2</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">versions</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">map</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">((</span><span style=\"color:#E36209;--shiki-dark:#FFAB70\">v</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">) </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=></span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> ({ rev: v.rev, price: v.data.price, reason: v.reason }))</span></span></code></pre>",
       "result": [
         {
           "rev": 4,
@@ -456,7 +454,7 @@
       "removed": [],
       "log": [
         {
-          "seq": "41",
+          "seq": "48",
           "id": "Shop «Ромашка»",
           "rev": 1,
           "class": "Shop",
@@ -468,13 +466,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": false
         },
         {
-          "seq": "42",
+          "seq": "49",
           "id": "Product «Чайник»",
           "rev": 1,
           "class": "Product",
@@ -490,13 +488,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "новый товар",
           "at": "t2",
           "$new": false
         },
         {
-          "seq": "43",
+          "seq": "50",
           "id": "Product «Чайник»",
           "rev": 2,
           "class": "Product",
@@ -512,13 +510,13 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "осенняя скидка",
           "at": "t3",
           "$new": false
         },
         {
-          "seq": "44",
+          "seq": "51",
           "id": "Product «Чайник»",
           "rev": 3,
           "class": "Product",
@@ -534,13 +532,13 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "уточнили название",
           "at": "t4",
           "$new": false
         },
         {
-          "seq": "45",
+          "seq": "52",
           "id": "Product «Чайник»",
           "rev": 4,
           "class": "Product",
@@ -556,7 +554,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "скидка кончилась",
           "at": "t5",
           "$new": false
@@ -568,21 +566,22 @@
     },
     {
       "title": "Срез по обратному переходу: товар в двух категориях — один раз",
-      "text": "Чайник положили в две категории. Шаг `Product()` после `Category()` идёт по концам назад — от категорий к товарам, которые на них ссылаются, а чайник ссылается на обе. В срезе `asOf()` он приходит один раз, как и без среза, а `count()` и путей — по одному на категорию.",
-      "code": "const [tea] = await db.Category().create({ name: 'Чай и кофе' }).rows();\nconst [dishes] = await db.Category().create({ name: 'Посуда' }).rows();\nconst [row] = await db.Product(kettle).update({}).Category.add([tea.id, dishes.id]).rows();\nreturn {\n  'строк сейчас': (await db.Category().Product().rows()).length,\n  'строк в срезе asOf': (await db.Category().Product().asOf(row.at).rows()).length,\n  'count() в срезе': await db.Category().Product().asOf(row.at).count(),\n  'путей в срезе': (await db.Category().Product().asOf(row.at).paths()).length,\n};",
-      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> [</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">tea</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Category</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Чай и кофе'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> [</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">dishes</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Category</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Посуда'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> [</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">row</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({}).Category.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">add</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">([tea.id, dishes.id]).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'строк сейчас'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Category</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()).</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">length</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'строк в срезе asOf'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Category</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">asOf</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(row.at).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()).</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">length</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'count() в срезе'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Category</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">asOf</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(row.at).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">count</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'путей в срезе'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> db.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Category</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">asOf</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(row.at).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">paths</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()).</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">length</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">};</span></span></code></pre>",
+      "text": "Чайник положили в две категории. Шаг `Product()` после `Category()` идёт по концам назад — от категорий к товарам, которые на них ссылаются, а чайник ссылается на обе. В срезе `asOf()` он приходит один раз, как и без среза, и `count()` считает его один раз: это число объектов последнего шага. Путей два — по одному на категорию: их отдают `paths()` и `count({ paths: true })`.",
+      "code": "const [tea] = await me.Category().create({ name: 'Чай и кофе' }).rows();\nconst [dishes] = await me.Category().create({ name: 'Посуда' }).rows();\nconst [row] = await me.Product(kettle).update({}).Category.add([tea.id, dishes.id]).rows();\nreturn {\n  'строк сейчас': (await me.Category().Product().rows()).length,\n  'строк в срезе asOf': (await me.Category().Product().asOf(row.at).rows()).length,\n  'count() в срезе': await me.Category().Product().asOf(row.at).count(),\n  'путей в срезе': (await me.Category().Product().asOf(row.at).paths()).length,\n  'count({ paths: true }) в срезе': await me.Category().Product().asOf(row.at).count({ paths: true }),\n};",
+      "html": "<pre class=\"shiki shiki-themes github-light github-dark\" style=\"background-color:#fff;--shiki-dark-bg:#24292e;color:#24292e;--shiki-dark:#e1e4e8\" tabindex=\"0\"><code><span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> [</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">tea</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Category</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Чай и кофе'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> [</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">dishes</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Category</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">create</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ name: </span><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">'Посуда'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">const</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> [</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">row</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">] </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">=</span><span style=\"color:#D73A49;--shiki-dark:#F97583\"> await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(kettle).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">update</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({}).Category.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">add</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">([tea.id, dishes.id]).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">();</span></span>\n<span class=\"line\"><span style=\"color:#D73A49;--shiki-dark:#F97583\">return</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> {</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'строк сейчас'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Category</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()).</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">length</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'строк в срезе asOf'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Category</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">asOf</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(row.at).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">rows</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()).</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">length</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'count() в срезе'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Category</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">asOf</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(row.at).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">count</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(),</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'путей в срезе'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: (</span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Category</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">asOf</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(row.at).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">paths</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">()).</span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">length</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">,</span></span>\n<span class=\"line\"><span style=\"color:#032F62;--shiki-dark:#9ECBFF\">  'count({ paths: true }) в срезе'</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">: </span><span style=\"color:#D73A49;--shiki-dark:#F97583\">await</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> me.</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Category</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">Product</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">().</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">asOf</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">(row.at).</span><span style=\"color:#6F42C1;--shiki-dark:#B392F0\">count</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">({ paths: </span><span style=\"color:#005CC5;--shiki-dark:#79B8FF\">true</span><span style=\"color:#24292E;--shiki-dark:#E1E4E8\"> }),</span></span>\n<span class=\"line\"><span style=\"color:#24292E;--shiki-dark:#E1E4E8\">};</span></span></code></pre>",
       "result": {
         "строк сейчас": 1,
         "строк в срезе asOf": 1,
         "count() в срезе": 1,
-        "путей в срезе": 2
+        "путей в срезе": 2,
+        "count({ paths: true }) в срезе": 2
       },
       "error": null,
       "entity": [],
       "removed": [],
       "log": [
         {
-          "seq": "41",
+          "seq": "48",
           "id": "Shop «Ромашка»",
           "rev": 1,
           "class": "Shop",
@@ -594,13 +593,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t1",
           "$new": false
         },
         {
-          "seq": "42",
+          "seq": "49",
           "id": "Product «Чайник»",
           "rev": 1,
           "class": "Product",
@@ -616,13 +615,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "новый товар",
           "at": "t2",
           "$new": false
         },
         {
-          "seq": "43",
+          "seq": "50",
           "id": "Product «Чайник»",
           "rev": 2,
           "class": "Product",
@@ -638,13 +637,13 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "осенняя скидка",
           "at": "t3",
           "$new": false
         },
         {
-          "seq": "44",
+          "seq": "51",
           "id": "Product «Чайник»",
           "rev": 3,
           "class": "Product",
@@ -660,13 +659,13 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "уточнили название",
           "at": "t4",
           "$new": false
         },
         {
-          "seq": "45",
+          "seq": "52",
           "id": "Product «Чайник»",
           "rev": 4,
           "class": "Product",
@@ -682,13 +681,13 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": "скидка кончилась",
           "at": "t5",
           "$new": false
         },
         {
-          "seq": "46",
+          "seq": "53",
           "id": "Category «Чай и кофе»",
           "rev": 1,
           "class": "Category",
@@ -700,13 +699,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t6",
           "$new": true
         },
         {
-          "seq": "47",
+          "seq": "54",
           "id": "Category «Посуда»",
           "rev": 1,
           "class": "Category",
@@ -718,13 +717,13 @@
           "tags": [],
           "op": "create",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t7",
           "$new": true
         },
         {
-          "seq": "48",
+          "seq": "55",
           "id": "Product «Чайник»",
           "rev": 5,
           "class": "Product",
@@ -744,7 +743,7 @@
           "tags": [],
           "op": "update",
           "author": "Анна",
-          "agent": "service",
+          "agent": null,
           "reason": null,
           "at": "t8",
           "$new": true
@@ -758,5 +757,5 @@
       ]
     }
   ],
-  "output": "Шаг 1. Товар и три правки — с причинами\n[\n  {\n    \"at\": \"‹время›\",\n    \"id\": \"‹id 1›\",\n    \"op\": \"update\",\n    \"rev\": 4,\n    \"data\": {\n      \"sku\": \"K-1\",\n      \"price\": 2400,\n      \"title\": \"Чайник стеклянный\"\n    },\n    \"tags\": [],\n    \"class\": \"Product\",\n    \"links\": {\n      \"Shop\": \"‹id 2›\"\n    },\n    \"owner\": \"‹id 3›\",\n    \"author\": \"‹id 4›\",\n    \"tenant\": \"‹id 3›\",\n    \"agent\": \"‹id 5›\",\n    \"reason\": \"скидка кончилась\"\n  }\n]\n\nШаг 2. Все версии\n[\n  {\n    \"rev\": 1,\n    \"op\": \"create\",\n    \"title\": \"Чайник\",\n    \"price\": 2500,\n    \"reason\": \"новый товар\"\n  },\n  {\n    \"rev\": 2,\n    \"op\": \"update\",\n    \"title\": \"Чайник\",\n    \"price\": 2200,\n    \"reason\": \"осенняя скидка\"\n  },\n  {\n    \"rev\": 3,\n    \"op\": \"update\",\n    \"title\": \"Чайник стеклянный\",\n    \"price\": 2200,\n    \"reason\": \"уточнили название\"\n  },\n  {\n    \"rev\": 4,\n    \"op\": \"update\",\n    \"title\": \"Чайник стеклянный\",\n    \"price\": 2400,\n    \"reason\": \"скидка кончилась\"\n  }\n]\n\nШаг 3. Товар на момент создания\n{\n  \"title\": \"Чайник\",\n  \"price\": 2500,\n  \"rev\": 1\n}\n\nШаг 4. Последние версии — новые первыми\n[\n  {\n    \"rev\": 4,\n    \"price\": 2400,\n    \"reason\": \"скидка кончилась\"\n  },\n  {\n    \"rev\": 3,\n    \"price\": 2200,\n    \"reason\": \"уточнили название\"\n  }\n]\n\nШаг 5. Срез по обратному переходу: товар в двух категориях — один раз\n{\n  \"строк сейчас\": 1,\n  \"строк в срезе asOf\": 1,\n  \"count() в срезе\": 1,\n  \"путей в срезе\": 2\n}"
+  "output": "Шаг 1. Товар и три правки — с причинами\n[\n  {\n    \"at\": \"‹время›\",\n    \"id\": \"‹id 1›\",\n    \"op\": \"update\",\n    \"rev\": 4,\n    \"data\": {\n      \"sku\": \"K-1\",\n      \"price\": 2400,\n      \"title\": \"Чайник стеклянный\"\n    },\n    \"tags\": [],\n    \"class\": \"Product\",\n    \"links\": {\n      \"Shop\": \"‹id 2›\"\n    },\n    \"owner\": \"‹id 3›\",\n    \"author\": \"‹id 4›\",\n    \"tenant\": \"‹id 3›\",\n    \"reason\": \"скидка кончилась\"\n  }\n]\n\nШаг 2. Все версии\n[\n  {\n    \"rev\": 1,\n    \"op\": \"create\",\n    \"title\": \"Чайник\",\n    \"price\": 2500,\n    \"reason\": \"новый товар\"\n  },\n  {\n    \"rev\": 2,\n    \"op\": \"update\",\n    \"title\": \"Чайник\",\n    \"price\": 2200,\n    \"reason\": \"осенняя скидка\"\n  },\n  {\n    \"rev\": 3,\n    \"op\": \"update\",\n    \"title\": \"Чайник стеклянный\",\n    \"price\": 2200,\n    \"reason\": \"уточнили название\"\n  },\n  {\n    \"rev\": 4,\n    \"op\": \"update\",\n    \"title\": \"Чайник стеклянный\",\n    \"price\": 2400,\n    \"reason\": \"скидка кончилась\"\n  }\n]\n\nШаг 3. Товар на момент создания\n{\n  \"title\": \"Чайник\",\n  \"price\": 2500,\n  \"rev\": 1\n}\n\nШаг 4. Последние версии — новые первыми\n[\n  {\n    \"rev\": 4,\n    \"price\": 2400,\n    \"reason\": \"скидка кончилась\"\n  },\n  {\n    \"rev\": 3,\n    \"price\": 2200,\n    \"reason\": \"уточнили название\"\n  }\n]\n\nШаг 5. Срез по обратному переходу: товар в двух категориях — один раз\n{\n  \"строк сейчас\": 1,\n  \"строк в срезе asOf\": 1,\n  \"count() в срезе\": 1,\n  \"путей в срезе\": 2,\n  \"count({ paths: true }) в срезе\": 2\n}"
 }

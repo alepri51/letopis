@@ -1,0 +1,122 @@
+{
+  "id": "install/02-setup-options",
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": {
+        "created": true,
+        "режим сигналов": "tenant"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "режим сигналов": "tenant"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "opaque": "opaque",
+        "none": "none"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "свежий дом": false,
+        "defaultRule: 'allow'": true,
+        "defaultRule: 'deny'": false
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "первый раз": [
+          "Shop"
+        ],
+        "повтор": [
+          "Shop"
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "one(Shop) — End": true,
+        "normalizeSchema": {
+          "type": "object",
+          "properties": {
+            "n": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "translatePattern": "^[0-9]{3}$"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": [
+        "setup.step: повторный накат: v2.g_install_02_setup_options, ревизия 12",
+        "setup"
+      ],
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "seed вместо seeds": "letopis: invalid_data: неизвестная опция setup({ seed }) — похожие: seeds",
+        "имя «Мой дом»": "letopis: invalid_data: имя дома \"Мой дом\": латинские строчные буквы, цифры и подчёркивание, с буквы или подчёркивания, до 41 знака",
+        "defaultRule: 'maybe'": "letopis: invalid_data: defaultRule \"maybe\": нужно deny или allow"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    }
+  ],
+  "output": "Шаг 1. Дом с готовой моделью салона и режимом сигналов\n{\n  \"created\": true,\n  \"режим сигналов\": \"tenant\"\n}\n\nШаг 2. Режим сигналов хранится в доме\n{\n  \"режим сигналов\": \"tenant\"\n}\n\nШаг 3. Сменить режим — только явно\n{\n  \"opaque\": \"opaque\",\n  \"none\": \"none\"\n}\n\nШаг 4. Правило по умолчанию: defaultRule\n{\n  \"свежий дом\": false,\n  \"defaultRule: 'allow'\": true,\n  \"defaultRule: 'deny'\": false\n}\n\nШаг 5. Модели дома: models\n{\n  \"первый раз\": [\n    \"Shop\"\n  ],\n  \"повтор\": [\n    \"Shop\"\n  ]\n}\n\nШаг 6. Помощники letopis/model\n{\n  \"one(Shop) — End\": true,\n  \"normalizeSchema\": {\n    \"type\": \"object\",\n    \"properties\": {\n      \"n\": {\n        \"type\": \"integer\",\n        \"minimum\": 1\n      }\n    }\n  },\n  \"translatePattern\": \"^[0-9]{3}$\"\n}\n\nШаг 7. Журнал setup(): log\n[\n  \"setup.step: повторный накат: v2.example_install_02_setup_options, ревизия 12\",\n  \"setup\"\n]\n\nШаг 8. Опечатка в опции и неверное имя дома\n{\n  \"seed вместо seeds\": \"letopis: invalid_data: неизвестная опция setup({ seed }) — похожие: seeds\",\n  \"имя «Мой дом»\": \"letopis: invalid_data: имя дома \\\"Мой дом\\\": латинские строчные буквы, цифры и подчёркивание, с буквы или подчёркивания, до 41 знака\",\n  \"defaultRule: 'maybe'\": \"letopis: invalid_data: defaultRule \\\"maybe\\\": нужно deny или allow\"\n}",
+  "exitCode": 0
+}

@@ -1,4 +1,4 @@
-import { syncModels, v5Id } from 'letopis';
+import { v5Id } from 'letopis';
 import { hub } from 'letopis/model';
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
@@ -17,21 +17,22 @@ export default example({
   covers: [
     'export.v5Id', 'error.immutable_key', 'nuance.key-case', 'nuance.keyless-repeat', 'nuance.no-id-in-create',
   ],
+  models: [Shop, Visitor, Email],
   steps: [
     {
-      title: 'Классы и магазин',
-      run: async ({ db }) => {
-        await syncModels(db, [Shop, Visitor, Email], { apply: true });
-        [shop] = await db.Shop().create({ name: 'Ромашка' }).rows();
+      title: 'Магазин',
+      text: 'Классы `Shop`, `Visitor` и `Email` — модели дома (`setup({ models })` при подготовке).',
+      run: async ({ me }) => {
+        [shop] = await me.Shop().create({ name: 'Ромашка' }).rows();
         return shop;
       },
     },
     {
       title: 'id можно вычислить даже без базы',
       text:
-        '`v5Id(арендатор, класс, значения ключа)` — та же формула, что в базе. Значит, приложение знает id заранее ' +
-        'и может ссылаться на объект, не читая его.',
-      run: async ({ db }) => v5Id(db.tenant!, 'Shop', ['Ромашка']) === shop.id,
+        '`v5Id(квартира, класс, значения ключа)` — та же формула, что в базе: id квартиры — `me.tenant`. Значит, ' +
+        'приложение знает id заранее и может ссылаться на объект, не читая его.',
+      run: async ({ me }) => v5Id(me.tenant, 'Shop', ['Ромашка']) === shop.id,
     },
     {
       title: 'id в create не передают',
@@ -39,7 +40,7 @@ export default example({
         'id объекта с ключом вычисляет база, у объекта без ключа — выдаёт база. Поле `id` в данных `create` — ' +
         'лишнее поле, которого нет в описании класса, поэтому отказ `invalid_data`. (Коды `id_mismatch` и ' +
         '`id_from_db` — в главе про ошибки.)',
-      run: async ({ db }) => db.Shop().create({ id: randomUUID(), name: 'Лютик' }).rows(),
+      run: async ({ me }) => me.Shop().create({ id: randomUUID(), name: 'Лютик' }).rows(),
       expect: { error: 'invalid_data' },
     },
     {
@@ -47,16 +48,16 @@ export default example({
       text:
         'Класс без ключа не защищён от повтора: две одинаковые записи — два разных объекта. Если повтор после сбоя ' +
         'сети возможен, давайте классу ключ.',
-      run: async ({ db }) => {
-        await db.Visitor().create({ name: 'Пётр' }).rows();
-        await db.Visitor().create({ name: 'Пётр' }).rows();
-        return db.Visitor().count();
+      run: async ({ me }) => {
+        await me.Visitor().create({ name: 'Пётр' }).rows();
+        await me.Visitor().create({ name: 'Пётр' }).rows();
+        return me.Visitor().count();
       },
     },
     {
       title: 'Ключ правкой не меняется',
       text: 'Поле ключа нельзя изменить правкой (`immutable_key`): новый ключ — это новый id, то есть новый объект. Его создают, переводят на него концы других строк и удаляют прежний (глава «Запись», «Ключ и класс неизменны»).',
-      run: async ({ db }) => db.Shop(shop).update({ name: 'Лютик' }).rows(),
+      run: async ({ me }) => me.Shop(shop).update({ name: 'Лютик' }).rows(),
       expect: { error: 'immutable_key' },
     },
     {
@@ -64,7 +65,7 @@ export default example({
       text:
         'Значения ключа берутся как есть: `Anna@Mail.ru` и `anna@mail.ru` дают разные id. Приводите такие ' +
         'значения к одному виду в приложении или задайте формат в модели.',
-      run: async ({ db }) => (await db.idOf('Email', { address: 'Anna@Mail.ru' })) !== (await db.idOf('Email', { address: 'anna@mail.ru' })),
+      run: async ({ me }) => (await me.idOf('Email', { address: 'Anna@Mail.ru' })) !== (await me.idOf('Email', { address: 'anna@mail.ru' })),
     },
   ],
 });

@@ -1,0 +1,1385 @@
+{
+  "id": "auth/01-keys",
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": [
+      {
+        "account": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+        "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+        "kind": "INVITE",
+        "ident": "email:anna@romashka.ru",
+        "meta": {
+          "roles": [
+            "owner"
+          ],
+          "status": "used",
+          "contact": {
+            "kind": "email",
+            "address": "anna@romashka.ru"
+          },
+          "attempts": 0
+        },
+        "material": "a90d8a0a432894c0b55e32e0177c88aeed38991b4b29cc86365549d0ba5a60b3",
+        "expires_at": "2026-11-17 20:13:27.257531+00",
+        "created_at": "2026-11-10 20:13:27.259855+00",
+        "deleted_at": "2026-11-10 20:13:27.379512+00"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "result": [
+        {
+          "kind": "PASSWORD",
+          "ident": "email:anna@romashka.ru",
+          "enabled": true,
+          "expiresAt": null
+        }
+      ],
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "a90d8a0a432894c0b55e32e0177c88aeed38991b4b29cc86365549d0ba5a60b3",
+          "expires_at": "2026-11-17 20:13:27.257531+00",
+          "created_at": "2026-11-10 20:13:27.259855+00",
+          "deleted_at": "2026-11-10 20:13:27.379512+00"
+        }
+      ],
+      "signals": []
+    },
+    {
+      "result": {
+        "ключ начинается с": "lts_",
+        "квартира": "Ромашка",
+        "тот же аккаунт": true,
+        "из сессии ключа — ещё ключ": "acl_denied"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "a90d8a0a432894c0b55e32e0177c88aeed38991b4b29cc86365549d0ba5a60b3",
+          "expires_at": "2026-11-17 20:13:27.257531+00",
+          "created_at": "2026-11-10 20:13:27.259855+00",
+          "deleted_at": "2026-11-10 20:13:27.379512+00"
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "APIKEY",
+          "ident": "lts_91ffa036",
+          "meta": {
+            "name": "склад"
+          },
+          "material": "10f1b4e253a24006831542303082be67821d246b27a9cb58bc04e094a72a6b98",
+          "expires_at": null,
+          "created_at": "2026-11-10 20:13:27.429178+00",
+          "deleted_at": null
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "d86b9046-27c7-4020-9f47-0c9cd8df3e6b",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "2026-11-10T20:13:27.437071+00:00"
+          },
+          "material": "5a2e3c43874f4f93518c7625d5f96ea59f063c65170b188ff90a1cff059753b0",
+          "expires_at": "2026-11-17 20:13:27.437079+00",
+          "created_at": "2026-11-10 20:13:27.43708+00",
+          "deleted_at": null
+        }
+      ],
+      "signals": []
+    },
+    {
+      "result": {
+        "квартира": "Ромашка",
+        "неверный секрет": "auth_failed"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "a90d8a0a432894c0b55e32e0177c88aeed38991b4b29cc86365549d0ba5a60b3",
+          "expires_at": "2026-11-17 20:13:27.257531+00",
+          "created_at": "2026-11-10 20:13:27.259855+00",
+          "deleted_at": "2026-11-10 20:13:27.379512+00"
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "APIKEY",
+          "ident": "lts_91ffa036",
+          "meta": {
+            "name": "склад"
+          },
+          "material": "10f1b4e253a24006831542303082be67821d246b27a9cb58bc04e094a72a6b98",
+          "expires_at": null,
+          "created_at": "2026-11-10 20:13:27.429178+00",
+          "deleted_at": null
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "d86b9046-27c7-4020-9f47-0c9cd8df3e6b",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "2026-11-10T20:13:27.437071+00:00"
+          },
+          "material": "5a2e3c43874f4f93518c7625d5f96ea59f063c65170b188ff90a1cff059753b0",
+          "expires_at": "2026-11-17 20:13:27.437079+00",
+          "created_at": "2026-11-10 20:13:27.43708+00",
+          "deleted_at": null
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "KEYSECRET",
+          "ident": "a8e61fffe729d813",
+          "meta": {
+            "name": "касса"
+          },
+          "material": "56585023af9bdc263849fb299abe722e9d8254269f81d8fb3a65c22525a9bffe",
+          "expires_at": null,
+          "created_at": "2026-11-10 20:13:27.463164+00",
+          "deleted_at": null
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "403f0f77-94de-42bc-bc9c-792dfa79f6ba",
+            "methods": [
+              "KEYSECRET"
+            ],
+            "login_at": "2026-11-10T20:13:27.470853+00:00"
+          },
+          "material": "25accf59ffc9bf74044555f17d74772ed36477a654c6baaa5d9733a6c7dc80da",
+          "expires_at": "2026-11-17 20:13:27.470865+00",
+          "created_at": "2026-11-10 20:13:27.470866+00",
+          "deleted_at": null
+        }
+      ],
+      "signals": []
+    },
+    {
+      "result": {
+        "квартира": "Ромашка"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "a90d8a0a432894c0b55e32e0177c88aeed38991b4b29cc86365549d0ba5a60b3",
+          "expires_at": "2026-11-17 20:13:27.257531+00",
+          "created_at": "2026-11-10 20:13:27.259855+00",
+          "deleted_at": "2026-11-10 20:13:27.379512+00"
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "APIKEY",
+          "ident": "lts_91ffa036",
+          "meta": {
+            "name": "склад"
+          },
+          "material": "10f1b4e253a24006831542303082be67821d246b27a9cb58bc04e094a72a6b98",
+          "expires_at": null,
+          "created_at": "2026-11-10 20:13:27.429178+00",
+          "deleted_at": null
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "d86b9046-27c7-4020-9f47-0c9cd8df3e6b",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "2026-11-10T20:13:27.437071+00:00"
+          },
+          "material": "5a2e3c43874f4f93518c7625d5f96ea59f063c65170b188ff90a1cff059753b0",
+          "expires_at": "2026-11-17 20:13:27.437079+00",
+          "created_at": "2026-11-10 20:13:27.43708+00",
+          "deleted_at": null
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "KEYSECRET",
+          "ident": "a8e61fffe729d813",
+          "meta": {
+            "name": "касса"
+          },
+          "material": "56585023af9bdc263849fb299abe722e9d8254269f81d8fb3a65c22525a9bffe",
+          "expires_at": null,
+          "created_at": "2026-11-10 20:13:27.463164+00",
+          "deleted_at": null
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "403f0f77-94de-42bc-bc9c-792dfa79f6ba",
+            "methods": [
+              "KEYSECRET"
+            ],
+            "login_at": "2026-11-10T20:13:27.470853+00:00"
+          },
+          "material": "25accf59ffc9bf74044555f17d74772ed36477a654c6baaa5d9733a6c7dc80da",
+          "expires_at": "2026-11-17 20:13:27.470865+00",
+          "created_at": "2026-11-10 20:13:27.470866+00",
+          "deleted_at": null
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "TELEGRAM",
+          "ident": "100500",
+          "meta": {},
+          "material": null,
+          "expires_at": null,
+          "created_at": "2026-11-10 20:13:27.495239+00",
+          "deleted_at": null
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "5d917171-c736-4c17-bda2-bc42fb8cec9b",
+            "methods": [
+              "TELEGRAM"
+            ],
+            "login_at": "2026-11-10T20:13:27.503496+00:00"
+          },
+          "material": "60ed886c77755cb1fe2d4b788b00bf7bad0dd3eace08c4d8a65203fb90f64555",
+          "expires_at": "2026-11-17 20:13:27.503505+00",
+          "created_at": "2026-11-10 20:13:27.503506+00",
+          "deleted_at": null
+        }
+      ],
+      "signals": []
+    },
+    {
+      "result": {
+        "ответ requestCode": {
+          "expiresAt": "2026-11-10T20:23:27.526751+00:00"
+        },
+        "квартиры по коду": [
+          "Ромашка"
+        ],
+        "вошла в": "Ромашка",
+        "тот же код ещё раз": "auth_failed",
+        "код на незнакомый адрес": {
+          "expiresAt": "2026-11-10T20:23:27.600357+00:00"
+        }
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "a90d8a0a432894c0b55e32e0177c88aeed38991b4b29cc86365549d0ba5a60b3",
+          "expires_at": "2026-11-17 20:13:27.257531+00",
+          "created_at": "2026-11-10 20:13:27.259855+00",
+          "deleted_at": "2026-11-10 20:13:27.379512+00"
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "APIKEY",
+          "ident": "lts_91ffa036",
+          "meta": {
+            "name": "склад"
+          },
+          "material": "10f1b4e253a24006831542303082be67821d246b27a9cb58bc04e094a72a6b98",
+          "expires_at": null,
+          "created_at": "2026-11-10 20:13:27.429178+00",
+          "deleted_at": null
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "d86b9046-27c7-4020-9f47-0c9cd8df3e6b",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "2026-11-10T20:13:27.437071+00:00"
+          },
+          "material": "5a2e3c43874f4f93518c7625d5f96ea59f063c65170b188ff90a1cff059753b0",
+          "expires_at": "2026-11-17 20:13:27.437079+00",
+          "created_at": "2026-11-10 20:13:27.43708+00",
+          "deleted_at": null
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "KEYSECRET",
+          "ident": "a8e61fffe729d813",
+          "meta": {
+            "name": "касса"
+          },
+          "material": "56585023af9bdc263849fb299abe722e9d8254269f81d8fb3a65c22525a9bffe",
+          "expires_at": null,
+          "created_at": "2026-11-10 20:13:27.463164+00",
+          "deleted_at": null
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "403f0f77-94de-42bc-bc9c-792dfa79f6ba",
+            "methods": [
+              "KEYSECRET"
+            ],
+            "login_at": "2026-11-10T20:13:27.470853+00:00"
+          },
+          "material": "25accf59ffc9bf74044555f17d74772ed36477a654c6baaa5d9733a6c7dc80da",
+          "expires_at": "2026-11-17 20:13:27.470865+00",
+          "created_at": "2026-11-10 20:13:27.470866+00",
+          "deleted_at": null
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "TELEGRAM",
+          "ident": "100500",
+          "meta": {},
+          "material": null,
+          "expires_at": null,
+          "created_at": "2026-11-10 20:13:27.495239+00",
+          "deleted_at": null
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "5d917171-c736-4c17-bda2-bc42fb8cec9b",
+            "methods": [
+              "TELEGRAM"
+            ],
+            "login_at": "2026-11-10T20:13:27.503496+00:00"
+          },
+          "material": "60ed886c77755cb1fe2d4b788b00bf7bad0dd3eace08c4d8a65203fb90f64555",
+          "expires_at": "2026-11-17 20:13:27.503505+00",
+          "created_at": "2026-11-10 20:13:27.503506+00",
+          "deleted_at": null
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "OTP",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "attempts": 0,
+            "max_attempts": 5
+          },
+          "material": "dd616a7a5e5ceece748e6d502db15612649cbe4a8827985b0f09c13390721a1f",
+          "expires_at": "2026-11-10 20:23:27.526751+00",
+          "created_at": "2026-11-10 20:13:27.52833+00",
+          "deleted_at": "2026-11-10 20:13:27.544616+00"
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "OTP"
+            ],
+            "login_at": "2026-11-10T20:13:27.544787+00:00"
+          },
+          "material": "01920d9954feb2cafc7f5cc2960754d55a6158bc0098a2b448a5cdcc2c367eec",
+          "expires_at": "2026-11-17 20:13:27.544799+00",
+          "created_at": "2026-11-10 20:13:27.544801+00",
+          "deleted_at": null
+        }
+      ],
+      "signals": []
+    },
+    {
+      "result": {
+        "ссылка для QR": true,
+        "verifyTotp": true,
+        "пароль без кода": "auth_failed (api.totp_required)",
+        "код из письма без кода TOTP": "auth_failed (api.totp_required)",
+        "Telegram без кода": "auth_failed (api.totp_required)",
+        "ключ API без кода": "Ромашка",
+        "пароль и неверный код": "auth_failed (api.auth_failed)",
+        "пароль и код": "Ромашка"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "a90d8a0a432894c0b55e32e0177c88aeed38991b4b29cc86365549d0ba5a60b3",
+          "expires_at": "2026-11-17 20:13:27.257531+00",
+          "created_at": "2026-11-10 20:13:27.259855+00",
+          "deleted_at": "2026-11-10 20:13:27.379512+00"
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "APIKEY",
+          "ident": "lts_91ffa036",
+          "meta": {
+            "name": "склад"
+          },
+          "material": "10f1b4e253a24006831542303082be67821d246b27a9cb58bc04e094a72a6b98",
+          "expires_at": null,
+          "created_at": "2026-11-10 20:13:27.429178+00",
+          "deleted_at": null
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "d86b9046-27c7-4020-9f47-0c9cd8df3e6b",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "2026-11-10T20:13:27.437071+00:00"
+          },
+          "material": "5a2e3c43874f4f93518c7625d5f96ea59f063c65170b188ff90a1cff059753b0",
+          "expires_at": "2026-11-17 20:13:27.437079+00",
+          "created_at": "2026-11-10 20:13:27.43708+00",
+          "deleted_at": null
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "KEYSECRET",
+          "ident": "a8e61fffe729d813",
+          "meta": {
+            "name": "касса"
+          },
+          "material": "56585023af9bdc263849fb299abe722e9d8254269f81d8fb3a65c22525a9bffe",
+          "expires_at": null,
+          "created_at": "2026-11-10 20:13:27.463164+00",
+          "deleted_at": null
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "403f0f77-94de-42bc-bc9c-792dfa79f6ba",
+            "methods": [
+              "KEYSECRET"
+            ],
+            "login_at": "2026-11-10T20:13:27.470853+00:00"
+          },
+          "material": "25accf59ffc9bf74044555f17d74772ed36477a654c6baaa5d9733a6c7dc80da",
+          "expires_at": "2026-11-17 20:13:27.470865+00",
+          "created_at": "2026-11-10 20:13:27.470866+00",
+          "deleted_at": null
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "TELEGRAM",
+          "ident": "100500",
+          "meta": {},
+          "material": null,
+          "expires_at": null,
+          "created_at": "2026-11-10 20:13:27.495239+00",
+          "deleted_at": null
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "5d917171-c736-4c17-bda2-bc42fb8cec9b",
+            "methods": [
+              "TELEGRAM"
+            ],
+            "login_at": "2026-11-10T20:13:27.503496+00:00"
+          },
+          "material": "60ed886c77755cb1fe2d4b788b00bf7bad0dd3eace08c4d8a65203fb90f64555",
+          "expires_at": "2026-11-17 20:13:27.503505+00",
+          "created_at": "2026-11-10 20:13:27.503506+00",
+          "deleted_at": null
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "OTP",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "attempts": 0,
+            "max_attempts": 5
+          },
+          "material": "dd616a7a5e5ceece748e6d502db15612649cbe4a8827985b0f09c13390721a1f",
+          "expires_at": "2026-11-10 20:23:27.526751+00",
+          "created_at": "2026-11-10 20:13:27.52833+00",
+          "deleted_at": "2026-11-10 20:13:27.544616+00"
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "OTP"
+            ],
+            "login_at": "2026-11-10T20:13:27.544787+00:00"
+          },
+          "material": "01920d9954feb2cafc7f5cc2960754d55a6158bc0098a2b448a5cdcc2c367eec",
+          "expires_at": "2026-11-17 20:13:27.544799+00",
+          "created_at": "2026-11-10 20:13:27.544801+00",
+          "deleted_at": null
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "TOTP",
+          "ident": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "meta": {
+            "confirmed": true,
+            "last_step": 59811387
+          },
+          "material": "090b532ea118f07646f1fa0770b6c4c79a40cc1c",
+          "expires_at": null,
+          "created_at": "2026-11-10 20:13:27.618789+00",
+          "deleted_at": null
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "OTP",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "attempts": 0,
+            "max_attempts": 5
+          },
+          "material": "5ca111b37f2f29cca2f57f9ff1e2ec7b06879fdd6492a7f8a8c2e9bca27d9f2b",
+          "expires_at": "2026-11-10 20:23:27.642885+00",
+          "created_at": "2026-11-10 20:13:27.644739+00",
+          "deleted_at": null
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "d86b9046-27c7-4020-9f47-0c9cd8df3e6b",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "2026-11-10T20:13:27.796998+00:00"
+          },
+          "material": "bd81e140cf8589d63013907d5b529195aee71eae2d46ce0eece4e6d899d1d9e3",
+          "expires_at": "2026-11-17 20:13:27.79701+00",
+          "created_at": "2026-11-10 20:13:27.797011+00",
+          "deleted_at": null
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "43cfe8d7-4de6-4e9e-8faa-294295a67130",
+            "methods": [
+              "PASSWORD",
+              "TOTP"
+            ],
+            "login_at": "2026-11-10T20:13:28.07875+00:00"
+          },
+          "material": "68786e6dd8ed388e21d3731648c569fa47e32955f0495c769d1ac69e6a27c24d",
+          "expires_at": "2026-11-17 20:13:28.078759+00",
+          "created_at": "2026-11-10 20:13:28.07876+00",
+          "deleted_at": null
+        }
+      ],
+      "signals": []
+    },
+    {
+      "result": {
+        "ключи": [
+          "PASSWORD",
+          "APIKEY «склад»",
+          "KEYSECRET «касса»",
+          "TELEGRAM",
+          "TOTP"
+        ],
+        "отозван": true,
+        "вход отозванным ключом": "auth_failed",
+        "его сессия": "auth_failed"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "a90d8a0a432894c0b55e32e0177c88aeed38991b4b29cc86365549d0ba5a60b3",
+          "expires_at": "2026-11-17 20:13:27.257531+00",
+          "created_at": "2026-11-10 20:13:27.259855+00",
+          "deleted_at": "2026-11-10 20:13:27.379512+00"
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "APIKEY",
+          "ident": "lts_91ffa036",
+          "meta": {
+            "name": "склад"
+          },
+          "material": "10f1b4e253a24006831542303082be67821d246b27a9cb58bc04e094a72a6b98",
+          "expires_at": null,
+          "created_at": "2026-11-10 20:13:27.429178+00",
+          "deleted_at": "2026-11-10 20:13:28.123682+00"
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "d86b9046-27c7-4020-9f47-0c9cd8df3e6b",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "2026-11-10T20:13:27.437071+00:00"
+          },
+          "material": "5a2e3c43874f4f93518c7625d5f96ea59f063c65170b188ff90a1cff059753b0",
+          "expires_at": "2026-11-17 20:13:27.437079+00",
+          "created_at": "2026-11-10 20:13:27.43708+00",
+          "deleted_at": "2026-11-10 20:13:28.124521+00"
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "KEYSECRET",
+          "ident": "a8e61fffe729d813",
+          "meta": {
+            "name": "касса"
+          },
+          "material": "56585023af9bdc263849fb299abe722e9d8254269f81d8fb3a65c22525a9bffe",
+          "expires_at": null,
+          "created_at": "2026-11-10 20:13:27.463164+00",
+          "deleted_at": null
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "403f0f77-94de-42bc-bc9c-792dfa79f6ba",
+            "methods": [
+              "KEYSECRET"
+            ],
+            "login_at": "2026-11-10T20:13:27.470853+00:00"
+          },
+          "material": "25accf59ffc9bf74044555f17d74772ed36477a654c6baaa5d9733a6c7dc80da",
+          "expires_at": "2026-11-17 20:13:27.470865+00",
+          "created_at": "2026-11-10 20:13:27.470866+00",
+          "deleted_at": null
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "TELEGRAM",
+          "ident": "100500",
+          "meta": {},
+          "material": null,
+          "expires_at": null,
+          "created_at": "2026-11-10 20:13:27.495239+00",
+          "deleted_at": null
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "5d917171-c736-4c17-bda2-bc42fb8cec9b",
+            "methods": [
+              "TELEGRAM"
+            ],
+            "login_at": "2026-11-10T20:13:27.503496+00:00"
+          },
+          "material": "60ed886c77755cb1fe2d4b788b00bf7bad0dd3eace08c4d8a65203fb90f64555",
+          "expires_at": "2026-11-17 20:13:27.503505+00",
+          "created_at": "2026-11-10 20:13:27.503506+00",
+          "deleted_at": null
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "OTP",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "attempts": 0,
+            "max_attempts": 5
+          },
+          "material": "dd616a7a5e5ceece748e6d502db15612649cbe4a8827985b0f09c13390721a1f",
+          "expires_at": "2026-11-10 20:23:27.526751+00",
+          "created_at": "2026-11-10 20:13:27.52833+00",
+          "deleted_at": "2026-11-10 20:13:27.544616+00"
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "OTP"
+            ],
+            "login_at": "2026-11-10T20:13:27.544787+00:00"
+          },
+          "material": "01920d9954feb2cafc7f5cc2960754d55a6158bc0098a2b448a5cdcc2c367eec",
+          "expires_at": "2026-11-17 20:13:27.544799+00",
+          "created_at": "2026-11-10 20:13:27.544801+00",
+          "deleted_at": null
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "TOTP",
+          "ident": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "meta": {
+            "confirmed": true,
+            "last_step": 59811387
+          },
+          "material": "090b532ea118f07646f1fa0770b6c4c79a40cc1c",
+          "expires_at": null,
+          "created_at": "2026-11-10 20:13:27.618789+00",
+          "deleted_at": null
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "OTP",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "attempts": 0,
+            "max_attempts": 5
+          },
+          "material": "5ca111b37f2f29cca2f57f9ff1e2ec7b06879fdd6492a7f8a8c2e9bca27d9f2b",
+          "expires_at": "2026-11-10 20:23:27.642885+00",
+          "created_at": "2026-11-10 20:13:27.644739+00",
+          "deleted_at": null
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "d86b9046-27c7-4020-9f47-0c9cd8df3e6b",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "2026-11-10T20:13:27.796998+00:00"
+          },
+          "material": "bd81e140cf8589d63013907d5b529195aee71eae2d46ce0eece4e6d899d1d9e3",
+          "expires_at": "2026-11-17 20:13:27.79701+00",
+          "created_at": "2026-11-10 20:13:27.797011+00",
+          "deleted_at": "2026-11-10 20:13:28.124454+00"
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "43cfe8d7-4de6-4e9e-8faa-294295a67130",
+            "methods": [
+              "PASSWORD",
+              "TOTP"
+            ],
+            "login_at": "2026-11-10T20:13:28.07875+00:00"
+          },
+          "material": "68786e6dd8ed388e21d3731648c569fa47e32955f0495c769d1ac69e6a27c24d",
+          "expires_at": "2026-11-17 20:13:28.078759+00",
+          "created_at": "2026-11-10 20:13:28.07876+00",
+          "deleted_at": null
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "d86b9046-27c7-4020-9f47-0c9cd8df3e6b",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "2026-11-10T20:13:28.105754+00:00"
+          },
+          "material": "85fb9576c93ff6a58c1f31bc15cc82202924befe0be835a09e68cd34b976903c",
+          "expires_at": "2026-11-17 20:13:28.105761+00",
+          "created_at": "2026-11-10 20:13:28.105763+00",
+          "deleted_at": "2026-11-10 20:13:28.124537+00"
+        }
+      ],
+      "signals": [
+        "session:5a2e3c43874f4f93",
+        "session:85fb9576c93ff6a5",
+        "session:bd81e140cf8589d6"
+      ]
+    },
+    {
+      "result": {
+        "по ссылке": {
+          "квартира": "Лютик",
+          "кто зовёт": "Борис",
+          "аккаунт уже есть": true
+        },
+        "тот же пароль": "invalid_data (api.password_reused)",
+        "другой пароль": "Лютик",
+        "тот же аккаунт": true,
+        "пароль «Лютика» открывает": "Лютик",
+        "Борис привязывает Telegram Анны": "exists"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [
+        {
+          "account": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 0
+          },
+          "material": "a90d8a0a432894c0b55e32e0177c88aeed38991b4b29cc86365549d0ba5a60b3",
+          "expires_at": "2026-11-17 20:13:27.257531+00",
+          "created_at": "2026-11-10 20:13:27.259855+00",
+          "deleted_at": "2026-11-10 20:13:27.379512+00"
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "APIKEY",
+          "ident": "lts_91ffa036",
+          "meta": {
+            "name": "склад"
+          },
+          "material": "10f1b4e253a24006831542303082be67821d246b27a9cb58bc04e094a72a6b98",
+          "expires_at": null,
+          "created_at": "2026-11-10 20:13:27.429178+00",
+          "deleted_at": "2026-11-10 20:13:28.123682+00"
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "d86b9046-27c7-4020-9f47-0c9cd8df3e6b",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "2026-11-10T20:13:27.437071+00:00"
+          },
+          "material": "5a2e3c43874f4f93518c7625d5f96ea59f063c65170b188ff90a1cff059753b0",
+          "expires_at": "2026-11-17 20:13:27.437079+00",
+          "created_at": "2026-11-10 20:13:27.43708+00",
+          "deleted_at": "2026-11-10 20:13:28.124521+00"
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "KEYSECRET",
+          "ident": "a8e61fffe729d813",
+          "meta": {
+            "name": "касса"
+          },
+          "material": "56585023af9bdc263849fb299abe722e9d8254269f81d8fb3a65c22525a9bffe",
+          "expires_at": null,
+          "created_at": "2026-11-10 20:13:27.463164+00",
+          "deleted_at": null
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "403f0f77-94de-42bc-bc9c-792dfa79f6ba",
+            "methods": [
+              "KEYSECRET"
+            ],
+            "login_at": "2026-11-10T20:13:27.470853+00:00"
+          },
+          "material": "25accf59ffc9bf74044555f17d74772ed36477a654c6baaa5d9733a6c7dc80da",
+          "expires_at": "2026-11-17 20:13:27.470865+00",
+          "created_at": "2026-11-10 20:13:27.470866+00",
+          "deleted_at": null
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "TELEGRAM",
+          "ident": "100500",
+          "meta": {},
+          "material": null,
+          "expires_at": null,
+          "created_at": "2026-11-10 20:13:27.495239+00",
+          "deleted_at": null
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "5d917171-c736-4c17-bda2-bc42fb8cec9b",
+            "methods": [
+              "TELEGRAM"
+            ],
+            "login_at": "2026-11-10T20:13:27.503496+00:00"
+          },
+          "material": "60ed886c77755cb1fe2d4b788b00bf7bad0dd3eace08c4d8a65203fb90f64555",
+          "expires_at": "2026-11-17 20:13:27.503505+00",
+          "created_at": "2026-11-10 20:13:27.503506+00",
+          "deleted_at": null
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "OTP",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "attempts": 0,
+            "max_attempts": 5
+          },
+          "material": "dd616a7a5e5ceece748e6d502db15612649cbe4a8827985b0f09c13390721a1f",
+          "expires_at": "2026-11-10 20:23:27.526751+00",
+          "created_at": "2026-11-10 20:13:27.52833+00",
+          "deleted_at": "2026-11-10 20:13:27.544616+00"
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "methods": [
+              "OTP"
+            ],
+            "login_at": "2026-11-10T20:13:27.544787+00:00"
+          },
+          "material": "01920d9954feb2cafc7f5cc2960754d55a6158bc0098a2b448a5cdcc2c367eec",
+          "expires_at": "2026-11-17 20:13:27.544799+00",
+          "created_at": "2026-11-10 20:13:27.544801+00",
+          "deleted_at": null
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "TOTP",
+          "ident": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "meta": {
+            "confirmed": true,
+            "last_step": 59811387
+          },
+          "material": "090b532ea118f07646f1fa0770b6c4c79a40cc1c",
+          "expires_at": null,
+          "created_at": "2026-11-10 20:13:27.618789+00",
+          "deleted_at": null
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "OTP",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "attempts": 0,
+            "max_attempts": 5
+          },
+          "material": "5ca111b37f2f29cca2f57f9ff1e2ec7b06879fdd6492a7f8a8c2e9bca27d9f2b",
+          "expires_at": "2026-11-10 20:23:27.642885+00",
+          "created_at": "2026-11-10 20:13:27.644739+00",
+          "deleted_at": null
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "d86b9046-27c7-4020-9f47-0c9cd8df3e6b",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "2026-11-10T20:13:27.796998+00:00"
+          },
+          "material": "bd81e140cf8589d63013907d5b529195aee71eae2d46ce0eece4e6d899d1d9e3",
+          "expires_at": "2026-11-17 20:13:27.79701+00",
+          "created_at": "2026-11-10 20:13:27.797011+00",
+          "deleted_at": "2026-11-10 20:13:28.124454+00"
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "43cfe8d7-4de6-4e9e-8faa-294295a67130",
+            "methods": [
+              "PASSWORD",
+              "TOTP"
+            ],
+            "login_at": "2026-11-10T20:13:28.07875+00:00"
+          },
+          "material": "68786e6dd8ed388e21d3731648c569fa47e32955f0495c769d1ac69e6a27c24d",
+          "expires_at": "2026-11-17 20:13:28.078759+00",
+          "created_at": "2026-11-10 20:13:28.07876+00",
+          "deleted_at": null
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "bf20b9c0-c438-5eaa-8387-b9d766958294",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "d86b9046-27c7-4020-9f47-0c9cd8df3e6b",
+            "methods": [
+              "APIKEY"
+            ],
+            "login_at": "2026-11-10T20:13:28.105754+00:00"
+          },
+          "material": "85fb9576c93ff6a58c1f31bc15cc82202924befe0be835a09e68cd34b976903c",
+          "expires_at": "2026-11-17 20:13:28.105761+00",
+          "created_at": "2026-11-10 20:13:28.105763+00",
+          "deleted_at": "2026-11-10 20:13:28.124537+00"
+        },
+        {
+          "account": "24980429-190a-5711-bd87-55568ea63e37",
+          "tenant": "24980429-190a-5711-bd87-55568ea63e37",
+          "kind": "INVITE",
+          "ident": "email:boris@lutik.ru",
+          "meta": {
+            "roles": [
+              "owner"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "boris@lutik.ru"
+            },
+            "attempts": 0
+          },
+          "material": "7cbc0920b7d9fe64b3b72e9af9d7e5990a731f966ead6f0566c50942a1bc1978",
+          "expires_at": "2026-11-17 20:13:28.181977+00",
+          "created_at": "2026-11-10 20:13:28.182945+00",
+          "deleted_at": "2026-11-10 20:13:28.312183+00"
+        },
+        {
+          "account": "145f1ada-15eb-52c7-bce4-ceeab09ca15f",
+          "tenant": "2eba6d0a-1edd-4bb6-a85a-a703dab49035",
+          "kind": "IDENT",
+          "ident": "email:boris@lutik.ru",
+          "meta": {
+            "kind": "email",
+            "address": "boris@lutik.ru"
+          },
+          "material": null,
+          "expires_at": null,
+          "created_at": "2026-11-10 20:13:28.31057+00",
+          "deleted_at": null
+        },
+        {
+          "account": "145f1ada-15eb-52c7-bce4-ceeab09ca15f",
+          "tenant": "24980429-190a-5711-bd87-55568ea63e37",
+          "kind": "PASSWORD",
+          "ident": "email:boris@lutik.ru",
+          "meta": {},
+          "material": "736372797074243332373638243824312431514635756e494e447558365136494e455a706735513d3d245757686e2b4c7275356e6b5a2b743541617236594275416b6962344972307364376f7a535832716f776f303d",
+          "expires_at": null,
+          "created_at": "2026-11-10 20:13:28.311936+00",
+          "deleted_at": null
+        },
+        {
+          "account": "145f1ada-15eb-52c7-bce4-ceeab09ca15f",
+          "tenant": "24980429-190a-5711-bd87-55568ea63e37",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "5e1093c6-9961-419d-9423-ca1e443da8bf",
+            "methods": [
+              "INVITE",
+              "FIRST"
+            ],
+            "login_at": "2026-11-10T20:13:28.312305+00:00"
+          },
+          "material": "9721e0893e55926567a8fcefcc6540c3cdd57bdafdc32695b04bef1ad466dfbc",
+          "expires_at": "2026-11-17 20:13:28.312318+00",
+          "created_at": "2026-11-10 20:13:28.31232+00",
+          "deleted_at": null
+        },
+        {
+          "account": "24980429-190a-5711-bd87-55568ea63e37",
+          "tenant": "24980429-190a-5711-bd87-55568ea63e37",
+          "kind": "INVITE",
+          "ident": "email:anna@romashka.ru",
+          "meta": {
+            "by": "145f1ada-15eb-52c7-bce4-ceeab09ca15f",
+            "roles": [
+              "staff"
+            ],
+            "status": "used",
+            "contact": {
+              "kind": "email",
+              "address": "anna@romashka.ru"
+            },
+            "attempts": 1
+          },
+          "material": "6fcda5aae7deb68a13a47560a7ab3e551d8349ce918fda6044f4117c017c6613",
+          "expires_at": "2026-11-17 20:13:28.326138+00",
+          "created_at": "2026-11-10 20:13:28.329848+00",
+          "deleted_at": "2026-11-10 20:13:28.837367+00"
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "24980429-190a-5711-bd87-55568ea63e37",
+          "kind": "PASSWORD",
+          "ident": "email:anna@romashka.ru",
+          "meta": {},
+          "material": "73637279707424333237363824382431244c6c4334643050754d6f5741656649434d6f49564a773d3d246a5a536674636156474f356537426e783866724e476d694e64447973544163503935434c6e6864785544673d",
+          "expires_at": null,
+          "created_at": "2026-11-10 20:13:28.837183+00",
+          "deleted_at": null
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "24980429-190a-5711-bd87-55568ea63e37",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "c32ecf2a-3d7d-45c0-aec8-bb64dcf18fa0",
+            "methods": [
+              "INVITE"
+            ],
+            "login_at": "2026-11-10T20:13:28.837475+00:00"
+          },
+          "material": "0ee58a53ee19cff3c408685bf8331dda7251b55f5421cb9905e21e2829aa4c34",
+          "expires_at": "2026-11-17 20:13:28.83749+00",
+          "created_at": "2026-11-10 20:13:28.837492+00",
+          "deleted_at": null
+        },
+        {
+          "account": "d66d57d7-fa14-5a81-acad-26103e0a1f1b",
+          "tenant": "24980429-190a-5711-bd87-55568ea63e37",
+          "kind": "SESSION",
+          "ident": null,
+          "meta": {
+            "ttl": "7 days",
+            "cred": "c32ecf2a-3d7d-45c0-aec8-bb64dcf18fa0",
+            "methods": [
+              "PASSWORD"
+            ],
+            "login_at": "2026-11-10T20:13:29.103394+00:00"
+          },
+          "material": "2b98f5ed7667dc4a1e7e3649e0f4801d8a742baa008629b933c245653509f209",
+          "expires_at": "2026-11-17 20:13:29.103456+00",
+          "created_at": "2026-11-10 20:13:29.103459+00",
+          "deleted_at": null
+        }
+      ],
+      "signals": [
+        "member"
+      ]
+    }
+  ],
+  "output": "Шаг 1. Первый ключ Анны — пароль\n[\n  {\n    \"kind\": \"PASSWORD\",\n    \"ident\": \"email:anna@romashka.ru\",\n    \"enabled\": true,\n    \"expiresAt\": null\n  }\n]\n\nШаг 2. Ключ API — для программы\n{\n  \"ключ начинается с\": \"lts_\",\n  \"квартира\": \"Ромашка\",\n  \"тот же аккаунт\": true,\n  \"из сессии ключа — ещё ключ\": \"acl_denied\"\n}\n\nШаг 3. Ключ и секрет — для интеграции\n{\n  \"квартира\": \"Ромашка\",\n  \"неверный секрет\": \"auth_failed\"\n}\n\nШаг 4. Внешний вход: Telegram\n{\n  \"квартира\": \"Ромашка\"\n}\n\nШаг 5. Вход кодом: requestCode, tenantsOf и open\n{\n  \"ответ requestCode\": {\n    \"expiresAt\": \"2026-11-10T20:23:30.901479+00:00\"\n  },\n  \"квартиры по коду\": [\n    \"Ромашка\"\n  ],\n  \"вошла в\": \"Ромашка\",\n  \"тот же код ещё раз\": \"auth_failed\",\n  \"код на незнакомый адрес\": {\n    \"expiresAt\": \"2026-11-10T20:23:30.955999+00:00\"\n  }\n}\n\nШаг 6. Второй фактор: TOTP\n{\n  \"ссылка для QR\": true,\n  \"verifyTotp\": true,\n  \"пароль без кода\": \"auth_failed (api.totp_required)\",\n  \"код из письма без кода TOTP\": \"auth_failed (api.totp_required)\",\n  \"Telegram без кода\": \"auth_failed (api.totp_required)\",\n  \"ключ API без кода\": \"Ромашка\",\n  \"пароль и неверный код\": \"auth_failed (api.auth_failed)\",\n  \"пароль и код\": \"Ромашка\"\n}\n\nШаг 7. Список ключей и отзыв\n{\n  \"ключи\": [\n    \"PASSWORD\",\n    \"APIKEY «склад»\",\n    \"KEYSECRET «касса»\",\n    \"TELEGRAM\",\n    \"TOTP\"\n  ],\n  \"отозван\": true,\n  \"вход отозванным ключом\": \"auth_failed\",\n  \"его сессия\": \"auth_failed\"\n}\n\nШаг 8. Вторая квартира — свой пароль\n{\n  \"по ссылке\": {\n    \"квартира\": \"Лютик\",\n    \"кто зовёт\": \"Борис\",\n    \"аккаунт уже есть\": true\n  },\n  \"тот же пароль\": \"invalid_data (api.password_reused)\",\n  \"другой пароль\": \"Лютик\",\n  \"тот же аккаунт\": true,\n  \"пароль «Лютика» открывает\": \"Лютик\",\n  \"Борис привязывает Telegram Анны\": \"exists\"\n}",
+  "exitCode": 0
+}

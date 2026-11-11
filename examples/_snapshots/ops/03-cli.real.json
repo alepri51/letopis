@@ -25,25 +25,13 @@
     {
       "result": {
         "код выхода": 0,
-        "начало файла": [
-          "export interface CategoryData {",
-          "export interface CategoryLinks {}",
-          "export interface CategoryModel {",
-          "export interface ProductData {"
-        ]
-      },
-      "error": null,
-      "entity": [],
-      "removed": [],
-      "log": [],
-      "secret": [],
-      "signals": []
-    },
-    {
-      "result": {
-        "код выхода": 1,
-        "ошибка": "letopis: no_session: нет действующей сессии: токен погашен, истёк или неверен",
-        "файл прежний": true
+        "интерфейсы": [
+          "export interface CategoryData",
+          "export interface CategoryLinks",
+          "export interface CategoryModel",
+          "export interface ProductData"
+        ],
+        "последняя строка": "export type Models = readonly [CategoryModel, ProductModel, ShopModel];"
       },
       "error": null,
       "entity": [],
@@ -55,7 +43,7 @@
     {
       "result": {
         "код выхода": 0,
-        "report": {
+        "отчёт": {
           "rows": 2,
           "loaded": 2,
           "updated": 0,
@@ -65,9 +53,9 @@
             "Shop": 2
           },
           "external": 0,
-          "portions": 1,
-          "ms": 215.5193
-        }
+          "portions": 1
+        },
+        "магазинов у Анны": 2
       },
       "error": null,
       "entity": [],
@@ -84,8 +72,7 @@
         "отчёт": {
           "skipped": false,
           "sessions": 0,
-          "codes": 0,
-          "queue": 0
+          "codes": 0
         }
       },
       "error": null,
@@ -96,19 +83,26 @@
       "signals": []
     },
     {
-      "result": [
-        "letopis_model",
-        "letopis_query",
-        "letopis_history"
-      ],
+      "result": {
+        "инструменты агента": [
+          "letopis_model",
+          "letopis_query",
+          "letopis_history",
+          "letopis_write"
+        ],
+        "без ключа: код выхода": 2,
+        "без ключа: ошибка": "letopis: user_session_required: letopis mcp — нужны пропуск дома (--pass или LETOPIS_PASS) и ключ API жильца (--api-key или LETOPIS_KEY): агент работает только как жилец"
+      },
       "error": null,
       "entity": [],
       "removed": [],
       "log": [],
       "secret": [],
-      "signals": []
+      "signals": [
+        "session:adc6a47e5a3551cb"
+      ]
     }
   ],
-  "output": "Шаг 1. sync: сухой прогон, проверка и запись моделей\n{\n  \"сухой прогон\": \"сухой прогон: создать 3, изменить 0, без изменений 0, системных 0\",\n  \"--check до --apply, код\": 1,\n  \"с --apply\": \"применено: создать 3, изменить 0, без изменений 0, системных 0\",\n  \"--check после --apply, код\": 0\n}\n\nШаг 2. types: интерфейсы TypeScript по модели из базы\n{\n  \"код выхода\": 0,\n  \"начало файла\": [\n    \"export interface CategoryData {\",\n    \"export interface CategoryLinks {}\",\n    \"export interface CategoryModel {\",\n    \"export interface ProductData {\"\n  ]\n}\n\nШаг 3. Без действующей сессии types отказывает\n{\n  \"код выхода\": 1,\n  \"ошибка\": \"letopis: no_session: нет действующей сессии: токен погашен, истёк или неверен\",\n  \"файл прежний\": true\n}\n\nШаг 4. load: NDJSON — объект на строку\n{\n  \"код выхода\": 0,\n  \"report\": {\n    \"rows\": 2,\n    \"loaded\": 2,\n    \"updated\": 0,\n    \"skipped\": 0,\n    \"duplicates\": 0,\n    \"byClass\": {\n      \"Shop\": 2\n    },\n    \"external\": 0,\n    \"portions\": 1,\n    \"ms\": 231.82629999999997\n  }\n}\n\nШаг 5. maintain: обслуживание по расписанию\n{\n  \"код выхода\": 0,\n  \"отчёт\": {\n    \"skipped\": false,\n    \"sessions\": 0,\n    \"codes\": 0,\n    \"queue\": 0\n  }\n}\n\nШаг 6. mcp: сервер инструментов для ИИ-агента по stdio\n[\n  \"letopis_model\",\n  \"letopis_query\",\n  \"letopis_history\"\n]",
+  "output": "Шаг 1. sync: сухой прогон, проверка и запись моделей\n{\n  \"сухой прогон\": \"сухой прогон: создать 3, изменить 0, без изменений 0, системных 0\",\n  \"--check до --apply, код\": 1,\n  \"с --apply\": \"применено: создать 3, изменить 0, без изменений 0, системных 0\",\n  \"--check после --apply, код\": 0\n}\n\nШаг 2. types: объявления TypeScript по классам дома\n{\n  \"код выхода\": 0,\n  \"интерфейсы\": [\n    \"export interface CategoryData\",\n    \"export interface CategoryLinks\",\n    \"export interface CategoryModel\",\n    \"export interface ProductData\"\n  ],\n  \"последняя строка\": \"export type Models = readonly [CategoryModel, ProductModel, ShopModel];\"\n}\n\nШаг 3. load: NDJSON — объект на строку\n{\n  \"код выхода\": 0,\n  \"отчёт\": {\n    \"rows\": 2,\n    \"loaded\": 2,\n    \"updated\": 0,\n    \"skipped\": 0,\n    \"duplicates\": 0,\n    \"byClass\": {\n      \"Shop\": 2\n    },\n    \"external\": 0,\n    \"portions\": 1\n  },\n  \"магазинов у Анны\": 2\n}\n\nШаг 4. maintain: обслуживание по расписанию\n{\n  \"код выхода\": 0,\n  \"отчёт\": {\n    \"skipped\": false,\n    \"sessions\": 0,\n    \"codes\": 0\n  }\n}\n\nШаг 5. mcp: сервер инструментов для ИИ-агента по stdio\n{\n  \"инструменты агента\": [\n    \"letopis_model\",\n    \"letopis_query\",\n    \"letopis_history\",\n    \"letopis_write\"\n  ],\n  \"без ключа: код выхода\": 2,\n  \"без ключа: ошибка\": \"letopis: user_session_required: letopis mcp — нужны пропуск дома (--pass или LETOPIS_PASS) и ключ API жильца (--api-key или LETOPIS_KEY): агент работает только как жилец\"\n}",
   "exitCode": 0
 }

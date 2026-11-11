@@ -1,4 +1,3 @@
-import { syncModels } from 'letopis';
 import type { Row } from 'letopis';
 import { hub, link, one } from 'letopis/model';
 import { z } from 'zod';
@@ -22,6 +21,7 @@ export default example({
     'удалённого — restore({ expect, partial: true }) — возвращает участника, а его выдачу не оживляет: она приходит ' +
     'пропуском с причиной $why.',
   tables: ['entity', 'log'],
+  models: [Item, Member, OpenLoan],
   covers: [
     'model.link', 'chain.delete', 'chain.restore', 'nuance.one-open-by-key', 'nuance.delete-as-shown',
     'nuance.restore-partial', 'nuance.restore-expect-stale',
@@ -30,14 +30,14 @@ export default example({
     {
       title: 'Мяч и два участника',
       text:
-        'Модель — в начале кода примера: вещь `Item`, участник `Member` и связь `OpenLoan` — открытая выдача. Ключ ' +
-        'выдачи — только конец `Item`: у вещи может быть одна открытая выдача. Конец `Member` удаляется вместе с ' +
-        'участником (`onDelete(\'cascade\')`).',
-      run: async ({ db }) => {
-        await syncModels(db, [Item, Member, OpenLoan], { apply: true });
-        [ball] = await db.Item().create({ code: 'B-1', title: 'Мяч' }).rows();
-        [anna] = await db.Member().create({ card: 'C-1', name: 'Анна' }).rows();
-        [petr] = await db.Member().create({ card: 'C-2', name: 'Пётр' }).rows();
+        'Модель — в начале кода примера: вещь `Item`, участник `Member` и связь `OpenLoan` — открытая выдача; её ' +
+        'записал в дом `setup()` при подготовке. Ключ выдачи — только конец `Item`: у вещи может быть одна открытая ' +
+        'выдача. Конец `Member` удаляется вместе с участником (`onDelete(\'cascade\')`). `me` — корень квартиры ' +
+        '«Ромашка» (клуба), открытый ключом Анны.',
+      run: async ({ me }) => {
+        [ball] = await me.Item().create({ code: 'B-1', title: 'Мяч' }).rows();
+        [anna] = await me.Member().create({ card: 'C-1', name: 'Анна' }).rows();
+        [petr] = await me.Member().create({ card: 'C-2', name: 'Пётр' }).rows();
         return [ball, anna, petr].map((r) => r.data);
       },
     },
@@ -46,9 +46,9 @@ export default example({
       text:
         'Выдача создаётся переходом от вещи, участника задаёт `.Member.set()`. Вторая открытая выдача того же мяча ' +
         'получает тот же id из ключа — отказ `exists`, в том числе при одновременных запросах.',
-      run: async ({ db }) => {
-        const [loan] = await db.Item(ball).OpenLoan().create({ since: '2026-11-03' }).Member.set(petr).rows();
-        const again = await db.Item(ball).OpenLoan().create({ since: '2026-11-03' }).Member.set(anna).rows()
+      run: async ({ me }) => {
+        const [loan] = await me.Item(ball).OpenLoan().create({ since: '2026-11-03' }).Member.set(petr).rows();
+        const again = await me.Item(ball).OpenLoan().create({ since: '2026-11-03' }).Member.set(anna).rows()
           .then(() => 'создана', (e) => e.code);
         return { 'выдача': `мяч у: ${who(loan.links.Member)}`, 'вторая выдача': again };
       },
@@ -58,8 +58,8 @@ export default example({
       text:
         '`delete()` без подтверждения ничего не удаляет — показывает, что уйдёт: сам Пётр (`$depth: 0`) и его открытая ' +
         'выдача каскадом (`$depth: 1`). Это и показывают пользователю, а ответ сохраняют.',
-      run: async ({ db }) => {
-        preview = await db.Member(petr).delete().rows();
+      run: async ({ me }) => {
+        preview = await me.Member(petr).delete().rows();
         return preview.map((r) => ({ class: r.class, $action: r.$action, $depth: r.$depth }));
       },
     },
@@ -68,8 +68,8 @@ export default example({
       text:
         '`delete({ confirm: true, expect: предпросмотр })` удаляет ровно показанное; если база изменилась — отказ `conflict`, ' +
         'ничего не удалено. Ответ — надгробия этого удаления (`id`, `rev`): по ним удалённое потом и возвращают.',
-      run: async ({ db }) => {
-        gone = await db.Member(petr).delete({ confirm: true, expect: preview, reason: 'удалён по ошибке' }).rows();
+      run: async ({ me }) => {
+        gone = await me.Member(petr).delete({ confirm: true, expect: preview, reason: 'удалён по ошибке' }).rows();
         return gone.map((r) => ({ class: r.class, rev: r.rev, $deleted: r.$deleted }));
       },
     },
@@ -78,9 +78,9 @@ export default example({
       text:
         'Выдача Анны получает тот же id из ключа по мячу: история выдачи мяча продолжилась версией `create`. ' +
         'Надгробие выдачи Петра больше не последняя её версия.',
-      run: async ({ db }) => {
-        await db.Item(ball).OpenLoan().create({ since: '2026-11-04' }).Member.set(anna).rows();
-        return (await db.Item(ball).OpenLoan().versions()).map((v) => `v${v.rev} ${v.op} — ${who(v.links.Member)}`);
+      run: async ({ me }) => {
+        await me.Item(ball).OpenLoan().create({ since: '2026-11-04' }).Member.set(anna).rows();
+        return (await me.Item(ball).OpenLoan().versions()).map((v) => `v${v.rev} ${v.op} — ${who(v.links.Member)}`);
       },
     },
     {
@@ -91,15 +91,15 @@ export default example({
         'выдачей Анны, — и она приходит строкой-пропуском `$action: \'skip\'` с причиной `$why`: `reissued` — id занял ' +
         'новый объект с тем же ключом, `changed` — строку после удаления меняли, `restored` — её уже вернули. Ничего ' +
         'лишнего не ожило: мяч у Анны, у Петра на руках ничего.',
-      run: async ({ db }) => {
-        const [back] = await db.Member(petr).restore({ expect: gone.filter((r) => r.class === 'Member') }).rows();
+      run: async ({ me }) => {
+        const [back] = await me.Member(petr).restore({ expect: gone.filter((r) => r.class === 'Member') }).rows();
         const loans = gone.filter((r) => r.class === 'OpenLoan');
-        const skipped = await db.OpenLoan(loans.map((r) => r.id)).restore({ expect: loans, partial: true }).rows();
+        const skipped = await me.OpenLoan(loans.map((r) => r.id)).restore({ expect: loans, partial: true }).rows();
         return {
           'вернулся': back.data.name,
           'выдачи Петра': skipped.map((r) => (r.$action === 'skip' ? `не вернулась — ${r.$why}` : 'вернулась')),
-          'мяч у': who((await db.Item(ball).OpenLoan().first())!.links.Member),
-          'у Петра на руках': await db.Member(petr).OpenLoan().count(),
+          'мяч у': who((await me.Item(ball).OpenLoan().first())!.links.Member),
+          'у Петра на руках': await me.Member(petr).OpenLoan().count(),
         };
       },
     },

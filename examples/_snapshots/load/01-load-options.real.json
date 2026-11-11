@@ -8,31 +8,23 @@
   "steps": [
     {
       "result": {
-        "tenant": "55cd1ada-aa68-5582-8b21-7dd4646a6a0a"
-      },
-      "error": null,
-      "entity": [],
-      "removed": [],
-      "log": [],
-      "secret": [],
-      "signals": [
-        "Class"
-      ]
-    },
-    {
-      "result": {
-        "rows": 3,
-        "loaded": 3,
-        "updated": 0,
-        "skipped": 0,
-        "duplicates": 0,
-        "byClass": {
-          "Shop": 1,
-          "Product": 2
+        "код выхода": 0,
+        "отчёт": {
+          "rows": 3,
+          "loaded": 3,
+          "updated": 0,
+          "skipped": 0,
+          "duplicates": 0,
+          "byClass": {
+            "Shop": 1,
+            "Product": 2
+          },
+          "external": 0,
+          "portions": 1,
+          "ms": 230.6922000000195
         },
-        "external": 0,
-        "portions": 1,
-        "ms": 217.07300000000396
+        "товары у Анны": 2,
+        "исполнитель в журнале": "загрузка прайса"
       },
       "error": null,
       "entity": [],
@@ -45,26 +37,11 @@
       ]
     },
     {
-      "result": null,
-      "error": {
-        "code": "duplicate",
-        "message": "letopis: duplicate: загрузка отменена: строка 2 — id d5a04473-a3ea-52e1-96ed-2b4eda507bb3 уже был в строке 1",
-        "detail": {
-          "rows": [
-            {
-              "line": 2,
-              "code": "duplicate",
-              "message": "id d5a04473-a3ea-52e1-96ed-2b4eda507bb3 уже был в строке 1",
-              "id": "d5a04473-a3ea-52e1-96ed-2b4eda507bb3",
-              "class": "Product"
-            }
-          ],
-          "total": 1,
-          "truncated": false,
-          "limit": 100,
-          "complete": true
-        }
+      "result": {
+        "код выхода": 1,
+        "ошибка": "letopis: duplicate: загрузка отменена: строка 2 — id 5d03e36b-ab68-5391-a40c-c580fccf6b5b уже был в строке 1"
       },
+      "error": null,
       "entity": [],
       "removed": [],
       "log": [],
@@ -73,15 +50,19 @@
     },
     {
       "result": {
-        "rows": 2,
-        "loaded": 0,
-        "updated": 1,
-        "skipped": 0,
-        "duplicates": 1,
-        "byClass": {},
-        "external": 1,
-        "portions": 1,
-        "ms": 18.576900000000023
+        "код выхода": 0,
+        "отчёт": {
+          "rows": 2,
+          "loaded": 0,
+          "updated": 1,
+          "skipped": 0,
+          "duplicates": 1,
+          "byClass": {},
+          "external": 1,
+          "portions": 1,
+          "ms": 31.77489999998943
+        },
+        "цена Чайника": 2700
       },
       "error": null,
       "entity": [],
@@ -93,26 +74,11 @@
       ]
     },
     {
-      "result": null,
-      "error": {
-        "code": "exists",
-        "message": "letopis: exists: загрузка отменена: строка 1 — объект уже есть в базе",
-        "detail": {
-          "rows": [
-            {
-              "line": 1,
-              "code": "exists",
-              "message": "объект уже есть в базе",
-              "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
-              "class": "Product"
-            }
-          ],
-          "total": 1,
-          "truncated": false,
-          "limit": 100,
-          "complete": true
-        }
+      "result": {
+        "код выхода": 1,
+        "ошибка": "letopis: exists: загрузка отменена: строка 1 — объект уже есть в базе"
       },
+      "error": null,
       "entity": [],
       "removed": [],
       "log": [],
@@ -121,17 +87,20 @@
     },
     {
       "result": {
-        "rows": 2,
-        "loaded": 2,
-        "updated": 0,
-        "skipped": 0,
-        "duplicates": 0,
-        "byClass": {
-          "Customer": 2
-        },
-        "external": 0,
-        "portions": 2,
-        "ms": 442.803899999999
+        "код выхода": 0,
+        "отчёт": {
+          "rows": 2,
+          "loaded": 2,
+          "updated": 0,
+          "skipped": 0,
+          "duplicates": 0,
+          "byClass": {
+            "Customer": 2
+          },
+          "external": 0,
+          "portions": 2,
+          "ms": 435.6445999999996
+        }
       },
       "error": null,
       "entity": [],
@@ -144,8 +113,9 @@
     },
     {
       "result": {
-        "report": {
-          "rows": 1,
+        "код выхода": 0,
+        "отчёт": {
+          "rows": 2,
           "loaded": 1,
           "updated": 0,
           "skipped": 0,
@@ -155,9 +125,12 @@
           },
           "external": 0,
           "portions": 1,
-          "ms": 225.95700000000943
+          "ms": 117.47279999998864
         },
-        "автор": "3defbabb-a94d-5359-8463-dc947de193e1"
+        "версии": [
+          "v1 create 2025-01-10: ivan@old.ru",
+          "v2 update 2025-06-01: ivan@mail.ru"
+        ]
       },
       "error": null,
       "entity": [],
@@ -169,76 +142,49 @@
       ]
     },
     {
-      "result": null,
-      "error": {
-        "code": "class_not_loadable",
-        "message": "letopis: class_not_loadable: загрузка отменена: строка 1 — строки Class задают letopis sync и create — там база компилирует проверку",
-        "detail": {
-          "rows": [
-            {
-              "line": 1,
-              "code": "class_not_loadable",
-              "message": "строки Class задают letopis sync и create — там база компилирует проверку",
-              "class": "Class"
-            }
-          ],
-          "total": 1,
-          "truncated": false,
-          "limit": 100,
-          "complete": true
+      "result": {
+        "строка Class": {
+          "код выхода": 1,
+          "ошибка": "letopis: class_not_loadable: загрузка отменена: строка 1 — строки Class задают letopis sync и create — там база компилирует проверку"
+        },
+        "квартира «Нет такой»": {
+          "код выхода": 1,
+          "ошибка": "letopis: target_not_found: квартиры «Нет такой» нет"
+        },
+        "роль консьержа вместо мастер-ключа": {
+          "код выхода": 1,
+          "ошибка": "letopis: admin_required: загрузчику нужен мастер-ключ — роль, которая может стать владельцем схемы (суперпользователь или с SET на роль-владельца)"
         }
       },
+      "error": null,
       "entity": [],
       "removed": [],
       "log": [],
       "secret": [],
       "signals": []
-    },
-    {
-      "result": null,
-      "error": {
-        "code": "admin_required",
-        "message": "letopis: admin_required: загрузчику нужно администраторское подключение (connect({ allowBypassRls: true }) роли, которая может стать владельцем схемы)",
-        "detail": null
-      },
-      "entity": [],
-      "removed": [],
-      "log": [],
-      "secret": [],
-      "signals": []
-    },
-    {
-      "result": null,
-      "error": {
-        "code": "deleted",
-        "message": "letopis: deleted: загрузка отменена: строка 1 — объект с этим id жил раньше и удалён (existing: update воскресит)",
-        "detail": {
-          "rows": [
-            {
-              "line": 1,
-              "code": "deleted",
-              "message": "объект с этим id жил раньше и удалён (existing: update воскресит)",
-              "id": "c434bf3a-89ba-55b8-a7ce-6f0052cd5c74",
-              "class": "Product"
-            }
-          ],
-          "total": 1,
-          "truncated": false,
-          "limit": 100,
-          "complete": true
-        }
-      },
-      "entity": [],
-      "removed": [],
-      "log": [],
-      "secret": [],
-      "signals": [
-        "Product"
-      ]
     },
     {
       "result": {
-        "загружено": 1,
+        "по умолчанию": {
+          "код выхода": 1,
+          "ошибка": "letopis: deleted: загрузка отменена: строка 1 — объект с этим id жил раньше и удалён (existing: update воскресит)"
+        },
+        "--existing update": {
+          "код выхода": 0,
+          "отчёт": {
+            "rows": 1,
+            "loaded": 1,
+            "updated": 0,
+            "skipped": 0,
+            "duplicates": 0,
+            "byClass": {
+              "Product": 1
+            },
+            "external": 1,
+            "portions": 1,
+            "ms": 224.66029999998864
+          }
+        },
         "версии": [
           "v1 create 400",
           "v2 delete 400",
@@ -255,6 +201,6 @@
       ]
     }
   ],
-  "output": "Шаг 1. Администраторское подключение\nletopis: администраторское подключение — RLS не действует, данные всех арендаторов видны\n{\n  \"tenant\": \"55cd1ada-aa68-5582-8b21-7dd4646a6a0a\"\n}\n\nШаг 2. Магазин и два товара одним вызовом\n{\n  \"rows\": 3,\n  \"loaded\": 3,\n  \"updated\": 0,\n  \"skipped\": 0,\n  \"duplicates\": 0,\n  \"byClass\": {\n    \"Shop\": 1,\n    \"Product\": 2\n  },\n  \"external\": 0,\n  \"portions\": 1,\n  \"ms\": 219.62549999999987\n}\n\nШаг 3. Один товар дважды во входе\nотказ, как и задумано: letopis: duplicate: загрузка отменена: строка 2 — id d5a04473-a3ea-52e1-96ed-2b4eda507bb3 уже был в строке 1\n\nШаг 4. Повторы — берём последний, существующие — обновляем\n{\n  \"rows\": 2,\n  \"loaded\": 0,\n  \"updated\": 1,\n  \"skipped\": 0,\n  \"duplicates\": 1,\n  \"byClass\": {},\n  \"external\": 1,\n  \"portions\": 1,\n  \"ms\": 38.16010000000006\n}\n\nШаг 5. Уже существующий объект по умолчанию — ошибка\nотказ, как и задумано: letopis: exists: загрузка отменена: строка 1 — объект уже есть в базе\n\nШаг 6. Массив строк, порции и пачки\n{\n  \"rows\": 2,\n  \"loaded\": 2,\n  \"updated\": 0,\n  \"skipped\": 0,\n  \"duplicates\": 0,\n  \"byClass\": {\n    \"Customer\": 2\n  },\n  \"external\": 0,\n  \"portions\": 2,\n  \"ms\": 474.1861000000001\n}\n\nШаг 7. Строки без $class и от имени пользователя\n{\n  \"report\": {\n    \"rows\": 1,\n    \"loaded\": 1,\n    \"updated\": 0,\n    \"skipped\": 0,\n    \"duplicates\": 0,\n    \"byClass\": {\n      \"Customer\": 1\n    },\n    \"external\": 0,\n    \"portions\": 1,\n    \"ms\": 225.67070000000012\n  },\n  \"автор\": \"3defbabb-a94d-5359-8463-dc947de193e1\"\n}\n\nШаг 8. Классы не грузятся\nотказ, как и задумано: letopis: class_not_loadable: загрузка отменена: строка 1 — строки Class задают letopis sync и create — там база компилирует проверку\n\nШаг 9. Обычное подключение загружать не может\nотказ, как и задумано: letopis: admin_required: загрузчику нужно администраторское подключение (connect({ allowBypassRls: true }) роли, которая может стать владельцем схемы)\n\nШаг 10. Объект жил раньше и удалён — deleted\nотказ, как и задумано: letopis: deleted: загрузка отменена: строка 1 — объект с этим id жил раньше и удалён (existing: update воскресит)\n\nШаг 11. existing: update возвращает удалённый объект\n{\n  \"загружено\": 1,\n  \"версии\": [\n    \"v1 create 400\",\n    \"v2 delete 400\",\n    \"v3 create 450\"\n  ]\n}",
+  "output": "Шаг 1. Магазин и два товара из двух файлов\n{\n  \"код выхода\": 0,\n  \"отчёт\": {\n    \"rows\": 3,\n    \"loaded\": 3,\n    \"updated\": 0,\n    \"skipped\": 0,\n    \"duplicates\": 0,\n    \"byClass\": {\n      \"Shop\": 1,\n      \"Product\": 2\n    },\n    \"external\": 0,\n    \"portions\": 1,\n    \"ms\": 225.37810000000002\n  },\n  \"товары у Анны\": 2,\n  \"исполнитель в журнале\": \"загрузка прайса\"\n}\n\nШаг 2. Один товар дважды во входе — duplicate\n{\n  \"код выхода\": 1,\n  \"ошибка\": \"letopis: duplicate: загрузка отменена: строка 2 — id c0b6fa77-28de-579a-a3fb-b76b09c6690d уже был в строке 1\"\n}\n\nШаг 3. Повторы — последний, существующие — новой версией\n{\n  \"код выхода\": 0,\n  \"отчёт\": {\n    \"rows\": 2,\n    \"loaded\": 0,\n    \"updated\": 1,\n    \"skipped\": 0,\n    \"duplicates\": 1,\n    \"byClass\": {},\n    \"external\": 1,\n    \"portions\": 1,\n    \"ms\": 29.785800000000023\n  },\n  \"цена Чайника\": 2700\n}\n\nШаг 4. Уже существующий объект — exists\n{\n  \"код выхода\": 1,\n  \"ошибка\": \"letopis: exists: загрузка отменена: строка 1 — объект уже есть в базе\"\n}\n\nШаг 5. Строки без $class, внешний ключ и порции\n{\n  \"код выхода\": 0,\n  \"отчёт\": {\n    \"rows\": 2,\n    \"loaded\": 2,\n    \"updated\": 0,\n    \"skipped\": 0,\n    \"duplicates\": 0,\n    \"byClass\": {\n      \"Customer\": 2\n    },\n    \"external\": 0,\n    \"portions\": 2,\n    \"ms\": 445.0437\n  }\n}\n\nШаг 6. Перенос истории: --with-history\n{\n  \"код выхода\": 0,\n  \"отчёт\": {\n    \"rows\": 2,\n    \"loaded\": 1,\n    \"updated\": 0,\n    \"skipped\": 0,\n    \"duplicates\": 0,\n    \"byClass\": {\n      \"Customer\": 1\n    },\n    \"external\": 0,\n    \"portions\": 1,\n    \"ms\": 122.67970000000003\n  },\n  \"версии\": [\n    \"v1 create 2025-01-10: ivan@old.ru\",\n    \"v2 update 2025-06-01: ivan@mail.ru\"\n  ]\n}\n\nШаг 7. Отказы: строки Class, чужая квартира, не мастер-ключ\n{\n  \"строка Class\": {\n    \"код выхода\": 1,\n    \"ошибка\": \"letopis: class_not_loadable: загрузка отменена: строка 1 — строки Class задают letopis sync и create — там база компилирует проверку\"\n  },\n  \"квартира «Нет такой»\": {\n    \"код выхода\": 1,\n    \"ошибка\": \"letopis: target_not_found: квартиры «Нет такой» нет\"\n  },\n  \"роль консьержа вместо мастер-ключа\": {\n    \"код выхода\": 1,\n    \"ошибка\": \"letopis: admin_required: загрузчику нужен мастер-ключ — роль, которая может стать владельцем схемы (суперпользователь или с SET на роль-владельца)\"\n  }\n}\n\nШаг 8. Удалённый объект — deleted, --existing update возвращает его\n{\n  \"по умолчанию\": {\n    \"код выхода\": 1,\n    \"ошибка\": \"letopis: deleted: загрузка отменена: строка 1 — объект с этим id жил раньше и удалён (existing: update воскресит)\"\n  },\n  \"--existing update\": {\n    \"код выхода\": 0,\n    \"отчёт\": {\n      \"rows\": 1,\n      \"loaded\": 1,\n      \"updated\": 0,\n      \"skipped\": 0,\n      \"duplicates\": 0,\n      \"byClass\": {\n        \"Product\": 1\n      },\n      \"external\": 1,\n      \"portions\": 1,\n      \"ms\": 221.7611\n    }\n  },\n  \"версии\": [\n    \"v1 create 400\",\n    \"v2 delete 400\",\n    \"v3 create 450\"\n  ]\n}",
   "exitCode": 0
 }

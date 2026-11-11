@@ -1,0 +1,73 @@
+{
+  "id": "install/06-rotate-demolish",
+  "initial": {
+    "entity": [],
+    "log": [],
+    "secret": []
+  },
+  "steps": [
+    {
+      "result": {
+        "created": false,
+        "пропуск новый": true
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "connect(старый пропуск)": "auth_failed (boot.pass_stale)",
+        "старый консьерж: tenants()": "no_session",
+        "Анна: её квартира": "Ромашка",
+        "Анна: её ключи": [
+          "PASSWORD"
+        ]
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "квартиры": [
+          "Ромашка"
+        ],
+        "resume(токен Анны)": "Ромашка"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    },
+    {
+      "result": {
+        "первый раз": {
+          "schema": "v2.g_install_06_rotate_demolish",
+          "dropped": true
+        },
+        "второй раз": {
+          "schema": "v2.g_install_06_rotate_demolish",
+          "dropped": false
+        },
+        "connect(пропуск)": "auth_failed"
+      },
+      "error": null,
+      "entity": [],
+      "removed": [],
+      "log": [],
+      "secret": [],
+      "signals": []
+    }
+  ],
+  "output": "Шаг 1. Новый пропуск: setup({ rotate: true })\n{\n  \"created\": false,\n  \"пропуск новый\": true\n}\n\nШаг 2. Старый пропуск не работает\n{\n  \"connect(старый пропуск)\": \"auth_failed (boot.pass_stale)\",\n  \"старый консьерж: tenants()\": \"no_session\",\n  \"Анна: её квартира\": \"Ромашка\",\n  \"Анна: её ключи\": [\n    \"PASSWORD\"\n  ]\n}\n\nШаг 3. Новый консьерж: connect(новый пропуск)\n{\n  \"квартиры\": [\n    \"Ромашка\"\n  ],\n  \"resume(токен Анны)\": \"Ромашка\"\n}\n\nШаг 4. Снести дом: demolish()\n{\n  \"первый раз\": {\n    \"schema\": \"v2.example_install_06_rotate_demolish\",\n    \"dropped\": true\n  },\n  \"второй раз\": {\n    \"schema\": \"v2.example_install_06_rotate_demolish\",\n    \"dropped\": false\n  },\n  \"connect(пропуск)\": \"auth_failed\"\n}",
+  "exitCode": 0
+}
